@@ -36,9 +36,6 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           version: "0.8.3"
-      - name: Install ffmpeg (so matplotlib can call it)
-        run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Run pytest
         run: uv run --group dev pytest
       - name: Run mypy
