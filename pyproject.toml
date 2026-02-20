@@ -79,6 +79,7 @@ module = [
     "anemoi.utils.*",
     "earthkit.*",
     "icenet.data.sic.*",
+    "imageio_ffmpeg.*",
     "zarr.*",
 ]
 ignore_missing_imports = true
@@ -92,16 +93,11 @@ addopts = [
 testpaths = ["tests"]
 norecursedirs = [
     ".git",
-    ".venv",
-    "venv",
-    "__pycache__",
-    ".pytest_cache",
     ".mypy_cache",
-    "node_modules",
-    ".idea",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
     ".vscode",
-    "data",
-    "raw_input_*",
 ]
 
 [tool.ruff]
