@@ -92,7 +92,7 @@ class ModelEvaluator:
             "Starting evaluation using %d threads across %d %s device(s).",
             get_device_threads(),
             self.trainer.num_devices,
-            get_device_name(self.trainer.accelerator.name()),
+            get_device_name(self.trainer.accelerator.__class__.__name__), # name() caused CUDA acceleator error
         )
         self.trainer.test(
             model=self.model,

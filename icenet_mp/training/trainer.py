@@ -68,11 +68,22 @@ class ModelTrainer:
 
         # Get run directory from wandb logger or generate a new one
         if wandb_logger := get_wandb_logger(lightning_loggers):
-            run_directory = Path(wandb_logger.experiment._settings.sync_dir)
+            # run_directory = Path(wandb_logger.experiment._settings.sync_dir) this was causing AttributeError: 'function' object has no attribute 'sync_dir' error with ddp
+            # run_directory = Path(wandb_logger.save_dir) / "wandb" / generate_run_name() # worked but wrong checkpoint location
+            # _ = wandb_logger.experiment  # Try to initialize
+            try:           
+                run_directory = Path(wandb_logger.experiment.dir).parent
+                logger.warning(f'Using W&B dir: {run_directory}')
+            except (AttributeError, TypeError):
+                run_directory = Path("/tmp/unused-rank-fallback") 
+                logger.warning(f'Using fallback dir: {run_directory}')
+            run_directory.mkdir(parents=True, exist_ok=True)
+            
         else:
             run_directory = (
                 self.data_module.base_path / "training" / "local" / generate_run_name()
             )
+            run_directory.mkdir(parents=True, exist_ok=True)
 
         # Add callbacks
         callbacks: list[Callback] = [
@@ -112,7 +123,7 @@ class ModelTrainer:
             self.trainer.max_epochs,
             get_device_threads(),
             self.trainer.num_devices,
-            get_device_name(self.trainer.accelerator.name()),
+            get_device_name(self.trainer.accelerator.__class__.__name__), # .name caused CUDA accelerator version mismatch
         )
         self.trainer.fit(
             model=self.model,
