@@ -8,16 +8,14 @@ import torch
 from lightning import Callback, Trainer
 from lightning.fabric.utilities import suggested_max_num_workers
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
-from wandb.wandb_run import Run
 
 from icenet_mp.callbacks import UnconditionalCheckpoint
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models.base_model import BaseModel
 from icenet_mp.types import SupportsMetadata
-from icenet_mp.utils import get_device_name, get_timestamp
+from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
 if TYPE_CHECKING:
     from lightning.pytorch.loggers import Logger as LightningLogger
@@ -35,7 +33,6 @@ class ModelService:
         self.extra_callbacks_: list[Callback] = []
         self.extra_loggers_: list[LightningLogger] = []
         self.run_directory_: Path | None = None
-        self.wandb_run_: Run | None = None
 
     @classmethod
     def from_config(cls, config: DictConfig) -> "ModelService":
@@ -136,8 +133,9 @@ class ModelService:
         """Get run directory from Wandb or generate one in the same format."""
         if not self.run_directory_:
             # Get the run directory from Wandb if it exists
-            if self.wandb_run:
-                self.run_directory_ = Path(self.wandb_run._settings.sync_dir)
+            wandb_run = get_wandb_run(self.trainer)
+            if wandb_run:
+                self.run_directory_ = Path(wandb_run._settings.sync_dir)
 
             # Otherwise generate a new run directory
             if not self.run_directory_:
@@ -176,18 +174,6 @@ class ModelService:
                 suggested_max_num_workers(self.trainer_.num_devices)
             )
         return self.trainer_
-
-    @property
-    def wandb_run(self) -> Run | None:
-        """Get the Wandb Run instance if it exists."""
-        if not self.wandb_run_:
-            for lightning_logger in self.trainer.loggers:
-                if isinstance(lightning_logger, WandbLogger) and isinstance(
-                    experiment := lightning_logger.experiment, Run
-                ):
-                    self.wandb_run_ = experiment
-                    break
-        return self.wandb_run_
 
     def add_callbacks(self, callback_configs: Iterable[DictConfig]) -> None:
         """Add extra lightning callbacks."""
@@ -239,8 +225,8 @@ class ModelService:
         # Save model config to the run directory
         model_config_path = self.run_directory / "files" / "model_config.yaml"
         OmegaConf.save(self.config, model_config_path)
-        if self.wandb_run:
-            self.wandb_run.save(model_config_path, base_path=model_config_path.parent)
+        if wandb_run := get_wandb_run(self.trainer):
+            wandb_run.save(model_config_path, base_path=model_config_path.parent)
 
     def evaluate(self) -> None:
         """Evaluate a trained model."""
