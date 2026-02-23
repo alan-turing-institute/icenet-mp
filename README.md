@@ -50,7 +50,7 @@
 | icenet\_mp/models/common/resizing\_interpolation.py        |       13 |        0 |    100% |           |
 | icenet\_mp/models/common/time\_embed.py                    |        9 |        4 |     56% | 26-30, 37 |
 | icenet\_mp/models/common/transformerblock.py               |       12 |        7 |     42% |16-22, 40-42 |
-| icenet\_mp/models/ddpm.py                                  |      116 |       91 |     22% |17, 35-36, 52, 94-177, 180-181, 198-219, 227-229, 243-276, 283-314, 321-345, 362-385 |
+| icenet\_mp/models/ddpm.py                                  |      119 |       94 |     21% |17, 35-36, 52, 94-194, 197-198, 215-236, 244-246, 262-302, 325-356, 381-405, 434-457 |
 | icenet\_mp/models/decoders/\_\_init\_\_.py                 |        4 |        0 |    100% |           |
 | icenet\_mp/models/decoders/base\_decoder.py                |       14 |        2 |     86% |     40-41 |
 | icenet\_mp/models/decoders/cnn\_decoder.py                 |       40 |        0 |    100% |           |
@@ -97,7 +97,7 @@
 | icenet\_mp/visualisations/range\_check.py                  |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
 | icenet\_mp/xpu/\_\_init\_\_.py                             |        9 |        0 |    100% |           |
 | icenet\_mp/xpu/accelerator.py                              |       72 |       39 |     46% |35-42, 55, 60-62, 77-111, 125-127, 133, 144-147, 152 |
-| **TOTAL**                                                  | **3392** |  **989** | **71%** |           |
+| **TOTAL**                                                  | **3395** |  **992** | **71%** |           |
 
 
 ## Setup coverage badge
