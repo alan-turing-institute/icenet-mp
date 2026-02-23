@@ -35,6 +35,7 @@ class ModelService:
         self.extra_callbacks_: list[Callback] = []
         self.extra_loggers_: list[LightningLogger] = []
         self.run_directory_: Path | None = None
+        self.wandb_run_: Run | None = None
 
     @classmethod
     def from_config(cls, config: DictConfig) -> "ModelService":
@@ -79,7 +80,7 @@ class ModelService:
         # Build a combined model configuration where the command line config takes
         # precedence except for the "model", "predict" and "train" keys which are
         # related to training the model.
-        config_path = checkpoint_path.parent.parent / "model_config.yaml"
+        config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
         try:
             # Load the model configuration from the checkpoint directory
             ckpt_config = DictConfig(OmegaConf.load(config_path))
@@ -132,16 +133,11 @@ class ModelService:
 
     @property
     def run_directory(self) -> Path:
-        """Get run directory from wandb logger or generate one in the same format."""
+        """Get run directory from Wandb or generate one in the same format."""
         if not self.run_directory_:
-            # Get the run directory from the WandbLogger if it exists
-            for lightning_logger in self.trainer.loggers:
-                if not isinstance(lightning_logger, WandbLogger):
-                    continue
-                if not isinstance(experiment := lightning_logger.experiment, Run):
-                    continue
-                self.run_directory_ = Path(experiment._settings.sync_dir)
-                break
+            # Get the run directory from Wandb if it exists
+            if self.wandb_run:
+                self.run_directory_ = Path(self.wandb_run._settings.sync_dir)
 
             # Otherwise generate a new run directory
             if not self.run_directory_:
@@ -180,6 +176,18 @@ class ModelService:
                 suggested_max_num_workers(self.trainer_.num_devices)
             )
         return self.trainer_
+
+    @property
+    def wandb_run(self) -> Run | None:
+        """Get the Wandb Run instance if it exists."""
+        if not self.wandb_run_:
+            for lightning_logger in self.trainer.loggers:
+                if isinstance(lightning_logger, WandbLogger) and isinstance(
+                    experiment := lightning_logger.experiment, Run
+                ):
+                    self.wandb_run_ = experiment
+                    break
+        return self.wandb_run_
 
     def add_callbacks(self, callback_configs: Iterable[DictConfig]) -> None:
         """Add extra lightning callbacks."""
@@ -229,7 +237,10 @@ class ModelService:
                 callback.dirpath = self.run_directory / "checkpoints"
 
         # Save model config to the run directory
-        OmegaConf.save(self.config, self.run_directory / "model_config.yaml")
+        model_config_path = self.run_directory / "files" / "model_config.yaml"
+        OmegaConf.save(self.config, model_config_path)
+        if self.wandb_run:
+            self.wandb_run.save(model_config_path, base_path=model_config_path.parent)
 
     def evaluate(self) -> None:
         """Evaluate a trained model."""
