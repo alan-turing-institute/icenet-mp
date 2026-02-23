@@ -1,9 +1,10 @@
 import statistics
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
 from lightning import LightningModule, Trainer
+from lightning.pytorch.loggers import WandbLogger
 from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
@@ -178,6 +179,84 @@ class TestOnTestEnd:
         # Should not raise an error, just log a warning
         mock_logger = mock_trainer.loggers[0]
         mock_logger.log_metrics.assert_not_called()
+
+    @patch("icenet_mp.callbacks.metric_summary_callback.wandb")
+    def test_on_test_end_with_wandb_logger_vector_metric(
+        self,
+        mock_wandb: MagicMock,
+        callback: MetricSummaryCallback,
+        mock_module: MagicMock,
+    ) -> None:
+        """Test on_test_end with WandbLogger and a metric returning a vector."""
+        # Create a trainer with WandbLogger
+        trainer = MagicMock(spec=Trainer)
+        wandb_logger = MagicMock(spec=WandbLogger)
+        trainer.loggers = [wandb_logger]
+
+        # Create a metric that returns multiple values (daily metric)
+        metric_collection = MetricCollection({"mae_daily": MAEDaily()})
+        mock_module.test_metrics = metric_collection
+
+        # Create sample 5D data: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = torch.randn(1, 3, 1, 2, 2)
+        targets = torch.randn(1, 3, 1, 2, 2)
+        metric_collection.update(preds, targets)
+
+        # Mock wandb.Table and wandb.plot.line
+        mock_table = MagicMock()
+        mock_wandb.Table.return_value = mock_table
+        mock_plot = MagicMock()
+        mock_wandb.plot.line.return_value = mock_plot
+
+        callback.on_test_end(trainer, mock_module)
+
+        # Assert that wandb.Table was created with the daily values
+        mock_wandb.Table.assert_called_once()
+        table_call_args = mock_wandb.Table.call_args
+        assert table_call_args[1]["columns"] == ["day", "mae_daily"]
+        # Verify data includes enumeration starting from 1
+        data = table_call_args[1]["data"]
+        assert len(data) == 3  # 3 days
+        assert data[0][0] == 1  # First day index
+
+        # Assert that wandb.plot.line was called
+        mock_wandb.plot.line.assert_called_once_with(
+            mock_table, "day", "mae_daily", title="mae_daily per day"
+        )
+
+        # Assert that wandb.log was called with the plot
+        mock_wandb.log.assert_called_once()
+        log_call_args = mock_wandb.log.call_args[0][0]
+        assert "mae_daily per day" in log_call_args
+
+        # Assert that the mean value was logged
+        wandb_logger.log_metrics.assert_called_once()
+        metrics_call_args = wandb_logger.log_metrics.call_args[0][0]
+        assert "mae_daily (mean)" in metrics_call_args
+
+    def test_on_test_end_without_wandb_logger_vector_metric(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+    ) -> None:
+        """Test on_test_end with non-WandbLogger and a metric returning a vector."""
+        # Create a metric that returns multiple values (daily metric)
+        metric_collection = MetricCollection({"mae_daily": MAEDaily()})
+        mock_module.test_metrics = metric_collection
+
+        # Create sample 5D data: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = torch.randn(1, 3, 1, 2, 2)
+        targets = torch.randn(1, 3, 1, 2, 2)
+        metric_collection.update(preds, targets)
+
+        callback.on_test_end(mock_trainer, mock_module)
+
+        # Assert that the mean value was logged without wandb plotting
+        mock_logger = mock_trainer.loggers[0]
+        mock_logger.log_metrics.assert_called_once()
+        metrics_call_args = mock_logger.log_metrics.call_args[0][0]
+        assert "mae_daily (mean)" in metrics_call_args
 
 
 class TestMetricCalculations:
