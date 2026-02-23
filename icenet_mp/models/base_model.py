@@ -146,13 +146,14 @@ class BaseModel(LightningModule, ABC):
         target = batch.pop("target")
         prediction = self(batch)
         loss = self.loss(prediction, target)
-        test_metrics = self.test_metrics(prediction, target)
+        # update test metrics with the current batch; computation will be done at epoch end
+        self.test_metrics.update(prediction, target)
 
-        # for each of the test metrics, calculate the mean value across the batch and log it
-        for name, value in test_metrics.items():
+        # log test metrics aggregated over the entire test epoch to avoid per-step compute overhead
+        for name, value in self.test_metrics.items():
             if isinstance(value, torch.Tensor):
                 self.log(
-                    name, value.mean(), on_step=True, on_epoch=False, prog_bar=False
+                    name, value.mean(), on_step=False, on_epoch=True, prog_bar=False
                 )
 
         return ModelTestOutput(prediction, target, loss)
