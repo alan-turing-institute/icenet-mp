@@ -15,7 +15,7 @@ class TestEncoders:
     @pytest.mark.parametrize(
         "test_encoder_cls", ["CNNEncoder", "NaiveLinearEncoder", "PiecewiseEncoder"]
     )
-    @pytest.mark.parametrize("test_input_chw", [(4, 512, 512, 4), (1, 20, 200)])
+    @pytest.mark.parametrize("test_input_chw", [(4, 512, 512), (1, 20, 200)])
     @pytest.mark.parametrize("test_latent_hw", [(32, 32), (40, 73)])
     @pytest.mark.parametrize("test_n_history_steps", [1, 3, 5])
     def test_forward_shape(
