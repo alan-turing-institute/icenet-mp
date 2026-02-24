@@ -1,6 +1,7 @@
 """Main entrypoint for the CLI application."""
 
 import logging
+import warnings
 
 import typer
 from hydra.core.utils import simple_stdout_log_config
@@ -17,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 # Register all plugins
 register_plugins()
+
+# Ignore warnings about known PyTorch issues
+warnings.filterwarnings(
+    "ignore",
+    message=".*Using padding='same' with even kernel lengths and odd dilation.*",
+)
 
 # Create the typer app
 app = typer.Typer(

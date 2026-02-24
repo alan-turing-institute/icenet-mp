@@ -41,8 +41,9 @@ class EncodeProcessDecode(BaseModel):
 
         # We have to explicitly register each encoder as list[Module] will not be
         # automatically picked up by PyTorch
-        for idx, module in enumerate(self.encoders):
-            self.add_module(f"encoder_{idx}", module)
+        for input_space, module in zip(self.input_spaces, self.encoders, strict=True):
+            module_name = f"encoder_{input_space.name}".lower().replace("-", "_")
+            self.add_module(module_name, module)
 
         # Add a processor
         combined_latent_space = DataSpace(
