@@ -149,13 +149,6 @@ class BaseModel(LightningModule, ABC):
         # update test metrics with the current batch; computation will be done at epoch end
         self.test_metrics.update(prediction, target)
 
-        # log test metrics aggregated over the entire test epoch to avoid per-step compute overhead
-        for name, value in self.test_metrics.items():
-            if isinstance(value, torch.Tensor):
-                self.log(
-                    name, value.mean(), on_step=False, on_epoch=True, prog_bar=False
-                )
-
         return ModelTestOutput(prediction, target, loss)
 
     def training_step(
