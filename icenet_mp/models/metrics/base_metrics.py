@@ -23,7 +23,9 @@ class BaseErrorMetricDaily(Metric):
             dist_reduce_fx="sum",
         )
 
-    def _compute_errors(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def _compute_errors(
+        self, preds: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
         """Compute element-wise errors. Override in subclasses."""
         raise NotImplementedError
 
@@ -86,7 +88,9 @@ class BaseErrorMetricDaily(Metric):
 class RMSEDaily(BaseErrorMetricDaily):
     """Root Mean Squared Error per forecast lead time."""
 
-    def _compute_errors(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def _compute_errors(
+        self, preds: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
         return (preds - targets) ** 2
 
     def _finalize(self, mean_errors: torch.Tensor) -> torch.Tensor:
@@ -96,5 +100,7 @@ class RMSEDaily(BaseErrorMetricDaily):
 class MAEDaily(BaseErrorMetricDaily):
     """Mean Absolute Error per forecast lead time."""
 
-    def _compute_errors(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def _compute_errors(
+        self, preds: torch.Tensor, targets: torch.Tensor
+    ) -> torch.Tensor:
         return torch.abs(preds - targets)
