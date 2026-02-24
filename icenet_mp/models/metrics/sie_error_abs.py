@@ -46,16 +46,16 @@ class SIEErrorDaily(Metric):
         target = target > SEA_ICE_THRESHOLD
 
         # Calculate the SIE for each day of the forecast
-        pred_sie = torch.sum(preds, dim=(0, 2, 3, 4))  # type: ignore[operator]
-        true_sie = torch.sum(target, dim=(0, 2, 3, 4))  # type: ignore[operator]
-        error = (pred_sie - true_sie).float().to(self.device)
-        # Reshape to (T, 1) to stack horizontally across epochs/batches
+        pred_sie = torch.sum(preds, dim=(2, 3, 4))  # Shape: (B, T, ...)
+        true_sie = torch.sum(target, dim=(2, 3, 4))  # Shape: (B, T, ...)
+        # Per-sample absolute SIE error (B, T, ...) -> (B, T)
+        error = (pred_sie - true_sie).float().abs().to(self.device)
+        # Move time to first dimension and stack samples horizontally: (T, B)
+        error = error.transpose(0, 1)
         if self.sie_error.numel() == 0:
-            self.sie_error = error.unsqueeze(1)  # Shape: (T,)
+            self.sie_error = error  # Shape: (T, B)
         else:
-            self.sie_error = torch.cat(
-                (self.sie_error, error.unsqueeze(1)), dim=1
-            )  # Shape: (T, N)
+            self.sie_error = torch.cat((self.sie_error, error), dim=1)  # Shape: (T, N)
 
     def compute(self) -> torch.Tensor:
         """Compute the final Sea Ice Extent error in km²."""
