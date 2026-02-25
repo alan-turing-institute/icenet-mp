@@ -198,16 +198,20 @@ class ModelService:
     def configure_trainer(
         self,
         *,
-        callback_configs: Iterable[DictConfig],
-        logger_overrides: dict[str, str],
+        job_type: str,
     ) -> None:
         """Configure the trainer with callbacks and loggers."""
         # Setup callbacks first
+        callback_configs = self.config.get(job_type, {}).get("callbacks", {}).values()
         self.add_callbacks(callback_configs)
         if not self.extra_callbacks_:
             logger.warning("No callbacks have been set for the trainer.")
 
         # Setup lightning loggers
+        logger_overrides = {
+            "job_type": job_type,
+            "project": job_type,
+        }
         self.add_loggers(logger_overrides)
         if not self.extra_loggers_:
             logger.warning("No loggers have been set for the trainer.")
@@ -235,16 +239,7 @@ class ModelService:
         """Evaluate a trained model."""
         # Configure the trainer with evaluation callbacks and loggers
         logger.info("Configuring model for evaluation.")
-        self.configure_trainer(
-            callback_configs=self.config.get("evaluate", {})
-            .get("callbacks", {})
-            .values(),
-            logger_overrides={
-                "job_type": "evaluate",
-                "name": f"{self.model.name}-{get_timestamp()}",
-                "project": "leaderboard",
-            },
-        )
+        self.configure_trainer(job_type="evaluate")
         # Log evaluation details
         logger.info(
             "Starting evaluation using %d threads across %d %s device(s).",
@@ -263,10 +258,7 @@ class ModelService:
         """Train a model."""
         # Configure the trainer with training callbacks and loggers
         logger.info("Configuring model for training.")
-        self.configure_trainer(
-            callback_configs=self.config.get("train", {}).get("callbacks", {}).values(),
-            logger_overrides={"job_type": "train", "project": self.model.name},
-        )
+        self.configure_trainer(job_type="train")
 
         # Log training details
         logger.info(
