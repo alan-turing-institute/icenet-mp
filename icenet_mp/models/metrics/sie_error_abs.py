@@ -19,10 +19,13 @@ class SIEErrorDaily(Metric):
 
         """
         super().__init__()
-        self.sie_error: torch.Tensor
-        self.add_state("sie_error", default=torch.tensor([]), dist_reduce_fx="cat")
-
+        self.sum_errors: torch.Tensor
+        self.sample_count: torch.Tensor
         self.pixel_size = pixel_size
+
+        # States initialized lazily on first update
+        self.add_state("sum_errors", default=torch.tensor([]), dist_reduce_fx="sum")
+        self.add_state("sample_count", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(
         self,
@@ -35,10 +38,10 @@ class SIEErrorDaily(Metric):
         Parameters
         ----------
         preds : torch.Tensor
-            Model predictions.
+            Model predictions of shape (B, T, H, W).
         target : torch.Tensor
-            Ground truth values.
-        sample_weight : Optional[torch.Tensor]
+            Ground truth values of shape (B, T, H, W).
+        _sample_weight : Optional[torch.Tensor]
             Ignored (present for API compatibility).
 
         """
@@ -46,17 +49,26 @@ class SIEErrorDaily(Metric):
         target = target > SEA_ICE_THRESHOLD
 
         # Calculate the SIE for each day of the forecast
-        pred_sie = torch.sum(preds, dim=(2, 3, 4))  # Shape: (B, T, ...)
-        true_sie = torch.sum(target, dim=(2, 3, 4))  # Shape: (B, T, ...)
-        # Per-sample absolute SIE error (B, T, ...) -> (B, T)
-        error = (pred_sie - true_sie).float().abs().to(self.device)
-        # Move time to first dimension and stack samples horizontally: (T, B)
-        error = error.transpose(0, 1)
-        if self.sie_error.numel() == 0:
-            self.sie_error = error  # Shape: (T, B)
+        pred_sie = torch.sum(preds, dim=(2, 3, 4))  # Shape: (B, T)
+        true_sie = torch.sum(target, dim=(2, 3, 4))  # Shape: (B, T)
+
+        # Per-sample absolute SIE error (B, T)
+        error = (pred_sie - true_sie).float().abs()
+
+        # Initialize states on first update
+        if self.sum_errors.numel() == 0:
+            self.sum_errors = error.sum(
+                dim=0
+            )  # torch.zeros(error.shape[1], device=self.device)
         else:
-            self.sie_error = torch.cat((self.sie_error, error), dim=1)  # Shape: (T, N)
+            # Accumulate sums and counts per lead time
+            self.sum_errors += error.sum(dim=0)  # Sum across batch dimension
+        self.sample_count += error.shape[0]  # Increment count by batch size
 
     def compute(self) -> torch.Tensor:
         """Compute the final Sea Ice Extent error in km²."""
-        return torch.mean(torch.abs(self.sie_error), dim=1) * self.pixel_size**2  # type: ignore[operator]
+        if self.sum_errors.numel() == 0:
+            return torch.tensor(0.0, device=self.device)
+
+        mean_error = self.sum_errors / self.sample_count
+        return mean_error * self.pixel_size**2  # type: ignore[operator]
