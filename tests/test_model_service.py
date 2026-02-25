@@ -63,7 +63,9 @@ class TestModelService:
         checkpoint_path = checkpoints_dir / "model.ckpt"
         checkpoint_path.write_text("checkpoint")
 
-        OmegaConf.save(cfg_model_service, tmp_path / "model_config.yaml")
+        files_dir = tmp_path / "files"
+        files_dir.mkdir(parents=True)
+        OmegaConf.save(cfg_model_service, files_dir / "model_config.yaml")
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
@@ -83,7 +85,9 @@ class TestModelService:
         checkpoint_path = checkpoints_dir / "model.ckpt"
         checkpoint_path.write_text("checkpoint")
 
-        OmegaConf.save(cfg_model_service, tmp_path / "model_config.yaml")
+        files_dir = tmp_path / "files"
+        files_dir.mkdir(parents=True)
+        OmegaConf.save(cfg_model_service, files_dir / "model_config.yaml")
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
