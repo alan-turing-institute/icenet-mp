@@ -36,7 +36,7 @@
 | icenet\_mp/data\_processors/sources/\_\_init\_\_.py        |        9 |        0 |    100% |           |
 | icenet\_mp/data\_processors/sources/ftp.py                 |       31 |        0 |    100% |           |
 | icenet\_mp/exceptions.py                                   |        3 |        0 |    100% |           |
-| icenet\_mp/model\_service.py                               |      123 |       52 |     58% |76-77, 92-94, 114-115, 129-130, 136-158, 163-182, 186, 193, 206-232, 237-257, 265-281 |
+| icenet\_mp/model\_service.py                               |      125 |       54 |     57% |76-77, 92-94, 114-115, 129-130, 136-158, 163-182, 186, 193, 205-236, 241-252, 260-273 |
 | icenet\_mp/models/\_\_init\_\_.py                          |        5 |        0 |    100% |           |
 | icenet\_mp/models/base\_model.py                           |       54 |        0 |    100% |           |
 | icenet\_mp/models/common/\_\_init\_\_.py                   |       13 |        0 |    100% |           |
@@ -103,7 +103,7 @@
 | icenet\_mp/visualisations/range\_check.py                  |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
 | icenet\_mp/xpu/\_\_init\_\_.py                             |        9 |        0 |    100% |           |
 | icenet\_mp/xpu/accelerator.py                              |       72 |       39 |     46% |35-42, 55, 60-62, 77-111, 125-127, 133, 144-147, 152 |
-| **TOTAL**                                                  | **3501** |  **996** | **72%** |           |
+| **TOTAL**                                                  | **3503** |  **998** | **72%** |           |
 
 
 ## Setup coverage badge
