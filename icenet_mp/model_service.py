@@ -8,16 +8,14 @@ import torch
 from lightning import Callback, Trainer
 from lightning.fabric.utilities import suggested_max_num_workers
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
-from wandb.wandb_run import Run
 
 from icenet_mp.callbacks import UnconditionalCheckpoint
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models.base_model import BaseModel
 from icenet_mp.types import SupportsMetadata
-from icenet_mp.utils import get_device_name, get_timestamp
+from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
 if TYPE_CHECKING:
     from lightning.pytorch.loggers import Logger as LightningLogger
@@ -79,7 +77,7 @@ class ModelService:
         # Build a combined model configuration where the command line config takes
         # precedence except for the "model", "predict" and "train" keys which are
         # related to training the model.
-        config_path = checkpoint_path.parent.parent / "model_config.yaml"
+        config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
         try:
             # Load the model configuration from the checkpoint directory
             ckpt_config = DictConfig(OmegaConf.load(config_path))
@@ -132,16 +130,12 @@ class ModelService:
 
     @property
     def run_directory(self) -> Path:
-        """Get run directory from wandb logger or generate one in the same format."""
+        """Get run directory from Wandb or generate one in the same format."""
         if not self.run_directory_:
-            # Get the run directory from the WandbLogger if it exists
-            for lightning_logger in self.trainer.loggers:
-                if not isinstance(lightning_logger, WandbLogger):
-                    continue
-                if not isinstance(experiment := lightning_logger.experiment, Run):
-                    continue
-                self.run_directory_ = Path(experiment._settings.sync_dir)
-                break
+            # Get the run directory from Wandb if it exists
+            wandb_run = get_wandb_run(self.trainer)
+            if wandb_run:
+                self.run_directory_ = Path(wandb_run._settings.sync_dir)
 
             # Otherwise generate a new run directory
             if not self.run_directory_:
@@ -198,16 +192,20 @@ class ModelService:
     def configure_trainer(
         self,
         *,
-        callback_configs: Iterable[DictConfig],
-        logger_overrides: dict[str, str],
+        job_type: str,
     ) -> None:
         """Configure the trainer with callbacks and loggers."""
         # Setup callbacks first
+        callback_configs = self.config.get(job_type, {}).get("callbacks", {}).values()
         self.add_callbacks(callback_configs)
         if not self.extra_callbacks_:
             logger.warning("No callbacks have been set for the trainer.")
 
         # Setup lightning loggers
+        logger_overrides = {
+            "job_type": job_type,
+            "project": job_type,
+        }
         self.add_loggers(logger_overrides)
         if not self.extra_loggers_:
             logger.warning("No loggers have been set for the trainer.")
@@ -229,22 +227,16 @@ class ModelService:
                 callback.dirpath = self.run_directory / "checkpoints"
 
         # Save model config to the run directory
-        OmegaConf.save(self.config, self.run_directory / "model_config.yaml")
+        model_config_path = self.run_directory / "files" / "model_config.yaml"
+        OmegaConf.save(self.config, model_config_path)
+        if wandb_run := get_wandb_run(self.trainer):
+            wandb_run.save(model_config_path, base_path=model_config_path.parent)
 
     def evaluate(self) -> None:
         """Evaluate a trained model."""
         # Configure the trainer with evaluation callbacks and loggers
         logger.info("Configuring model for evaluation.")
-        self.configure_trainer(
-            callback_configs=self.config.get("evaluate", {})
-            .get("callbacks", {})
-            .values(),
-            logger_overrides={
-                "job_type": "evaluate",
-                "name": f"{self.model.name}-{get_timestamp()}",
-                "project": "leaderboard",
-            },
-        )
+        self.configure_trainer(job_type="evaluate")
         # Log evaluation details
         logger.info(
             "Starting evaluation using %d threads across %d %s device(s).",
@@ -263,10 +255,7 @@ class ModelService:
         """Train a model."""
         # Configure the trainer with training callbacks and loggers
         logger.info("Configuring model for training.")
-        self.configure_trainer(
-            callback_configs=self.config.get("train", {}).get("callbacks", {}).values(),
-            logger_overrides={"job_type": "train", "project": self.model.name},
-        )
+        self.configure_trainer(job_type="train")
 
         # Log training details
         logger.info(

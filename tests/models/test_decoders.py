@@ -5,13 +5,16 @@ from icenet_mp.models.decoders import (
     BaseDecoder,
     CNNDecoder,
     NaiveLinearDecoder,
+    PiecewiseDecoder,
 )
 from icenet_mp.types import DataSpace
 
 
 class TestDecoders:
     @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
-    @pytest.mark.parametrize("test_decoder_cls", ["CNNDecoder", "NaiveLinearDecoder"])
+    @pytest.mark.parametrize(
+        "test_decoder_cls", ["CNNDecoder", "NaiveLinearDecoder", "PiecewiseDecoder"]
+    )
     @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (2, 200, 100)])
     @pytest.mark.parametrize("test_n_forecast_steps", [1, 3, 5])
     @pytest.mark.parametrize("test_output_chw", [(4, 256, 256), (1, 100, 200)])
@@ -37,6 +40,11 @@ class TestDecoders:
                 n_layers=1,
             ),
             "NaiveLinearDecoder": NaiveLinearDecoder(
+                data_space_in=latent_space,
+                data_space_out=output_space,
+                n_forecast_steps=test_n_forecast_steps,
+            ),
+            "PiecewiseDecoder": PiecewiseDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
                 n_forecast_steps=test_n_forecast_steps,
@@ -86,7 +94,9 @@ class TestDecoderBounded:
         reason="Bounded output for random input is not always between 0 and 1.",
         strict=False,
     )
-    @pytest.mark.parametrize("test_decoder_cls", ["CNNDecoder", "NaiveLinearDecoder"])
+    @pytest.mark.parametrize(
+        "test_decoder_cls", ["CNNDecoder", "NaiveLinearDecoder", "PiecewiseDecoder"]
+    )
     def test_bounded_fixes_values_between_0_and_1(self, test_decoder_cls: str) -> None:
         test_batch_size = 1
         test_n_forecast_steps = 1
@@ -107,6 +117,12 @@ class TestDecoderBounded:
                 data_space_out=output_space,
                 n_forecast_steps=test_n_forecast_steps,
                 bounded=bounded,
+            ),
+            "PiecewiseDecoder": lambda bounded: PiecewiseDecoder(
+                data_space_in=latent_space,
+                data_space_out=output_space,
+                n_forecast_steps=test_n_forecast_steps,
+                restrict_range="tanh" if bounded else "none",
             ),
         }
 
@@ -135,3 +151,54 @@ class TestDecoderBounded:
 
         # unbounded output should (very likely) contain values outside [0, 1]
         assert torch.any((out_unbounded < 0.0) | (out_unbounded > 1.0)).item()
+
+
+class TestPiecewiseDecoder:
+    @pytest.mark.parametrize("test_patch_size", [(2, 2), (3, 3), (7, 3)])
+    @pytest.mark.parametrize("test_output_chw", [(4, 37, 53), (1, 256, 256)])
+    def test_decoding_gives_same_range_as_input(
+        self,
+        test_patch_size: tuple[int, int],
+        test_output_chw: tuple[int, int, int],
+    ) -> None:
+        # Generate input and output spaces
+        output_space = DataSpace(
+            name="output", channels=test_output_chw[0], shape=test_output_chw[1:]
+        )
+        stride = [max(1, p // 2) for p in test_patch_size]
+        n_patches = (
+            (output_space.shape[0] + 2 * stride[0] - (test_patch_size[0] - 1) - 1)
+            // stride[0]
+            + 1
+        ) * (
+            (output_space.shape[1] + 2 * stride[1] - (test_patch_size[1] - 1) - 1)
+            // stride[1]
+            + 1
+        )
+        input_space = DataSpace(
+            name="input", channels=test_output_chw[0] * n_patches, shape=test_patch_size
+        )
+
+        # Initialise decoder
+        decoder = PiecewiseDecoder(
+            data_space_in=input_space,
+            data_space_out=output_space,
+            n_conv_blocks=0,
+            n_forecast_steps=1,
+            restrict_range="none",
+        )
+
+        # Generate a sequentially increasing input tensor
+        input_ntchw = torch.arange(
+            1,
+            input_space.channels * input_space.shape[0] * input_space.shape[1] + 1,
+            dtype=torch.float32,
+        ).reshape(1, 1, input_space.channels, *input_space.shape)
+        input_min_val = input_ntchw.min().item()
+        input_max_val = input_ntchw.max().item()
+
+        # Rollout the decoder and check that the output values are in the same range as the input values
+        latent_ntchw = decoder.rollout(input_ntchw)
+        assert latent_ntchw.shape == (1, 1, *output_space.chw)
+        assert torch.all(input_min_val < latent_ntchw)
+        assert torch.all(latent_ntchw < input_max_val)
