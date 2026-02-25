@@ -36,7 +36,7 @@
 | icenet\_mp/data\_processors/sources/\_\_init\_\_.py        |        9 |        0 |    100% |           |
 | icenet\_mp/data\_processors/sources/ftp.py                 |       31 |        0 |    100% |           |
 | icenet\_mp/exceptions.py                                   |        3 |        0 |    100% |           |
-| icenet\_mp/model\_service.py                               |      125 |       54 |     57% |76-77, 92-94, 114-115, 129-130, 136-158, 163-182, 186, 193, 205-236, 241-252, 260-273 |
+| icenet\_mp/model\_service.py                               |      122 |       53 |     57% |74-75, 90-92, 112-113, 127-128, 134-152, 157-176, 180, 187, 199-233, 238-249, 257-270 |
 | icenet\_mp/models/\_\_init\_\_.py                          |        5 |        0 |    100% |           |
 | icenet\_mp/models/base\_model.py                           |       54 |        0 |    100% |           |
 | icenet\_mp/models/common/\_\_init\_\_.py                   |       13 |        0 |    100% |           |
@@ -89,7 +89,7 @@
 | icenet\_mp/types/protocols.py                              |        4 |        0 |    100% |           |
 | icenet\_mp/types/simple\_datatypes.py                      |       59 |        0 |    100% |           |
 | icenet\_mp/types/typedefs.py                               |       13 |        0 |    100% |           |
-| icenet\_mp/utils.py                                        |       28 |       16 |     43% |9, 14-26, 31, 44 |
+| icenet\_mp/utils.py                                        |       36 |       20 |     44% |12, 17-29, 34, 39-44, 57 |
 | icenet\_mp/visualisations/\_\_init\_\_.py                  |        3 |        0 |    100% |           |
 | icenet\_mp/visualisations/convert.py                       |       47 |        5 |     89% |82-84, 88-89 |
 | icenet\_mp/visualisations/helpers.py                       |      151 |       27 |     82% |57, 59, 62-63, 79-80, 113, 133, 140, 145-146, 206-221, 332-333, 356-364, 387-393, 455, 488 |
@@ -103,7 +103,7 @@
 | icenet\_mp/visualisations/range\_check.py                  |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
 | icenet\_mp/xpu/\_\_init\_\_.py                             |        9 |        0 |    100% |           |
 | icenet\_mp/xpu/accelerator.py                              |       72 |       39 |     46% |35-42, 55, 60-62, 77-111, 125-127, 133, 144-147, 152 |
-| **TOTAL**                                                  | **3503** |  **998** | **72%** |           |
+| **TOTAL**                                                  | **3508** | **1001** | **71%** |           |
 
 
 ## Setup coverage badge
