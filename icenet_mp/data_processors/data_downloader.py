@@ -8,7 +8,6 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import sleep
 
-from anemoi.datasets.commands.create import Create
 from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
@@ -18,7 +17,6 @@ from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
-    AnemoiCreateArgs,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
     AnemoiInspectArgs,
@@ -98,18 +96,26 @@ class DataDownloader:
         self.download()
 
     def download(self) -> None:
-        """Download a single Anemoi dataset."""
+        """Download an Anemoi dataset in parts."""
         self.preprocessor.download(self.path_preprocessor)
         logger.info("Creating dataset %s at %s.", self.name, self.path_dataset)
-        Create().run(
-            AnemoiCreateArgs(
-                path=str(self.path_dataset),
-                config=self.config,
+        # Initialise
+        self.initialise()
+        # Load in parts
+        self.load_in_chunks()
+        # Finalise if the status indicates the dataset is complete
+        download_in_progress, download_complete = self.status()
+        if download_complete and not download_in_progress:
+            self.finalise()
+        else:
+            logger.warning(
+                "Dataset %s at %s is incomplete after loading, skipping finalise.",
+                self.name,
+                self.path_dataset,
             )
-        )
 
     def inspect(self) -> None:
-        """Inspect a single Anemoi dataset."""
+        """Inspect an Anemoi dataset."""
         logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
         if self.path_dataset.exists():
             InspectZarr().run(
