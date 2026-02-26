@@ -8,14 +8,12 @@ from .typedefs import DiffMode, DiffStrategy
 
 
 @dataclass
-class AnemoiInspectArgs:
-    """Arguments for anemoi inspect."""
+class AnemoiFinaliseArgs:
+    """Arguments for anemoi finalise."""
 
-    detailed: bool
+    config: DictConfig
     path: str
-    progress: bool
-    size: bool
-    statistics: bool
+    command: str = "unused"
 
 
 @dataclass
@@ -29,12 +27,14 @@ class AnemoiInitArgs:
 
 
 @dataclass
-class AnemoiFinaliseArgs:
-    """Arguments for anemoi finalise."""
+class AnemoiInspectArgs:
+    """Arguments for anemoi inspect."""
 
-    config: DictConfig
+    detailed: bool
     path: str
-    command: str = "unused"
+    progress: bool
+    size: bool
+    statistics: bool
 
 
 @dataclass

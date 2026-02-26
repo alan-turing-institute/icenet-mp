@@ -106,21 +106,14 @@ class DataDownloader:
                 self.path_dataset,
             )
 
-    def inspect(self) -> None:
-        """Inspect an Anemoi dataset."""
-        logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
-        if self.path_dataset.exists():
-            InspectZarr().run(
-                AnemoiInspectArgs(
-                    path=str(self.path_dataset),
-                    detailed=True,
-                    progress=True,
-                    statistics=False,
-                    size=True,
-                )
+    def finalise(self) -> None:
+        """Finalise the segmented Anemoi dataset."""
+        Finalise().run(
+            AnemoiFinaliseArgs(
+                path=str(self.path_dataset),
+                config=self.config,
             )
-        else:
-            logger.error("Dataset %s not found at %s.", self.name, self.path_dataset)
+        )
 
     def initialise(self) -> None:
         """Initialise an Anemoi dataset."""
@@ -145,6 +138,22 @@ class DataDownloader:
             )
             raise
 
+    def inspect(self) -> None:
+        """Inspect an Anemoi dataset."""
+        logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
+        if self.path_dataset.exists():
+            InspectZarr().run(
+                AnemoiInspectArgs(
+                    path=str(self.path_dataset),
+                    detailed=True,
+                    progress=True,
+                    statistics=False,
+                    size=True,
+                )
+            )
+        else:
+            logger.error("Dataset %s not found at %s.", self.name, self.path_dataset)
+
     def load_in_chunks(self) -> None:
         """Download a single Anemoi dataset in chunks, skipping those already present."""
         Load().run(
@@ -161,12 +170,3 @@ class DataDownloader:
         download_in_progress = version.copy_in_progress
         download_complete = all(version.build_flags or [])
         return (download_in_progress, download_complete)
-
-    def finalise(self) -> None:
-        """Finalise the segmented Anemoi dataset."""
-        Finalise().run(
-            AnemoiFinaliseArgs(
-                path=str(self.path_dataset),
-                config=self.config,
-            )
-        )
