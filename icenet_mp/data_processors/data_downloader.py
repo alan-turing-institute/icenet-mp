@@ -51,7 +51,7 @@ class DataDownloader:
 
         # Otherwise we check whether a valid dataset exists
         elif self.path_dataset.exists():
-            download_in_progress, download_complete, _ = self.status()
+            download_in_progress, download_complete, statistics_ready = self.status()
             # The dataset is being downloaded
             if download_in_progress:
                 logger.warning(
@@ -60,8 +60,12 @@ class DataDownloader:
                     self.path_dataset,
                 )
                 return
-            # Check whether a dataset marked as complete is valid
+            # If the download is complete but the statistics are not ready we should finalise
             if download_complete:
+                if not statistics_ready:
+                    self.finalise()
+
+                # Check whether a dataset marked as complete is valid
                 try:
                     self.inspect()
                     logger.info(
@@ -111,6 +115,7 @@ class DataDownloader:
                 config=self.config,
             )
         )
+        logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
 
     def initialise(self) -> None:
         """Initialise an Anemoi dataset."""
