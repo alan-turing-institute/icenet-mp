@@ -6,6 +6,8 @@ from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
 
+from icenet_mp.utils import get_wandb_run
+
 if TYPE_CHECKING:
     from torchmetrics import MetricCollection
 
@@ -39,7 +41,7 @@ class MetricSummaryCallback(Callback):
                             columns=["day", name],
                         )
                     plot_name = name + " per day"
-                    wandb.log(
+                    get_wandb_run(trainer).log(
                         {
                             plot_name: wandb.plot.line(
                                 table, "day", name, title=plot_name
