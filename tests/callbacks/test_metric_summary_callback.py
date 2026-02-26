@@ -1,4 +1,3 @@
-import statistics
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,13 +9,12 @@ from torchmetrics import MeanAbsoluteError, MetricCollection
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
 from icenet_mp.models.metrics.base_metrics import MAEDaily, RMSEDaily
 from icenet_mp.models.metrics.sie_error_abs import SIEErrorDaily
-from icenet_mp.types import ModelTestOutput
 
 
 @pytest.fixture
 def callback() -> MetricSummaryCallback:
     """Create a MetricSummaryCallback instance."""
-    return MetricSummaryCallback(average_loss=True)
+    return MetricSummaryCallback()
 
 
 @pytest.fixture
@@ -32,112 +30,6 @@ def mock_trainer() -> MagicMock:
 def mock_module() -> MagicMock:
     """Create a mock LightningModule."""
     return MagicMock(spec=LightningModule)
-
-
-class TestMetricSummaryCallbackInit:
-    """Tests for MetricSummaryCallback initialization."""
-
-    def test_init_with_average_loss_true(self) -> None:
-        """Test initialization with average_loss=True."""
-        callback = MetricSummaryCallback(average_loss=True)
-        assert "average_loss" in callback.metrics
-        assert callback.metrics["average_loss"] == []
-
-    def test_init_with_average_loss_false(self) -> None:
-        """Test initialization with average_loss=False."""
-        callback = MetricSummaryCallback(average_loss=False)
-        assert "average_loss" not in callback.metrics
-
-
-class TestOnTestBatchEnd:
-    """Tests for on_test_batch_end method."""
-
-    def test_on_test_batch_end_with_valid_output(
-        self,
-        callback: MetricSummaryCallback,
-        mock_trainer: MagicMock,
-        mock_module: MagicMock,
-    ) -> None:
-        """Test that loss is accumulated when output is ModelTestOutput."""
-        loss_value = 0.5
-        prediction = torch.randn(1, 10)
-        target = torch.randn(1, 10)
-        output = ModelTestOutput(
-            loss=torch.tensor(loss_value), prediction=prediction, target=target
-        )
-
-        callback.on_test_batch_end(
-            mock_trainer, mock_module, output, _batch=None, _batch_idx=0
-        )
-
-        assert loss_value in callback.metrics["average_loss"]
-
-    def test_on_test_batch_end_with_invalid_output(
-        self,
-        callback: MetricSummaryCallback,
-        mock_trainer: MagicMock,
-        mock_module: MagicMock,
-    ) -> None:
-        """Test that invalid output types are skipped."""
-        callback.on_test_batch_end(
-            mock_trainer, mock_module, outputs=None, _batch=None, _batch_idx=0
-        )
-
-        assert callback.metrics["average_loss"] == []
-
-    def test_on_test_batch_end_multiple_batches(
-        self,
-        callback: MetricSummaryCallback,
-        mock_trainer: MagicMock,
-        mock_module: MagicMock,
-    ) -> None:
-        """Test accumulation of loss across multiple batches."""
-        losses = [0.1, 0.2, 0.3]
-        prediction = torch.randn(1, 10)
-        target = torch.randn(1, 10)
-        for i, loss_value in enumerate(losses):
-            output = ModelTestOutput(
-                loss=torch.tensor(loss_value), prediction=prediction, target=target
-            )
-            callback.on_test_batch_end(
-                mock_trainer, mock_module, output, _batch=None, _batch_idx=i
-            )
-
-        assert callback.metrics["average_loss"] == pytest.approx(losses)
-
-
-class TestOnTestEpochEnd:
-    """Tests for on_test_epoch_end method."""
-
-    def test_on_test_epoch_end_logs_average_loss(
-        self,
-        callback: MetricSummaryCallback,
-        mock_trainer: MagicMock,
-        mock_module: MagicMock,
-    ) -> None:
-        """Test that on_test_epoch_end computes and logs average loss."""
-        losses = [0.1, 0.2, 0.3]
-        callback.metrics["average_loss"] = losses
-
-        callback.on_test_epoch_end(mock_trainer, mock_module)
-
-        expected_average = statistics.mean(losses)
-        mock_logger = mock_trainer.loggers[0]
-        mock_logger.log_metrics.assert_called_once()
-        call_args = mock_logger.log_metrics.call_args[0][0]
-        assert call_args["average_loss"] == expected_average
-
-    def test_on_test_epoch_end_with_empty_metrics(
-        self,
-        callback: MetricSummaryCallback,
-        mock_trainer: MagicMock,
-        mock_module: MagicMock,
-    ) -> None:
-        """Test on_test_epoch_end with no accumulated metrics."""
-        callback.on_test_epoch_end(mock_trainer, mock_module)
-
-        mock_logger = mock_trainer.loggers[0]
-        mock_logger.log_metrics.assert_called_once_with({})
 
 
 class TestOnTestEnd:
