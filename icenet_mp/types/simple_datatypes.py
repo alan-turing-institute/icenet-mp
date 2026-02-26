@@ -29,16 +29,6 @@ class AnemoiInitArgs:
 
 
 @dataclass
-class AnemoiLoadArgsOld:
-    """Arguments for anemoi load."""
-
-    config: DictConfig
-    path: str
-    parts: str
-    command: str = "unused"
-
-
-@dataclass
 class AnemoiFinaliseArgs:
     """Arguments for anemoi finalise."""
 

@@ -14,7 +14,6 @@ from icenet_mp.types import (
     AnemoiInitArgs,
     AnemoiInspectArgs,
     AnemoiLoadArgs,
-    AnemoiLoadArgsOld,
 )
 
 from .preprocessors import IPreprocessor
@@ -162,22 +161,6 @@ class DataDownloader:
         download_in_progress = version.copy_in_progress
         download_complete = all(version.build_flags or [])
         return (download_in_progress, download_complete)
-
-    def load(self, parts: str) -> None:
-        """Download a segment of an Anemoi dataset."""
-        logger.info(
-            "Downloading %s part of %s to %s.",
-            parts,
-            self.name,
-            self.path_dataset,
-        )
-        Load().run(
-            AnemoiLoadArgsOld(
-                path=str(self.path_dataset),
-                config=self.config,
-                parts=parts,
-            )
-        )
 
     def finalise(self) -> None:
         """Finalise the segmented Anemoi dataset."""

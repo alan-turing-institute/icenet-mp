@@ -40,19 +40,6 @@ def inspect(config: DictConfig) -> None:
         downloader.inspect()
 
 
-@datasets_cli.command("load")
-@hydra_adaptor
-def load(
-    config: DictConfig,
-    parts: Annotated[str, typer.Option(help="The part to process, specified as 'i/n'")],
-) -> None:
-    """Load dataset in parts."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
-        logger.info("Working on %s.", downloader.name)
-        downloader.load(parts=parts)
-
-
 @datasets_cli.command("finalise")
 @hydra_adaptor
 def finalise(
