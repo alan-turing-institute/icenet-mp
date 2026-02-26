@@ -7,7 +7,12 @@ SEA_ICE_THRESHOLD = 0.15  # Threshold for defining sea ice extent
 
 
 class SeaIceExtentErrorPerForecastDay(Metric):
-    """Sea Ice Extent error metric (in km^2) for use at multiple lead times."""
+    """Sea Ice Extent error (SIEError) metric (in km^2) for use at multiple lead times.
+
+    The SIE error is calculated as the absolute difference between the predicted and
+    true sea ice extent for each forecast day. Sea ice presence is defined by having
+    a probability greater than the threshold value.
+    """
 
     def __init__(self, pixel_size: int = 25) -> None:
         """Initialize the SIEError metric.
