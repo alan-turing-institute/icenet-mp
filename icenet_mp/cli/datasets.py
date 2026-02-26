@@ -40,22 +40,6 @@ def inspect(config: DictConfig) -> None:
         downloader.inspect()
 
 
-@datasets_cli.command("init")
-@hydra_adaptor
-def init(
-    config: DictConfig,
-    *,
-    overwrite: Annotated[
-        bool, typer.Option(help="Specify whether to overwrite existing datasets")
-    ] = False,
-) -> None:
-    """Create all datasets."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
-        logger.info("Working on %s.", downloader.name)
-        downloader.init(overwrite=overwrite)
-
-
 @datasets_cli.command("load")
 @hydra_adaptor
 def load(
