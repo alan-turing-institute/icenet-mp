@@ -139,7 +139,6 @@ class DataDownloader:
         self,
         *,
         detailed: bool = True,
-        progress: bool = True,
         size: bool = True,
         statistics: bool = False,
     ) -> None:
@@ -150,7 +149,7 @@ class DataDownloader:
                 AnemoiInspectArgs(
                     path=str(self.path_dataset),
                     detailed=detailed,
-                    progress=progress,
+                    progress=(not detailed),
                     statistics=statistics,
                     size=size,
                 )
