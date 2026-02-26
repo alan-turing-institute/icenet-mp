@@ -50,7 +50,7 @@ class DataDownloader:
 
         # Otherwise we check whether a valid dataset exists
         elif self.path_dataset.exists():
-            download_in_progress, download_complete, _ = self.status()
+            download_in_progress, _, _ = self.status()
             # The dataset is being downloaded
             if download_in_progress:
                 logger.warning(
@@ -59,30 +59,25 @@ class DataDownloader:
                     self.path_dataset,
                 )
                 return
-            # The download is complete, but we check the dataset is valid before returning
-            if download_complete:
-                try:
-                    self.inspect()
-                    logger.info(
-                        "Dataset %s already exists at %s, no need to download.",
-                        self.name,
-                        self.path_dataset,
-                    )
-                except (AttributeError, FileNotFoundError, PathNotFoundError):
-                    # If the dataset is invalid we delete it
-                    logger.info(
-                        "Dataset %s not found at %s.", self.name, self.path_dataset
-                    )
-                    shutil.rmtree(self.path_dataset, ignore_errors=True)
-                else:
-                    # If the dataset is valid we return here
-                    return
-            else:
-                logger.warning(
-                    "Dataset %s at %s is incomplete.",
+            # Check whether the dataset is valid, even if it is incomplete
+            try:
+                self.inspect()
+                logger.info(
+                    "Dataset %s already exists at %s, no need to download.",
                     self.name,
                     self.path_dataset,
                 )
+            except (AttributeError, FileNotFoundError, PathNotFoundError):
+                # If the dataset is invalid we delete it
+                logger.info(
+                    "Dataset %s at %s is invalid, removing it.",
+                    self.name,
+                    self.path_dataset,
+                )
+                shutil.rmtree(self.path_dataset, ignore_errors=True)
+            else:
+                # If the dataset is valid we return here
+                return
 
         # Download the dataset
         self.download()
@@ -173,8 +168,13 @@ class DataDownloader:
     def status(self) -> tuple[bool, bool, bool]:
         """Return a tuple indicating whether the dataset exists and whether it is complete."""
         inspector = InspectZarr()
-        version = inspector._info(str(self.path_dataset))
-        download_in_progress = version.copy_in_progress
-        download_complete = all(version.build_flags or [])
-        statistics_ready = version.statistics_ready
+        try:
+            version = inspector._info(str(self.path_dataset))
+            download_in_progress = version.copy_in_progress
+            download_complete = all(version.build_flags or [])
+            statistics_ready = version.statistics_ready
+        except (AttributeError, FileNotFoundError, PathNotFoundError):
+            download_in_progress = False
+            download_complete = False
+            statistics_ready = False
         return (download_in_progress, download_complete, statistics_ready)
