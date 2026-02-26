@@ -6,7 +6,7 @@ from torchmetrics import Metric
 SEA_ICE_THRESHOLD = 0.15  # Threshold for defining sea ice extent
 
 
-class SIEErrorDaily(Metric):
+class SeaIceExtentErrorPerForecastDay(Metric):
     """Sea Ice Extent error metric (in km^2) for use at multiple lead times."""
 
     def __init__(self, pixel_size: int = 25) -> None:

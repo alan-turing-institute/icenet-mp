@@ -14,8 +14,8 @@ from lightning.pytorch.utilities.types import (
 from omegaconf import DictConfig
 from torchmetrics import MetricCollection
 
-from icenet_mp.metrics.base_metrics import MAEDaily, RMSEDaily
-from icenet_mp.metrics.sie_error_abs import SIEErrorDaily
+from icenet_mp.metrics.base_metrics import MAEPerForecastDay, RMSEPerForecastDay
+from icenet_mp.metrics.sie_error_abs import SeaIceExtentErrorPerForecastDay
 from icenet_mp.types import DataSpace, ModelTestOutput, TensorNTCHW
 
 
@@ -65,7 +65,11 @@ class BaseModel(LightningModule, ABC):
         self.scheduler_cfg = scheduler
 
         self.test_metrics = MetricCollection(
-            {"sieerror": SIEErrorDaily(), "rmse": RMSEDaily(), "mae": MAEDaily()}
+            {
+                "sieerror": SeaIceExtentErrorPerForecastDay(),
+                "rmse": RMSEPerForecastDay(),
+                "mae": MAEPerForecastDay(),
+            }
         )
 
         # Save all of the arguments to __init__ as hyperparameters

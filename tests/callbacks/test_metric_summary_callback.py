@@ -7,8 +7,8 @@ from lightning.pytorch.loggers import WandbLogger
 from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
-from icenet_mp.metrics.base_metrics import MAEDaily, RMSEDaily
-from icenet_mp.metrics.sie_error_abs import SIEErrorDaily
+from icenet_mp.metrics.base_metrics import MAEPerForecastDay, RMSEPerForecastDay
+from icenet_mp.metrics.sie_error_abs import SeaIceExtentErrorPerForecastDay
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ class TestOnTestEnd:
         trainer.loggers = [wandb_logger]
 
         # Create a metric that returns multiple values (daily metric)
-        metric_collection = MetricCollection({"mae_daily": MAEDaily()})
+        metric_collection = MetricCollection({"mae_daily": MAEPerForecastDay()})
         mock_module.test_metrics = metric_collection
 
         # Create sample 5D data: (batch=1, time=3, channels=1, height=2, width=2)
@@ -134,7 +134,7 @@ class TestOnTestEnd:
     ) -> None:
         """Test on_test_end with non-WandbLogger and a metric returning a vector."""
         # Create a metric that returns multiple values (daily metric)
-        metric_collection = MetricCollection({"mae_daily": MAEDaily()})
+        metric_collection = MetricCollection({"mae_daily": MAEPerForecastDay()})
         mock_module.test_metrics = metric_collection
 
         # Create sample 5D data: (batch=1, time=3, channels=1, height=2, width=2)
@@ -168,7 +168,7 @@ class TestMetricCalculations:
         preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
         targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
-        computed_mae = MAEDaily()
+        computed_mae = MAEPerForecastDay()
         computed_mae.update(preds, targets)
         daily_result = computed_mae.compute()
         # Expected MAE per day:
@@ -194,7 +194,7 @@ class TestMetricCalculations:
         preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
         targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
-        computed_rmse = RMSEDaily()
+        computed_rmse = RMSEPerForecastDay()
         computed_rmse.update(preds, targets)
         daily_result = computed_rmse.compute()
 
@@ -221,7 +221,7 @@ class TestMetricCalculations:
         preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
         targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
-        computed_sie = SIEErrorDaily(pixel_size=1)
+        computed_sie = SeaIceExtentErrorPerForecastDay(pixel_size=1)
         computed_sie.update(preds, targets)
         daily_result = computed_sie.compute()
 
@@ -248,7 +248,7 @@ class TestMetricCalculations:
         preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
         targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
-        computed_sie = SIEErrorDaily()
+        computed_sie = SeaIceExtentErrorPerForecastDay()
         computed_sie.update(preds, targets)
         daily_result = computed_sie.compute()
 

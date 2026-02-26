@@ -85,7 +85,7 @@ class BaseErrorMetricDaily(Metric):
         return self._finalize(mean_errors)
 
 
-class RMSEDaily(BaseErrorMetricDaily):
+class RMSEPerForecastDay(BaseErrorMetricDaily):
     """Root Mean Squared Error per forecast lead time."""
 
     def _compute_errors(
@@ -97,7 +97,7 @@ class RMSEDaily(BaseErrorMetricDaily):
         return torch.sqrt(mean_errors)
 
 
-class MAEDaily(BaseErrorMetricDaily):
+class MAEPerForecastDay(BaseErrorMetricDaily):
     """Mean Absolute Error per forecast lead time."""
 
     def _compute_errors(
