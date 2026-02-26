@@ -163,6 +163,29 @@ class DataDownloader:
                     )
                 )
 
+    def initialise(self) -> None:
+        """Initialise an Anemoi dataset."""
+        if self.path_dataset.exists():
+            logger.info(
+                "Dataset %s already initialised at %s.", self.name, self.path_dataset
+            )
+            return
+        try:
+            Init().run(
+                AnemoiInitArgs(
+                    path=str(self.path_dataset),
+                    config=self.config,
+                )
+            )
+            logger.info("Initialised dataset %s at %s.", self.name, self.path_dataset)
+        except (AttributeError, FileNotFoundError, PathNotFoundError):
+            logger.exception(
+                "Failed to initialise dataset %s at %s.",
+                self.name,
+                self.path_dataset,
+            )
+            raise
+
     def load_in_chunks(self) -> None:
         """Download a single Anemoi dataset in chunks, skipping those already present."""
         Load().run(
