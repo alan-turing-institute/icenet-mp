@@ -5,12 +5,12 @@ import torch
 import torch.nn.functional as F  # noqa: N812
 from torchmetrics import Metric, MetricCollection
 
+from icenet_mp.losses import WeightedMSELoss
+from icenet_mp.metrics import IceNetAccuracy, SIEError
 from icenet_mp.models.diffusion import GaussianDiffusion, UNetDiffusion
 from icenet_mp.types import ModelTestOutput, TensorNTCHW
 
 from .base_model import BaseModel
-from .losses import WeightedMSELoss
-from .metrics import IceNetAccuracy, SIEError
 
 # Unset SLURM_NTASKS if it's causing issues
 if "SLURM_NTASKS" in os.environ:

@@ -7,8 +7,8 @@ from lightning.pytorch.loggers import WandbLogger
 from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
-from icenet_mp.models.metrics.base_metrics import MAEDaily, RMSEDaily
-from icenet_mp.models.metrics.sie_error_abs import SIEErrorDaily
+from icenet_mp.metrics.base_metrics import MAEDaily, RMSEDaily
+from icenet_mp.metrics.sie_error_abs import SIEErrorDaily
 
 
 @pytest.fixture
