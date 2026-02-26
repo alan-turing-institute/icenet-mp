@@ -23,6 +23,7 @@ from icenet_mp.types import (
     AnemoiInitArgs,
     AnemoiInspectArgs,
     AnemoiLoadArgs,
+    AnemoiLoadArgsOld,
 )
 
 from .preprocessors import IPreprocessor
@@ -69,7 +70,7 @@ class DataDownloader:
                 )
                 return
             # The download is complete, but we check the dataset is valid before returning
-            elif download_complete:
+            if download_complete:
                 try:
                     self.inspect()
                     logger.info(
@@ -79,7 +80,9 @@ class DataDownloader:
                     )
                 except (AttributeError, FileNotFoundError, PathNotFoundError):
                     # If the dataset is invalid we delete it
-                    logger.info("Dataset %s not found at %s.", self.name, self.path_dataset)
+                    logger.info(
+                        "Dataset %s not found at %s.", self.name, self.path_dataset
+                    )
                     shutil.rmtree(self.path_dataset, ignore_errors=True)
                 else:
                     # If the dataset is valid we return here
@@ -160,6 +163,15 @@ class DataDownloader:
                     )
                 )
 
+    def load_in_chunks(self) -> None:
+        """Download a single Anemoi dataset in chunks, skipping those already present."""
+        Load().run(
+            AnemoiLoadArgs(
+                path=str(self.path_dataset),
+                config=self.config,
+            )
+        )
+
     def status(self) -> tuple[bool, bool]:
         """Return a tuple indicating whether the dataset exists and whether it is complete."""
         inspector = InspectZarr()
@@ -167,7 +179,6 @@ class DataDownloader:
         download_in_progress = version.copy_in_progress
         download_complete = all(version.build_flags or [])
         return (download_in_progress, download_complete)
-
 
     def _part_tracker_path(self) -> Path:
         """Path for part_trackerdata file that tracks completed parts."""
@@ -239,7 +250,7 @@ class DataDownloader:
             self.path_dataset,
         )
         Load().run(
-            AnemoiLoadArgs(
+            AnemoiLoadArgsOld(
                 path=str(self.path_dataset),
                 config=self.config,
                 parts=parts,
