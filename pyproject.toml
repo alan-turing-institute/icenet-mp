@@ -26,7 +26,6 @@ dependencies = [
     "cachetools>=6.1.0",
     "cdsapi>=0.7.6",
     "eccodeslib>=2.40.0", # indirect dependency of icenet that is not automatically installed
-    "filelock>=3.12.0",
     "hydra-core>=1.3.2",
     "icenet==0.2.7", # newer versions require netCDF4<1.6.1 which does not work on macOS 15
     "jaxtyping>=0.3.2",
