@@ -7,7 +7,9 @@ from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
 from anemoi.datasets.commands.load import Load
+from anemoi.datasets.data.dataset import Dataset as AnemoiDataset
 from omegaconf import DictConfig, OmegaConf
+from zarr.core import Array as ZarrArray
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
@@ -55,21 +57,22 @@ class DataDownloader:
             # The dataset is being downloaded
             if download_in_progress:
                 logger.warning(
-                    "Dataset %s at %s is currently being downloaded by another process. Please wait until it is complete.",
+                    "Dataset %s at %s is currently being downloaded by another process.",
                     self.name,
                     self.path_dataset,
                 )
                 return
-            # If the download is complete but the statistics are not ready we should finalise
+            # If the download is complete then check whether the dataset is valid
             if download_complete:
+                # If the statistics are not ready we should finalise
                 if not statistics_ready:
                     self.finalise()
 
-                # Check whether a dataset marked as complete is valid
+                # Inspect the dataset for validity
                 try:
                     self.inspect()
                     logger.info(
-                        "Dataset %s already exists at %s, no need to download.",
+                        "Dataset %s at %s has been downloaded and seems to be valid.",
                         self.name,
                         self.path_dataset,
                     )
@@ -121,7 +124,7 @@ class DataDownloader:
         """Initialise an Anemoi dataset."""
         if self.path_dataset.exists():
             logger.info(
-                "Dataset %s already initialised at %s.", self.name, self.path_dataset
+                "Dataset %s at %s is already initialised.", self.name, self.path_dataset
             )
             return
         try:
@@ -173,14 +176,18 @@ class DataDownloader:
 
     def status(self) -> tuple[bool, bool, bool]:
         """Return a tuple indicating whether the dataset exists and whether it is complete."""
-        inspector = InspectZarr()
         try:
-            version = inspector._info(str(self.path_dataset))
-            download_in_progress = version.copy_in_progress
-            n_dates_expected = len(version.dataset.dates) - len(version.dataset.missing)
-            n_dates_in_zarr = version.data.nchunks_initialized
-            download_complete = n_dates_expected == n_dates_in_zarr
-            statistics_ready = version.statistics_ready
+            ds_info = InspectZarr()._info(str(self.path_dataset))
+            download_in_progress = ds_info.copy_in_progress
+            if isinstance(dataset := ds_info.dataset, AnemoiDataset) and isinstance(
+                array := ds_info.data, ZarrArray
+            ):
+                n_dates_expected = len(dataset.dates) - len(dataset.missing)
+                n_dates_in_zarr = array.nchunks_initialized
+                download_complete = n_dates_expected == n_dates_in_zarr
+            else:
+                download_complete = False
+            statistics_ready = ds_info.statistics_ready
         except (AttributeError, FileNotFoundError, PathNotFoundError):
             download_in_progress = False
             download_complete = False
