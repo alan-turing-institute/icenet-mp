@@ -96,7 +96,7 @@ class DataDownloader:
                 AnemoiInspectArgs(
                     path=str(self.path_dataset),
                     detailed=True,
-                    progress=False,  # must be disabled until https://github.com/ecmwf/anemoi-datasets/pull/372 is merged
+                    progress=True,
                     statistics=False,
                     size=True,
                 )

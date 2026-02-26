@@ -1717,7 +1717,7 @@ notebooks = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anemoi-datasets", specifier = ">=0.5.25" },
+    { name = "anemoi-datasets", specifier = ">=0.5.27" },
     { name = "anemoi-transform", specifier = ">=0.1.16" },
     { name = "anemoi-utils", specifier = ">=0.4.42" },
     { name = "cachetools", specifier = ">=6.1.0" },
