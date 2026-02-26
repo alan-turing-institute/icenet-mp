@@ -50,8 +50,8 @@ class DataDownloader:
 
         # Otherwise we check whether a valid dataset exists
         elif self.path_dataset.exists():
-            download_in_progress, download_complete = self.status()
-            # This dataset is being downloaded
+            download_in_progress, download_complete, _ = self.status()
+            # The dataset is being downloaded
             if download_in_progress:
                 logger.warning(
                     "Dataset %s at %s is currently being downloaded by another process. Please wait until it is complete.",
@@ -96,12 +96,12 @@ class DataDownloader:
         # Load in parts
         self.load_in_chunks()
         # Finalise if the status indicates the dataset is complete
-        download_in_progress, download_complete = self.status()
-        if download_complete and not download_in_progress:
+        download_in_progress, download_complete, statistics_ready = self.status()
+        if download_complete and (not download_in_progress) and statistics_ready:
             self.finalise()
         else:
             logger.warning(
-                "Dataset %s at %s is incomplete after loading, skipping finalise.",
+                "Dataset %s at %s is not fully loaded, skipping finalise.",
                 self.name,
                 self.path_dataset,
             )
@@ -138,17 +138,24 @@ class DataDownloader:
             )
             raise
 
-    def inspect(self) -> None:
+    def inspect(
+        self,
+        *,
+        detailed: bool = True,
+        progress: bool = True,
+        statistics: bool = True,
+        size: bool = True,
+    ) -> None:
         """Inspect an Anemoi dataset."""
         logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
         if self.path_dataset.exists():
             InspectZarr().run(
                 AnemoiInspectArgs(
                     path=str(self.path_dataset),
-                    detailed=True,
-                    progress=True,
-                    statistics=False,
-                    size=True,
+                    detailed=detailed,
+                    progress=progress,
+                    statistics=statistics,
+                    size=size,
                 )
             )
         else:
@@ -163,10 +170,11 @@ class DataDownloader:
             )
         )
 
-    def status(self) -> tuple[bool, bool]:
+    def status(self) -> tuple[bool, bool, bool]:
         """Return a tuple indicating whether the dataset exists and whether it is complete."""
         inspector = InspectZarr()
         version = inspector._info(str(self.path_dataset))
         download_in_progress = version.copy_in_progress
         download_complete = all(version.build_flags or [])
-        return (download_in_progress, download_complete)
+        statistics_ready = version.statistics_ready
+        return (download_in_progress, download_complete, statistics_ready)
