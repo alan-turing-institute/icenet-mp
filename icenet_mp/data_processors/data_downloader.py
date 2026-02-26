@@ -2,6 +2,7 @@ import logging
 import shutil
 from pathlib import Path
 
+import typer
 from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
@@ -69,13 +70,13 @@ class DataDownloader:
                         self.path_dataset,
                     )
                 except (AttributeError, FileNotFoundError, PathNotFoundError):
-                    # If the dataset is invalid we delete it
-                    logger.info(
-                        "Dataset %s at %s is invalid, removing it.",
+                    # If the dataset is invalid we flag this to the user and exit
+                    logger.error(  # noqa: TRY400
+                        "Dataset %s at %s seems to be invalid. Please check manually.",
                         self.name,
                         self.path_dataset,
                     )
-                    raise
+                    typer.Exit(1)
                 else:
                     # If the dataset is valid we return here
                     return
