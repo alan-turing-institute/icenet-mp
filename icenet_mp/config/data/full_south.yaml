@@ -1,6 +1,6 @@
 defaults:
   - datasets:
     - full_sicsouth_osisaf_25k_1979_2024_24h_v1
-    - full_weathersouth_era5_0p5_1979_2024_24h_v1
+    - full_weathersouth_era5_0p25_1979_2025_24h_v1
   - split: full_dataset
   - _self_

@@ -8,7 +8,7 @@ nbsamp-sicnorth-osisaf-25k-2010-2010-24h-v1:
   dates:
     start: '2010-08-01T00:00:00'
     end: '2010-09-30T23:00:00'
-    frequency: 1d
+    frequency: 24h
 
   preprocessor:
     type: IceNetSIC

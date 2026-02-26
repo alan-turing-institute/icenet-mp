@@ -1,14 +1,14 @@
 full-weathernorth-era5-0p5-1979-2024-24h-v1:
   name: full-weathernorth-era5-0p5-1979-2024-24h-v1
   group_as: era5
-  description: Full ERA5 dataset (0.5 deg)
+  description: Weather from ERA5 for entire northern hemisphere
   attribution: ECMWF/C3S
   licence: CC-BY-4.0
 
   dates:
     start: '1979-01-01T00:00:00'
     end: '2024-12-31T23:00:00'
-    frequency: 1d
+    frequency: 24h
 
   input:
     join:

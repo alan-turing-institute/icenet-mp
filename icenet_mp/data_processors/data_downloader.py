@@ -91,15 +91,18 @@ class DataDownloader:
     def inspect(self) -> None:
         """Inspect a single Anemoi dataset."""
         logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
-        InspectZarr().run(
-            AnemoiInspectArgs(
-                path=str(self.path_dataset),
-                detailed=True,
-                progress=False,  # must be disabled until https://github.com/ecmwf/anemoi-datasets/pull/372 is merged
-                statistics=False,
-                size=True,
+        if self.path_dataset.exists():
+            InspectZarr().run(
+                AnemoiInspectArgs(
+                    path=str(self.path_dataset),
+                    detailed=True,
+                    progress=False,  # must be disabled until https://github.com/ecmwf/anemoi-datasets/pull/372 is merged
+                    statistics=False,
+                    size=True,
+                )
             )
-        )
+        else:
+            logger.error("Dataset %s not found at %s.", self.name, self.path_dataset)
 
     def init(self, *, overwrite: bool) -> None:
         """Initialise a single Anemoi dataset."""

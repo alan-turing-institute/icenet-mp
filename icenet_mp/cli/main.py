@@ -1,14 +1,16 @@
 """Main entrypoint for the CLI application."""
 
 import logging
+import warnings
 
 import typer
 from hydra.core.utils import simple_stdout_log_config
 
-from icenet_mp.data_processors.cli import datasets_cli
-from icenet_mp.evaluation.cli import evaluation_cli
 from icenet_mp.plugins import register_plugins
-from icenet_mp.training.cli import training_cli
+
+from .datasets import datasets_cli
+from .evaluate import evaluation_cli
+from .train import training_cli
 
 # Configure logging
 simple_stdout_log_config()
@@ -16,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 # Register all plugins
 register_plugins()
+
+# Ignore warnings about known PyTorch issues
+warnings.filterwarnings(
+    "ignore",
+    message=".*Using padding='same' with even kernel lengths and odd dilation.*",
+)
 
 # Create the typer app
 app = typer.Typer(

@@ -40,7 +40,7 @@ class TestBaseCLI:
         r"--show-completion\s+Show completion for the current shell",
         r"--help\s+-h\s+Show this message and exit.",
         r"datasets\s+Manage datasets",
-        r"evaluate\s+Evaluate a model",
+        r"evaluate\s+Evaluate a pre-trained model",
         r"train\s+Train a model",
     )
 
@@ -84,10 +84,10 @@ class TestEvaluateCLI:
             ["evaluate", "--help"],
             expected_patterns=[
                 r"Usage: imp evaluate \[OPTIONS\] \[OVERRIDES\]...",
-                r"Evaluate a model",
+                r"Evaluate a pre-trained model",
                 r"overrides\s+\[OVERRIDES\]...\s+Apply space-separated Hydra config",
-                r"--checkpoint\s+TEXT\s+Specify the path to a trained model",
                 r"--config-name\s+TEXT\s+Specify the name of a file to load from the",
+                r"--checkpoint\s+TEXT\s+Specify the path to a trained model",
                 r"--help\s+-h\s+Show this message and exit.",
             ],
         )

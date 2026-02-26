@@ -2,18 +2,14 @@ from datetime import UTC, datetime
 
 import numpy as np
 import torch
-from lightning.pytorch.loggers import Logger, WandbLogger
-from wandb.sdk.lib.runid import generate_id
+from lightning import Trainer
+from lightning.pytorch.loggers import WandbLogger
+from wandb.wandb_run import Run
 
 
 def datetime_from_npdatetime(dt: np.datetime64) -> datetime:
     """Convert numpy datetime64 to aware datetime in UTC."""
     return dt.astype("datetime64[ms]").astype(datetime).astimezone(UTC)
-
-
-def generate_run_name() -> str:
-    """Generate a unique run name based on the current timestamp."""
-    return f"run-{get_timestamp()}-{generate_id()}"
 
 
 def get_device_name(accelerator_name: str) -> str:
@@ -33,21 +29,18 @@ def get_device_name(accelerator_name: str) -> str:
     return "CPU"
 
 
-def get_device_threads() -> int:
-    """Get the number of threads available for the current device."""
-    return torch.get_num_threads()
-
-
 def get_timestamp() -> str:
     """Return the current time as a string."""
     return datetime.now(tz=UTC).strftime(r"%Y%m%d_%H%M%S")
 
 
-def get_wandb_logger(lightning_loggers: list[Logger]) -> WandbLogger | None:
-    """Get the WandbLogger from a list of Lightning loggers."""
-    for logger in lightning_loggers:
-        if isinstance(logger, WandbLogger):
-            return logger
+def get_wandb_run(trainer: Trainer) -> Run | None:
+    """Get the Wandb Run instance if it exists."""
+    for lightning_logger in trainer.loggers:
+        if isinstance(lightning_logger, WandbLogger) and isinstance(
+            experiment := lightning_logger.experiment, Run
+        ):
+            return experiment
     return None
 
 

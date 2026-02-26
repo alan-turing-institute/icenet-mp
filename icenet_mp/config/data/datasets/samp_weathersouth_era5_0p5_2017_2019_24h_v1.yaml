@@ -1,14 +1,14 @@
 samp-weathersouth-era5-0p5-2017-2019-24h-v1:
   name: samp-weathersouth-era5-0p5-2017-2019-24h-v1
   group_as: era5
-  description: Small ERA5 dataset for testing (0.5 deg, south)
+  description: Weather from ERA5 for entire southern hemisphere
   attribution: ECMWF/C3S
   licence: CC-BY-4.0
 
   dates:
     start: '2017-01-01T00:00:00'
     end: '2019-01-31T23:00:00'
-    frequency: 1d
+    frequency: 24h
 
   input:
     join:

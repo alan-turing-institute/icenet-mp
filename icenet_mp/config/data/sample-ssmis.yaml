@@ -1,6 +1,6 @@
 defaults:
   - datasets:
     - samp_sicsouth_ssmis_25k_2017_2019_24h_v1
-    - samp_weathersouth_era5_0p5_2017_2019_24h_v1
+    - samp_weathersouth_era5_0p5_2017_2019_24h_v2
   - split: sample_dataset
   - _self_

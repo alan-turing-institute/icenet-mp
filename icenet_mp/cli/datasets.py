@@ -4,9 +4,9 @@ from typing import Annotated
 import typer
 from omegaconf import DictConfig
 
-from icenet_mp.cli import hydra_adaptor
+from icenet_mp.data_processors import DataDownloaderFactory
 
-from .data_downloader_factory import DataDownloaderFactory
+from .hydra import hydra_adaptor
 
 # Create the typer app
 datasets_cli = typer.Typer(help="Manage datasets")

@@ -1,0 +1,18 @@
+_target_: icenet_mp.models.EncodeProcessDecode
+
+name: piecewise-unet-piecewise
+
+encoder:
+  _target_: icenet_mp.models.encoders.PiecewiseEncoder
+  latent_space: [128, 128] # Shape of the latent space
+  n_conv_blocks: 3 # Number of convolutional blocks to add after encoding
+
+processor:
+  _target_: icenet_mp.models.processors.UNetProcessor
+  kernel_size: 3 # Size of the kernel for convolutional layers
+  start_out_channels: 64 # Initial number of channels for the first convolutional layer
+
+decoder:
+  _target_: icenet_mp.models.decoders.PiecewiseDecoder
+  restrict_range: clamp # Method for restricting output range (e.g., clamp, sigmoid, tanh)
+  n_conv_blocks: 3 # Number of convolutional blocks to add before decoding

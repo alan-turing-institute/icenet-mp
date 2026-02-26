@@ -1,13 +1,13 @@
-samp-weathernorth-era5-0p5-2017-2019-24h-v1:
-  name: samp-weathernorth-era5-0p5-2017-2019-24h-v1
+full-weathersouth-era5-0p25-1979-2025-24h-v1:
+  name: full-weathersouth-era5-0p25-1979-2025-24h-v1
   group_as: era5
-  description: Weather from ERA5 for entire northern hemisphere
+  description: Weather from ERA5 for partial southern hemisphere
   attribution: ECMWF/C3S
   licence: CC-BY-4.0
 
   dates:
-    start: '2017-01-01T00:00:00'
-    end: '2019-01-31T23:00:00'
+    start: '1979-01-01T12:00:00'
+    end: '2025-12-31T23:00:00'
     frequency: 24h
 
   input:
@@ -16,8 +16,8 @@ samp-weathernorth-era5-0p5-2017-2019-24h-v1:
         use_cdsapi_dataset: "reanalysis-era5-complete"
         class: ea
         expver: "0001"
-        grid: "0.5 / 0.5"
-        area: "90/-180/0/180"  # northern hemisphere
+        grid: "0.25 / 0.25"
+        area: "20/-180/-90/180"  # southern hemisphere
         levtype: sfc
         param:
         - 2t # 2-metre air temperature
@@ -29,8 +29,8 @@ samp-weathernorth-era5-0p5-2017-2019-24h-v1:
         use_cdsapi_dataset: "reanalysis-era5-complete"
         class: ea
         expver: "0001"
-        grid: "0.5 / 0.5"
-        area: "90/-180/0/180"  # northern hemisphere
+        grid: "0.25 / 0.25"
+        area: "20/-180/-90/180"  # southern hemisphere
         level:
         - 10 # hPa
         - 250 # hPa
@@ -46,5 +46,6 @@ samp-weathernorth-era5-0p5-2017-2019-24h-v1:
     - forcings:
         param:
         - cos_julian_day
+        - insolation
         - sin_julian_day
         template: \${input.join.0.mars}
