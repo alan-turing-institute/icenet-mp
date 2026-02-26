@@ -139,8 +139,8 @@ class DataDownloader:
         *,
         detailed: bool = True,
         progress: bool = True,
-        statistics: bool = True,
         size: bool = True,
+        statistics: bool = False,
     ) -> None:
         """Inspect an Anemoi dataset."""
         logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)

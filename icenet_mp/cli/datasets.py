@@ -32,12 +32,18 @@ def create(
 
 @datasets_cli.command("inspect")
 @hydra_adaptor
-def inspect(config: DictConfig) -> None:
+def inspect(
+    config: DictConfig,
+    *,
+    statistics: Annotated[
+        bool, typer.Option(help="Specify whether to show dataset statistics")
+    ] = False,
+) -> None:
     """Inspect all datasets."""
     factory = DataDownloaderFactory(config)
     for downloader in factory.downloaders:
         logger.info("Working on %s.", downloader.name)
-        downloader.inspect()
+        downloader.inspect(statistics=statistics)
 
 
 @datasets_cli.command("finalise")
