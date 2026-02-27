@@ -1,5 +1,6 @@
 import logging
-from ftplib import FTP, error_perm
+from ftplib import FTP
+from ftplib import Error as FtpError
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -58,7 +59,7 @@ class FTPSource(LegacySource):
                         downloaded_files.append(
                             load_one("📂", context, [iso_date], str(local_path))
                         )
-                    except error_perm as exc:
+                    except FtpError as exc:
                         msg = f"Failed to download from '{remote_path}': {exc}"
                         logger.warning(msg)
 
