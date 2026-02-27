@@ -157,15 +157,22 @@ class DataDownloader:
         """Inspect an Anemoi dataset."""
         logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
         if self.path_dataset.exists():
-            InspectZarr().run(
-                AnemoiInspectArgs(
-                    path=str(self.path_dataset),
-                    detailed=detailed,
-                    progress=(not detailed),
-                    statistics=statistics,
-                    size=size,
+            try:
+                InspectZarr().run(
+                    AnemoiInspectArgs(
+                        path=str(self.path_dataset),
+                        detailed=detailed,
+                        progress=(not detailed),
+                        statistics=statistics,
+                        size=size,
+                    )
                 )
-            )
+            except (AttributeError, FileNotFoundError, PathNotFoundError):
+                logger.error(  # noqa: TRY400
+                    "Failed to load dataset %s at %s.",
+                    self.name,
+                    self.path_dataset,
+                )
         else:
             logger.error("Dataset %s not found at %s.", self.name, self.path_dataset)
 
