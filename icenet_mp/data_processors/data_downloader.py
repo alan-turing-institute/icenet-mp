@@ -101,7 +101,7 @@ class DataDownloader:
         self.load_in_chunks()
         # Finalise if the status indicates the dataset is complete
         download_in_progress, download_complete, statistics_ready = self.status()
-        if download_complete and (not download_in_progress) and statistics_ready:
+        if download_complete and (not download_in_progress) and (not statistics_ready):
             self.finalise()
         else:
             logger.warning(
