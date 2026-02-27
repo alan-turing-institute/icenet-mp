@@ -86,12 +86,12 @@ class PlottingCallback(Callback):
 
         # Get sequence dates for static and video plots
         batch_size = int(outputs.target.shape[0])
-        n_timesteps = int(outputs.target.shape[1])
-        dates = [
-            datetime_from_npdatetime(dataset.dates[batch_size * batch_idx + tt])
-            for tt in range(n_timesteps)
-        ]
 
+        start_date = dataset.dates[batch_size * batch_idx]
+
+        dates = list(
+            map(datetime_from_npdatetime, dataset.get_forecast_steps(start_date))
+        )
         # Set hemisphere for plotting based on dataset
         self.plotter.set_hemisphere(dataset.hemisphere)
 

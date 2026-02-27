@@ -12,7 +12,10 @@ from lightning.pytorch.utilities.types import (
     OptimizerLRSchedulerConfig,
 )
 from omegaconf import DictConfig
+from torchmetrics import MetricCollection
 
+from icenet_mp.metrics.base_metrics import MAEPerForecastDay, RMSEPerForecastDay
+from icenet_mp.metrics.sie_error_abs import SeaIceExtentErrorPerForecastDay
 from icenet_mp.types import DataSpace, ModelTestOutput, TensorNTCHW
 
 
@@ -60,6 +63,14 @@ class BaseModel(LightningModule, ABC):
         # Store the optimizer and scheduler configs
         self.optimizer_cfg = optimizer
         self.scheduler_cfg = scheduler
+
+        self.test_metrics = MetricCollection(
+            {
+                "sieerror": SeaIceExtentErrorPerForecastDay(),
+                "rmse": RMSEPerForecastDay(),
+                "mae": MAEPerForecastDay(),
+            }
+        )
 
         # Save all of the arguments to __init__ as hyperparameters
         # This will also save the parameters of whichever child class is used
@@ -139,6 +150,9 @@ class BaseModel(LightningModule, ABC):
         target = batch.pop("target")
         prediction = self(batch)
         loss = self.loss(prediction, target)
+        # update test metrics with the current batch; computation will be done at epoch end
+        self.test_metrics.update(prediction, target)
+
         return ModelTestOutput(prediction, target, loss)
 
     def training_step(
