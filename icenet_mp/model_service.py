@@ -132,6 +132,7 @@ class ModelService:
     def run_directory(self) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
         if not self.run_directory_:
+            # Get the run directory from Wandb if it exists
             wandb_run = get_wandb_run(self.trainer)
             if wandb_run:
                 self.run_directory_ = Path(wandb_run._settings.sync_dir)
