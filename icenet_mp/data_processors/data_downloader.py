@@ -188,8 +188,11 @@ class DataDownloader:
             else:
                 download_complete = False
             statistics_ready = ds_info.statistics_ready
-        except (AttributeError, FileNotFoundError, PathNotFoundError):
-            download_in_progress = False
-            download_complete = False
-            statistics_ready = False
+        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+            logger.error(  # noqa: TRY400
+                "Unable to get status for %s at %s.",
+                self.name,
+                self.path_dataset,
+            )
+            raise typer.Exit(1) from exc
         return (download_in_progress, download_complete, statistics_ready)
