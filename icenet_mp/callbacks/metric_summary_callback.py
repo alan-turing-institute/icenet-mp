@@ -1,15 +1,11 @@
 import logging
-from typing import TYPE_CHECKING
 
 import wandb
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
+from torchmetrics import MetricCollection
 
 from icenet_mp.utils import get_wandb_run
-
-if TYPE_CHECKING:
-    from torchmetrics import MetricCollection
-
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +16,8 @@ class MetricSummaryCallback(Callback):
     def on_test_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called at the end of testing."""
         test_metrics: MetricCollection = pl_module.test_metrics  # type: ignore[assignment]
-        if not hasattr(test_metrics, "items"):
-            logger.warning(
-                "test_metrics does not have an items() method, skipping metric summary."
-            )
+        if not isinstance(pl_module.test_metrics, MetricCollection):
+            logger.warning("Could not load test metrics!")
             return
 
         for name, metric in test_metrics.items():
