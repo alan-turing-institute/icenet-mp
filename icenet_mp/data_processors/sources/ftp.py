@@ -58,8 +58,8 @@ class FTPSource(LegacySource):
                         downloaded_files.append(
                             load_one("📂", context, [iso_date], str(local_path))
                         )
-                    except error_perm:
-                        msg = f"Remote file not found: {remote_path}"
+                    except error_perm as exc:
+                        msg = f"Failed to download from '{remote_path}': {exc}"
                         logger.warning(msg)
 
         # Combine all downloaded files into a MultiFieldList
