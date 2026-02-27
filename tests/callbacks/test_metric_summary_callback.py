@@ -72,18 +72,32 @@ class TestOnTestEnd:
         mock_logger = mock_trainer.loggers[0]
         mock_logger.log_metrics.assert_not_called()
 
+    @patch("icenet_mp.callbacks.metric_summary_callback.get_wandb_run")
     @patch("icenet_mp.callbacks.metric_summary_callback.wandb")
     def test_on_test_end_with_wandb_logger_vector_metric(
         self,
         mock_wandb: MagicMock,
+        mock_get_wandb_run: MagicMock,
         callback: MetricSummaryCallback,
         mock_module: MagicMock,
     ) -> None:
         """Test on_test_end with WandbLogger and a metric returning a vector."""
+
+        # Mock wandb.Run for isinstance check
+        class MockWandbRun:
+            def __init__(self) -> None:
+                self.log = MagicMock()
+
+        mock_wandb.Run = MockWandbRun
+
         # Create a trainer with WandbLogger
         trainer = MagicMock(spec=Trainer)
         wandb_logger = MagicMock(spec=WandbLogger)
         trainer.loggers = [wandb_logger]
+
+        # Mock get_wandb_run to return a MockWandbRun instance
+        mock_run = MockWandbRun()
+        mock_get_wandb_run.return_value = mock_run
 
         # Create a metric that returns multiple values (daily metric)
         metric_collection = MetricCollection({"mae_daily": MAEPerForecastDay()})
@@ -117,8 +131,8 @@ class TestOnTestEnd:
         )
 
         # Assert that wandb.log was called with the plot
-        mock_wandb.log.assert_called_once()
-        log_call_args = mock_wandb.log.call_args[0][0]
+        mock_run.log.assert_called_once()
+        log_call_args = mock_run.log.call_args[0][0]
         assert "mae_daily per day" in log_call_args
 
         # Assert that the mean value was logged
