@@ -46,17 +46,5 @@ def inspect(
         downloader.inspect(statistics=statistics)
 
 
-@datasets_cli.command("finalise")
-@hydra_adaptor
-def finalise(
-    config: DictConfig,
-) -> None:
-    """Finalise loaded dataset."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
-        logger.info("Working on %s.", downloader.name)
-        downloader.finalise()
-
-
 if __name__ == "__main__":
     datasets_cli()
