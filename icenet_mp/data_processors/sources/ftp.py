@@ -1,4 +1,6 @@
+import logging
 from ftplib import FTP
+from ftplib import Error as FtpError
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -12,6 +14,8 @@ from earthkit.data.core.fieldlist import FieldList, MultiFieldList
 from earthkit.data.utils.patterns import Pattern
 
 from icenet_mp.utils import to_list
+
+logger = logging.getLogger(__name__)
 
 
 @source_registry.register("ftp")
@@ -46,14 +50,18 @@ class FTPSource(LegacySource):
             for iso_date, remote_path_list in remote_paths.items():
                 for remote_path in remote_path_list:
                     directory, filename = remote_path.rsplit("/", 1)
-                    session.cwd(("/" + directory).replace("//", "/"))
                     local_path = base_path / filename
-                    # Download the remote file
-                    with local_path.open("wb") as local_file:
-                        session.retrbinary(f"RETR {filename}", local_file.write)
-                    downloaded_files.append(
-                        load_one("📂", context, [iso_date], str(local_path))
-                    )
+                    try:
+                        # Download the remote file
+                        session.cwd(("/" + directory).replace("//", "/"))
+                        with local_path.open("wb") as local_file:
+                            session.retrbinary(f"RETR {filename}", local_file.write)
+                        downloaded_files.append(
+                            load_one("📂", context, [iso_date], str(local_path))
+                        )
+                    except FtpError as exc:
+                        msg = f"Failed to download from '{remote_path}': {exc}"
+                        logger.warning(msg)
 
         # Combine all downloaded files into a MultiFieldList
         return MultiFieldList(downloaded_files)
