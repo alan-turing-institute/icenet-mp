@@ -17,7 +17,7 @@ full-weathersouth-era5-0p25-1979-2025-24h-v1:
         class: ea
         expver: "0001"
         grid: "0.25 / 0.25"
-        area: "20/-180/-90/180"  # southern hemisphere
+        area: "-20/-180/-90/180"  # southern hemisphere
         levtype: sfc
         param:
         - 2t # 2-metre air temperature
@@ -30,7 +30,7 @@ full-weathersouth-era5-0p25-1979-2025-24h-v1:
         class: ea
         expver: "0001"
         grid: "0.25 / 0.25"
-        area: "20/-180/-90/180"  # southern hemisphere
+        area: "-20/-180/-90/180"  # southern hemisphere
         level:
         - 10 # hPa
         - 250 # hPa
