@@ -109,6 +109,10 @@ class DataDownloader:
                 self.name,
                 self.path_dataset,
             )
+            if not download_complete:
+                logger.info("Not all files have been downloaded.")
+            if download_in_progress:
+                logger.info("Dataset is still being downloaded by another process.")
 
     def finalise(self) -> None:
         """Finalise the segmented Anemoi dataset."""
