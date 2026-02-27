@@ -98,7 +98,7 @@ You will need a [CDS account](https://cds.climate.copernicus.eu/how-to-api) to d
 
 Run `uv run imp datasets create` to download datasets.
 
-N.b. For very large datasets, use `load_in_parts` instead (see [Downloading large datasets](#downloading-large-datasets) below).
+We make use of the fact that Anemoi datasets keep track of which groups of dates have been loaded to ensure that an interrupted download can be resumed simply by rerunning the `datasets create` command.
 
 ### Inspect
 
@@ -199,74 +199,3 @@ There are various demonstrator Jupyter notebooks in the `notebooks` folder.
 You can run these with `uv run --group notebooks jupyter notebook`.
 
 A good one to start with is `notebooks/demo_pipeline.ipynb` which gives a more detailed overview of the pipeline.
-
-## Downloading large datasets
-For particularly large datasets, e.g. the full ERA5 dataset, it may be necessary to download the data in parts.
-
-### Automated approach (recommended)
-
-The `load_in_parts` command automates the process of downloading datasets in parts, tracking progress, and allowing you to resume interrupted downloads:
-
-```bash
-uv run imp datasets load_in_parts --config-name <your config>.yaml
-```
-
-This command will:
-- Automatically initialise the dataset if it doesn't exist
-- Load all parts sequentially, tracking progress in a part tracker file
-- Skip already completed parts if the process is interrupted and restarted
-- Handle errors gracefully (by default, continues to the next part on error)
-
-You will then need to finalise the dataset when done.
-
-```bash
-uv run imp datasets finalise --config-name <your config>.yaml
-```
-
-#### Options
-
-- `--continue-on-error` / `--no-continue-on-error` (default: `--continue-on-error`): Continue to next part on error
-- `--force-reset`: Clear existing progress tracker and start from part 1. Anemoi will check whether you have the data already and continue.
-- `--dataset <name>`: Run only a single dataset by name (useful when you have multiple datasets in your config). Make sure you use the dataset name and not the name of the config.
-- `--total-parts <n>`: Override the computed total number of parts (useful if you want more / fewer parts than the default 10)
-- `--overwrite`: Delete the dataset directory before loading (use with caution!)
-
-#### Examples
-
-Load all parts for all datasets, resuming from where you left off:
-```bash
-uv run imp datasets load_in_parts --config-name <your config>.yaml
-```
-
-Load a specific dataset with a custom number of parts:
-```bash
-uv run imp datasets load_in_parts --config-name <your config>.yaml --dataset my_dataset --total-parts 25
-```
-
-Start fresh, clearing any previous progress (doesn't delete any data):
-```bash
-uv run imp datasets load_in_parts --config-name <your config>.yaml --force-reset
-```
-Start and destroy any previously saved data (careful):
-```bash
-uv run imp datasets load_in_parts --config-name <your config>.yaml --overwrite
-```
-
-### Manual approach (advanced)
-
-If you need more control, you can manually manage the download process:
-
-1. First initialise the dataset:
-```bash
-uv run imp datasets init --config-name <your config>.yaml
-```
-
-2. Then load each part `i` of the total `n` in turn:
-```bash
-uv run imp datasets load --config-name <your config>.yaml --parts i/n
-```
-
-3. When all the parts are loaded, finalise the dataset:
-```bash
-uv run imp datasets finalise --config-name <your config>.yaml
-```
