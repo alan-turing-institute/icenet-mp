@@ -9,7 +9,18 @@ import xarray as xr
 from anemoi.datasets.commands.create import Create
 from omegaconf import DictConfig
 
-from icenet_mp.types import AnemoiCreateArgs
+
+class MockAnemoiCreateArgs:
+    """Arguments for anemoi create."""
+
+    def __init__(self, config: DictConfig, path: Path) -> None:
+        """Initialise the arguments."""
+        self.command = "unused"
+        self.config = config
+        self.overwrite = True
+        self.path = str(path)
+        self.processes = 0
+        self.threads = 0
 
 
 @pytest.fixture
@@ -278,13 +289,7 @@ def mock_dataset(mock_data_path: Path, mock_data: dict[str, dict[str, Any]]) -> 
         }
     )
     zarr_path = mock_data_path / "anemoi" / "mock_dataset.zarr"
-    Create().run(
-        AnemoiCreateArgs(
-            path=str(zarr_path),
-            config=config,
-            overwrite=True,
-        )
-    )
+    Create().run(MockAnemoiCreateArgs(config, zarr_path))
     return Path(str(zarr_path))
 
 
@@ -314,13 +319,7 @@ def mock_dataset_missing_dates(
         }
     )
     zarr_path = mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr"
-    Create().run(
-        AnemoiCreateArgs(
-            path=str(zarr_path),
-            config=config,
-            overwrite=True,
-        )
-    )
+    Create().run(MockAnemoiCreateArgs(config, zarr_path))
     return Path(str(zarr_path))
 
 
@@ -349,13 +348,7 @@ def mock_dataset_non_normalized_times(
         }
     )
     zarr_path = mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr"
-    Create().run(
-        AnemoiCreateArgs(
-            path=str(zarr_path),
-            config=config,
-            overwrite=True,
-        )
-    )
+    Create().run(MockAnemoiCreateArgs(config, zarr_path))
     return Path(str(zarr_path))
 
 
