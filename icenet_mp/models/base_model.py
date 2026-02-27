@@ -165,7 +165,14 @@ class BaseModel(LightningModule, ABC):
         prediction = self(batch)
         loss = self.loss(prediction, target)
 
-        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "train_loss",
+            loss,
+            sync_dist=True,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
         return loss
 
     def validation_step(
@@ -194,5 +201,12 @@ class BaseModel(LightningModule, ABC):
         target = batch["target"].clone().detach()
         prediction = self(batch)
         loss = self.loss(prediction, target)
-        self.log("validation_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "validation_loss",
+            loss,
+            sync_dist=True,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
         return loss
