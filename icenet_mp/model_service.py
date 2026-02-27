@@ -132,7 +132,6 @@ class ModelService:
     def run_directory(self) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
         if not self.run_directory_:
-            # Get the run directory from Wandb if it exists
             wandb_run = get_wandb_run(self.trainer)
             if wandb_run:
                 self.run_directory_ = Path(wandb_run._settings.sync_dir)
@@ -228,9 +227,11 @@ class ModelService:
 
         # Save model config to the run directory
         model_config_path = self.run_directory / "files" / "model_config.yaml"
-        OmegaConf.save(self.config, model_config_path)
-        if wandb_run := get_wandb_run(self.trainer):
-            wandb_run.save(model_config_path, base_path=model_config_path.parent)
+        if self.trainer.is_global_zero:
+            model_config_path.parent.mkdir(parents=True, exist_ok=True)
+            OmegaConf.save(self.config, model_config_path)
+            if wandb_run := get_wandb_run(self.trainer):
+                wandb_run.save(model_config_path, base_path=model_config_path.parent)
 
     def evaluate(self) -> None:
         """Evaluate a trained model."""

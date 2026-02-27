@@ -87,21 +87,9 @@ class PlottingCallback(Callback):
         # Get sequence dates for static and video plots
         batch_size = int(outputs.target.shape[0])
         n_timesteps = int(outputs.target.shape[1])
-        # dates = [
-        #     datetime_from_npdatetime(dataset.dates[batch_size * batch_idx + tt])
-        #     for tt in range(n_timesteps)
-        # ]
-        sample_idx = batch_size * batch_idx
-        # if sample_idx >= len(dataset.dates):
-        #     logger.warning(f"Batch {batch_idx} index out of range, skipping plotting.")
-        #     return
-        
-        start_date = dataset.dates[sample_idx]
-        
-        # Get the forecast dates for this sample (n_timesteps into the future)
         dates = [
-            datetime_from_npdatetime(date) 
-            for date in dataset.get_forecast_steps(start_date)
+            datetime_from_npdatetime(dataset.dates[batch_size * batch_idx + tt])
+            for tt in range(n_timesteps)
         ]
 
         # Set hemisphere for plotting based on dataset

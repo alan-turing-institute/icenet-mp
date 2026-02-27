@@ -181,7 +181,7 @@ class CommonDataModule(LightningDataModule):
             dataset.start_date,
             dataset.end_date,
         )
-        return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs) # shuffle=True causes DDP index error
+        return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
     def val_dataloader(
         self,
