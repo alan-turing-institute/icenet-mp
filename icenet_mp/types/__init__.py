@@ -2,7 +2,6 @@ from .complex_datatypes import DataSpace, ModelTestOutput
 from .enums import BetaSchedule, RangeRestriction, TensorDimensions
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
-    AnemoiCreateArgs,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
     AnemoiInspectArgs,
@@ -24,7 +23,6 @@ from .typedefs import (
 )
 
 __all__ = [
-    "AnemoiCreateArgs",
     "AnemoiFinaliseArgs",
     "AnemoiInitArgs",
     "AnemoiInspectArgs",

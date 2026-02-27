@@ -70,9 +70,6 @@ class TestDatasetsCLI:
                 r"--help\s+-h\s+Show this message and exit.",
                 r"create\s+Create all datasets.",
                 r"inspect\s+Inspect all datasets.",
-                r"init\s+Create all datasets.",
-                r"load\s+Load dataset in parts.",
-                r"finalise\s+Finalise loaded dataset.",
             ],
         )
 

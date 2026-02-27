@@ -1679,7 +1679,6 @@ dependencies = [
     { name = "cachetools" },
     { name = "cdsapi" },
     { name = "eccodeslib" },
-    { name = "filelock" },
     { name = "hydra-core" },
     { name = "icenet" },
     { name = "jaxtyping" },
@@ -1717,13 +1716,12 @@ notebooks = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anemoi-datasets", specifier = ">=0.5.25" },
+    { name = "anemoi-datasets", specifier = ">=0.5.27" },
     { name = "anemoi-transform", specifier = ">=0.1.16" },
     { name = "anemoi-utils", specifier = ">=0.4.42" },
     { name = "cachetools", specifier = ">=6.1.0" },
     { name = "cdsapi", specifier = ">=0.7.6" },
     { name = "eccodeslib", specifier = ">=2.40.0" },
-    { name = "filelock", specifier = ">=3.12.0" },
     { name = "hydra-core", specifier = ">=1.3.2" },
     { name = "icenet", specifier = "==0.2.7" },
     { name = "jaxtyping", specifier = ">=0.3.2" },
