@@ -76,14 +76,14 @@ class DataDownloader:
                         self.name,
                         self.path_dataset,
                     )
-                except (AttributeError, FileNotFoundError, PathNotFoundError):
+                except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
                     # If the dataset is invalid we flag this to the user and exit
                     logger.error(  # noqa: TRY400
                         "Dataset %s at %s seems to be invalid. Please check manually.",
                         self.name,
                         self.path_dataset,
                     )
-                    typer.Exit(1)
+                    raise typer.Exit(1) from exc
                 else:
                     # If the dataset is valid we return here
                     return
