@@ -1,6 +1,8 @@
 from typing import Any
+import os
 
-from torch import nn
+import numpy as np
+from torch import from_numpy, nn
 
 from icenet_mp.models.common import (
     CommonConvBlock,
@@ -35,11 +37,18 @@ class PiecewiseDecoder(BaseDecoder):
         conv_kernel_size: int = 3,
         n_conv_blocks: int = 3,
         restrict_range: str = "clamp",
+        mask_path: str | None = None, 
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseDecoder."""
         super().__init__(**kwargs)
 
+        # load in the land mask and save it as a tensor
+        mask_np = np.load(os.path.join(mask_path))
+        self.register_buffer(
+            "active_gridcell_mask", from_numpy(mask_np).float(), persistent=False
+        )
+        
         # Calculate the number of patches required
         # We set the stride to be half the patch size to ensure overlap, which will
         # capture more of the spatial structure of the data.
@@ -124,4 +133,11 @@ class PiecewiseDecoder(BaseDecoder):
             TensorNCHW with (batch_size, output_channels, output_height, output_width)
 
         """
-        return self.model(x)
+        output = self.model(x)
+
+        # set all values in the active grid cell mask to be zero
+        output = output * self.active_gridcell_mask.to(dtype=output.dtype)
+        # output = output * (1 - self.land_mask.to(dtype=output.dtype))
+
+        return output
+

@@ -1,7 +1,9 @@
 import logging
+import os
 from typing import Any
 
-from torch import nn
+import numpy as np
+from torch import from_numpy, nn
 from torch.nn.functional import sigmoid
 
 from icenet_mp.models.common import ConvBlockUpsample, ResizingInterpolation
@@ -34,6 +36,7 @@ class CNNDecoder(BaseDecoder):
         kernel_size: int = 3,
         n_layers: int = 3,
         bounded: bool = False,
+        mask_path: str | None = None, 
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNDecoder."""
@@ -42,6 +45,12 @@ class CNNDecoder(BaseDecoder):
         # specify whether the output is bounded between 0 and 1
         self.bounded = bounded
 
+        # load in the land mask and save it as a tensor
+        mask_np = np.load(os.path.join(mask_path))
+        self.register_buffer(
+            "active_gridcell_mask", from_numpy(mask_np).float(), persistent=False
+        )
+        
         # Calculate the factor by which the scale changes after n_layers
         layer_factor = 2**n_layers
 
@@ -128,6 +137,12 @@ class CNNDecoder(BaseDecoder):
             TensorNCHW with (batch_size, latent_channels, latent_height, latent_width)
 
         """
+        output = self.model(x)
+
+        # set all values in the active grid cell mask to be zero
+        output = output * self.active_gridcell_mask.to(dtype=output.dtype)
+        # output = output * (1 - self.land_mask.to(dtype=output.dtype))
+
         if self.bounded:
-            return sigmoid(self.model(x))
-        return self.model(x)
+            return sigmoid(output)
+        return output

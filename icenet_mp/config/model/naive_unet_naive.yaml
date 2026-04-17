@@ -13,3 +13,5 @@ processor:
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
   bounded: false # Whether to bound the output between 0 and 1
+  # mask_path: ../zebra_anemoi/data/preprocessing/samp-sicsouth-osisaf-25k-2017-2019-24h-v1/IceNetSIC/data/masks/south/mask/active_grid_cell_mask_01.npy
+# mask_path: ${base_path}/data/preprocessing/${...data.datasets.name}/${...data.datasets.preprocessor.type}/data/osisaf/${...data.datasets.preprocessor.hemisphere}/masks/active_grid_cell_mask_01.npy
