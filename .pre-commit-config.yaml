@@ -23,7 +23,7 @@ repos:
     hooks:
       # Run the linter
       - id: ruff-check
-        args: ["--fix", "--show-fixes"]
+        args: ["--select", "I", "--fix", "--show-fixes"]
         pass_filenames: true
       # Run the formatter
       - id: ruff-format

@@ -11,7 +11,7 @@ class TestEncodeProcessDecode:
     def test_init(
         self,
         cfg_decoder: DictConfig,
-        cfg_encoder: DictConfig,
+        cfg_encoders: DictConfig,
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
@@ -20,7 +20,7 @@ class TestEncodeProcessDecode:
     ) -> None:
         model = EncodeProcessDecode(
             name="encode-null-decode",
-            encoder=cfg_encoder,
+            encoders=cfg_encoders,
             processor=cfg_processor,
             decoder=cfg_decoder,
             hemisphere="north",
@@ -46,7 +46,7 @@ class TestEncodeProcessDecode:
     def test_forward(
         self,
         cfg_decoder: DictConfig,
-        cfg_encoder: DictConfig,
+        cfg_encoders: DictConfig,
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
@@ -56,7 +56,7 @@ class TestEncodeProcessDecode:
     ) -> None:
         model = EncodeProcessDecode(
             name="encode-null-decode",
-            encoder=cfg_encoder,
+            encoders=cfg_encoders,
             processor=cfg_processor,
             decoder=cfg_decoder,
             hemisphere="north",

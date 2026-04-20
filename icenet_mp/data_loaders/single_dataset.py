@@ -98,6 +98,28 @@ class SingleDataset(Dataset):
         return np.timedelta64(self.datasets[0].frequency)
 
     @property
+    def latitudes(self) -> list[float]:
+        """Return the latitudes of the dataset."""
+        per_ds_latitudes = sorted(
+            {tuple(ds.latitudes.tolist()) for ds in self.datasets}
+        )
+        if len(per_ds_latitudes) != 1:
+            msg = f"All datasets must have the same latitudes, found {len(per_ds_latitudes)} different values"
+            raise ValueError(msg)
+        return list(per_ds_latitudes[0])
+
+    @property
+    def longitudes(self) -> list[float]:
+        """Return the longitudes of the dataset."""
+        per_ds_longitudes = sorted(
+            {tuple(ds.longitudes.tolist()) for ds in self.datasets}
+        )
+        if len(per_ds_longitudes) != 1:
+            msg = f"All datasets must have the same longitudes, found {len(per_ds_longitudes)} different values"
+            raise ValueError(msg)
+        return list(per_ds_longitudes[0])
+
+    @property
     def name(self) -> str:
         """Return the name of the dataset."""
         return self._name

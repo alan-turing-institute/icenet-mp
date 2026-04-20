@@ -37,6 +37,7 @@ dependencies = [
     "netcdf4>=1.7.0",
     "pillow>=11.3.0",
     "pydantic>=2.11.7",
+    "pyproj>=3.7.2",
     "pytorch-triton-xpu>=0.0; sys_platform == 'linux' and platform_version == '#1 SMP PREEMPT_DYNAMIC Wed Dec 17 11:57:42 GMT 2025'", # only needed for XPU-enabled machines, but we don't have a simple way to determine that
     "pytorch-triton>=0.0; sys_platform == 'linux' and platform_version != '#1 SMP PREEMPT_DYNAMIC Wed Dec 17 11:57:42 GMT 2025'",
     "torch-ema>=0.3",

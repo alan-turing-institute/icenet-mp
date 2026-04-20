@@ -1,7 +1,6 @@
 import logging
-from collections.abc import Iterable
 from pathlib import Path, PosixPath
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import hydra
 import torch
@@ -14,11 +13,8 @@ from wandb.sdk.lib.runid import generate_id
 from icenet_mp.callbacks import UnconditionalCheckpoint
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models.base_model import BaseModel
-from icenet_mp.types import SupportsMetadata
+from icenet_mp.types import SupportsLatLon, SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
-
-if TYPE_CHECKING:
-    from lightning.pytorch.loggers import Logger as LightningLogger
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +25,6 @@ class ModelService:
         self.config_ = config
         self.data_module_: CommonDataModule | None = None
         self.model_: BaseModel | None = None
-        self.trainer_: Trainer | None = None
-        self.extra_callbacks_: list[Callback] = []
-        self.extra_loggers_: list[LightningLogger] = []
-        self.run_directory_: Path | None = None
 
     @classmethod
     def from_config(cls, config: DictConfig) -> "ModelService":
@@ -59,6 +51,12 @@ class ModelService:
             _recursive_=False,
             _convert_="object",
         )
+
+        # Set latitudes and longitudes for models that that support them
+        if isinstance(builder.model, SupportsLatLon):
+            longitudes_dict = builder.data_module.longitudes
+            for name, latitudes in builder.data_module.latitudes.items():
+                builder.model.set_latlon(name, latitudes, longitudes_dict[name])
 
         # Return the builder
         return builder
@@ -129,77 +127,34 @@ class ModelService:
             raise AttributeError(msg)
         return self.model_
 
-    @property
-    def run_directory(self) -> Path:
+    def build_run_directory(self, trainer: Trainer) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
-        if not self.run_directory_:
-            # Get the run directory from Wandb if it exists
-            wandb_run = get_wandb_run(self.trainer)
-            if wandb_run:
-                self.run_directory_ = Path(wandb_run._settings.sync_dir)
+        # Get the run directory from Wandb if it exists
+        wandb_run = get_wandb_run(trainer)
+        if wandb_run:
+            return Path(wandb_run._settings.sync_dir)
 
-            # Otherwise generate a new run directory
-            if not self.run_directory_:
-                self.run_directory_ = (
-                    self.data_module.base_path
-                    / "training"
-                    / "local"
-                    / f"run-{get_timestamp()}-{generate_id()}"
-                )
+        # Otherwise generate a new run directory
+        return (
+            self.data_module.base_path
+            / "training"
+            / "local"
+            / f"run-{get_timestamp()}-{generate_id()}"
+        )
 
-            # Ensure the run directory exists
-            logger.debug("Set run directory to %s.", self.run_directory_)
-            self.run_directory_.mkdir(parents=True, exist_ok=True)
-        return self.run_directory_
-
-    @property
-    def trainer(self) -> Trainer:
-        """Create a new Trainer or return the existing one."""
-        if not self.trainer_:
-            # Create a new Trainer
-            logger.debug("Instantiating lightning trainer.")
-            self.trainer_ = cast(
-                "Trainer",
-                hydra.utils.instantiate(
-                    dict(
-                        {
-                            "callbacks": self.extra_callbacks_,
-                            "logger": self.extra_loggers_,
-                        },
-                        **self.config["train"]["trainer"],
-                    )
-                ),
-            )
-            # Assign workers for data loading
-            self.data_module.assign_workers(
-                suggested_max_num_workers(self.trainer_.num_devices)
-            )
-        return self.trainer_
-
-    def add_callbacks(self, callback_configs: Iterable[DictConfig]) -> None:
-        """Add extra lightning callbacks."""
-        self.extra_callbacks_ += [
-            hydra.utils.instantiate(callback_config)
-            for callback_config in callback_configs
-        ]
-
-    def add_loggers(self, overrides: dict[str, str]) -> None:
-        """Add extra lightning loggers."""
-        self.extra_loggers_ += [
-            hydra.utils.instantiate(dict(**logger_config) | overrides)
-            for logger_config in self.config.get("loggers", {}).values()
-        ]
-
-    def configure_trainer(
+    def build_trainer(
         self,
         *,
         job_type: str,
-    ) -> None:
+    ) -> Trainer:
         """Configure the trainer with callbacks and loggers."""
         # Setup callbacks first
         callback_configs = self.config.get(job_type, {}).get("callbacks", {}).values()
-        self.add_callbacks(callback_configs)
-        if not self.extra_callbacks_:
+        extra_callbacks = [
+            hydra.utils.instantiate(callback_config)
+            for callback_config in callback_configs
+        ]
+        if not extra_callbacks:
             logger.warning("No callbacks have been set for the trainer.")
 
         # Setup lightning loggers
@@ -207,12 +162,45 @@ class ModelService:
             "job_type": job_type,
             "project": job_type,
         }
-        self.add_loggers(logger_overrides)
-        if not self.extra_loggers_:
+        extra_loggers = [
+            hydra.utils.instantiate(dict(**logger_config) | logger_overrides)
+            for logger_config in self.config.get("loggers", {}).values()
+        ]
+        if not extra_loggers:
             logger.warning("No loggers have been set for the trainer.")
 
+        # Create a new trainer
+        logger.debug("Instantiating lightning trainer.")
+        trainer = cast(
+            "Trainer",
+            hydra.utils.instantiate(
+                dict(
+                    {
+                        "callbacks": extra_callbacks,
+                        "logger": extra_loggers,
+                    },
+                    **self.config["train"]["trainer"],
+                )
+            ),
+        )
+        # Assign workers for data loading
+        self.data_module.assign_workers(suggested_max_num_workers(trainer.num_devices))
+
+        # Ensure the run directory exists
+        run_directory = self.build_run_directory(trainer)
+        logger.debug("Set run directory to %s.", run_directory)
+        run_directory.mkdir(parents=True, exist_ok=True)
+
+        # Save model config to the run directory
+        model_config_path = run_directory / "files" / "model_config.yaml"
+        if trainer.is_global_zero:
+            model_config_path.parent.mkdir(parents=True, exist_ok=True)
+            OmegaConf.save(self.config, model_config_path)
+            if wandb_run := get_wandb_run(trainer):
+                wandb_run.save(model_config_path, base_path=model_config_path.parent)
+
         # Additional configuration for callbacks
-        for callback in cast("list[Callback]", self.trainer.callbacks):  # type: ignore[attr-defined]
+        for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
             logger.debug("Configuring callback %s.", callback.__class__.__name__)
             # Set metadata for supported callbacks
             if isinstance(callback, SupportsMetadata):
@@ -223,33 +211,27 @@ class ModelService:
                 logger.debug(
                     "Setting run_directory for %s to %s.",
                     callback.__class__.__name__,
-                    self.run_directory / "checkpoints",
+                    run_directory / "checkpoints",
                 )
-                callback.dirpath = self.run_directory / "checkpoints"
+                callback.dirpath = run_directory / "checkpoints"
 
-        # Save model config to the run directory
-        model_config_path = self.run_directory / "files" / "model_config.yaml"
-        if self.trainer.is_global_zero:
-            model_config_path.parent.mkdir(parents=True, exist_ok=True)
-            OmegaConf.save(self.config, model_config_path)
-            if wandb_run := get_wandb_run(self.trainer):
-                wandb_run.save(model_config_path, base_path=model_config_path.parent)
+        return trainer
 
     def evaluate(self) -> None:
         """Evaluate a trained model."""
         # Configure the trainer with evaluation callbacks and loggers
         logger.info("Configuring model for evaluation.")
-        self.configure_trainer(job_type="evaluate")
+        trainer = self.build_trainer(job_type="evaluate")
         # Log evaluation details
         logger.info(
             "Starting evaluation using %d threads across %d %s device(s).",
             torch.get_num_threads(),
-            self.trainer.num_devices,
-            get_device_name(self.trainer.accelerator.name()),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
         )
 
         # Evaluate the model
-        self.trainer.test(
+        trainer.test(
             model=self.model,
             datamodule=self.data_module,
         )
@@ -258,19 +240,19 @@ class ModelService:
         """Train a model."""
         # Configure the trainer with training callbacks and loggers
         logger.info("Configuring model for training.")
-        self.configure_trainer(job_type="train")
+        trainer = self.build_trainer(job_type="train")
 
         # Log training details
         logger.info(
             "Starting training for %d epochs using %d threads across %d %s device(s).",
-            self.trainer.max_epochs,
+            trainer.max_epochs,
             torch.get_num_threads(),
-            self.trainer.num_devices,
-            get_device_name(self.trainer.accelerator.name()),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
         )
 
         # Train the model
-        self.trainer.fit(
+        trainer.fit(
             model=self.model,
             datamodule=self.data_module,
         )

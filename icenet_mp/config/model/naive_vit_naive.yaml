@@ -2,9 +2,12 @@ _target_: icenet_mp.models.EncodeProcessDecode
 
 name: naive-vit-naive
 
-encoder:
-  _target_: icenet_mp.models.encoders.NaiveLinearEncoder
-  latent_space: [432, 432] # Shape of the latent space
+encoders:
+  latent_space: [432, 432]
+  era5:
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
 
 processor:
   _target_: icenet_mp.models.processors.VitProcessor

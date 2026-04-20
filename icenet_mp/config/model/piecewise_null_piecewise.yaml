@@ -2,9 +2,12 @@ _target_: icenet_mp.models.EncodeProcessDecode
 
 name: piecewise-null-piecewise
 
-encoder:
-  _target_: icenet_mp.models.encoders.PiecewiseEncoder
-  latent_space: [192, 192] # Shape of the latent space
+encoders:
+  latent_space: [192, 192]
+  era5:
+    _target_: icenet_mp.models.encoders.PiecewiseEncoder
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.PiecewiseEncoder
 
 processor:
   _target_: icenet_mp.models.processors.NullProcessor

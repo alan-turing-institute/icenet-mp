@@ -2,9 +2,12 @@ _target_: icenet_mp.models.EncodeProcessDecode
 
 name: sample
 
-encoder:
-  _target_: icenet_mp.models.encoders.NaiveLinearEncoder
+encoders:
   latent_space: [128, 128]
+  era5:
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
