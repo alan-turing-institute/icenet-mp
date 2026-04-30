@@ -2,8 +2,9 @@
 _target_: torch.optim.lr_scheduler.CosineAnnealingLR
 
 # These parameters are part of an `lr_scheduler_config`
-frequency: 1
-interval: epoch
+lr_scheduler_parameters:
+  frequency: 1
+  interval: epoch
 
 # These parameters are passed to the scheduler instance
 scheduler_parameters:

@@ -87,31 +87,29 @@ class BaseModel(LightningModule, ABC):
         """Construct the optimizer and optional scheduler from the config."""
         # Optimizer
         optimizer = hydra.utils.instantiate(
-            dict(**self.optimizer_cfg)
-            | {
-                "params": itertools.chain(
-                    *[module.parameters() for module in self.children()]
-                )
-            }
+            self.optimizer_cfg,
+            params=itertools.chain(
+                *[module.parameters() for module in self.children()]
+            ),
         )
+
         # If no scheduler config is provided, return just the optimizer
         if not self.scheduler_cfg:
             return OptimizerConfig(optimizer=optimizer)
 
         # Scheduler
-        scheduler_args = self.scheduler_cfg
         scheduler = hydra.utils.instantiate(
-            {
-                "_target_": scheduler_args.pop("_target_"),
-                "optimizer": optimizer,
-                **scheduler_args.pop("scheduler_parameters", {}),
-            }
+            self.scheduler_cfg["scheduler_parameters"],
+            _target_=self.scheduler_cfg["_target_"],
+            optimizer=optimizer,
         )
 
         # Return the optimizer and scheduler
         return OptimizerLRSchedulerConfig(
             optimizer=optimizer,
-            lr_scheduler=LRSchedulerConfigType(scheduler=scheduler, **scheduler_args),
+            lr_scheduler=LRSchedulerConfigType(
+                scheduler=scheduler, **self.scheduler_cfg["lr_scheduler_parameters"]
+            ),
         )
 
     @abstractmethod
