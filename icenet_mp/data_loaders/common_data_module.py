@@ -85,12 +85,17 @@ class CommonDataModule(LightningDataModule):
         )
 
     @cached_property
-    def hemisphere(self) -> Hemisphere:
-        """Return the hemisphere of the dataset."""
-        hemisphere: set[Hemisphere] = {
-            SingleDataset(name, paths).hemisphere
+    def datasets(self) -> dict[str, SingleDataset]:
+        """Return a dictionary of dataset group names to SingleDataset objects."""
+        return {
+            name: SingleDataset(name, paths)
             for name, paths in self.dataset_groups.items()
         }
+
+    @cached_property
+    def hemisphere(self) -> Hemisphere:
+        """Return the hemisphere of the dataset."""
+        hemisphere: set[Hemisphere] = {ds.hemisphere for ds in self.datasets.values()}
         if len(hemisphere) != 1:
             msg = f"Found {len(hemisphere)} different hemisphere indicators across {len(self.dataset_groups)} dataset groups."
             raise ValueError(msg)
@@ -99,35 +104,22 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def input_spaces(self) -> list[DataSpace]:
         """Return the data space for each input."""
-        return [
-            SingleDataset(name, paths).space
-            for name, paths in self.dataset_groups.items()
-        ]
+        return [ds.space for ds in self.datasets.values()]
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:
         """Return the latitudes of the dataset."""
-        return {
-            name: SingleDataset(name, paths).latitudes
-            for name, paths in self.dataset_groups.items()
-        }
+        return {name: ds.latitudes for name, ds in self.datasets.items()}
 
     @cached_property
     def longitudes(self) -> dict[str, list[float]]:
         """Return the longitudes of the dataset."""
-        return {
-            name: SingleDataset(name, paths).longitudes
-            for name, paths in self.dataset_groups.items()
-        }
+        return {name: ds.longitudes for name, ds in self.datasets.items()}
 
     @cached_property
     def output_space(self) -> DataSpace:
         """Return the data space of the desired output."""
-        return next(
-            SingleDataset(name, paths, variables=self.target_variables).space
-            for name, paths in self.dataset_groups.items()
-            if name == self.target_group_name
-        )
+        return self.datasets[self.target_group_name].subset(self.target_variables).space
 
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
