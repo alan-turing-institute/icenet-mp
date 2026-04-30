@@ -146,7 +146,7 @@ class CommonDataModule(LightningDataModule):
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded predict dataset with %d samples between %s and %s.",
+            "Loaded predict dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,
@@ -165,7 +165,7 @@ class CommonDataModule(LightningDataModule):
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded test dataset with %d samples between %s and %s.",
+            "Loaded test dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,
@@ -187,7 +187,7 @@ class CommonDataModule(LightningDataModule):
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded training dataset with %d samples between %s and %s.",
+            "Loaded training dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,
@@ -206,7 +206,7 @@ class CommonDataModule(LightningDataModule):
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded validation dataset with %d samples between %s and %s.",
+            "Loaded validation dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,
