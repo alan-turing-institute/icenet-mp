@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from functools import cached_property
 
 import numpy as np
 from torch.utils.data import Dataset
@@ -43,38 +44,34 @@ class CombinedDataset(Dataset):
             raise ValueError(msg)
         self.frequency = frequencies[0]
 
-        # Lazy-load dates on first request
-        self._available_dates: list[np.datetime64] | None = None
-
-    @property
+    @cached_property
     def dates(self) -> list[np.datetime64]:
         """Get list of dates that are available in all datasets."""
-        if self._available_dates is None:
-            # Identify dates that exist in all input datasets
-            input_date_set = set.intersection(*(set(ds.dates) for ds in self.inputs))
-            target_date_set = set(self.target.dates)
-            self._available_dates = sorted(
-                available_date
-                for available_date in input_date_set
-                # ... if all inputs have n_history_steps starting on start_date
-                if all(
-                    date in input_date_set
-                    for date in self.get_history_steps(available_date)
-                )
-                # ... and if the target has n_forecast_steps starting after the history dates
-                and all(
-                    date in target_date_set
-                    for date in self.get_forecast_steps(available_date)
-                )
+        # Identify dates that exist in all input datasets
+        input_date_set = set.intersection(*(set(ds.dates) for ds in self.inputs))
+        target_date_set = set(self.target.dates)
+        available_dates = sorted(
+            available_date
+            for available_date in input_date_set
+            # ... if all inputs have n_history_steps starting on start_date
+            if all(
+                date in input_date_set
+                for date in self.get_history_steps(available_date)
             )
-            if len(self._available_dates) == 0:
-                msg = (
-                    "CombinedDataset has no valid dates. This can happen when there "
-                    "are no valid windows given the configured history/forecast steps or "
-                    "when the input datasets do not have overlapping time ranges."
-                )
-                raise ValueError(msg)
-        return self._available_dates
+            # ... and if the target has n_forecast_steps starting after the history dates
+            and all(
+                date in target_date_set
+                for date in self.get_forecast_steps(available_date)
+            )
+        )
+        if len(available_dates) == 0:
+            msg = (
+                "CombinedDataset has no valid dates. This can happen when there "
+                "are no valid windows given the configured history/forecast steps or "
+                "when the input datasets do not have overlapping time ranges."
+            )
+            raise ValueError(msg)
+        return available_dates
 
     @property
     def end_date(self) -> np.datetime64:
