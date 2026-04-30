@@ -95,7 +95,7 @@ class SingleDataset(Dataset):
         """Return the end date of the dataset."""
         return self.dates[-1]
 
-    @property
+    @cached_property
     def frequency(self) -> np.timedelta64:
         """Return the frequency of the dataset."""
         return np.timedelta64(self.datasets[0].frequency)
@@ -110,7 +110,7 @@ class SingleDataset(Dataset):
         """Return the longitudes of the dataset."""
         return self.datasets[0].longitudes.tolist()
 
-    @property
+    @cached_property
     def name(self) -> str:
         """Return the name of the dataset."""
         return self._name
@@ -124,7 +124,7 @@ class SingleDataset(Dataset):
             shape=self.datasets[0].field_shape,
         )
 
-    @property
+    @cached_property
     def start_date(self) -> np.datetime64:
         """Return the start date of the dataset."""
         return self.dates[0]
