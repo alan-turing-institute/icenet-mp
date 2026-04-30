@@ -35,24 +35,18 @@ class ModelService:
         builder = cls(config)
 
         # Construct the model
-        log.info("Building a new %s model...", builder.config["model"]["name"])
+        log.info("Building a new '%s' model...", builder.config["model"]["_target_"])
         builder.model_ = hydra.utils.instantiate(
-            dict(
-                {
-                    "hemisphere": builder.data_module.hemisphere,
-                    "input_spaces": [
-                        s.to_dict() for s in builder.data_module.input_spaces
-                    ],
-                    "latitudes": builder.data_module.latitudes,
-                    "longitudes": builder.data_module.longitudes,
-                    "n_forecast_steps": builder.data_module.n_forecast_steps,
-                    "n_history_steps": builder.data_module.n_history_steps,
-                    "output_space": builder.data_module.output_space.to_dict(),
-                    "optimizer": config["train"]["optimizer"],
-                    "scheduler": config["train"]["scheduler"],
-                },
-                **config["model"],
-            ),
+            config["model"],
+            hemisphere=builder.data_module.hemisphere,
+            input_spaces=[s.to_dict() for s in builder.data_module.input_spaces],
+            latitudes=builder.data_module.latitudes,
+            longitudes=builder.data_module.longitudes,
+            n_forecast_steps=builder.data_module.n_forecast_steps,
+            n_history_steps=builder.data_module.n_history_steps,
+            output_space=builder.data_module.output_space.to_dict(),
+            optimizer=config["train"]["optimizer"],
+            scheduler=config["train"]["scheduler"],
             _recursive_=False,
             _convert_="object",
         )
