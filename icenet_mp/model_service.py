@@ -152,14 +152,11 @@ class ModelService:
             log.warning("No callbacks have been set for the trainer.")
 
         # Setup lightning loggers
-        logger_overrides = {
-            "job_type": job_type,
-            "project": job_type,
-        }
         extra_loggers = [
-            hydra.utils.instantiate(dict(**logger_config) | logger_overrides)
+            hydra.utils.instantiate(logger_config, job_type=job_type, project=job_type)
             for logger_config in self.config.get("loggers", {}).values()
         ]
+
         if not extra_loggers:
             log.warning("No loggers have been set for the trainer.")
 
@@ -168,14 +165,10 @@ class ModelService:
         trainer = cast(
             "Trainer",
             hydra.utils.instantiate(
-                dict(
-                    {
-                        "callbacks": extra_callbacks,
-                        "deterministic": self.config.get("seed", None) is not None,
-                        "logger": extra_loggers,
-                    },
-                    **self.config["train"]["trainer"],
-                )
+                self.config["train"]["trainer"],
+                callbacks=extra_callbacks,
+                deterministic=self.config.get("seed", None) is not None,
+                logger=extra_loggers,
             ),
         )
         # Assign workers for data loading
