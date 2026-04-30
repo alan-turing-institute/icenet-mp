@@ -52,6 +52,7 @@ class DataloaderArgs(TypedDict):
     batch_sampler: None
     batch_size: int
     drop_last: bool
+    multiprocessing_context: str | None
     num_workers: int
     persistent_workers: bool
     sampler: None

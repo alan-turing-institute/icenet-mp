@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
@@ -78,6 +79,7 @@ class CommonDataModule(LightningDataModule):
             batch_sampler=None,
             batch_size=self.batch_size,
             drop_last=False,
+            multiprocessing_context=None if sys.platform == "win32" else "fork",
             num_workers=0,
             persistent_workers=False,
             sampler=None,
