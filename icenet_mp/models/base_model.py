@@ -1,5 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from functools import cached_property
 from typing import Any
 
 import hydra
@@ -27,8 +29,8 @@ class BaseModel(LightningModule, ABC):
         *,
         hemisphere: Hemisphere,
         input_spaces: list[DictConfig],
-        latitudes: dict[str, list[float]],
-        longitudes: dict[str, list[float]],
+        latitudes: Callable[[], dict[str, list[float]]],
+        longitudes: Callable[[], dict[str, list[float]]],
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -49,8 +51,8 @@ class BaseModel(LightningModule, ABC):
         # Save model name, hemisphere and lat/lon information
         self.name = name
         self.hemisphere = hemisphere
-        self.latitudes = latitudes
-        self.longitudes = longitudes
+        self._latitudes = latitudes
+        self._longitudes = longitudes
 
         # Save history and forecast steps
         if n_forecast_steps <= 0:
@@ -82,6 +84,14 @@ class BaseModel(LightningModule, ABC):
         # This will also save the parameters of whichever child class is used
         # Note that W&B will log all hyperparameters
         self.save_hyperparameters(ignore=["latitudes", "longitudes"])
+
+    @cached_property
+    def latitudes(self) -> dict[str, list[float]]:
+        return self._latitudes()
+
+    @cached_property
+    def longitudes(self) -> dict[str, list[float]]:
+        return self._longitudes()
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""

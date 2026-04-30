@@ -1,3 +1,6 @@
+from collections.abc import Callable
+from functools import cached_property
+
 from torch import nn, stack
 
 from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
@@ -18,8 +21,8 @@ class BaseEncoder(nn.Module):
         *,
         data_space_in: DataSpace,
         latent_space: tuple[int, int],
-        latitudes: dict[str, list[float]],
-        longitudes: dict[str, list[float]],
+        latitudes: Callable[[], dict[str, list[float]]],
+        longitudes: Callable[[], dict[str, list[float]]],
         n_history_steps: int,
     ) -> None:
         """Initialise a BaseEncoder."""
@@ -30,10 +33,18 @@ class BaseEncoder(nn.Module):
             channels=self.data_space_in.channels,
             shape=latent_space,
         )
-        self.latitudes = latitudes
-        self.longitudes = longitudes
+        self._latitudes = latitudes
+        self._longitudes = longitudes
         self.name = data_space_in.name
         self.n_history_steps = n_history_steps
+
+    @cached_property
+    def latitudes(self) -> dict[str, list[float]]:
+        return self._latitudes()
+
+    @cached_property
+    def longitudes(self) -> dict[str, list[float]]:
+        return self._longitudes()
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: encode input space into latent space for a single timestep.
