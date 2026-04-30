@@ -100,28 +100,12 @@ class SingleDataset(Dataset):
     @cached_property
     def latitudes(self) -> list[float]:
         """Return the latitudes of the dataset."""
-        reference_latitudes = self.datasets[0].latitudes
-        n_different = sum(
-            not np.array_equal(ds.latitudes, reference_latitudes)
-            for ds in self.datasets
-        )
-        if n_different != 0:
-            msg = f"All date ranges must have the same latitudes, found {n_different + 1} different values"
-            raise ValueError(msg)
-        return reference_latitudes.tolist()
+        return self.datasets[0].latitudes.tolist()
 
     @cached_property
     def longitudes(self) -> list[float]:
         """Return the longitudes of the dataset."""
-        reference_longitudes = self.datasets[0].longitudes
-        n_different = sum(
-            not np.array_equal(ds.longitudes, reference_longitudes)
-            for ds in self.datasets
-        )
-        if n_different != 0:
-            msg = f"All date ranges must have the same longitudes, found {n_different + 1} different values"
-            raise ValueError(msg)
-        return reference_longitudes.tolist()
+        return self.datasets[0].longitudes.tolist()
 
     @property
     def name(self) -> str:
@@ -131,21 +115,10 @@ class SingleDataset(Dataset):
     @cached_property
     def space(self) -> DataSpace:
         """Return the data space for this dataset."""
-        # Check all datasets have the same number of channels
-        per_ds_channels = sorted({ds.shape[1] for ds in self.datasets})
-        if len(per_ds_channels) != 1:
-            msg = f"All date ranges must have the same number of channels, found {len(per_ds_channels)} different values"
-            raise ValueError(msg)
-        # Check all datasets have the same shape
-        per_ds_shape = sorted({ds.field_shape for ds in self.datasets})
-        if len(per_ds_shape) != 1:
-            msg = f"All date ranges must have the same shape, found {len(per_ds_shape)} different values"
-            raise ValueError(msg)
-        # Return the data space
         return DataSpace(
-            channels=per_ds_channels[0],
+            channels=self.datasets[0].shape[1],
             name=self.name,
-            shape=per_ds_shape[0],
+            shape=self.datasets[0].field_shape,
         )
 
     @property
@@ -155,15 +128,7 @@ class SingleDataset(Dataset):
 
     @cached_property
     def variable_names(self) -> list[str]:
-        """Return the variable names for this dataset.
-
-        The variable names are extracted from the underlying Anemoi dataset.
-        All datasets must have the same variables.
-        """
-        variable_names = {tuple(sorted(ds.variables)) for ds in self.datasets}
-        if len(variable_names) != 1:
-            msg = f"All date ranges must have the same variables, found {len(variable_names)} different values."
-            raise ValueError(msg)
+        """Return the variable names for this dataset."""
         return self.datasets[0].variables
 
     def __len__(self) -> int:
