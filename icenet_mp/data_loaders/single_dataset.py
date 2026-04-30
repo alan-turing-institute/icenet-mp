@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 from anemoi.datasets.data import open_dataset
@@ -12,10 +13,15 @@ from icenet_mp.utils import normalise_date
 
 
 class SingleDataset(Dataset):
+    """A dataset containing all data from a single source, for example ERA5."""
+
+    # Cache anemoi reads at class level to reduce disk I/O
+    anemoi_cache: ClassVar[dict[tuple[Path, ...], AnemoiDataset]] = {}
+
     def __init__(
         self,
         name: str,
-        input_files: list[Path],
+        input_files: Sequence[Path],
         *,
         date_ranges: Sequence[dict[str, str | None]] = [{"start": None, "end": None}],
         variables: Sequence[str] = (),
@@ -26,7 +32,6 @@ class SingleDataset(Dataset):
         We reshape this to CHW before returning.
         """
         super().__init__()
-        self._datasets: list[AnemoiDataset] = []
         self._date_ranges = sorted(
             date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
         )
@@ -35,9 +40,15 @@ class SingleDataset(Dataset):
             if any("north" in str(input_file).lower() for input_file in input_files)
             else "south"
         )
-        self._input_files = input_files
+        self._input_files = tuple(sorted(input_files))
         self._name = name
         self._variables = set(variables)
+
+    @classmethod
+    def load_dataset(cls, input_files: tuple[Path, ...]) -> AnemoiDataset:
+        if input_files not in cls.anemoi_cache:
+            cls.anemoi_cache[input_files] = open_dataset(input_files)
+        return cls.anemoi_cache[input_files]
 
     @cached_property
     def _date2idx(self) -> dict[np.datetime64, int]:
@@ -55,26 +66,18 @@ class SingleDataset(Dataset):
                     idx2anemoi[idx_global] = (idx_ds, idx_date)
         return idx2anemoi
 
-    @property
+    @cached_property
     def datasets(self) -> list[AnemoiDataset]:
-        """Load one or more underlying Anemoi datasets.
-
-        Each date range results in a separate dataset.
-        """
-        if not self._datasets:
-            for date_range in self._date_ranges:
-                # Set the time range for this dataset
-                ds_kwargs: dict[str, str | set[str] | None] = {
-                    "start": date_range["start"],
-                    "end": date_range["end"],
-                }
-                # Select a subset of variables if specified
-                if self._variables:
-                    ds_kwargs["select"] = self._variables
-                _dataset = open_dataset(self._input_files, **ds_kwargs)
-                _dataset._name = self._name
-                self._datasets.append(_dataset)
-        return self._datasets
+        """Return date-range views of the underlying Anemoi dataset."""
+        return [
+            self.load_dataset(self._input_files)._subset(
+                name=self._name,
+                start=date_range["start"],
+                end=date_range["end"],
+                **({"select": self._variables} if self._variables else {}),
+            )
+            for date_range in self._date_ranges
+        ]
 
     @cached_property
     def dates(self) -> list[np.datetime64]:
