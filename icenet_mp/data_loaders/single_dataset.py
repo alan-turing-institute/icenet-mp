@@ -185,12 +185,16 @@ class SingleDataset(Dataset):
             [self[self.to_index(target_date)] for target_date in dates], axis=0
         )
 
-    def subset(self, variables: Sequence[str]) -> "SingleDataset":
+    def subset(
+        self,
+        date_ranges: Sequence[dict[str, str | None]] = [],
+        variables: Sequence[str] = [],
+    ) -> "SingleDataset":
         return SingleDataset(
             name=self.name,
             input_files=self._input_files,
-            date_ranges=self._date_ranges,
-            variables=variables,
+            date_ranges=date_ranges or self._date_ranges,
+            variables=variables or list(self._variables),
         )
 
     def to_index(self, date: np.datetime64) -> int:

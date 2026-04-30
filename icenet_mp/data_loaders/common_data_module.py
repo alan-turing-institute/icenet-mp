@@ -53,19 +53,19 @@ class CommonDataModule(LightningDataModule):
         # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
         self.predict_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v == "None" else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["predict"]
         ]
         self.test_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v == "None" else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["test"]
         ]
         self.train_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v == "None" else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["train"]
         ]
         self.val_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v == "None" else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["validate"]
         ]
 
@@ -119,7 +119,11 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def output_space(self) -> DataSpace:
         """Return the data space of the desired output."""
-        return self.datasets[self.target_group_name].subset(self.target_variables).space
+        return (
+            self.datasets[self.target_group_name]
+            .subset(variables=self.target_variables)
+            .space
+        )
 
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
@@ -133,12 +137,8 @@ class CommonDataModule(LightningDataModule):
         """Construct predict dataloader."""
         dataset = CombinedDataset(
             [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.predict_periods,
-                )
-                for name, paths in self.dataset_groups.items()
+                ds.subset(date_ranges=self.predict_periods)
+                for ds in self.datasets.values()
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
@@ -158,14 +158,7 @@ class CommonDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct test dataloader."""
         dataset = CombinedDataset(
-            [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.test_periods,
-                )
-                for name, paths in self.dataset_groups.items()
-            ],
+            [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
@@ -185,12 +178,8 @@ class CommonDataModule(LightningDataModule):
         """Construct train dataloader."""
         dataset = CombinedDataset(
             [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.train_periods,
-                )
-                for name, paths in self.dataset_groups.items()
+                ds.subset(date_ranges=self.train_periods)
+                for ds in self.datasets.values()
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
@@ -210,14 +199,7 @@ class CommonDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct validation dataloader."""
         dataset = CombinedDataset(
-            [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.val_periods,
-                )
-                for name, paths in self.dataset_groups.items()
-            ],
+            [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
