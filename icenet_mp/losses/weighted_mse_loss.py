@@ -20,7 +20,7 @@ class WeightedMSELoss(nn.MSELoss):
             **kwargs: Keyword arguments passed to torch.nn.MSELoss.
 
         """
-        kwargs["reduction"] = "none" 
+        kwargs["reduction"] = "none"
         super().__init__(*args, **kwargs)
 
     def forward(  # type: ignore[override]
