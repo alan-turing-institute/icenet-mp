@@ -13,7 +13,7 @@ from icenet_mp.utils import normalise_date
 
 
 class SingleDataset(Dataset):
-    """A dataset containing all data from a single source, for example ERA5."""
+    """A dataset containing one or more timeslices of data from a single source."""
 
     # Cache anemoi reads at class level to reduce disk I/O
     anemoi_cache: ClassVar[dict[tuple[Path, ...], AnemoiDataset]] = {}
@@ -199,8 +199,9 @@ class SingleDataset(Dataset):
 
     def subset(
         self,
-        date_ranges: Sequence[dict[str, str | None]] = [],
-        variables: Sequence[str] = [],
+        *,
+        date_ranges: Sequence[dict[str, str | None]] | None = None,
+        variables: Sequence[str] | None = None,
     ) -> "SingleDataset":
         return SingleDataset(
             name=self.name,
