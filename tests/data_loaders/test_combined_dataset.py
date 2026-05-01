@@ -134,6 +134,57 @@ class TestCombinedDataset:
         assert len(dates) > 0
         assert all(isinstance(date, np.datetime64) for date in dates)
 
+    def test_dates_windowing(self, mock_dataset: Path) -> None:
+        dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
+        combined = CombinedDataset(
+            datasets=[dataset],
+            target_group_name="dataset1",
+            target_variables=["ice_conc"],
+            n_history_steps=2,
+            n_forecast_steps=1,
+        )
+        # With these settings we have a window of (2+1=3) steps.
+        # This means that only the first three dates will be valid start dates.
+        assert combined.dates == list(self.dates_np[:3])
+
+    def test_dates_windowing_tight_window(self, mock_dataset: Path) -> None:
+        dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
+        combined = CombinedDataset(
+            datasets=[dataset],
+            target_group_name="dataset1",
+            target_variables=["ice_conc"],
+            n_history_steps=3,
+            n_forecast_steps=2,
+        )
+        # With these settings we have a window of (2+3=5) steps.
+        # This means that only the first date will be a valid start date.
+        assert combined.dates == [self.dates_np[0]]
+
+    def test_get_history_steps(self, mock_dataset: Path) -> None:
+        dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
+        combined = CombinedDataset(
+            datasets=[dataset],
+            target_group_name="dataset1",
+            target_variables=["ice_conc"],
+            n_history_steps=3,
+            n_forecast_steps=1,
+        )
+        steps = combined.get_history_steps(self.dates_np[0])
+        assert steps == [self.dates_np[0], self.dates_np[1], self.dates_np[2]]
+
+    def test_get_forecast_steps(self, mock_dataset: Path) -> None:
+        dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
+        combined = CombinedDataset(
+            datasets=[dataset],
+            target_group_name="dataset1",
+            target_variables=["ice_conc"],
+            n_history_steps=2,
+            n_forecast_steps=2,
+        )
+        # start=Jan1, offset by 2 steps → [Jan3, Jan4]
+        steps = combined.get_forecast_steps(self.dates_np[0])
+        assert steps == [self.dates_np[2], self.dates_np[3]]
+
     def test_start_and_end_dates(self, mock_dataset: Path) -> None:
         """Test that start_date and end_date are correctly calculated from available dates."""
         dataset1 = SingleDataset(
