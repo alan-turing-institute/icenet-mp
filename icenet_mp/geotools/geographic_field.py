@@ -23,9 +23,11 @@ class GeographicField(Field):
 
     @property
     def _metadata(self) -> Metadata:
+        """Return the geographic metadata for the field."""
         return self.geo_metadata
 
     def _values(self, dtype: Any | None = None) -> Any:  # noqa: ANN401
+        """Delegate creation of values to the underlying field."""
         return self._field._values(dtype)
 
     def clone(
@@ -41,9 +43,15 @@ class GeographicField(Field):
         )
 
     def message(self) -> bytes:
+        """Delegate message generation to the underlying field."""
         return self._field.message()
 
     def to_latlon(self, flatten: bool = True, dtype=None, index=None) -> dict[str, Any]:  # noqa: FBT001, FBT002
+        """Return the latitudes and longitudes for the field.
+
+        We take these from the geography as GeographicField might be a wrapper around a
+        differently-sized field. This is done, for example, in ReprojectFilter.
+        """
         lats = self.geo_metadata.geography.latitudes()
         lons = self.geo_metadata.geography.longitudes()
         if flatten:
@@ -63,4 +71,9 @@ class GeographicField(Field):
         dtype: type | None = None,
         index: int | None = None,
     ) -> NDArray[np.float32]:
+        """Delegate creation of numpy array to the underlying field.
+
+        It is important to do this rather than relying on the base class implementation
+        since `self._field` might override the base class method.
+        """
         return self._field.to_numpy(flatten=flatten, dtype=dtype, index=index)
