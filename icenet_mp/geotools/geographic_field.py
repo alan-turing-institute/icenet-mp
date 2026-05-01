@@ -75,7 +75,7 @@ class GeographicField(Field):
         flatten: bool = False,  # noqa: FBT001, FBT002
         dtype: type | None = None,
         index: int | None = None,
-    ) -> NDArray[np.float32]:
+    ) -> NDArray[np.generic]:
         """Delegate creation of numpy array to the underlying field.
 
         It is important to do this rather than relying on the base class implementation
