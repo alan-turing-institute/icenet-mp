@@ -40,9 +40,6 @@ class GeographicField(Field):
             self.geo_metadata.geography,
         )
 
-    def grid_points(self) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
-        return self._field.grid_points()
-
     def message(self) -> bytes:
         return self._field.message()
 
