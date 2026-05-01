@@ -33,18 +33,18 @@ class BaseEncoder(nn.Module):
             channels=self.data_space_in.channels,
             shape=latent_space,
         )
-        self.latitudes_fn = latitudes_fn or (dict)
-        self.longitudes_fn = longitudes_fn or (dict)
+        self.latitudes_fn = latitudes_fn
+        self.longitudes_fn = longitudes_fn
         self.name = data_space_in.name
         self.n_history_steps = n_history_steps
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:
-        return self.latitudes_fn()
+        return {} if not self.latitudes_fn else self.latitudes_fn()
 
     @cached_property
     def longitudes(self) -> dict[str, list[float]]:
-        return self.longitudes_fn()
+        return {} if not self.longitudes_fn else self.longitudes_fn()
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: encode input space into latent space for a single timestep.
