@@ -40,8 +40,8 @@ class ModelService:
             config["model"],
             hemisphere=builder.data_module.hemisphere,
             input_spaces=[s.to_dict() for s in builder.data_module.input_spaces],
-            latitudes=lambda: builder.data_module.latitudes,
-            longitudes=lambda: builder.data_module.longitudes,
+            latitudes_fn=lambda: builder.data_module.latitudes,
+            longitudes_fn=lambda: builder.data_module.longitudes,
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
             output_space=builder.data_module.output_space.to_dict(),
@@ -92,8 +92,8 @@ class ModelService:
             log.info("Loading a trained %s model...", builder.config["model"]["name"])
             builder.model_ = model_cls.load_from_checkpoint(
                 checkpoint_path,
-                latitudes=lambda: builder.data_module.latitudes,
-                longitudes=lambda: builder.data_module.longitudes,
+                latitudes_fn=lambda: builder.data_module.latitudes,
+                longitudes_fn=lambda: builder.data_module.longitudes,
             )
 
         return builder

@@ -29,8 +29,8 @@ class BaseModel(LightningModule, ABC):
         *,
         hemisphere: Hemisphere,
         input_spaces: list[DictConfig],
-        latitudes: Callable[[], dict[str, list[float]]],
-        longitudes: Callable[[], dict[str, list[float]]],
+        latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -51,8 +51,8 @@ class BaseModel(LightningModule, ABC):
         # Save model name, hemisphere and lat/lon information
         self.name = name
         self.hemisphere = hemisphere
-        self._latitudes = latitudes
-        self._longitudes = longitudes
+        self.latitudes_fn = latitudes_fn or (dict)
+        self.longitudes_fn = longitudes_fn or (dict)
 
         # Save history and forecast steps
         if n_forecast_steps <= 0:
@@ -87,11 +87,11 @@ class BaseModel(LightningModule, ABC):
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:
-        return self._latitudes()
+        return self.latitudes_fn()
 
     @cached_property
     def longitudes(self) -> dict[str, list[float]]:
-        return self._longitudes()
+        return self.longitudes_fn()
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""
