@@ -1,4 +1,3 @@
-import logging
 from functools import cache
 from typing import TYPE_CHECKING, cast
 
@@ -17,8 +16,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from earthkit.data import Field
-
-logger = logging.getLogger(__name__)
 
 
 class SetGeographyFilter(Filter):
