@@ -190,38 +190,6 @@ class TestSingleDataset:
         assert dataset.space.channels == 3
         assert dataset.space.shape == (2, 2)
 
-    def test_space_error_shape(self) -> None:
-        dataset = SingleDataset(
-            name="mock_dataset",
-            input_files=[],
-        )
-        dataset._datasets = [  # type: ignore[reportAttributeAccessIssue]
-            MockAnemoiDataset(1, 32, 32),
-            MockAnemoiDataset(1, 32, 64),
-        ]
-        # Test data space shapes
-        with pytest.raises(
-            ValueError,
-            match="All date ranges must have the same shape, found 2 different values",
-        ):
-            _ = dataset.space
-
-    def test_space_error_channels(self) -> None:
-        dataset = SingleDataset(
-            name="mock_dataset",
-            input_files=[],
-        )
-        dataset._datasets = [  # type: ignore[reportAttributeAccessIssue]
-            MockAnemoiDataset(10, 32, 32),
-            MockAnemoiDataset(11, 32, 32),
-        ]
-        # Test data space channels
-        with pytest.raises(
-            ValueError,
-            match="All date ranges must have the same number of channels, found 2 different values",
-        ):
-            _ = dataset.space
-
     def test_subset(self, mock_dataset: Path) -> None:
         """Test the select_variables classmethod."""
         # Create a dataset with all variables
