@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from functools import cached_property
 
-from torch import nn, stack
+from torch import nn
 
 from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
 
@@ -62,8 +62,12 @@ class BaseEncoder(nn.Module):
     def rollout(self, x: TensorNTCHW) -> TensorNTCHW:
         """Encode input space into latent space across multiple timesteps.
 
-        The default implementation simply calls `self.forward` independently on each
-        time slice. These are then stacked together to produce the final output.
+        The default implementation simply calls `self.forward` on each time slice
+        simultaneously by reshaping the input to combine the batch and time dimensions,
+        before reshaping back.
+
+        Note that this also increases the effective batch size for any batch
+        normalisation layers in the encoder.
 
         Args:
             x: TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
@@ -72,11 +76,6 @@ class BaseEncoder(nn.Module):
             TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
 
         """
-        return stack(
-            [
-                # Rollout the model over the input slices, producing an output for each one.
-                self(x[:, idx_t, :, :, :])
-                for idx_t in range(self.n_history_steps)
-            ],
-            dim=1,
+        return self(x.reshape(-1, *self.data_space_in.chw)).reshape(
+            -1, self.n_history_steps, *self.data_space_out.chw
         )
