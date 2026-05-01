@@ -54,6 +54,7 @@ class DataloaderArgs(TypedDict):
     drop_last: bool
     multiprocessing_context: str | None
     num_workers: int
+    prefetch_factor: int
     persistent_workers: bool
     sampler: None
     worker_init_fn: None

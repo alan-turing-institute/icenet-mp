@@ -82,6 +82,7 @@ class CommonDataModule(LightningDataModule):
             multiprocessing_context=None if sys.platform == "win32" else "fork",
             num_workers=0,
             persistent_workers=False,
+            prefetch_factor=1,
             sampler=None,
             worker_init_fn=None,
         )
