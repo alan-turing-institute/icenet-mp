@@ -17,7 +17,7 @@ class MockAnemoiDataset:
 
 class TestSingleDataset:
     dates_str = ("2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05")
-    dates_np = tuple(np.datetime64(s) for s in dates_str)
+    dates_np = tuple(np.datetime64(f"{s}T12:00:00") for s in dates_str)
 
     def test_name(self) -> None:
         dataset = SingleDataset(
@@ -53,7 +53,7 @@ class TestSingleDataset:
             ],
         )
         assert self.dates_np[2] not in dataset.dates
-        assert len(dataset.datasets) == 2
+        assert len(dataset.dataslices) == 2
         assert len(dataset) == 4
 
     def test_missing_dates(self, mock_dataset_missing_dates: Path) -> None:
@@ -92,21 +92,21 @@ class TestSingleDataset:
             input_files=[mock_dataset_non_normalized_times],
         )
 
-        # All dates should be normalized to 00:00:00
+        # All dates should be normalized to 12:00:00
         for date in dataset.dates:
             dt: datetime = date.astype("datetime64[us]").astype(datetime)
-            assert dt.hour == 0
+            assert dt.hour == 12
             assert dt.minute == 0
             assert dt.second == 0
             assert dt.microsecond == 0
 
         # Check specific normalized dates
         expected_dates = [
-            np.datetime64("2020-01-01"),
-            np.datetime64("2020-01-02"),
-            np.datetime64("2020-01-03"),
-            np.datetime64("2020-01-04"),
-            np.datetime64("2020-01-05"),
+            np.datetime64("2020-01-01T12:00:00"),
+            np.datetime64("2020-01-02T12:00:00"),
+            np.datetime64("2020-01-03T12:00:00"),
+            np.datetime64("2020-01-04T12:00:00"),
+            np.datetime64("2020-01-05T12:00:00"),
         ]
         assert dataset.dates == expected_dates
 
@@ -139,6 +139,47 @@ class TestSingleDataset:
             IndexError, match="Date 1970-01-01 not found in the dataset"
         ):
             dataset.get_tchw([np.datetime64("1970-01-01"), np.datetime64("1970-01-02")])
+
+    def test_get_tchw_slice(self, mock_dataset: Path) -> None:
+        """get_tchw_slice returns the correct shape and the same data as get_tchw."""
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+        )
+        result = dataset.get_tchw_slice(self.dates_np[0], 3)
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (3, 3, 2, 2)
+        np.testing.assert_array_equal(result, dataset.get_tchw(list(self.dates_np[:3])))
+
+    def test_get_tchw_slice_check_raises(self, mock_dataset: Path) -> None:
+        # Requesting 3 steps from "2020-01-01" spans two dataslices:
+        # (2020-01-01 to 2020-01-02) and (2020-01-03 to 2020-01-04)
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+            date_ranges=[
+                {"start": self.dates_str[0], "end": self.dates_str[1]},
+                {"start": self.dates_str[3], "end": self.dates_str[4]},
+            ],
+        )
+        # With check=True we expect a ValueError here
+        with pytest.raises(ValueError, match="crosses the boundary between dataslices"):
+            dataset.get_tchw_slice(self.dates_np[0], 3)
+
+    def test_get_tchw_slice_check_false(self, mock_dataset: Path) -> None:
+        # Requesting 3 steps from "2020-01-01" spans two dataslices:
+        # (2020-01-01 to 2020-01-02) and (2020-01-03 to 2020-01-04)
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+            date_ranges=[
+                {"start": self.dates_str[0], "end": self.dates_str[1]},
+                {"start": self.dates_str[3], "end": self.dates_str[4]},
+            ],
+        )
+        # With check=False we expect an error when trying to reshape
+        with pytest.raises(ValueError, match="cannot reshape array"):
+            dataset.get_tchw_slice(self.dates_np[0], 3, check=False)
 
     def test_get_tchw_with_missing_dates(
         self, mock_dataset_missing_dates: Path
@@ -189,38 +230,6 @@ class TestSingleDataset:
         assert isinstance(dataset.space, DataSpace)
         assert dataset.space.channels == 3
         assert dataset.space.shape == (2, 2)
-
-    def test_space_error_shape(self) -> None:
-        dataset = SingleDataset(
-            name="mock_dataset",
-            input_files=[],
-        )
-        dataset._datasets = [  # type: ignore[reportAttributeAccessIssue]
-            MockAnemoiDataset(1, 32, 32),
-            MockAnemoiDataset(1, 32, 64),
-        ]
-        # Test data space shapes
-        with pytest.raises(
-            ValueError,
-            match="All date ranges must have the same shape, found 2 different values",
-        ):
-            _ = dataset.space
-
-    def test_space_error_channels(self) -> None:
-        dataset = SingleDataset(
-            name="mock_dataset",
-            input_files=[],
-        )
-        dataset._datasets = [  # type: ignore[reportAttributeAccessIssue]
-            MockAnemoiDataset(10, 32, 32),
-            MockAnemoiDataset(11, 32, 32),
-        ]
-        # Test data space channels
-        with pytest.raises(
-            ValueError,
-            match="All date ranges must have the same number of channels, found 2 different values",
-        ):
-            _ = dataset.space
 
     def test_subset(self, mock_dataset: Path) -> None:
         """Test the select_variables classmethod."""

@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 from anemoi.datasets.data import open_dataset
@@ -12,10 +13,15 @@ from icenet_mp.utils import normalise_date
 
 
 class SingleDataset(Dataset):
+    """A dataset containing one or more timeslices of data from a single source."""
+
+    # Cache anemoi reads at class level to reduce disk I/O
+    anemoi_cache: ClassVar[dict[tuple[Path, ...], AnemoiDataset]] = {}
+
     def __init__(
         self,
         name: str,
-        input_files: list[Path],
+        input_files: Sequence[Path],
         *,
         date_ranges: Sequence[dict[str, str | None]] = [{"start": None, "end": None}],
         variables: Sequence[str] = (),
@@ -26,7 +32,6 @@ class SingleDataset(Dataset):
         We reshape this to CHW before returning.
         """
         super().__init__()
-        self._datasets: list[AnemoiDataset] = []
         self._date_ranges = sorted(
             date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
         )
@@ -35,9 +40,15 @@ class SingleDataset(Dataset):
             if any("north" in str(input_file).lower() for input_file in input_files)
             else "south"
         )
-        self._input_files = input_files
+        self._input_files = tuple(sorted(input_files))
         self._name = name
         self._variables = set(variables)
+
+    @classmethod
+    def load_dataset(cls, input_files: tuple[Path, ...]) -> AnemoiDataset:
+        if input_files not in cls.anemoi_cache:
+            cls.anemoi_cache[input_files] = open_dataset(input_files)
+        return cls.anemoi_cache[input_files]
 
     @cached_property
     def _date2idx(self) -> dict[np.datetime64, int]:
@@ -48,33 +59,25 @@ class SingleDataset(Dataset):
     def _idx2anemoi(self) -> dict[int, tuple[int, int]]:
         """Map global index to a location in an Anemoi dataset."""
         idx2anemoi = {}
-        for idx_ds, dataset in enumerate(self.datasets):
+        for idx_ds, dataset in enumerate(self.dataslices):
             for idx_date, date in enumerate(dataset.dates):
                 idx_global = self._date2idx.get(normalise_date(date), None)
                 if idx_global is not None:
                     idx2anemoi[idx_global] = (idx_ds, idx_date)
         return idx2anemoi
 
-    @property
-    def datasets(self) -> list[AnemoiDataset]:
-        """Load one or more underlying Anemoi datasets.
-
-        Each date range results in a separate dataset.
-        """
-        if not self._datasets:
-            for date_range in self._date_ranges:
-                # Set the time range for this dataset
-                ds_kwargs: dict[str, str | set[str] | None] = {
-                    "start": date_range["start"],
-                    "end": date_range["end"],
-                }
-                # Select a subset of variables if specified
-                if self._variables:
-                    ds_kwargs["select"] = self._variables
-                _dataset = open_dataset(self._input_files, **ds_kwargs)
-                _dataset._name = self._name
-                self._datasets.append(_dataset)
-        return self._datasets
+    @cached_property
+    def dataslices(self) -> list[AnemoiDataset]:
+        """Get all slices of contiguous dates from the underlying Anemoi dataset."""
+        return [
+            self.load_dataset(self._input_files)._subset(
+                name=self._name,
+                start=date_range["start"],
+                end=date_range["end"],
+                **({"select": self._variables} if self._variables else {}),
+            )
+            for date_range in self._date_ranges
+        ]
 
     @cached_property
     def dates(self) -> list[np.datetime64]:
@@ -82,7 +85,7 @@ class SingleDataset(Dataset):
         return sorted(
             {
                 normalise_date(date)
-                for ds in self.datasets
+                for ds in self.dataslices
                 for date in np.delete(ds.dates, list(ds.missing))
             }
         )
@@ -92,38 +95,22 @@ class SingleDataset(Dataset):
         """Return the end date of the dataset."""
         return self.dates[-1]
 
-    @property
+    @cached_property
     def frequency(self) -> np.timedelta64:
         """Return the frequency of the dataset."""
-        return np.timedelta64(self.datasets[0].frequency)
+        return np.timedelta64(self.dataslices[0].frequency)
 
     @cached_property
     def latitudes(self) -> list[float]:
         """Return the latitudes of the dataset."""
-        reference_latitudes = self.datasets[0].latitudes
-        n_different = sum(
-            not np.array_equal(ds.latitudes, reference_latitudes)
-            for ds in self.datasets
-        )
-        if n_different != 0:
-            msg = f"All date ranges must have the same latitudes, found {n_different + 1} different values"
-            raise ValueError(msg)
-        return reference_latitudes.tolist()
+        return self.dataslices[0].latitudes.tolist()
 
     @cached_property
     def longitudes(self) -> list[float]:
         """Return the longitudes of the dataset."""
-        reference_longitudes = self.datasets[0].longitudes
-        n_different = sum(
-            not np.array_equal(ds.longitudes, reference_longitudes)
-            for ds in self.datasets
-        )
-        if n_different != 0:
-            msg = f"All date ranges must have the same longitudes, found {n_different + 1} different values"
-            raise ValueError(msg)
-        return reference_longitudes.tolist()
+        return self.dataslices[0].longitudes.tolist()
 
-    @property
+    @cached_property
     def name(self) -> str:
         """Return the name of the dataset."""
         return self._name
@@ -131,40 +118,21 @@ class SingleDataset(Dataset):
     @cached_property
     def space(self) -> DataSpace:
         """Return the data space for this dataset."""
-        # Check all datasets have the same number of channels
-        per_ds_channels = sorted({ds.shape[1] for ds in self.datasets})
-        if len(per_ds_channels) != 1:
-            msg = f"All date ranges must have the same number of channels, found {len(per_ds_channels)} different values"
-            raise ValueError(msg)
-        # Check all datasets have the same shape
-        per_ds_shape = sorted({ds.field_shape for ds in self.datasets})
-        if len(per_ds_shape) != 1:
-            msg = f"All date ranges must have the same shape, found {len(per_ds_shape)} different values"
-            raise ValueError(msg)
-        # Return the data space
         return DataSpace(
-            channels=per_ds_channels[0],
+            channels=self.dataslices[0].shape[1],
             name=self.name,
-            shape=per_ds_shape[0],
+            shape=self.dataslices[0].field_shape,
         )
 
-    @property
+    @cached_property
     def start_date(self) -> np.datetime64:
         """Return the start date of the dataset."""
         return self.dates[0]
 
     @cached_property
     def variable_names(self) -> list[str]:
-        """Return the variable names for this dataset.
-
-        The variable names are extracted from the underlying Anemoi dataset.
-        All datasets must have the same variables.
-        """
-        variable_names = {tuple(sorted(ds.variables)) for ds in self.datasets}
-        if len(variable_names) != 1:
-            msg = f"All date ranges must have the same variables, found {len(variable_names)} different values."
-            raise ValueError(msg)
-        return self.datasets[0].variables
+        """Return the variable names for this dataset."""
+        return self.dataslices[0].variables
 
     def __len__(self) -> int:
         """Return the total length of the dataset."""
@@ -174,23 +142,72 @@ class SingleDataset(Dataset):
         """Return the data for a single timestep in [C, H, W] format."""
         try:
             idx_ds, idx_date = self._idx2anemoi[idx]
-            return self.datasets[idx_ds][idx_date].reshape(self.space.chw)
+            return self.dataslices[idx_ds][idx_date].reshape(self.space.chw)
         except KeyError as exc:
             msg = f"Index {idx} out of range for dataset of length {len(self)}."
             raise IndexError(msg) from exc
 
     def get_tchw(self, dates: Sequence[np.datetime64]) -> ArrayTCHW:
-        """Return the data for a series of timesteps in [T, C, H, W] format."""
+        """Return the data for an arbitrary sequence of timesteps in [T, C, H, W] format."""
         return np.stack(
             [self[self.to_index(target_date)] for target_date in dates], axis=0
         )
 
-    def subset(self, variables: Sequence[str]) -> "SingleDataset":
+    def get_tchw_slice(
+        self, start_date: np.datetime64, n_steps: int, *, check: bool = True
+    ) -> ArrayTCHW:
+        """Return the data for consecutive timesteps in [T, C, H, W] format.
+
+        Since contiguous dates must be in a single dataslice, we simply identify which
+        one this is and read from it.
+
+        If `check` is True then we check that we're not crossing the boundary between
+        dataslices, adding a small amount of overhead.
+
+        Args:
+            start_date: The date of the first timestep to return.
+            n_steps: The number of consecutive timesteps to return.
+            check: Whether to check that the requested slice is valid. If False, this
+                   method may return meaningless or incorrect data if the requested
+                   slice is invalid
+
+        """
+        try:
+            idx_global_start = self._date2idx[start_date]
+            idx_ds_start, idx_date_start = self._idx2anemoi[idx_global_start]
+            if check:
+                idx_global_end = idx_global_start + n_steps - 1
+                idx_ds_end, _ = self._idx2anemoi[idx_global_end]
+                if idx_ds_start != idx_ds_end:
+                    msg = (
+                        f"Requested slice of {n_steps} steps following {start_date} "
+                        f"crosses the boundary between dataslices {idx_ds_start} and "
+                        f"{idx_ds_end}."
+                    )
+                    raise ValueError(msg)
+            dataslice = self.dataslices[idx_ds_start][
+                idx_date_start : idx_date_start + n_steps
+            ]
+            return dataslice.reshape(n_steps, *self.space.chw)
+        except KeyError as exc:
+            msg = (
+                f"Requested slice of {n_steps} steps following {start_date} "
+                f"is out of range for dataset with dates from {self.start_date} to "
+                f"{self.end_date}"
+            )
+            raise ValueError(msg) from exc
+
+    def subset(
+        self,
+        *,
+        date_ranges: Sequence[dict[str, str | None]] | None = None,
+        variables: Sequence[str] | None = None,
+    ) -> "SingleDataset":
         return SingleDataset(
             name=self.name,
             input_files=self._input_files,
-            date_ranges=self._date_ranges,
-            variables=variables,
+            date_ranges=date_ranges or self._date_ranges,
+            variables=variables or list(self._variables),
         )
 
     def to_index(self, date: np.datetime64) -> int:
@@ -198,5 +215,8 @@ class SingleDataset(Dataset):
         try:
             return self._date2idx[date]
         except KeyError as exc:
-            msg = f"Date {date} not found in the dataset {self.start_date} to {self.end_date} every {self.frequency}"
+            msg = (
+                f"Date {np.datetime_as_string(date, unit='D')} not found in the "
+                f"dataset {self.start_date} to {self.end_date} every {self.frequency}"
+            )
             raise IndexError(msg) from exc

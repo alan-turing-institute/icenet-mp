@@ -31,14 +31,12 @@ class EncodeProcessDecode(BaseModel):
         try:
             self.encoders: list[BaseEncoder] = [
                 hydra.utils.instantiate(
-                    dict(encoders[input_space.name])
-                    | {
-                        "data_space_in": input_space,
-                        "latent_space": encoders["latent_space"],
-                        "latitudes": self.latitudes,
-                        "longitudes": self.longitudes,
-                        "n_history_steps": self.n_history_steps,
-                    }
+                    encoders[input_space.name],
+                    data_space_in=input_space,
+                    latent_space=encoders["latent_space"],
+                    latitudes_fn=self.latitudes_fn,
+                    longitudes_fn=self.longitudes_fn,
+                    n_history_steps=self.n_history_steps,
                 )
                 for input_space in self.input_spaces
             ]
@@ -67,22 +65,18 @@ class EncodeProcessDecode(BaseModel):
             shape=encoder_output_shapes.pop(),
         )
         self.processor: BaseProcessor = hydra.utils.instantiate(
-            dict(processor)
-            | {
-                "data_space": combined_latent_space,
-                "n_forecast_steps": self.n_forecast_steps,
-                "n_history_steps": self.n_history_steps,
-            }
+            processor,
+            data_space=combined_latent_space,
+            n_forecast_steps=self.n_forecast_steps,
+            n_history_steps=self.n_history_steps,
         )
 
         # Add a decoder
         self.decoder: BaseDecoder = hydra.utils.instantiate(
-            dict(decoder)
-            | {
-                "data_space_in": combined_latent_space,
-                "data_space_out": self.output_space,
-                "n_forecast_steps": self.n_forecast_steps,
-            }
+            decoder,
+            data_space_in=combined_latent_space,
+            data_space_out=self.output_space,
+            n_forecast_steps=self.n_forecast_steps,
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

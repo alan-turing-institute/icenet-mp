@@ -35,24 +35,18 @@ class ModelService:
         builder = cls(config)
 
         # Construct the model
-        log.info("Building a new %s model...", builder.config["model"]["name"])
+        log.info("Building a new '%s' model...", builder.config["model"]["_target_"])
         builder.model_ = hydra.utils.instantiate(
-            dict(
-                {
-                    "hemisphere": builder.data_module.hemisphere,
-                    "input_spaces": [
-                        s.to_dict() for s in builder.data_module.input_spaces
-                    ],
-                    "latitudes": builder.data_module.latitudes,
-                    "longitudes": builder.data_module.longitudes,
-                    "n_forecast_steps": builder.data_module.n_forecast_steps,
-                    "n_history_steps": builder.data_module.n_history_steps,
-                    "output_space": builder.data_module.output_space.to_dict(),
-                    "optimizer": config["train"]["optimizer"],
-                    "scheduler": config["train"]["scheduler"],
-                },
-                **config["model"],
-            ),
+            config["model"],
+            hemisphere=builder.data_module.hemisphere,
+            input_spaces=[s.to_dict() for s in builder.data_module.input_spaces],
+            latitudes_fn=lambda: builder.data_module.latitudes,
+            longitudes_fn=lambda: builder.data_module.longitudes,
+            n_forecast_steps=builder.data_module.n_forecast_steps,
+            n_history_steps=builder.data_module.n_history_steps,
+            output_space=builder.data_module.output_space.to_dict(),
+            optimizer=config["train"]["optimizer"],
+            scheduler=config["train"]["scheduler"],
             _recursive_=False,
             _convert_="object",
         )
@@ -98,8 +92,8 @@ class ModelService:
             log.info("Loading a trained %s model...", builder.config["model"]["name"])
             builder.model_ = model_cls.load_from_checkpoint(
                 checkpoint_path,
-                latitudes=builder.data_module.latitudes,
-                longitudes=builder.data_module.longitudes,
+                latitudes_fn=lambda: builder.data_module.latitudes,
+                longitudes_fn=lambda: builder.data_module.longitudes,
             )
 
         return builder
@@ -158,14 +152,11 @@ class ModelService:
             log.warning("No callbacks have been set for the trainer.")
 
         # Setup lightning loggers
-        logger_overrides = {
-            "job_type": job_type,
-            "project": job_type,
-        }
         extra_loggers = [
-            hydra.utils.instantiate(dict(**logger_config) | logger_overrides)
+            hydra.utils.instantiate(logger_config, job_type=job_type, project=job_type)
             for logger_config in self.config.get("loggers", {}).values()
         ]
+
         if not extra_loggers:
             log.warning("No loggers have been set for the trainer.")
 
@@ -174,14 +165,10 @@ class ModelService:
         trainer = cast(
             "Trainer",
             hydra.utils.instantiate(
-                dict(
-                    {
-                        "callbacks": extra_callbacks,
-                        "deterministic": self.config.get("seed", None) is not None,
-                        "logger": extra_loggers,
-                    },
-                    **self.config["train"]["trainer"],
-                )
+                self.config["train"]["trainer"],
+                callbacks=extra_callbacks,
+                deterministic=self.config.get("seed", None) is not None,
+                logger=extra_loggers,
             ),
         )
         # Assign workers for data loading

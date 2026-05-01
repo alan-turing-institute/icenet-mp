@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
@@ -53,19 +54,19 @@ class CommonDataModule(LightningDataModule):
         # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
         self.predict_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["predict"]
         ]
         self.test_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["test"]
         ]
         self.train_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["train"]
         ]
         self.val_periods = [
-            {k: None if v == "None" else v for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["validate"]
         ]
 
@@ -78,19 +79,26 @@ class CommonDataModule(LightningDataModule):
             batch_sampler=None,
             batch_size=self.batch_size,
             drop_last=False,
+            multiprocessing_context=None if sys.platform == "win32" else "fork",
             num_workers=0,
             persistent_workers=False,
+            prefetch_factor=1,
             sampler=None,
             worker_init_fn=None,
         )
 
     @cached_property
-    def hemisphere(self) -> Hemisphere:
-        """Return the hemisphere of the dataset."""
-        hemisphere: set[Hemisphere] = {
-            SingleDataset(name, paths).hemisphere
+    def datasets(self) -> dict[str, SingleDataset]:
+        """Return a dictionary of dataset group names to SingleDataset objects."""
+        return {
+            name: SingleDataset(name, paths)
             for name, paths in self.dataset_groups.items()
         }
+
+    @cached_property
+    def hemisphere(self) -> Hemisphere:
+        """Return the hemisphere of the dataset."""
+        hemisphere: set[Hemisphere] = {ds.hemisphere for ds in self.datasets.values()}
         if len(hemisphere) != 1:
             msg = f"Found {len(hemisphere)} different hemisphere indicators across {len(self.dataset_groups)} dataset groups."
             raise ValueError(msg)
@@ -99,34 +107,25 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def input_spaces(self) -> list[DataSpace]:
         """Return the data space for each input."""
-        return [
-            SingleDataset(name, paths).space
-            for name, paths in self.dataset_groups.items()
-        ]
+        return [ds.space for ds in self.datasets.values()]
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:
         """Return the latitudes of the dataset."""
-        return {
-            name: SingleDataset(name, paths).latitudes
-            for name, paths in self.dataset_groups.items()
-        }
+        return {name: ds.latitudes for name, ds in self.datasets.items()}
 
     @cached_property
     def longitudes(self) -> dict[str, list[float]]:
         """Return the longitudes of the dataset."""
-        return {
-            name: SingleDataset(name, paths).longitudes
-            for name, paths in self.dataset_groups.items()
-        }
+        return {name: ds.longitudes for name, ds in self.datasets.items()}
 
     @cached_property
     def output_space(self) -> DataSpace:
         """Return the data space of the desired output."""
-        return next(
-            SingleDataset(name, paths, variables=self.target_variables).space
-            for name, paths in self.dataset_groups.items()
-            if name == self.target_group_name
+        return (
+            self.datasets[self.target_group_name]
+            .subset(variables=self.target_variables)
+            .space
         )
 
     def assign_workers(self, n_workers: int) -> None:
@@ -141,12 +140,8 @@ class CommonDataModule(LightningDataModule):
         """Construct predict dataloader."""
         dataset = CombinedDataset(
             [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.predict_periods,
-                )
-                for name, paths in self.dataset_groups.items()
+                ds.subset(date_ranges=self.predict_periods)
+                for ds in self.datasets.values()
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
@@ -154,7 +149,7 @@ class CommonDataModule(LightningDataModule):
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded predict dataset with %d samples between %s and %s.",
+            "Loaded predict dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,
@@ -166,21 +161,14 @@ class CommonDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct test dataloader."""
         dataset = CombinedDataset(
-            [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.test_periods,
-                )
-                for name, paths in self.dataset_groups.items()
-            ],
+            [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded test dataset with %d samples between %s and %s.",
+            "Loaded test dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,
@@ -193,12 +181,8 @@ class CommonDataModule(LightningDataModule):
         """Construct train dataloader."""
         dataset = CombinedDataset(
             [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.train_periods,
-                )
-                for name, paths in self.dataset_groups.items()
+                ds.subset(date_ranges=self.train_periods)
+                for ds in self.datasets.values()
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
@@ -206,7 +190,7 @@ class CommonDataModule(LightningDataModule):
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded training dataset with %d samples between %s and %s.",
+            "Loaded training dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,
@@ -218,21 +202,14 @@ class CommonDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct validation dataloader."""
         dataset = CombinedDataset(
-            [
-                SingleDataset(
-                    name,
-                    paths,
-                    date_ranges=self.val_periods,
-                )
-                for name, paths in self.dataset_groups.items()
-            ],
+            [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
         logger.info(
-            "Loaded validation dataset with %d samples between %s and %s.",
+            "Loaded validation dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
             dataset.end_date,

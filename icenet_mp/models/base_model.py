@@ -1,5 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from functools import cached_property
 from typing import Any
 
 import hydra
@@ -27,8 +29,8 @@ class BaseModel(LightningModule, ABC):
         *,
         hemisphere: Hemisphere,
         input_spaces: list[DictConfig],
-        latitudes: dict[str, list[float]],
-        longitudes: dict[str, list[float]],
+        latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -49,8 +51,8 @@ class BaseModel(LightningModule, ABC):
         # Save model name, hemisphere and lat/lon information
         self.name = name
         self.hemisphere = hemisphere
-        self.latitudes = latitudes
-        self.longitudes = longitudes
+        self.latitudes_fn = latitudes_fn
+        self.longitudes_fn = longitudes_fn
 
         # Save history and forecast steps
         if n_forecast_steps <= 0:
@@ -78,40 +80,46 @@ class BaseModel(LightningModule, ABC):
             }
         )
 
-        # Save all of the arguments to __init__ as hyperparameters
+        # Save all non-ignored arguments to __init__ as hyperparameters
         # This will also save the parameters of whichever child class is used
         # Note that W&B will log all hyperparameters
-        self.save_hyperparameters(ignore=["latitudes", "longitudes"])
+        self.save_hyperparameters(ignore=["latitudes_fn", "longitudes_fn"])
+
+    @cached_property
+    def latitudes(self) -> dict[str, list[float]]:
+        return {} if not self.latitudes_fn else self.latitudes_fn()
+
+    @cached_property
+    def longitudes(self) -> dict[str, list[float]]:
+        return {} if not self.longitudes_fn else self.longitudes_fn()
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""
         # Optimizer
         optimizer = hydra.utils.instantiate(
-            dict(**self.optimizer_cfg)
-            | {
-                "params": itertools.chain(
-                    *[module.parameters() for module in self.children()]
-                )
-            }
+            self.optimizer_cfg,
+            params=itertools.chain(
+                *[module.parameters() for module in self.children()]
+            ),
         )
+
         # If no scheduler config is provided, return just the optimizer
         if not self.scheduler_cfg:
             return OptimizerConfig(optimizer=optimizer)
 
         # Scheduler
-        scheduler_args = self.scheduler_cfg
         scheduler = hydra.utils.instantiate(
-            {
-                "_target_": scheduler_args.pop("_target_"),
-                "optimizer": optimizer,
-                **scheduler_args.pop("scheduler_parameters", {}),
-            }
+            self.scheduler_cfg["scheduler_parameters"],
+            _target_=self.scheduler_cfg["_target_"],
+            optimizer=optimizer,
         )
 
         # Return the optimizer and scheduler
         return OptimizerLRSchedulerConfig(
             optimizer=optimizer,
-            lr_scheduler=LRSchedulerConfigType(scheduler=scheduler, **scheduler_args),
+            lr_scheduler=LRSchedulerConfigType(
+                scheduler=scheduler, **self.scheduler_cfg["lr_scheduler_parameters"]
+            ),
         )
 
     @abstractmethod
