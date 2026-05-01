@@ -172,12 +172,13 @@ class TestCombinedDataset:
             n_forecast_steps=1,
         )
 
-        # Initially _available_dates should be None
-        assert combined._available_dates is None
+        # Initially dates should be unavailable
+        assert "dates" not in combined.__dict__
 
         # Access dates for the first time
         dates1 = combined.dates
-        assert combined._available_dates is not None
+        assert "dates" in combined.__dict__
+        assert combined.__dict__["dates"] is dates1
 
         # Access dates again, should return cached value
         dates2 = combined.dates
