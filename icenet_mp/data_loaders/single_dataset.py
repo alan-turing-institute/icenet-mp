@@ -148,7 +148,7 @@ class SingleDataset(Dataset):
             raise IndexError(msg) from exc
 
     def get_tchw(self, dates: Sequence[np.datetime64]) -> ArrayTCHW:
-        """Return the data for an arbitary sequence of timesteps in [T, C, H, W] format."""
+        """Return the data for an arbitrary sequence of timesteps in [T, C, H, W] format."""
         return np.stack(
             [self[self.to_index(target_date)] for target_date in dates], axis=0
         )
