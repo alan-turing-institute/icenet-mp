@@ -148,10 +148,54 @@ class SingleDataset(Dataset):
             raise IndexError(msg) from exc
 
     def get_tchw(self, dates: Sequence[np.datetime64]) -> ArrayTCHW:
-        """Return the data for a series of timesteps in [T, C, H, W] format."""
+        """Return the data for an arbitary sequence of timesteps in [T, C, H, W] format."""
         return np.stack(
             [self[self.to_index(target_date)] for target_date in dates], axis=0
         )
+
+    def get_tchw_slice(
+        self, start_date: np.datetime64, n_steps: int, *, check: bool = True
+    ) -> ArrayTCHW:
+        """Return the data for consecutive timesteps in [T, C, H, W] format.
+
+        Since contiguous dates must be in a single dataslice, we simply identify which
+        one this is and read from it.
+
+        If `check` is True then we check that we're not crossing the boundary between
+        dataslices, adding a small amount of overhead.
+
+        Args:
+            start_date: The date of the first timestep to return.
+            n_steps: The number of consecutive timesteps to return.
+            check: Whether to check that the requested slice is valid. If False, this
+                   method may return meaningless or incorrect data if the requested
+                   slice is invalid
+
+        """
+        try:
+            idx_global_start = self._date2idx[start_date]
+            idx_ds_start, idx_date_start = self._idx2anemoi[idx_global_start]
+            if check:
+                idx_global_end = idx_global_start + n_steps - 1
+                idx_ds_end, _ = self._idx2anemoi[idx_global_end]
+                if idx_ds_start != idx_ds_end:
+                    msg = (
+                        f"Requested slice of {n_steps} steps following {start_date} "
+                        f"crosses the boundary between dataslices {idx_ds_start} and "
+                        f"{idx_ds_end}."
+                    )
+                    raise ValueError(msg)
+            dataslice = self.dataslices[idx_ds_start][
+                idx_date_start : idx_date_start + n_steps
+            ]
+            return dataslice.reshape(n_steps, *self.space.chw)
+        except KeyError as exc:
+            msg = (
+                f"Requested slice of {n_steps} steps following {start_date} "
+                f"is out of range for dataset with dates from {self.start_date} to "
+                f"{self.end_date}"
+            )
+            raise ValueError(msg) from exc
 
     def subset(
         self,

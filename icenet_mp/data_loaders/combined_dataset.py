@@ -90,6 +90,10 @@ class CombinedDataset(Dataset):
     def __getitem__(self, idx: int) -> dict[str, ArrayTCHW]:
         """Return the data for a single timestep as a dictionary.
 
+        Note that because we have already checked which starting dates are valid in the
+        `dates` property, we know that the requested dates will be consecutive in each
+        data input, so we can use `get_tchw_slice` rather than `get_tchw`.
+
         Returns:
             A dictionary with dataset names as keys and a numpy array as the value.
             The shape of each array is:
@@ -97,10 +101,17 @@ class CombinedDataset(Dataset):
             - target dataset: [n_forecast_steps, C_target, H_target, W_target]
 
         """
+        start_date = self.dates[idx]
         return {
-            ds.name: ds.get_tchw(self.get_history_steps(self.dates[idx]))
+            ds.name: ds.get_tchw_slice(start_date, self.n_history_steps, check=False)
             for ds in self.inputs
-        } | {"target": self.target.get_tchw(self.get_forecast_steps(self.dates[idx]))}
+        } | {
+            "target": self.target.get_tchw_slice(
+                start_date + self.n_history_steps * self.frequency,
+                self.n_forecast_steps,
+                check=False,
+            )
+        }
 
     def get_forecast_steps(self, start_date: np.datetime64) -> list[np.datetime64]:
         """Return list of consecutive forecast dates for a given start date."""
