@@ -140,6 +140,47 @@ class TestSingleDataset:
         ):
             dataset.get_tchw([np.datetime64("1970-01-01"), np.datetime64("1970-01-02")])
 
+    def test_get_tchw_slice(self, mock_dataset: Path) -> None:
+        """get_tchw_slice returns the correct shape and the same data as get_tchw."""
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+        )
+        result = dataset.get_tchw_slice(self.dates_np[0], 3)
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (3, 3, 2, 2)
+        np.testing.assert_array_equal(result, dataset.get_tchw(list(self.dates_np[:3])))
+
+    def test_get_tchw_slice_check_raises(self, mock_dataset: Path) -> None:
+        # Requesting 3 steps from "2020-01-01" spans two dataslices:
+        # (2020-01-01 to 2020-01-02) and (2020-01-03 to 2020-01-04)
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+            date_ranges=[
+                {"start": self.dates_str[0], "end": self.dates_str[1]},
+                {"start": self.dates_str[3], "end": self.dates_str[4]},
+            ],
+        )
+        # With check=True we expect a ValueError here
+        with pytest.raises(ValueError, match="crosses the boundary between dataslices"):
+            dataset.get_tchw_slice(self.dates_np[0], 3)
+
+    def test_get_tchw_slice_check_false(self, mock_dataset: Path) -> None:
+        # Requesting 3 steps from "2020-01-01" spans two dataslices:
+        # (2020-01-01 to 2020-01-02) and (2020-01-03 to 2020-01-04)
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+            date_ranges=[
+                {"start": self.dates_str[0], "end": self.dates_str[1]},
+                {"start": self.dates_str[3], "end": self.dates_str[4]},
+            ],
+        )
+        # With check=False we expect an error when trying to reshape
+        with pytest.raises(ValueError, match="cannot reshape array"):
+            dataset.get_tchw_slice(self.dates_np[0], 3, check=False)
+
     def test_get_tchw_with_missing_dates(
         self, mock_dataset_missing_dates: Path
     ) -> None:
