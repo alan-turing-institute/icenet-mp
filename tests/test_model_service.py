@@ -47,17 +47,13 @@ class TestModelService:
             assert isinstance(service.model, MockModel)
 
         args, kwargs = mock_instantiate.call_args
-        model_config = args[0]
-        assert model_config["input_spaces"] == [
-            DataSpace(5, "input", (20, 20)).to_dict()
-        ]
-        assert (
-            model_config["output_space"] == DataSpace(1, "output", (10, 10)).to_dict()
-        )
-        assert model_config["n_forecast_steps"] == 2
-        assert model_config["n_history_steps"] == 3
-        assert model_config["optimizer"] is cfg_model_service["train"]["optimizer"]
-        assert model_config["scheduler"] is cfg_model_service["train"]["scheduler"]
+        assert args[0] is cfg_model_service["model"]
+        assert kwargs["input_spaces"] == [DataSpace(5, "input", (20, 20)).to_dict()]
+        assert kwargs["output_space"] == DataSpace(1, "output", (10, 10)).to_dict()
+        assert kwargs["n_forecast_steps"] == 2
+        assert kwargs["n_history_steps"] == 3
+        assert kwargs["optimizer"] is cfg_model_service["train"]["optimizer"]
+        assert kwargs["scheduler"] is cfg_model_service["train"]["scheduler"]
         assert kwargs["_recursive_"] is False
         assert kwargs["_convert_"] == "object"
 
