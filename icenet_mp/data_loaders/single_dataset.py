@@ -214,5 +214,8 @@ class SingleDataset(Dataset):
         try:
             return self._date2idx[date]
         except KeyError as exc:
-            msg = f"Date {date} not found in the dataset {self.start_date} to {self.end_date} every {self.frequency}"
+            msg = (
+                f"Date {np.datetime_as_string(date, unit='D')} not found in the "
+                f"dataset {self.start_date} to {self.end_date} every {self.frequency}"
+            )
             raise IndexError(msg) from exc

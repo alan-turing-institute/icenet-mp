@@ -17,7 +17,7 @@ class MockAnemoiDataset:
 
 class TestSingleDataset:
     dates_str = ("2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05")
-    dates_np = tuple(np.datetime64(s) for s in dates_str)
+    dates_np = tuple(np.datetime64(f"{s}T12:00:00") for s in dates_str)
 
     def test_name(self) -> None:
         dataset = SingleDataset(
@@ -92,21 +92,21 @@ class TestSingleDataset:
             input_files=[mock_dataset_non_normalized_times],
         )
 
-        # All dates should be normalized to 00:00:00
+        # All dates should be normalized to 12:00:00
         for date in dataset.dates:
             dt: datetime = date.astype("datetime64[us]").astype(datetime)
-            assert dt.hour == 0
+            assert dt.hour == 12
             assert dt.minute == 0
             assert dt.second == 0
             assert dt.microsecond == 0
 
         # Check specific normalized dates
         expected_dates = [
-            np.datetime64("2020-01-01"),
-            np.datetime64("2020-01-02"),
-            np.datetime64("2020-01-03"),
-            np.datetime64("2020-01-04"),
-            np.datetime64("2020-01-05"),
+            np.datetime64("2020-01-01T12:00:00"),
+            np.datetime64("2020-01-02T12:00:00"),
+            np.datetime64("2020-01-03T12:00:00"),
+            np.datetime64("2020-01-04T12:00:00"),
+            np.datetime64("2020-01-05T12:00:00"),
         ]
         assert dataset.dates == expected_dates
 
