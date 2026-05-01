@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path, PosixPath
 from typing import cast
 
@@ -23,8 +24,13 @@ class ModelService:
     def __init__(self, config: DictConfig) -> None:
         """Initialize the model service."""
         self.config_ = config
-        if seed := config.get("seed", None):
-            seed_everything(int(seed), workers=True)
+        if (seed := config.get("seed", None)) is not None:
+            seed = int(seed)
+            os.environ["PYTHONHASHSEED"] = str(seed)
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+            seed_everything(seed, workers=True)
+            torch.use_deterministic_algorithms(True, warn_only=True)  # noqa: FBT003
+
         self.data_module_: CommonDataModule | None = None
         self.model_: BaseModel | None = None
 
@@ -184,6 +190,20 @@ class ModelService:
                 )
             ),
         )
+        # Re-apply warn_only since Lightning may override it when deterministic=True
+        if self.config.get("seed", None):
+            torch.use_deterministic_algorithms(True, warn_only=True)  # noqa: FBT003
+
+        # Check warn_only survived Lightning's deterministic setup
+        log.debug(
+            "deterministic_algorithms_enabled: %s",
+            torch.are_deterministic_algorithms_enabled(),
+        )
+        log.debug(
+            "warn_only_enabled: %s",
+            torch.is_deterministic_algorithms_warn_only_enabled(),
+        )
+
         # Assign workers for data loading
         self.data_module.assign_workers(suggested_max_num_workers(trainer.num_devices))
 
