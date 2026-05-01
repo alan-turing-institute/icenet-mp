@@ -46,7 +46,14 @@ class GeographicMetadata(Metadata):
 
     @override_
     def as_namespace(self, namespace: str | None = None) -> dict[str, Any]:
-        return self.metadata_.as_namespace(namespace)
+        if hasattr(self.metadata_, "as_namespace"):
+            return self.metadata_.as_namespace(namespace)
+        if namespace is None or namespace in {"default", ""}:
+            return {str(k): v for k, v in dict(self).items()}
+        if namespace == "mars":
+            return {}
+        msg = f"Unsupported namespace '{namespace}'"
+        raise ValueError(msg)
 
     @override_
     def base_datetime(self) -> datetime_:
