@@ -2,9 +2,12 @@ _target_: icenet_mp.models.EncodeProcessDecode
 
 name: cnn-null-cnn
 
-encoder:
-  _target_: icenet_mp.models.encoders.CNNEncoder
-  latent_space: [144, 144] # Shape of the latent space
+encoders:
+  latent_space: [144, 144]
+  era5:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.CNNEncoder
 
 processor:
   _target_: icenet_mp.models.processors.NullProcessor

@@ -97,6 +97,32 @@ class SingleDataset(Dataset):
         """Return the frequency of the dataset."""
         return np.timedelta64(self.datasets[0].frequency)
 
+    @cached_property
+    def latitudes(self) -> list[float]:
+        """Return the latitudes of the dataset."""
+        reference_latitudes = self.datasets[0].latitudes
+        n_different = sum(
+            not np.array_equal(ds.latitudes, reference_latitudes)
+            for ds in self.datasets
+        )
+        if n_different != 0:
+            msg = f"All date ranges must have the same latitudes, found {n_different + 1} different values"
+            raise ValueError(msg)
+        return reference_latitudes.tolist()
+
+    @cached_property
+    def longitudes(self) -> list[float]:
+        """Return the longitudes of the dataset."""
+        reference_longitudes = self.datasets[0].longitudes
+        n_different = sum(
+            not np.array_equal(ds.longitudes, reference_longitudes)
+            for ds in self.datasets
+        )
+        if n_different != 0:
+            msg = f"All date ranges must have the same longitudes, found {n_different + 1} different values"
+            raise ValueError(msg)
+        return reference_longitudes.tolist()
+
     @property
     def name(self) -> str:
         """Return the name of the dataset."""
@@ -108,12 +134,12 @@ class SingleDataset(Dataset):
         # Check all datasets have the same number of channels
         per_ds_channels = sorted({ds.shape[1] for ds in self.datasets})
         if len(per_ds_channels) != 1:
-            msg = f"All datasets must have the same number of channels, found {len(per_ds_channels)} different values"
+            msg = f"All date ranges must have the same number of channels, found {len(per_ds_channels)} different values"
             raise ValueError(msg)
         # Check all datasets have the same shape
         per_ds_shape = sorted({ds.field_shape for ds in self.datasets})
         if len(per_ds_shape) != 1:
-            msg = f"All datasets must have the same shape, found {len(per_ds_shape)} different values"
+            msg = f"All date ranges must have the same shape, found {len(per_ds_shape)} different values"
             raise ValueError(msg)
         # Return the data space
         return DataSpace(
@@ -136,7 +162,7 @@ class SingleDataset(Dataset):
         """
         variable_names = {tuple(sorted(ds.variables)) for ds in self.datasets}
         if len(variable_names) != 1:
-            msg = f"Found {len(variable_names)} different sets of variables across {len(self.datasets)} datasets."
+            msg = f"All date ranges must have the same variables, found {len(variable_names)} different values."
             raise ValueError(msg)
         return self.datasets[0].variables
 

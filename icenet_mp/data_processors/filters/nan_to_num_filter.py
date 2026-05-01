@@ -5,7 +5,7 @@ import numpy as np
 from anemoi.transform.filter import SingleFieldFilter
 
 
-class NanToNum(SingleFieldFilter):
+class NanToNumFilter(SingleFieldFilter):
     required_inputs = ("variables", "replace_with")
 
     def forward_select(self) -> dict[str, str | list[str] | tuple[str]]:

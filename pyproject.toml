@@ -32,11 +32,12 @@ dependencies = [
     "icenet==0.2.7", # newer versions require netCDF4<1.6.1 which does not work on macOS 15
     "imageio-ffmpeg>=0.6.0",
     "jaxtyping>=0.3.2",
-    "lightning>=2.5.1",
+    "lightning>=2.5.1,!=2.6.2,!=2.6.3", # 2.6.2 and 2.6.3 are compromised https://www.aikido.dev/blog/pytorch-lightning-pypi-compromise-mini-shai-hulud
     "matplotlib>=3.10.3",
     "netcdf4>=1.7.0",
     "pillow>=11.3.0",
     "pydantic>=2.11.7",
+    "pyproj>=3.7.2",
     "pytorch-triton-xpu>=0.0; sys_platform == 'linux' and platform_version == '#1 SMP PREEMPT_DYNAMIC Wed Dec 17 11:57:42 GMT 2025'", # only needed for XPU-enabled machines, but we don't have a simple way to determine that
     "pytorch-triton>=0.0; sys_platform == 'linux' and platform_version != '#1 SMP PREEMPT_DYNAMIC Wed Dec 17 11:57:42 GMT 2025'",
     "torch-ema>=0.3",
@@ -55,6 +56,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
     "types-cachetools>=6.1.0",
+    "types-pyyaml>=6.0.12",
 ]
 notebooks = [
     "cmocean>=4.0.3",

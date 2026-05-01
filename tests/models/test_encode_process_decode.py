@@ -11,7 +11,7 @@ class TestEncodeProcessDecode:
     def test_init(
         self,
         cfg_decoder: DictConfig,
-        cfg_encoder: DictConfig,
+        cfg_encoders: DictConfig,
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
@@ -20,11 +20,13 @@ class TestEncodeProcessDecode:
     ) -> None:
         model = EncodeProcessDecode(
             name="encode-null-decode",
-            encoder=cfg_encoder,
+            encoders=cfg_encoders,
             processor=cfg_processor,
             decoder=cfg_decoder,
             hemisphere="north",
             input_spaces=[cfg_input_space],
+            latitudes={},
+            longitudes={},
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=cfg_output_space,
@@ -46,7 +48,7 @@ class TestEncodeProcessDecode:
     def test_forward(
         self,
         cfg_decoder: DictConfig,
-        cfg_encoder: DictConfig,
+        cfg_encoders: DictConfig,
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
@@ -56,11 +58,13 @@ class TestEncodeProcessDecode:
     ) -> None:
         model = EncodeProcessDecode(
             name="encode-null-decode",
-            encoder=cfg_encoder,
+            encoders=cfg_encoders,
             processor=cfg_processor,
             decoder=cfg_decoder,
             hemisphere="north",
             input_spaces=[cfg_input_space],
+            latitudes={},
+            longitudes={},
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=cfg_output_space,

@@ -22,6 +22,11 @@ class DataSpace:
         self.shape = (int(shape[0]), int(shape[1]))
 
     @property
+    def area(self) -> int:
+        """Return the area of the data space."""
+        return self.shape[0] * self.shape[1]
+
+    @property
     def chw(self) -> tuple[int, int, int]:
         """Return a tuple of [channels, height, width]."""
         return (self.channels, *self.shape)

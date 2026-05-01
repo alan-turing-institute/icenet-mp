@@ -30,12 +30,14 @@ def cfg_decoder() -> DictConfig:
 
 
 @pytest.fixture
-def cfg_encoder() -> DictConfig:
+def cfg_encoders() -> DictConfig:
     """Test configuration for an encoder."""
     return DictConfig(
         {
-            "_target_": "icenet_mp.models.encoders.NaiveLinearEncoder",
             "latent_space": (64, 64),
+            "test-input": {
+                "_target_": "icenet_mp.models.encoders.NaiveLinearEncoder",
+            },
         }
     )
 

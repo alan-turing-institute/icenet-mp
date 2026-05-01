@@ -27,6 +27,8 @@ class BaseModel(LightningModule, ABC):
         *,
         hemisphere: Hemisphere,
         input_spaces: list[DictConfig],
+        latitudes: dict[str, list[float]],
+        longitudes: dict[str, list[float]],
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -44,9 +46,11 @@ class BaseModel(LightningModule, ABC):
         """
         super().__init__()
 
-        # Save model name and hemisphere
+        # Save model name, hemisphere and lat/lon information
         self.name = name
         self.hemisphere = hemisphere
+        self.latitudes = latitudes
+        self.longitudes = longitudes
 
         # Save history and forecast steps
         if n_forecast_steps <= 0:
@@ -77,7 +81,7 @@ class BaseModel(LightningModule, ABC):
         # Save all of the arguments to __init__ as hyperparameters
         # This will also save the parameters of whichever child class is used
         # Note that W&B will log all hyperparameters
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["latitudes", "longitudes"])
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""

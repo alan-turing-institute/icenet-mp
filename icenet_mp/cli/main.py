@@ -4,7 +4,6 @@ import logging
 import warnings
 
 import typer
-from hydra.core.utils import simple_stdout_log_config
 
 from icenet_mp.plugins import register_plugins
 
@@ -13,7 +12,11 @@ from .evaluate import evaluation_cli
 from .train import training_cli
 
 # Configure logging
-simple_stdout_log_config()
+logging.basicConfig(
+    format="😈 [%(asctime)s] %(message)s",
+    datefmt=r"%Y-%m-%d %H:%M:%S",
+    level=logging.INFO,
+)
 logger = logging.getLogger(__name__)
 
 # Register all plugins

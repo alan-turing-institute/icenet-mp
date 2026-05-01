@@ -1,0 +1,53 @@
+samp-weathersouth-era5-25p0km-2017-2019-24h-v3:
+  name: samp-weathersouth-era5-25p0km-2017-2019-24h-v3
+  group_as: era5
+  description: Weather from ERA5 for partial southern hemisphere
+  attribution: ECMWF/C3S
+  licence: CC-BY-4.0
+
+  dates:
+    start: '2017-01-01T12:00:00'
+    end: '2019-01-31T23:00:00'
+    frequency: 24h
+
+  input:
+    pipe:
+      - join:
+        - mars:
+            use_cdsapi_dataset: "reanalysis-era5-complete"
+            area: "-20/-180/-90/180"  # southern hemisphere
+            grid: "0.25 / 0.25"
+            levtype: sfc
+            param:
+            - 2t # 2-metre air temperature
+            - sp # Surface pressure
+            - 10u # 10m x-direction wind speed
+            - 10v # 10m y-direction wind speed
+            - msl # Sea level pressure
+        - mars:
+            use_cdsapi_dataset: "reanalysis-era5-complete"
+            area: "-20/-180/-90/180"  # southern hemisphere
+            grid: "0.25 / 0.25"
+            level:
+            - 10 # hPa
+            - 250 # hPa
+            - 500 # hPa
+            - 1000 # hPa
+            levtype: pl # pressure level
+            param:
+            - z # geopotential height
+            - t # air temperature
+            - q # specific humidity
+            - u # x-direction wind speed
+            - v # y-direction wind speed
+        - forcings:
+            param:
+            - cos_julian_day
+            - insolation
+            - sin_julian_day
+            template: \${input.pipe.0.join.0.mars}
+      # Reproject to EASE2 25km grid
+      - reproject:
+          crs: "EPSG:6932"
+          resolution: "25p0km"
+          shape: [432, 432]

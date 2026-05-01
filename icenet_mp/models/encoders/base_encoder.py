@@ -18,6 +18,8 @@ class BaseEncoder(nn.Module):
         *,
         data_space_in: DataSpace,
         latent_space: tuple[int, int],
+        latitudes: dict[str, list[float]],
+        longitudes: dict[str, list[float]],
         n_history_steps: int,
     ) -> None:
         """Initialise a BaseEncoder."""
@@ -28,6 +30,8 @@ class BaseEncoder(nn.Module):
             channels=self.data_space_in.channels,
             shape=latent_space,
         )
+        self.latitudes = latitudes
+        self.longitudes = longitudes
         self.name = data_space_in.name
         self.n_history_steps = n_history_steps
 

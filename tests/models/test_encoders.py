@@ -33,16 +33,22 @@ class TestEncoders:
             "CNNEncoder": CNNEncoder(
                 data_space_in=input_space,
                 latent_space=test_latent_hw,
+                latitudes={},
+                longitudes={},
                 n_history_steps=test_n_history_steps,
             ),
             "NaiveLinearEncoder": NaiveLinearEncoder(
                 data_space_in=input_space,
                 latent_space=test_latent_hw,
+                latitudes={},
+                longitudes={},
                 n_history_steps=test_n_history_steps,
             ),
             "PiecewiseEncoder": PiecewiseEncoder(
                 data_space_in=input_space,
                 latent_space=test_latent_hw,
+                latitudes={},
+                longitudes={},
                 n_history_steps=test_n_history_steps,
             ),
         }[test_encoder_cls]
@@ -76,6 +82,8 @@ class TestPiecewiseEncoder:
         encoder = PiecewiseEncoder(
             data_space_in=input_space,
             latent_space=test_latent_hw,
+            latitudes={},
+            longitudes={},
             n_conv_blocks=0,
             n_history_steps=1,
         )
@@ -116,6 +124,8 @@ class TestPiecewiseEncoder:
         encoder = PiecewiseEncoder(
             data_space_in=input_space,
             latent_space=patch_shape,
+            latitudes={},
+            longitudes={},
             n_conv_blocks=0,
             n_history_steps=1,
         )

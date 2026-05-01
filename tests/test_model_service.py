@@ -14,6 +14,8 @@ class MockCommonDataModule:
         self.config = config
         self.hemisphere = "north"
         self.input_spaces = [DataSpace(5, "input", (20, 20))]
+        self.latitudes = {"input": [0.0] * 400}
+        self.longitudes = {"input": [0.0] * 400}
         self.n_forecast_steps = 2
         self.n_history_steps = 3
         self.output_space = DataSpace(1, "output", (10, 10))
@@ -21,8 +23,13 @@ class MockCommonDataModule:
 
 class MockModel:
     @classmethod
-    def load_from_checkpoint(cls, checkpoint_path: str | Path) -> "MockModel":
-        del checkpoint_path
+    def load_from_checkpoint(
+        cls,
+        checkpoint_path: str | Path,
+        latitudes: dict | None = None,
+        longitudes: dict | None = None,
+    ) -> "MockModel":
+        del checkpoint_path, latitudes, longitudes
         return cls()
 
 
@@ -36,7 +43,6 @@ class TestModelService:
             mp.setattr(
                 "icenet_mp.model_service.hydra.utils.instantiate", mock_instantiate
             )
-
             service = ModelService.from_config(cfg_model_service)
             assert isinstance(service.model, MockModel)
 
@@ -69,6 +75,7 @@ class TestModelService:
         OmegaConf.save(cfg_model_service, files_dir / "model_config.yaml")
 
         with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.model_service.CommonDataModule", MockCommonDataModule)
             mp.setattr(
                 "icenet_mp.model_service.hydra.utils.get_class",
                 lambda _target: MockModel,
@@ -91,6 +98,7 @@ class TestModelService:
         OmegaConf.save(cfg_model_service, files_dir / "model_config.yaml")
 
         with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.model_service.CommonDataModule", MockCommonDataModule)
             mp.setattr(
                 "icenet_mp.model_service.hydra.utils.get_class",
                 lambda _target: MockModel,

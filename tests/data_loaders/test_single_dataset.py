@@ -202,7 +202,7 @@ class TestSingleDataset:
         # Test data space shapes
         with pytest.raises(
             ValueError,
-            match="All datasets must have the same shape, found 2 different values",
+            match="All date ranges must have the same shape, found 2 different values",
         ):
             _ = dataset.space
 
@@ -218,7 +218,7 @@ class TestSingleDataset:
         # Test data space channels
         with pytest.raises(
             ValueError,
-            match="All datasets must have the same number of channels, found 2 different values",
+            match="All date ranges must have the same number of channels, found 2 different values",
         ):
             _ = dataset.space
 
