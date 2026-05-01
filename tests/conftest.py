@@ -133,8 +133,7 @@ def cfg_scheduler() -> DictConfig:
     return DictConfig(
         {
             "_target_": "torch.optim.lr_scheduler.LinearLR",
-            "frequency": 1,
-            "interval": "epoch",
+            "lr_scheduler_parameters": {"frequency": 1, "interval": "epoch"},
             "scheduler_parameters": {"start_factor": 0.2, "end_factor": 0.8},
         }
     )
