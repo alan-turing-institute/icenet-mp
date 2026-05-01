@@ -46,8 +46,19 @@ class GeographicField(Field):
     def message(self) -> bytes:
         return self._field.message()
 
-    def to_latlon(self, flatten: bool = True) -> dict[str, Any]:  # noqa: FBT001, FBT002
-        return self._field.to_latlon(flatten=flatten)
+    def to_latlon(self, flatten: bool = True, dtype=None, index=None) -> dict[str, Any]:  # noqa: FBT001, FBT002
+        lats = self.geo_metadata.geography.latitudes()
+        lons = self.geo_metadata.geography.longitudes()
+        if flatten:
+            lats = lats.flatten()
+            lons = lons.flatten()
+        if dtype is not None:
+            lats = lats.astype(dtype)
+            lons = lons.astype(dtype)
+        if index is not None:
+            lats = lats[index]
+            lons = lons[index]
+        return {"lat": lats, "lon": lons}
 
     def to_numpy(
         self,
