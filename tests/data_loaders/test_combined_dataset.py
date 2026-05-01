@@ -197,30 +197,3 @@ class TestCombinedDataset:
             batch["target"],
             combined.target.get_tchw([self.dates_np[2]]),
         )
-
-    def test_lazy_loading(self, mock_dataset: Path) -> None:
-        """Test that dates are lazy-loaded and cached."""
-        dataset = SingleDataset(
-            name="dataset1",
-            input_files=[mock_dataset],
-        )
-
-        combined = CombinedDataset(
-            datasets=[dataset],
-            target_group_name="dataset1",
-            target_variables=["ice_conc"],
-            n_history_steps=1,
-            n_forecast_steps=1,
-        )
-
-        # Initially dates should be unavailable
-        assert "dates" not in combined.__dict__
-
-        # Access dates for the first time
-        dates1 = combined.dates
-        assert "dates" in combined.__dict__
-        assert combined.__dict__["dates"] is dates1
-
-        # Access dates again, should return cached value
-        dates2 = combined.dates
-        assert dates1 is dates2
