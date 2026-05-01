@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -26,10 +27,10 @@ class MockModel:
     def load_from_checkpoint(
         cls,
         checkpoint_path: str | Path,
-        latitudes: dict | None = None,
-        longitudes: dict | None = None,
+        latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
     ) -> "MockModel":
-        del checkpoint_path, latitudes, longitudes
+        del checkpoint_path, latitudes_fn, longitudes_fn
         return cls()
 
 

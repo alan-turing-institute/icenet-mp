@@ -59,8 +59,6 @@ class TestBaseModel:
                 FakeDataModel(
                     name="fake data",
                     input_spaces=[input_space],
-                    latitudes={},
-                    longitudes={},
                     n_forecast_steps=test_n_forecast_steps,
                     n_history_steps=test_n_history_steps,
                     output_space=output_space,
@@ -77,8 +75,6 @@ class TestBaseModel:
                 FakeDataModel(
                     name="fake data",
                     input_spaces=[input_space],
-                    latitudes={},
-                    longitudes={},
                     n_forecast_steps=test_n_forecast_steps,
                     n_history_steps=test_n_history_steps,
                     output_space=output_space,
@@ -90,8 +86,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=output_space,
@@ -115,8 +109,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=1,
             n_history_steps=1,
             output_space=cfg_output_space,
@@ -137,8 +129,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=1,
             n_history_steps=1,
             output_space=cfg_output_space,
@@ -162,8 +152,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="dummy",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=1,
             n_history_steps=1,
             output_space=cfg_output_space,
@@ -207,8 +195,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=n_forecast_steps,
             n_history_steps=n_history_steps,
             output_space=cfg_output_space,
@@ -249,8 +235,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=n_forecast_steps,
             n_history_steps=n_history_steps,
             output_space=cfg_output_space,
@@ -288,8 +272,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=n_forecast_steps,
             n_history_steps=n_history_steps,
             output_space=cfg_output_space,

@@ -56,8 +56,6 @@ class TestPiecewiseEncodeDecode:
         encoder = PiecewiseEncoder(
             data_space_in=input_space,
             latent_space=test_patch_size,
-            latitudes={},
-            longitudes={},
             n_conv_blocks=n_conv_blocks,
             n_history_steps=n_history_steps,
         )
