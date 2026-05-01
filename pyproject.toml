@@ -32,7 +32,7 @@ dependencies = [
     "icenet==0.2.7", # newer versions require netCDF4<1.6.1 which does not work on macOS 15
     "imageio-ffmpeg>=0.6.0",
     "jaxtyping>=0.3.2",
-    "lightning>=2.5.1",
+    "lightning>=2.5.1,!=2.6.2,!=2.6.3", # 2.6.2 and 2.6.3 are compromised https://www.aikido.dev/blog/pytorch-lightning-pypi-compromise-mini-shai-hulud
     "matplotlib>=3.10.3",
     "netcdf4>=1.7.0",
     "pillow>=11.3.0",
