@@ -54,19 +54,19 @@ class CommonDataModule(LightningDataModule):
         # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
         self.predict_periods = [
-            {str(k): None if v == "None" else str(v) for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["predict"]
         ]
         self.test_periods = [
-            {str(k): None if v == "None" else str(v) for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["test"]
         ]
         self.train_periods = [
-            {str(k): None if v == "None" else str(v) for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["train"]
         ]
         self.val_periods = [
-            {str(k): None if v == "None" else str(v) for k, v in period.items()}
+            {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["validate"]
         ]
 

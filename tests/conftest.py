@@ -24,6 +24,34 @@ class MockAnemoiCreateArgs:
 
 
 @pytest.fixture
+def cfg_common_data_module() -> DictConfig:
+    """Test configuration for a CommonDataModule."""
+    return DictConfig(
+        {
+            "base_path": "/mock/base/path",
+            "data": {
+                "datasets": {"ds1": {"name": "mock", "group_as": "group1"}},
+                "split": {
+                    "batch_size": 2,
+                    "predict": [{"start": None, "end": None}],
+                    "test": [{"start": "2020-01-01", "end": "2020-12-31"}],
+                    "train": [
+                        {"start": None, "end": "2019-12-31"},
+                        {"start": "2018-01-01", "end": None},
+                    ],
+                    "validate": [{"start": "2020-01-01", "end": "2020-03-31"}],
+                },
+            },
+            "predict": {
+                "target": {"group_name": "group1"},
+                "n_forecast_steps": 1,
+                "n_history_steps": 1,
+            },
+        }
+    )
+
+
+@pytest.fixture
 def cfg_decoder() -> DictConfig:
     """Test configuration for a decoder."""
     return DictConfig({"_target_": "icenet_mp.models.decoders.NaiveLinearDecoder"})
