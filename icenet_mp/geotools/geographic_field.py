@@ -46,7 +46,12 @@ class GeographicField(Field):
         """Delegate message generation to the underlying field."""
         return self._field.message()
 
-    def to_latlon(self, flatten: bool = True, dtype=None, index=None) -> dict[str, Any]:  # noqa: FBT001, FBT002
+    def to_latlon(
+        self,
+        flatten: bool = True,  # noqa: FBT001, FBT002
+        dtype: type | None = None,
+        index: int | None = None,
+    ) -> dict[str, Any]:
         """Return the latitudes and longitudes for the field.
 
         We take these from the geography as GeographicField might be a wrapper around a
