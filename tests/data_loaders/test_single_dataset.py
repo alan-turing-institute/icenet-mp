@@ -53,7 +53,7 @@ class TestSingleDataset:
             ],
         )
         assert self.dates_np[2] not in dataset.dates
-        assert len(dataset.datasets) == 2
+        assert len(dataset.dataslices) == 2
         assert len(dataset) == 4
 
     def test_missing_dates(self, mock_dataset_missing_dates: Path) -> None:

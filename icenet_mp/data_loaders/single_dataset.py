@@ -59,7 +59,7 @@ class SingleDataset(Dataset):
     def _idx2anemoi(self) -> dict[int, tuple[int, int]]:
         """Map global index to a location in an Anemoi dataset."""
         idx2anemoi = {}
-        for idx_ds, dataset in enumerate(self.datasets):
+        for idx_ds, dataset in enumerate(self.dataslices):
             for idx_date, date in enumerate(dataset.dates):
                 idx_global = self._date2idx.get(normalise_date(date), None)
                 if idx_global is not None:
@@ -67,8 +67,8 @@ class SingleDataset(Dataset):
         return idx2anemoi
 
     @cached_property
-    def datasets(self) -> list[AnemoiDataset]:
-        """Return date-range views of the underlying Anemoi dataset."""
+    def dataslices(self) -> list[AnemoiDataset]:
+        """Get all slices of contiguous dates from the underlying Anemoi dataset."""
         return [
             self.load_dataset(self._input_files)._subset(
                 name=self._name,
@@ -85,7 +85,7 @@ class SingleDataset(Dataset):
         return sorted(
             {
                 normalise_date(date)
-                for ds in self.datasets
+                for ds in self.dataslices
                 for date in np.delete(ds.dates, list(ds.missing))
             }
         )
@@ -98,17 +98,17 @@ class SingleDataset(Dataset):
     @cached_property
     def frequency(self) -> np.timedelta64:
         """Return the frequency of the dataset."""
-        return np.timedelta64(self.datasets[0].frequency)
+        return np.timedelta64(self.dataslices[0].frequency)
 
     @cached_property
     def latitudes(self) -> list[float]:
         """Return the latitudes of the dataset."""
-        return self.datasets[0].latitudes.tolist()
+        return self.dataslices[0].latitudes.tolist()
 
     @cached_property
     def longitudes(self) -> list[float]:
         """Return the longitudes of the dataset."""
-        return self.datasets[0].longitudes.tolist()
+        return self.dataslices[0].longitudes.tolist()
 
     @cached_property
     def name(self) -> str:
@@ -119,9 +119,9 @@ class SingleDataset(Dataset):
     def space(self) -> DataSpace:
         """Return the data space for this dataset."""
         return DataSpace(
-            channels=self.datasets[0].shape[1],
+            channels=self.dataslices[0].shape[1],
             name=self.name,
-            shape=self.datasets[0].field_shape,
+            shape=self.dataslices[0].field_shape,
         )
 
     @cached_property
@@ -132,7 +132,7 @@ class SingleDataset(Dataset):
     @cached_property
     def variable_names(self) -> list[str]:
         """Return the variable names for this dataset."""
-        return self.datasets[0].variables
+        return self.dataslices[0].variables
 
     def __len__(self) -> int:
         """Return the total length of the dataset."""
@@ -142,7 +142,7 @@ class SingleDataset(Dataset):
         """Return the data for a single timestep in [C, H, W] format."""
         try:
             idx_ds, idx_date = self._idx2anemoi[idx]
-            return self.datasets[idx_ds][idx_date].reshape(self.space.chw)
+            return self.dataslices[idx_ds][idx_date].reshape(self.space.chw)
         except KeyError as exc:
             msg = f"Index {idx} out of range for dataset of length {len(self)}."
             raise IndexError(msg) from exc
