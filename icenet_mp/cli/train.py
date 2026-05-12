@@ -15,6 +15,14 @@ log = logging.getLogger(__name__)
 
 @training_cli.command()
 @hydra_adaptor
+def pretrain(config: DictConfig) -> None:
+    """Pretrain an autoencoder model."""
+    model = ModelService.from_config(config)
+    model.pretrain()
+
+
+@training_cli.command()
+@hydra_adaptor
 def train(config: DictConfig) -> None:
     """Train a model."""
     model = ModelService.from_config(config)

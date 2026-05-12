@@ -203,7 +203,7 @@ class ModelService:
         trainer = cast(
             "Trainer",
             hydra.utils.instantiate(
-                self.config["train"]["trainer"],
+                self.config.get(job_type, {})["trainer"],
                 callbacks=extra_callbacks,
                 deterministic=self.config.get("random", {}).get(
                     "fully_deterministic", False
@@ -272,6 +272,27 @@ class ModelService:
 
         # Evaluate the model
         trainer.test(
+            model=self.model,
+            datamodule=self.data_module,
+        )
+
+    def pretrain(self) -> None:
+        """Pretrain an autoencoder model."""
+        log.info("Configuring model for pretraining.")
+        OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
+        trainer = self.build_trainer(job_type="pretrain")
+
+        # Log training details
+        log.info(
+            "Starting pretraining for %d epochs using %d threads across %d %s device(s).",
+            trainer.max_epochs,
+            torch.get_num_threads(),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
+        )
+
+        # Train the model
+        trainer.fit(
             model=self.model,
             datamodule=self.data_module,
         )
