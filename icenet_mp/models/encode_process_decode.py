@@ -44,14 +44,6 @@ class EncodeProcessDecode(BaseModel):
             msg = f"Error instantiating encoders: {exc}. Please ensure that encoders are specified for all input spaces: {self.input_spaces}"
             raise ValueError(msg) from exc
 
-        # Check that all encoders have the same output shape
-        encoder_output_shapes = {
-            encoder.data_space_out.shape for encoder in self.encoders
-        }
-        if len(encoder_output_shapes) != 1:
-            msg = f"Expected all encoders to have the same output shape, but found {len(encoder_output_shapes)} different shapes: {encoder_output_shapes}"
-            raise ValueError(msg)
-
         # We have to explicitly register each encoder as list[Module] will not be
         # automatically picked up by PyTorch
         for input_space, module in zip(self.input_spaces, self.encoders, strict=True):
@@ -59,10 +51,11 @@ class EncodeProcessDecode(BaseModel):
             self.add_module(module_name, module)
 
         # Add a processor
+        # Note that all encoders have the same output shape
         combined_latent_space = DataSpace(
             name="combined_latent_space",
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
-            shape=encoder_output_shapes.pop(),
+            shape=self.encoders[0].data_space_out.shape,
         )
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
