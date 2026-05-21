@@ -61,6 +61,7 @@ class TestPlotVideoPrediction:
         spec = replace(
             DEFAULT_SIC_SPEC, include_difference=True, video_format=video_format
         )
+        variable_name = "test-variable"
 
         result = plot_video_prediction(
             ground_truth,
@@ -68,12 +69,13 @@ class TestPlotVideoPrediction:
             dates=dates,
             land_mask=LandMask(None, "north"),
             plot_spec=spec,
+            variable_name=variable_name,
         )
 
         # Reference the fixture to avoid unused-argument lint error
         assert fake_video_from_animation is not None
 
-        expected_key = f"sea-ice-concentration-{TEST_DATE.strftime('%Y-%m-%d')}"
+        expected_key = f"{TEST_DATE.strftime('%Y-%m-%d')}-{variable_name}"
         assert expected_key in result
         buffer = result[expected_key]
         assert isinstance(buffer, io.BytesIO)

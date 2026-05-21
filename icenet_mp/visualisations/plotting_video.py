@@ -69,7 +69,7 @@ def plot_video_prediction(
     dates: Sequence[date | datetime],
     land_mask: LandMask,
     plot_spec: PlotSpec,
-    variable_name: str = "sea-ice-concentration",
+    variable_name: str,
 ) -> dict[str, io.BytesIO]:
     """Generate animations showing the temporal evolution of sea ice concentration.
 
@@ -238,7 +238,7 @@ def plot_video_prediction(
             video_format=plot_spec.video_format,
         )
         # Return the video buffer
-        return {f"{variable_name}-{dates[0].strftime(r'%Y-%m-%d')}": video_buffer}
+        return {f"{dates[0].strftime(r'%Y-%m-%d')}-{variable_name}": video_buffer}
     finally:
         # Clean up by closing figure
         plt.close(fig)
@@ -440,7 +440,7 @@ def plot_video_inputs(
                 land_mask=land_mask,
                 plot_spec=plot_spec,
             )
-            results[f"{variable_name}-{dates[0].strftime(r'%Y-%m-%d')}"] = video_buffer
+            results[f"{dates[0].strftime(r'%Y-%m-%d')}-{variable_name}"] = video_buffer
 
         except (InvalidArrayError, ValueError, MemoryError, OSError):
             logger.exception(
