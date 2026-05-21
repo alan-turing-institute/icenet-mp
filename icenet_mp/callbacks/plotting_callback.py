@@ -127,13 +127,20 @@ class PlottingCallback(Callback):
         image_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_image")]
         video_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_video")]
 
+        # Get channel names from the model
+        channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
+
         if self.make_static_plots:
-            self.plotter.log_static_outputs(self.cached_outputs_, dates, image_loggers)
+            self.plotter.log_static_outputs(
+                self.cached_outputs_, dates, image_loggers, channel_names
+            )
             if self.make_input_plots:
                 self.plotter.log_static_inputs(dataset.inputs, dates, image_loggers)
 
         if self.make_video_plots:
-            self.plotter.log_video_outputs(self.cached_outputs_, dates, video_loggers)
+            self.plotter.log_video_outputs(
+                self.cached_outputs_, dates, video_loggers, channel_names
+            )
             if self.make_input_plots:
                 self.plotter.log_video_inputs(dataset.inputs, dates, video_loggers)
 
