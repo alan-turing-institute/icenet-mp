@@ -128,6 +128,11 @@ class CommonDataModule(LightningDataModule):
             .space
         )
 
+    @cached_property
+    def variable_names(self) -> dict[str, list[str]]:
+        """Return the variable names for each input."""
+        return {ds.name: ds.variable_names for ds in self.datasets.values()}
+
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
         logger.info("Assigning %d workers for data loading.", n_workers)
