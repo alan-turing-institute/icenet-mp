@@ -14,7 +14,8 @@ from wandb.sdk.lib.runid import generate_id
 from icenet_mp.callbacks import UnconditionalCheckpoint
 from icenet_mp.compatibility.torch import patch_interpolate_antialias
 from icenet_mp.data_loaders import CommonDataModule
-from icenet_mp.models.base_model import BaseModel
+from icenet_mp.models import BaseModel, EncodeProcessDecode
+from icenet_mp.models.autoencoders import EncodeFitter
 from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
@@ -278,24 +279,37 @@ class ModelService:
 
     def pretrain(self) -> None:
         """Pretrain an autoencoder model."""
+        if not isinstance(self.model, EncodeProcessDecode):
+            msg = "Pretraining is only supported for EncodeProcessDecode models."
+            raise TypeError(msg)
+
         log.info("Configuring model for pretraining.")
         OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
-        trainer = self.build_trainer(job_type="pretrain")
 
-        # Log training details
-        log.info(
-            "Starting pretraining for %d epochs using %d threads across %d %s device(s).",
-            trainer.max_epochs,
-            torch.get_num_threads(),
-            trainer.num_devices,
-            get_device_name(trainer.accelerator.name()),
-        )
+        for encoder in self.model.encoders:
+            model = EncodeFitter.from_template(
+                channel_names=self.data_module.variable_names[encoder.name],
+                dataset=encoder.name,
+                decoder=self.config["model"]["decoder"],
+                encoder=self.config["model"]["encoders"][encoder.name],
+                template=self.model,
+            )
 
-        # Train the model
-        trainer.fit(
-            model=self.model,
-            datamodule=self.data_module,
-        )
+            # Log training details
+            trainer = self.build_trainer(job_type="pretrain")
+            log.info(
+                "Starting pretraining for %d epochs using %d threads across %d %s device(s).",
+                trainer.max_epochs,
+                torch.get_num_threads(),
+                trainer.num_devices,
+                get_device_name(trainer.accelerator.name()),
+            )
+
+            # Train the model
+            trainer.fit(
+                model=model,
+                datamodule=self.data_module,
+            )
 
     def train(self) -> None:
         """Train a model."""
