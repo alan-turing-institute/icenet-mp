@@ -30,7 +30,6 @@ from icenet_mp.visualisations.plotting_core import (
     compute_difference,
     compute_display_ranges,
     create_normalisation,
-    levels_from_spec,
     make_diff_colourmap,
     prepare_difference_stream,
     safe_nanmax,
@@ -124,7 +123,6 @@ def plot_video_prediction(
         width=width,
         layout_config=layout_config,
     )
-    levels = levels_from_spec(plot_spec)
 
     # Stable ranges for the whole animation
     display_ranges = compute_display_ranges(
@@ -162,7 +160,6 @@ def plot_video_prediction(
         land_mask,
         diff_colour_scale=diff_colour_scale,
         precomputed_difference=precomputed_diff_0,
-        levels_override=levels,
         display_ranges_override=display_ranges,
     )
     # Restore axis titles after drawing (they were cleared in _draw_frame)
@@ -211,7 +208,6 @@ def plot_video_prediction(
             land_mask,
             diff_colour_scale=diff_colour_scale,
             precomputed_difference=precomputed_diff_tt,
-            levels_override=levels,
             display_ranges_override=display_ranges,
         )
         # Restore axis titles after drawing (they were cleared in _draw_frame)

@@ -85,7 +85,6 @@ def plot_static_prediction(
         width,
         layout_config,
         warnings,
-        levels,
     ) = _prepare_static_plot(plot_spec, ground_truth, prediction)
 
     # Initialise the figure and axes with dynamic top spacing if needed
@@ -110,7 +109,6 @@ def plot_static_prediction(
         land_mask,
         diff_colour_scale=diff_colour_scale,
         precomputed_difference=difference,
-        levels_override=levels,
     )
 
     # Restore axis titles after drawing (they were cleared in _draw_frame)
