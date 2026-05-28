@@ -16,7 +16,7 @@ from icenet_mp.compatibility.torch import patch_interpolate_antialias
 from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
-from icenet_mp.models.autoencoders import EncodeFitter
+from icenet_mp.models.autoencoders import DecoderFitter, EncodeFitter
 from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
@@ -296,15 +296,18 @@ class ModelService:
         log.info("Preparing to train the encoders...")
         OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
 
+        # Stage 1: train each encoder separately with a corresponding decoder
+        encoder_fitters = []
         for encoder in self.model.encoders:
-            model = EncodeFitter.from_template(
-                channel_names=self.data_module.variable_names[encoder.name],
-                dataset=encoder.name,
-                decoder=self.config["model"]["decoder"],
-                encoder=self.config["model"]["encoders"][encoder.name],
-                template=self.model,
+            encoder_fitters.append(
+                EncodeFitter.from_template(
+                    channel_names=self.data_module.variable_names[encoder.name],
+                    dataset=encoder.name,
+                    decoder=self.config["model"]["decoder"],
+                    encoder=self.config["model"]["encoders"][encoder.name],
+                    template=self.model,
+                )
             )
-
             # Log training details
             trainer = self.build_trainer(
                 job_type="pretrain", job_stage=f"encoder-{encoder.name}"
@@ -316,12 +319,39 @@ class ModelService:
                 trainer.num_devices,
                 get_device_name(trainer.accelerator.name()),
             )
-
             # Train the model
             trainer.fit(
-                model=model,
+                model=encoder_fitters[-1],
                 datamodule=self.data_module,
             )
+
+        # Stage 2: train a decoder on the combined latent space of all encoders
+        log.info("Preparing to train the decoder...")
+        target_variables = (
+            self.data_module.target_variables
+            or self.data_module.variable_names[self.data_module.target_group_name]
+        )
+        target_variable_indices = [target_variables.index(v) for v in target_variables]
+        decoder_model = DecoderFitter.from_template(
+            decoder=self.config["model"]["decoder"],
+            encoders=encoder_fitters,
+            target_dataset_name=self.data_module.target_group_name,
+            target_variable_indices=target_variable_indices,
+        )
+        # Log training details
+        trainer = self.build_trainer(job_type="pretrain", job_stage="decoder")
+        log.info(
+            "Starting decoder training for %d epochs using %d threads across %d %s device(s).",
+            trainer.max_epochs,
+            torch.get_num_threads(),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
+        )
+        # Train the model
+        trainer.fit(
+            model=decoder_model,
+            datamodule=self.data_module,
+        )
 
     def train(self) -> None:
         """Train a model."""
