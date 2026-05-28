@@ -13,6 +13,7 @@ from wandb.sdk.lib.runid import generate_id
 
 from icenet_mp.callbacks import UnconditionalCheckpoint
 from icenet_mp.compatibility.torch import patch_interpolate_antialias
+from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.autoencoders import EncodeFitter
@@ -179,6 +180,7 @@ class ModelService:
         self,
         *,
         job_type: str,
+        job_stage: str | None = None,
     ) -> Trainer:
         """Configure the trainer with callbacks and loggers."""
         # Setup callbacks first
@@ -247,6 +249,14 @@ class ModelService:
             if isinstance(callback, SupportsMetadata):
                 log.debug("Setting metadata for %s.", callback.__class__.__name__)
                 callback.set_metadata(self.config, self.model.__class__.__name__)
+            # Set plotting stage
+            if isinstance(callback, PlottingCallback):
+                log.debug(
+                    "Setting job stage for %s to %s.",
+                    callback.__class__.__name__,
+                    job_stage,
+                )
+                callback.prefix = job_stage
             # Set checkpoint run directory for supported callbacks
             if isinstance(callback, (ModelCheckpoint, UnconditionalCheckpoint)):
                 log.debug(
@@ -283,7 +293,7 @@ class ModelService:
             msg = "Pretraining is only supported for EncodeProcessDecode models."
             raise TypeError(msg)
 
-        log.info("Configuring model for pretraining.")
+        log.info("Preparing to train the encoders...")
         OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
 
         for encoder in self.model.encoders:
@@ -296,9 +306,11 @@ class ModelService:
             )
 
             # Log training details
-            trainer = self.build_trainer(job_type="pretrain")
+            trainer = self.build_trainer(
+                job_type="pretrain", job_stage=f"encoder-{encoder.name}"
+            )
             log.info(
-                "Starting pretraining for %d epochs using %d threads across %d %s device(s).",
+                "Starting encoder training for %d epochs using %d threads across %d %s device(s).",
                 trainer.max_epochs,
                 torch.get_num_threads(),
                 trainer.num_devices,

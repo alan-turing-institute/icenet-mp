@@ -39,11 +39,16 @@ class Plotter:
         self.plot_spec.metadata_subtitle = format_metadata_subtitle(metadata)
 
     def log_static_inputs(
-        self, inputs: list[SingleDataset], dates: list[datetime], image_loggers: list
+        self,
+        inputs: list[SingleDataset],
+        dates: list[datetime],
+        image_loggers: list,
+        prefix: str | None = None,
     ) -> None:
         """Extract and log static raw input plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
+            log_path = f"{prefix}/input_static" if prefix else "output_static"
             for input_ds in inputs:
                 # Get static data for this timestep
                 variables = {
@@ -60,7 +65,7 @@ class Plotter:
                 for image_name, image_list in images.items():
                     for image_logger in image_loggers:
                         image_logger.log_image(
-                            key=f"input_static/{image_name}", images=image_list
+                            key=f"{log_path}/{image_name}", images=image_list
                         )
         except InvalidArrayError as exc:
             logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
@@ -73,10 +78,12 @@ class Plotter:
         dates: list[datetime],
         image_loggers: list,
         channel_names: list[str],
+        prefix: str | None = None,
     ) -> None:
         """Create and log static output plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
+            log_path = f"{prefix}/output_static" if prefix else "output_static"
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayHW = (
@@ -97,7 +104,7 @@ class Plotter:
                 for image_name, image_list in images.items():
                     for image_logger in image_loggers:
                         image_logger.log_image(
-                            key=f"output_static/{image_name}", images=image_list
+                            key=f"{log_path}/{image_name}", images=image_list
                         )
         except InvalidArrayError as err:
             logger.warning("Static plotting skipped due to invalid arrays: %s", err)
@@ -105,9 +112,14 @@ class Plotter:
             logger.warning("Static plotting failed: %s", exc)
 
     def log_video_inputs(
-        self, inputs: list[SingleDataset], dates: list[datetime], video_loggers: list
+        self,
+        inputs: list[SingleDataset],
+        dates: list[datetime],
+        video_loggers: list,
+        prefix: str | None = None,
     ) -> None:
         """Extract and log raw input videos."""
+        log_path = f"{prefix}/input_video" if prefix else "input_video"
         for input_ds in inputs:
             # Create animations for all variables
             np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
@@ -127,7 +139,7 @@ class Plotter:
                 for video_name, video_buffer in videos.items():
                     video_buffer.seek(0)
                     video_logger.log_video(
-                        key=f"input_video/{video_name}",
+                        key=f"{log_path}/{video_name}",
                         videos=[video_buffer],
                         format=[self.plot_spec.video_format],
                     )
@@ -138,9 +150,11 @@ class Plotter:
         dates: list[datetime],
         video_loggers: list,
         channel_names: list[str],
+        prefix: str | None = None,
     ) -> None:
         """Create and log output videos."""
         try:
+            log_path = f"{prefix}/output_video" if prefix else "output_video"
             # Use all channels from the first batch -> [T, H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayTHW = (
@@ -161,7 +175,7 @@ class Plotter:
                     for video_name, video_buffer in video_data.items():
                         video_buffer.seek(0)
                         video_logger.log_video(
-                            key=f"output_video/{video_name}",
+                            key=f"{log_path}/{video_name}",
                             videos=[video_buffer],
                             format=[self.plot_spec.video_format],
                         )
