@@ -71,6 +71,7 @@ class ModelService:
         builder = cls(config)
 
         # Construct the model
+        OmegaConf.resolve(config["train"])  # resolve training config interpolations
         log.info("Building a new '%s' model...", builder.config["model"]["_target_"])
         builder.model_ = hydra.utils.instantiate(
             config["model"],
