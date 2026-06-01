@@ -61,18 +61,7 @@ from .conv_norm_act import ConvNormAct
 
 
 class CommonConvBlock(nn.Module):
-    """Full convolutional block consisting of multiple stacked ConvNormAct mini-blocks.
-
-    Args:
-        activation (str): Name of the activation function (from ACTIVATION_FROM_NAME).
-        dropout_rate (float): Dropout probability for each ConvNormAct block.
-        in_channels (int): Input channel size.
-        kernel_size (int): Kernel size for the convolutions.
-        n_subblocks (int): n_subblocks (int): Number of ConvNormAct blocks to stack (default 2).
-        norm_type (str): Type of normalization ("groupnorm", "batchnorm", or "none").
-        out_channels (int): Output channel size.
-
-    """
+    """Full convolutional block consisting of multiple stacked ConvNormAct mini-blocks."""
 
     def __init__(  # noqa: PLR0913
         self,
@@ -85,7 +74,18 @@ class CommonConvBlock(nn.Module):
         n_subblocks: int = 2,
         norm_type: str = "batchnorm",
     ) -> None:
-        """Initialise a CommonConvBlock."""
+        """Initialise a CommonConvBlock.
+
+        Args:
+            activation: Name of the activation function (from ACTIVATION_FROM_NAME).
+            dropout_rate: Dropout probability for each ConvNormAct block.
+            in_channels: Input channel size.
+            kernel_size: Kernel size for the convolutions.
+            n_subblocks: Number of ConvNormAct blocks to stack (default 2).
+            norm_type: Type of normalization ("groupnorm", "batchnorm", or "none").
+            out_channels: Output channel size.
+
+        """
         super().__init__()
 
         # Create stacked ConvNormAct blocks

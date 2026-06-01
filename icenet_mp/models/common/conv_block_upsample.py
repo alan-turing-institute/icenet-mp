@@ -7,11 +7,9 @@ from .conv_norm_act_upsample import ConvNormActUpsample
 
 
 class ConvBlockUpsample(nn.Module):
-    """Convolutional block that doubles each spatial dimension.
+    """Convolutional block that doubles spatial dimensions using two stacked ConvNormAct mini-blocks.
 
     If out_channels is not specified than this will halve the number of input channels.
-
-    Upsample > (ConvT2d > Normalization > Activation) > (ConvT2d > Normalization > Activation)
 
     Reverse of ConvBlockDownsample, using upsampling to avoid checkerboarding.
     """
@@ -54,6 +52,7 @@ class ConvBlockUpsample(nn.Module):
                 norm_type=norm_type,
                 padding=(kernel_size - 1) // 2,
                 transposed=True,
+                upsample_factor=2,
                 upsample_mode="bilinear",
             ),
             # Size preserving convolution/normalisation/activation
