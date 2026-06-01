@@ -27,6 +27,7 @@ class ConvNormAct(nn.Module):
         norm_type: str = "batchnorm",
         padding: int | str = "same",
         stride: int = 1,
+        transposed: bool = False,
     ) -> None:
         """Initialise a ConvNormAct mini-block."""
         super().__init__()
@@ -47,7 +48,7 @@ class ConvNormAct(nn.Module):
 
         # Assemble the mini-block
         self.block = nn.Sequential(
-            nn.Conv2d(
+            (nn.ConvTranspose2d if transposed else nn.Conv2d)(
                 in_channels, out_channels, kernel_size, padding=padding, stride=stride
             ),
             norm_layer,

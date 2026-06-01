@@ -20,7 +20,9 @@ class ConvNormActUpsample(nn.Module):
         activation: str = "ReLU",
         dropout_rate: float = 0.0,
         norm_type: str = "batchnorm",
+        padding: int | str = "same",
         upsample_mode: str = "nearest",
+        transposed: bool = False,
     ) -> None:
         """Initialize a ConvNormActUpsample module.
 
@@ -30,8 +32,10 @@ class ConvNormActUpsample(nn.Module):
             in_channels: the number of input channels.
             kernel_size: the size of the convolutional kernel.
             norm_type: the type of normalization ("groupnorm", "batchnorm", or "none").
+            padding: the padding to use for the convolution.
             out_channels: the number of output channels (if None, half of in_channels).
             upsample_mode: the mode to use for upsampling ("nearest", "bilinear", etc.).
+            transposed: whether to use ConvTranspose2d instead of Conv2d.
 
         """
         super().__init__()
@@ -51,6 +55,8 @@ class ConvNormActUpsample(nn.Module):
                 dropout_rate=dropout_rate,
                 kernel_size=kernel_size,
                 norm_type=norm_type,
+                padding=padding,
+                transposed=transposed,
             ),
         )
 

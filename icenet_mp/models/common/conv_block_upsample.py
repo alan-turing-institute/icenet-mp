@@ -11,7 +11,7 @@ class ConvBlockUpsample(nn.Module):
 
     If out_channels is not specified than this will halve the number of input channels.
 
-    Upsample > (Conv2d > Normalization > Activation) > (Conv2d > Normalization > Activation)
+    Upsample > (ConvT2d > Normalization > Activation) > (ConvT2d > Normalization > Activation)
 
     Reverse of ConvBlockDownsample, using upsampling to avoid checkerboarding.
     """
@@ -30,14 +30,20 @@ class ConvBlockUpsample(nn.Module):
         Args:
             in_channels: the number of input channels.
             activation: the activation function to use.
-            kernel_size: the size of the convolutional kernel.
+            kernel_size: the size of the convolutional kernel (must be odd).
             norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
             out_channels: the number of output channels (if None, half of in_channels).
 
         """
         super().__init__()
 
+        # Since ConvTranspose2d does not yet support `padding=same`, even-sized kernels
+        # cannot preserve size. We therefore require an odd kernel size.
+        if kernel_size % 2 == 0:
+            msg = "`kernel_size` must be odd to preserve spatial dimensions"
+            raise ValueError(msg)
         out_channels = in_channels // 2 if out_channels is None else out_channels
+
         self.model = nn.Sequential(
             # Size increasing upsample + convolution/normalisation/activation
             ConvNormActUpsample(
@@ -46,6 +52,8 @@ class ConvBlockUpsample(nn.Module):
                 activation=activation,
                 kernel_size=kernel_size,
                 norm_type=norm_type,
+                padding=(kernel_size - 1) // 2,
+                transposed=True,
                 upsample_mode="bilinear",
             ),
             # Size preserving convolution/normalisation/activation
@@ -55,6 +63,8 @@ class ConvBlockUpsample(nn.Module):
                 activation=activation,
                 kernel_size=kernel_size,
                 norm_type=norm_type,
+                padding=(kernel_size - 1) // 2,
+                transposed=True,
             ),
         )
 
