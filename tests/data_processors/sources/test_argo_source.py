@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
-from anemoi.datasets.create.input import FieldContext
 from anemoi.datasets.dates import DatesProvider
 from anemoi.datasets.dates.groups import GroupOfDates
 from anemoi.utils.registry import Registry
@@ -17,13 +16,7 @@ from icenet_mp.data_processors.sources.argo import _fetch_argo_dataframe_with_re
 class TestArgoSource:
     """Test suite for ArgoSource class."""
 
-    context = FieldContext(
-        argument=None,
-        order_by="none",
-        flatten_grid=False,
-        remapping={},
-        use_grib_paramid=False,
-    )
+    mock_context = MagicMock()
     dates = GroupOfDates(
         [datetime(2020, 1, day) for day in range(1, 4)],
         provider=DatesProvider.from_config(
@@ -80,7 +73,7 @@ class TestArgoSource:
 
             source = ArgoSource(
                 area="20/30/0/40",
-                context=self.context,
+                context=self.mock_context,
                 crs="EPSG:6931",
                 param=["TEMP"],
                 resolution="25p0km",
@@ -172,7 +165,7 @@ class TestArgoSource:
             mp.setattr("icenet_mp.data_processors.sources.argo.load_one", MagicMock())
 
             source = ArgoSource(
-                context=self.context,
+                context=self.mock_context,
                 area="20/30/0/40",
                 crs="EPSG:6932",
                 param=["TEMP"],

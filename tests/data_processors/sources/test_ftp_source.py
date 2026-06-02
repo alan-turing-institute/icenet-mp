@@ -4,7 +4,6 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
-from anemoi.datasets.create.input import FieldContext
 from anemoi.datasets.dates import DatesProvider
 from anemoi.datasets.dates.groups import GroupOfDates
 from anemoi.utils.registry import Registry
@@ -15,13 +14,7 @@ from icenet_mp.data_processors.sources import FTPSource, register_sources
 class TestFTPSource:
     """Test suite for FTPSource class."""
 
-    context = FieldContext(
-        argument=None,
-        order_by="none",
-        flatten_grid=False,
-        remapping={},
-        use_grib_paramid=False,
-    )
+    mock_context = MagicMock()
     dates = GroupOfDates(
         [datetime(2020, 1, day) for day in range(1, 4)],
         provider=DatesProvider.from_config(
@@ -62,7 +55,7 @@ class TestFTPSource:
 
             # Execute
             source = FTPSource(
-                context=self.context,
+                context=self.mock_context,
                 url=r"ftp://example.com/data/file.nc",
                 user="testuser",
                 passwd="testpass",  # noqa: S106
@@ -94,7 +87,7 @@ class TestFTPSource:
 
             # Execute without providing user/passwd
             source = FTPSource(
-                context=self.context,
+                context=self.mock_context,
                 url=r"ftp://example.com/data/file.nc",
             )
             source.execute(dates=self.dates)
@@ -131,7 +124,7 @@ class TestFTPSource:
 
             # Execute with a complex URL
             source = FTPSource(
-                context=self.context,
+                context=self.mock_context,
                 url=r"ftp://data.server.com/archive/datasets/file.nc",
             )
             source.execute(dates=self.dates)
@@ -167,7 +160,7 @@ class TestFTPSource:
             mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
 
             source = FTPSource(
-                context=self.context,
+                context=self.mock_context,
                 url=r"ftp://example.com/data/{date:strftime(%Y%m%d)}.nc",
             )
             source.execute(dates=self.dates)
