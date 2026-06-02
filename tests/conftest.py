@@ -5,21 +5,80 @@ from typing import Any, Protocol
 
 import numpy as np
 import pytest
-import xarray as xr
-from anemoi.datasets.commands.create import Create
+import zarr
 from omegaconf import DictConfig
 
 
-class MockAnemoiCreateArgs:
-    """Arguments for anemoi create."""
+def build_zarr(
+    zarr_path: Path,
+    data_dict: dict[str, Any],
+    full_dates: list[datetime.datetime] | None = None,
+    missing_date_strs: list[str] | None = None,
+) -> Path:
+    """Write a minimal anemoi-compatible zarr store without using Create().
 
-    def __init__(self, config: DictConfig, path: Path) -> None:
-        """Initialise the arguments."""
-        self.command = "unused"
-        self.config = config
-        self.path = str(path)
-        self.processes = 0
-        self.threads = 0
+    Bypasses the slow anemoi create pipeline (which has ~40s fixed overhead) by writing
+    the zarr arrays directly to disk.
+    """
+    data_dates: list[datetime.datetime] = data_dict["coords"]["time"]["data"]
+    full_dates = full_dates if full_dates is not None else data_dates
+    variables = list(data_dict["data_vars"].keys())
+    lats: list[float] = data_dict["coords"]["lat"]["data"]
+    lons: list[float] = data_dict["coords"]["lon"]["data"]
+
+    T, C, H, W = len(full_dates), len(variables), len(lats), len(lons)  # noqa: N806
+
+    # Build (T, C, 1, H * W) data array; missing timesteps stay zero.
+    available_dates = {d.date() for d in data_dates}
+    data = np.zeros((T, C, 1, H * W), dtype=np.float32)
+    data_idx = 0
+    for t, d in enumerate(full_dates):
+        if d.date() in available_dates:
+            for c, var in enumerate(variables):
+                data[t, c, 0, :] = np.array(
+                    data_dict["data_vars"][var]["data"][data_idx], dtype=np.float32
+                ).ravel()
+            data_idx += 1
+
+    # Compute per-variable statistics from available timesteps only.
+    flat = data[[d.date() in available_dates for d in full_dates], :, 0, :]
+    means = flat.mean(axis=(0, 2)).astype(np.float64)
+    stdevs = flat.std(axis=(0, 2)).astype(np.float64)
+    minimums = flat.min(axis=(0, 2)).astype(np.float64)
+    maximums = flat.max(axis=(0, 2)).astype(np.float64)
+
+    # Create lat/lon grid
+    lat_grid, lon_grid = np.meshgrid(lats, lons, indexing="ij")
+    latitudes = lat_grid.ravel().astype(np.float64)
+    longitudes = lon_grid.ravel().astype(np.float64)
+
+    # Convert dates into timestamps at noon
+    date_timestamps = np.array(
+        [np.datetime64(f"{d.date()}T12:00:00", "s") for d in full_dates],
+        dtype="datetime64[s]",
+    )
+
+    zarr_path.mkdir(parents=True, exist_ok=True)
+    z = zarr.open_group(str(zarr_path), mode="w")
+    z.create_dataset("data", data=data, chunks=(1, C, 1, H * W))
+    z.create_dataset("dates", data=date_timestamps)
+    z.create_dataset("latitudes", data=latitudes)
+    z.create_dataset("longitudes", data=longitudes)
+    z.create_dataset("mean", data=means)
+    z.create_dataset("stdev", data=stdevs)
+    z.create_dataset("minimum", data=minimums)
+    z.create_dataset("maximum", data=maximums)
+    z.attrs.update(
+        {
+            "field_shape": [H, W],
+            "frequency": "24h",
+            "variables": variables,
+            "missing_dates": [f"{s[:10]}T12:00:00" for s in (missing_date_strs or [])],
+            "flatten_grid": True,
+            "ensemble_dimension": 2,
+        }
+    )
+    return zarr_path
 
 
 @pytest.fixture
@@ -299,27 +358,7 @@ def mock_data_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture(scope="session")
 def mock_dataset(mock_data_path: Path, mock_data: dict[str, dict[str, Any]]) -> Path:
     """Fixture to create a mock file for testing."""
-    # Use the mock data to create a NetCDF file
-    netcdf_path = mock_data_path / "mock_dataset.nc"
-    xr.Dataset.from_dict(mock_data).to_netcdf(netcdf_path)
-    # Create an Anemoi dataset from the NetCDF file
-    config = DictConfig(
-        {
-            "dates": {
-                "start": "2020-01-01T00:00:00",
-                "end": "2020-01-05T23:00:00",
-                "frequency": "24h",
-            },
-            "input": {
-                "netcdf": {
-                    "path": str(netcdf_path),
-                }
-            },
-        }
-    )
-    zarr_path = mock_data_path / "anemoi" / "mock_dataset.zarr"
-    Create().run(MockAnemoiCreateArgs(config, zarr_path))
-    return Path(str(zarr_path))
+    return build_zarr(mock_data_path / "anemoi" / "mock_dataset.zarr", mock_data)
 
 
 @pytest.fixture(scope="session")
@@ -328,28 +367,18 @@ def mock_dataset_missing_dates(
     mock_data_missing_dates: dict[str, dict[str, Any]],
 ) -> Path:
     """Fixture to create a mock file with missing dates for testing."""
-    # Use the mock data to create a NetCDF file
-    netcdf_path = mock_data_path / "mock_dataset_missing_dates.nc"
-    xr.Dataset.from_dict(mock_data_missing_dates).to_netcdf(netcdf_path)
-    # Create an Anemoi dataset from the NetCDF file
-    config = DictConfig(
-        {
-            "dates": {
-                "start": "2020-01-01T00:00:00",
-                "end": "2020-01-05T23:00:00",
-                "frequency": "24h",
-                "missing": ["2020-01-02T00:00:00", "2020-01-04T00:00:00"],
-            },
-            "input": {
-                "netcdf": {
-                    "path": str(netcdf_path),
-                }
-            },
-        }
+    return build_zarr(
+        mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr",
+        mock_data_missing_dates,
+        full_dates=[
+            datetime.datetime(2020, 1, 1),
+            datetime.datetime(2020, 1, 2),
+            datetime.datetime(2020, 1, 3),
+            datetime.datetime(2020, 1, 4),
+            datetime.datetime(2020, 1, 5),
+        ],
+        missing_date_strs=["2020-01-02", "2020-01-04"],
     )
-    zarr_path = mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr"
-    Create().run(MockAnemoiCreateArgs(config, zarr_path))
-    return Path(str(zarr_path))
 
 
 @pytest.fixture(scope="session")
@@ -358,27 +387,10 @@ def mock_dataset_non_normalized_times(
     mock_data_non_normalized_times: dict[str, dict[str, Any]],
 ) -> Path:
     """Fixture to create a mock file with non-normalized times for testing."""
-    # Use the mock data to create a NetCDF file
-    netcdf_path = mock_data_path / "mock_dataset_non_normalized_times.nc"
-    xr.Dataset.from_dict(mock_data_non_normalized_times).to_netcdf(netcdf_path)
-    # Create an Anemoi dataset from the NetCDF file
-    config = DictConfig(
-        {
-            "dates": {
-                "start": "2020-01-01T03:47:42",
-                "end": "2020-01-05T23:00:00",
-                "frequency": "24h",
-            },
-            "input": {
-                "netcdf": {
-                    "path": str(netcdf_path),
-                }
-            },
-        }
+    return build_zarr(
+        mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr",
+        mock_data_non_normalized_times,
     )
-    zarr_path = mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr"
-    Create().run(MockAnemoiCreateArgs(config, zarr_path))
-    return Path(str(zarr_path))
 
 
 class MakeCircularArctic(Protocol):
