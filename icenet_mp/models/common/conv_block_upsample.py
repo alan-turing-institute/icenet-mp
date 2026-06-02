@@ -2,6 +2,7 @@ from torch import nn
 
 from icenet_mp.types import TensorNCHW
 
+from .activations import ACTIVATION_FROM_NAME
 from .conv_norm_act import ConvNormAct
 from .weighted_upsample import WeightedUpsample
 
@@ -28,23 +29,21 @@ class ConvBlockUpsample(nn.Module):
         Args:
             in_channels: the number of input channels.
             activation: the activation function to use.
-            kernel_size: the size of the convolutional kernel (must be odd).
+            kernel_size: the size of the convolutional kernel.
             norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
             out_channels: the number of output channels (if None, half of in_channels).
 
         """
         super().__init__()
 
-        # Since ConvTranspose2d does not yet support `padding=same`, even-sized kernels
-        # cannot preserve size. We therefore require an odd kernel size.
-        if kernel_size % 2 == 0:
-            msg = "`kernel_size` must be odd to preserve spatial dimensions"
-            raise ValueError(msg)
+        # Set output channels to default if not specified
         out_channels = in_channels // 2 if out_channels is None else out_channels
 
         self.model = nn.Sequential(
-            # Size increasing upsample
+            # Size increasing upsample/normalisation/activation
             WeightedUpsample(in_channels, out_channels=out_channels, upsample_factor=2),
+            nn.BatchNorm2d(out_channels),
+            ACTIVATION_FROM_NAME[activation](inplace=True),
             # Size preserving convolution/normalisation/activation
             ConvNormAct(
                 out_channels,
@@ -52,8 +51,6 @@ class ConvBlockUpsample(nn.Module):
                 activation=activation,
                 kernel_size=kernel_size,
                 norm_type=norm_type,
-                padding=(kernel_size - 1) // 2,
-                transposed=True,
             ),
             # Size preserving convolution/normalisation/activation
             ConvNormAct(
@@ -62,8 +59,6 @@ class ConvBlockUpsample(nn.Module):
                 activation=activation,
                 kernel_size=kernel_size,
                 norm_type=norm_type,
-                padding=(kernel_size - 1) // 2,
-                transposed=True,
             ),
         )
 
