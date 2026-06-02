@@ -65,18 +65,10 @@ class UNetProcessor(BaseProcessor):
         self.conv5 = CommonConvBlock(channels[2], channels[3], kernel_size=kernel_size)
 
         # Decoder
-        self.up6 = ConvNormActUpsample(
-            channels[3], channels[2], kernel_size=kernel_size
-        )
-        self.up7 = ConvNormActUpsample(
-            channels[2], channels[2], kernel_size=kernel_size
-        )
-        self.up8 = ConvNormActUpsample(
-            channels[2], channels[1], kernel_size=kernel_size
-        )
-        self.up9 = ConvNormActUpsample(
-            channels[1], channels[0], kernel_size=kernel_size
-        )
+        self.up6 = ConvNormActUpsample(channels[3], channels[2])
+        self.up7 = ConvNormActUpsample(channels[2], channels[2])
+        self.up8 = ConvNormActUpsample(channels[2], channels[1])
+        self.up9 = ConvNormActUpsample(channels[1], channels[0])
 
         self.up6b = CommonConvBlock(channels[3], channels[2], kernel_size=kernel_size)
         self.up7b = CommonConvBlock(channels[3], channels[2], kernel_size=kernel_size)

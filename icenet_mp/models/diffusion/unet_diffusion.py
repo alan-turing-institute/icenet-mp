@@ -122,28 +122,24 @@ class UNetDiffusion(nn.Module):
         self.up6 = ConvNormActUpsample(
             in_channels=channels[3],
             out_channels=channels[2],
-            kernel_size=kernel_size,
             norm_type=normalization,
             activation=activation,
         )
         self.up7 = ConvNormActUpsample(
             in_channels=channels[2],
             out_channels=channels[2],
-            kernel_size=kernel_size,
             norm_type=normalization,
             activation=activation,
         )
         self.up8 = ConvNormActUpsample(
             in_channels=channels[2],
             out_channels=channels[1],
-            kernel_size=kernel_size,
             norm_type=normalization,
             activation=activation,
         )
         self.up9 = ConvNormActUpsample(
             in_channels=channels[1],
             out_channels=channels[0],
-            kernel_size=kernel_size,
             norm_type=normalization,
             activation=activation,
         )
