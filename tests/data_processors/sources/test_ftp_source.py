@@ -1,10 +1,10 @@
 """Tests for the FTP data source."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
-from anemoi.datasets.dates import DatesProvider
+from anemoi.datasets.create.recipe.dates import StartEndDates
 from anemoi.datasets.dates.groups import GroupOfDates
 from anemoi.utils.registry import Registry
 
@@ -15,12 +15,12 @@ class TestFTPSource:
     """Test suite for FTPSource class."""
 
     mock_context = MagicMock()
-    dates = GroupOfDates(
-        [datetime(2020, 1, day) for day in range(1, 4)],
-        provider=DatesProvider.from_config(
-            start="2020-01-01", end="2020-01-03", frequency="1d"
-        ),
+    date_range = StartEndDates(
+        start=datetime(2020, 1, 1),
+        end=datetime(2020, 1, 3),
+        frequency=timedelta(days=1),
     )
+    dates = GroupOfDates(list(date_range), provider=date_range)
 
     def test_ftp_source_registration(self) -> None:
         """Test that FTPSource is properly registered."""
