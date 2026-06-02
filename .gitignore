@@ -11,4 +11,5 @@ outputs
 wandb
 notebooks/data
 notebooks/*.nc
+notebooks/*.mp4
 data/
