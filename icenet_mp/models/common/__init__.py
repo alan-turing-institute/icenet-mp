@@ -1,7 +1,7 @@
 from .conv_block_common import CommonConvBlock
 from .conv_block_downsample import ConvBlockDownsample
 from .conv_block_upsample import ConvBlockUpsample
-from .conv_block_upsample_naive import ConvBlockUpsampleNaive
+from .conv_norm_act_upsample import ConvNormActUpsample
 from .normalised_fold import NormalisedFold
 from .patchembed import PatchEmbedding
 from .permute import Permute
@@ -15,7 +15,7 @@ __all__ = [
     "CommonConvBlock",
     "ConvBlockDownsample",
     "ConvBlockUpsample",
-    "ConvBlockUpsampleNaive",
+    "ConvNormActUpsample",
     "NormalisedFold",
     "PatchEmbedding",
     "Permute",

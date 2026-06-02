@@ -61,31 +61,31 @@ from .conv_norm_act import ConvNormAct
 
 
 class CommonConvBlock(nn.Module):
-    """Full convolutional block consisting of multiple stacked ConvNormAct mini-blocks.
-
-    Args:
-        in_channels (int): Input channel size.
-        out_channels (int): Output channel size.
-        kernel_size (int): Kernel size for the convolutions.
-        norm_type (str): Type of normalization ("groupnorm", "batchnorm", or "none").
-        activation (str): Name of the activation function (from ACTIVATION_FROM_NAME).
-        n_subblocks (int): n_subblocks (int): Number of ConvNormAct blocks to stack (default 2).
-        dropout_rate (float): Dropout probability for each ConvNormAct block.
-
-    """
+    """Full convolutional block consisting of multiple stacked ConvNormAct mini-blocks."""
 
     def __init__(  # noqa: PLR0913
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: int,
         *,
         activation: str = "ReLU",
         dropout_rate: float = 0.0,
+        kernel_size: int,
         n_subblocks: int = 2,
         norm_type: str = "batchnorm",
     ) -> None:
-        """Initialise a CommonConvBlock."""
+        """Initialise a CommonConvBlock.
+
+        Args:
+            activation: Name of the activation function (from ACTIVATION_FROM_NAME).
+            dropout_rate: Dropout probability for each ConvNormAct block.
+            in_channels: Input channel size.
+            kernel_size: Kernel size for the convolutions.
+            n_subblocks: Number of ConvNormAct blocks to stack (default 2).
+            norm_type: Type of normalization ("groupnorm", "batchnorm", or "none").
+            out_channels: Output channel size.
+
+        """
         super().__init__()
 
         # Create stacked ConvNormAct blocks
@@ -95,9 +95,9 @@ class CommonConvBlock(nn.Module):
                 ConvNormAct(
                     in_channels if idx_subblock == 0 else out_channels,
                     out_channels,
-                    kernel_size,
                     activation=activation,
                     dropout_rate=dropout_rate,
+                    kernel_size=kernel_size,
                     norm_type=norm_type,
                 )
                 for idx_subblock in range(n_subblocks)
