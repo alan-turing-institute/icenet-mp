@@ -4,6 +4,7 @@ from icenet_mp.types import TensorNCHW
 
 from .activations import ACTIVATION_FROM_NAME
 from .conv_norm_act import ConvNormAct
+from .normalisations import normalisation_from_name
 from .weighted_upsample import WeightedUpsample
 
 
@@ -42,7 +43,7 @@ class ConvBlockUpsample(nn.Module):
         self.model = nn.Sequential(
             # Size increasing upsample/normalisation/activation
             WeightedUpsample(in_channels, out_channels=out_channels, upsample_factor=2),
-            nn.BatchNorm2d(out_channels),
+            normalisation_from_name(norm_type, out_channels),
             ACTIVATION_FROM_NAME[activation](inplace=True),
             # Size preserving convolution/normalisation/activation
             ConvNormAct(

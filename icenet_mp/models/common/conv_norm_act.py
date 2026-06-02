@@ -1,6 +1,7 @@
 from torch import Tensor, nn
 
 from .activations import ACTIVATION_FROM_NAME
+from .normalisations import normalisation_from_name
 
 
 class ConvNormAct(nn.Module):
@@ -34,47 +35,15 @@ class ConvNormAct(nn.Module):
 
         """
         super().__init__()
-        try:
-            norm_layer: nn.Module = {
-                "batchnorm": nn.BatchNorm2d(out_channels),
-                "groupnorm": nn.GroupNorm(
-                    self._get_num_groups(out_channels), out_channels
-                ),
-                "none": nn.Identity(),
-            }[norm_type.lower()]
-        except KeyError as exc:
-            msg = (
-                f"Unknown norm_type: {norm_type}. "
-                "Choose 'groupnorm', 'batchnorm', or 'none'"
-            )
-            raise ValueError(msg) from exc
 
-        # Assemble the mini-block
         self.block = nn.Sequential(
             (nn.ConvTranspose2d if transposed else nn.Conv2d)(
                 in_channels, out_channels, kernel_size, padding=padding, stride=stride
             ),
-            norm_layer,
+            normalisation_from_name(norm_type, out_channels),
             ACTIVATION_FROM_NAME[activation](inplace=True),
             nn.Dropout2d(dropout_rate) if dropout_rate > 0 else nn.Identity(),
         )
-
-    def _get_num_groups(self, channels: int) -> int:
-        """Determine the maximum number of groups that divide `channels` for GroupNorm.
-
-        Args:
-            channels (int): Number of feature channels.
-
-        Returns:
-            int: Optimal number of groups.
-
-        """
-        num_groups = 8  # Start with preferred group count
-        while num_groups > 1:
-            if channels % num_groups == 0:
-                return num_groups
-            num_groups -= 1
-        return 1  # Fallback to GroupNorm(1,...), equivalent to LayerNorm
 
     def forward(self, x: Tensor) -> Tensor:
         """Apply ConvNormAct block to input tensor."""
