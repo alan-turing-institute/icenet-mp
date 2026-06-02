@@ -202,3 +202,31 @@ class TestPiecewiseDecoder:
         assert latent_ntchw.shape == (1, 1, *output_space.chw)
         assert torch.all(input_min_val < latent_ntchw)
         assert torch.all(latent_ntchw < input_max_val)
+
+    def test_clamp_restricts_output_to_unit_range(self) -> None:
+        output_space = DataSpace(name="output", channels=1, shape=(4, 4))
+        patch_size = (2, 2)
+        stride = [max(1, p // 2) for p in patch_size]
+        n_patches = (
+            (output_space.shape[0] + 2 * stride[0] - (patch_size[0] - 1) - 1)
+            // stride[0]
+            + 1
+        ) * (
+            (output_space.shape[1] + 2 * stride[1] - (patch_size[1] - 1) - 1)
+            // stride[1]
+            + 1
+        )
+        input_space = DataSpace(name="input", channels=n_patches, shape=patch_size)
+        decoder = PiecewiseDecoder(
+            data_space_in=input_space,
+            data_space_out=output_space,
+            n_conv_blocks=0,
+            n_forecast_steps=1,
+            restrict_range="clamp",
+        )
+        x = torch.full(
+            (1, 1, input_space.channels, *input_space.shape), 1e10, dtype=torch.float32
+        )
+        output = decoder.rollout(x)
+        assert torch.all(output >= 0.0).item()
+        assert torch.all(output <= 1.0).item()
