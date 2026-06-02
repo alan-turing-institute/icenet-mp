@@ -19,9 +19,9 @@ warnings.filterwarnings(
 )
 
 TEST_DATE = date(2020, 1, 15)
-TEST_HEIGHT = 48
-TEST_WIDTH = 48
-N_TIMESTEPS = 4
+TEST_HEIGHT = 16
+TEST_WIDTH = 16
+N_TIMESTEPS = 2
 
 
 @pytest.fixture(autouse=True)

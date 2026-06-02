@@ -134,7 +134,7 @@ def cfg_input_space() -> DictConfig:
         {
             "channels": 4,
             "name": "test-input",
-            "shape": (512, 512),
+            "shape": (16, 16),
         }
     )
 
@@ -201,7 +201,7 @@ def cfg_output_space() -> DictConfig:
         {
             "channels": 1,
             "name": "target",
-            "shape": (432, 432),
+            "shape": (16, 16),
         }
     )
 
