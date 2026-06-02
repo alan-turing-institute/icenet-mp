@@ -1,7 +1,7 @@
 import datetime
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 import pytest
@@ -391,93 +391,6 @@ def mock_dataset_non_normalized_times(
         mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr",
         mock_data_non_normalized_times,
     )
-
-
-class MakeCircularArctic(Protocol):
-    def __call__(
-        self,
-        height: int,
-        width: int,
-        *,
-        rng: np.random.Generator,
-        ring_width: int = ...,
-        noise: float = ...,
-    ) -> np.ndarray: ...
-
-
-class CircularArcticFactory:
-    """Callable factory for generating circular Arctic SIC maps.
-
-    Defaults are provided at construction, but can be overridden per-call.
-    Satisfies the `MakeCircularArctic` protocol.
-    """
-
-    def __init__(self, ring_width: int = 6, noise: float = 0.05) -> None:
-        """Initialise the factory with default parameters.
-
-        Args:
-            ring_width: Width of the ring.
-            noise: Noise level.
-
-        """
-        self.ring_width = ring_width
-        self.noise = noise
-
-    def __call__(
-        self,
-        height: int,
-        width: int,
-        *,
-        rng: np.random.Generator,
-        ring_width: int | None = None,
-        noise: float | None = None,
-    ) -> np.ndarray:
-        """Generate a circular Arctic SIC map.
-
-        Args:
-            height: Height of the map.
-            width: Width of the map.
-            rng: Random number generator.
-            ring_width: Width of the ring.
-            noise: Noise level.
-
-        """
-        # Resolve per-call overrides or fall back to defaults
-        effective_ring_width = self.ring_width if ring_width is None else ring_width
-        effective_noise = self.noise if noise is None else noise
-
-        # Create a grid of distances from the centre
-        cy, cx = (height - 1) / 2.0, (width - 1) / 2.0
-        yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing="ij")
-        dist = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
-
-        # Choose a radius so the land takes most of the centre
-        radius = min(height, width) * 0.25
-
-        # Distance from the coastline (ring at the circle): 0 on the ring, >0 outside
-        d_outside = np.maximum(0.0, dist - radius)
-
-        # Ice strength: 1 at the ring, then smoothly falls to 0 with distance
-        falloff = np.exp(-(d_outside / max(1.0, float(effective_ring_width))))
-
-        # Add a tiny bit of texture so the ring looks less perfect
-        texture = rng.normal(0.0, effective_noise, size=(height, width))
-        sic = np.clip(falloff + texture, 0.0, 1.0)
-
-        # Land mask: everything strictly inside the circle is NaN (temporary: set to 0)
-        # Note: When land masking is implemented, set to np.nan instead of 0.0
-        sic[dist < radius] = 0.0
-        return sic.astype(np.float32)
-
-
-@pytest.fixture
-def make_circular_arctic() -> MakeCircularArctic:
-    """Return a callable that creates a simple circular Arctic SIC map.
-
-    Signature:
-        (height: int, width: int, *, rng: np.random.Generator, ring_width: int = 6, noise: float = 0.05) -> np.ndarray
-    """
-    return CircularArcticFactory()
 
 
 def make_varying_sic_stream(
