@@ -14,7 +14,7 @@ class DummyPreprocessor(IPreprocessor):
         preprocessor_path.mkdir(parents=True, exist_ok=True)
 
 
-def _build_downloader(tmp_path: Path, dataset_cfg: dict) -> DataDownloader:
+def build_downloader(tmp_path: Path, dataset_cfg: dict) -> DataDownloader:
     """Helper to create a DataDownloader with a dummy preprocessor."""
     full_cfg: DictConfig = OmegaConf.create(
         {
@@ -36,7 +36,7 @@ def _build_downloader(tmp_path: Path, dataset_cfg: dict) -> DataDownloader:
 @pytest.fixture
 def downloader_with_file_dataset(tmp_path: Path) -> DataDownloader:
     """Fixture that creates a downloader with a file-based dataset path."""
-    downloader = _build_downloader(
+    downloader = build_downloader(
         tmp_path,
         {
             "start": "2020-01-01",
@@ -53,7 +53,7 @@ def downloader_with_file_dataset(tmp_path: Path) -> DataDownloader:
 @pytest.fixture
 def downloader_with_directory_dataset(tmp_path: Path) -> DataDownloader:
     """Fixture that creates a downloader with a directory-based dataset path."""
-    downloader = _build_downloader(
+    downloader = build_downloader(
         tmp_path,
         {
             "start": "2020-01-01",

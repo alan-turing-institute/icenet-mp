@@ -9,7 +9,6 @@ import pytest
 
 from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
-from tests.conftest import make_varying_sic_stream
 
 # Suppress Matplotlib animation warning during tests; we intentionally do not keep
 # long-lived references to animation objects beyond saving to buffer.
@@ -60,6 +59,35 @@ def sic_pair_warning_2d() -> tuple[ArrayHW, ArrayHW, date]:
     stripe_cols = slice(width // 4, width // 2)
     pred[:, stripe_cols] = 1.6
     return gt, pred, TEST_DATE
+
+
+def make_varying_sic_stream(
+    *,
+    dist_grid: np.ndarray,
+    timesteps: int,
+    base_radius: float,
+    rng: np.random.Generator,
+    ring_width: float = 6.0,
+    noise_std: float = 0.03,
+    radius_oscillation_amplitude: float = 0.5,
+    radius_oscillation_frequency: float = 0.7,
+) -> np.ndarray:
+    """Vectorized [T, H, W] sea-ice concentration with oscillating coastline radius."""
+    height, width = dist_grid.shape
+    radius_t = base_radius + radius_oscillation_amplitude * np.sin(
+        radius_oscillation_frequency * np.arange(timesteps, dtype=float)
+    )
+    dist_b = dist_grid[None, :, :]
+    radius_b = radius_t[:, None, None]
+    outside = np.maximum(0.0, dist_b - radius_b)
+    sic = np.clip(
+        np.exp(-(outside / max(1.0, float(ring_width))))
+        + rng.normal(0.0, noise_std, size=(timesteps, height, width)),
+        0.0,
+        1.0,
+    )
+    sic[dist_b < radius_b] = 0.0
+    return sic.astype(np.float32)
 
 
 def _make_circular_arctic(
