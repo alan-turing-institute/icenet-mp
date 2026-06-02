@@ -22,8 +22,15 @@ class WeightedUpsample(nn.Module):
         """
         super().__init__()
 
-        self.pixel_channels = channels * upsample_factor**2
-        initial_conv = nn.Conv2d(channels, self.pixel_channels, 1)
+        # Initial convolution to produce the required channels for PixelShuffle
+        # We apply a kernel of the same size as the upsampling factor to allow spatial
+        # mixing at the same scale.
+        initial_conv = nn.Conv2d(
+            channels,
+            channels * upsample_factor**2,
+            kernel_size=upsample_factor,
+            padding="same",
+        )
 
         # ICNR initialisation from https://arxiv.org/abs/1707.02937.
         # Set all sub-channel groups to a common Kaiming-normal kernel so the initial
