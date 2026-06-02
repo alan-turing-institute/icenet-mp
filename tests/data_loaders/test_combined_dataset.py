@@ -11,6 +11,22 @@ class TestCombinedDataset:
     dates_str = ("2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05")
     dates_np = tuple(np.datetime64(f"{s}T12:00:00") for s in dates_str)
 
+    def test_raises_on_different_frequencies(
+        self, mock_dataset: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ds_24h = SingleDataset(name="mock_dataset", input_files=[mock_dataset])
+        ds_12h = SingleDataset(name="mock_dataset_2", input_files=[mock_dataset])
+        monkeypatch.setitem(ds_12h.__dict__, "frequency", np.timedelta64(12, "h"))
+
+        with pytest.raises(
+            ValueError, match="Cannot combine datasets with different frequencies"
+        ):
+            CombinedDataset(
+                datasets=[ds_24h, ds_12h],
+                target_group_name="mock_dataset",
+                target_variables=["ice_conc"],
+            )
+
     def test_no_valid_dates_non_overlapping_ranges(self, mock_dataset: Path) -> None:
         """Test that CombinedDataset raises ValueError when datasets have non-overlapping date ranges."""
         # Create and combine two datasets with non-overlapping date ranges
