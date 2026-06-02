@@ -1,5 +1,3 @@
-import math
-
 import torch
 from torch import Tensor, nn
 from torch.nn.init import kaiming_normal_
@@ -14,35 +12,32 @@ class WeightedUpsample(nn.Module):
     start identical, preventing early-training checkerboard.
     """
 
-    def __init__(self, channels: int, *, upsample_factor: int = 2) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        *,
+        out_channels: int | None = None,
+        upsample_factor: int = 2,
+    ) -> None:
         """Initialise a WeightedUpsample module.
 
         Args:
-            channels: the number of channels.
+            in_channels: the number of input channels.
+            out_channels: the number of output channels.
             upsample_factor: the spatial upsampling factor.
 
         """
         super().__init__()
 
-        # Set the number of channels in the PixelShuffle operation such that the input
-        # channels is approximately their geometric mean.
-        hidden_channels = math.ceil(channels / upsample_factor)
-
         # Initial convolution to produce the required channels for PixelShuffle
-        # We apply a kernel of the same size as the upsampling factor to allow spatial
-        # mixing at the same scale.
-        initial_conv = nn.Conv2d(
-            channels,
-            hidden_channels * upsample_factor**2,
-            kernel_size=upsample_factor,
-            padding="same",
-        )
+        out_channels = out_channels if out_channels is not None else in_channels
+        initial_conv = nn.Conv2d(in_channels, out_channels * upsample_factor**2, 1)
 
         # ICNR initialisation from https://arxiv.org/abs/1707.02937.
         # Set all sub-channel groups to a common Kaiming-normal kernel so the initial
         # state for PixelShuffle looks like nearest-neighbour upsampling.
         group_weights = initial_conv.weight.new_empty(
-            hidden_channels, *initial_conv.weight.shape[1:]
+            out_channels, *initial_conv.weight.shape[1:]
         )
         kaiming_normal_(group_weights)
         with torch.no_grad():
@@ -51,14 +46,10 @@ class WeightedUpsample(nn.Module):
             )
 
         self.block = nn.Sequential(
-            # Convolution: [N, C, H, W] -> [N, C_hidden * r^2, H, W]
+            # Convolution: [N, C_in, H, W] -> [N, C_internal, H, W]
             initial_conv,
-            # PixelShuffle: [N, C_hidden * r^2, H, W] -> [N, C_hidden, H * r, W * r]
+            # PixelShuffle: [N, C_internal, H, W] -> [N, C_out, H * r, W * r]
             nn.PixelShuffle(upsample_factor),
-            # Convolution: [N, C_hidden, H * r, W * r] -> [N, C, H * r, W * r]
-            nn.Conv2d(
-                hidden_channels, channels, kernel_size=upsample_factor, padding="same"
-            ),
         )
 
     def forward(self, x: Tensor) -> Tensor:

@@ -44,10 +44,10 @@ class ConvBlockUpsample(nn.Module):
 
         self.model = nn.Sequential(
             # Size increasing upsample
-            WeightedUpsample(in_channels, upsample_factor=2),
+            WeightedUpsample(in_channels, out_channels=out_channels, upsample_factor=2),
             # Size preserving convolution/normalisation/activation
             ConvNormAct(
-                in_channels,
+                out_channels,
                 out_channels,
                 activation=activation,
                 kernel_size=kernel_size,
