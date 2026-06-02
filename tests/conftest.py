@@ -1,5 +1,4 @@
 import datetime
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -429,76 +428,3 @@ def make_varying_sic_stream(
     # Land mask: inside coastline set to 0.0 (temporary until NaN land masking)
     sic[dist_b < radius_b] = 0.0
     return sic.astype(np.float32)
-
-
-def _apply_scale(array: np.ndarray, scale: float) -> None:
-    """In-place multiply array by scale (keeps dtype)."""
-    array *= float(scale)
-
-
-def _add_noise(
-    array: np.ndarray, sigma: float, rng: np.random.Generator | None = None
-) -> None:
-    """In-place add Gaussian noise with std sigma. Deterministic if rng provided."""
-    if rng is None:
-        rng = np.random.default_rng(0)
-    array += rng.normal(0.0, float(sigma), size=array.shape)
-
-
-def _insert_outliers(array: np.ndarray, value: float, fraction: float = 0.1) -> None:
-    """In-place set the first N flattened entries to `value` where N ~= fraction*size.
-
-    Args:
-        array: Array to insert outliers into.
-        value: Value to insert.
-        fraction: Fraction of entries to insert outliers into.
-
-    """
-    flat = array.ravel()
-    n = int(max(1, round(float(fraction) * flat.size))) if fraction > 0 else 0
-    if n > 0:
-        flat[:n] = value
-        array[:] = flat.reshape(array.shape)
-
-
-def _make_bad_prediction(
-    base_prediction: np.ndarray,
-    *,
-    scale: float | None = None,
-    outlier: float | None = None,
-    fraction: float = 0.0,
-    noise: float | None = None,
-    rng: np.random.Generator | None = None,
-) -> np.ndarray:
-    """Return a mutated copy of base_prediction according to the provided options.
-
-    Args:
-        base_prediction: Base prediction to mutate.
-        scale: Scale to apply to the prediction.
-        outlier: Outlier to insert into the prediction.
-        fraction: Fraction of entries to insert outliers into.
-        noise: Noise to add to the prediction.
-        rng: Random number generator to use.
-
-    Returns:
-        Mutated prediction.
-
-    """
-    prediction = base_prediction.copy()
-    if scale is not None:
-        _apply_scale(prediction, scale)
-    if noise is not None:
-        _add_noise(prediction, noise, rng=rng)
-    if outlier is not None and fraction > 0.0:
-        _insert_outliers(prediction, outlier, fraction=fraction)
-    return prediction
-
-
-@pytest.fixture
-def bad_prediction_maker() -> Callable[..., np.ndarray]:
-    """Fixture returning a callable to produce mutated prediction arrays.
-
-    Signature (positional):
-        (base_prediction, *, scale=None, outlier=None, fraction=0.0, noise=None, rng=None) -> ndarray
-    """
-    return _make_bad_prediction
