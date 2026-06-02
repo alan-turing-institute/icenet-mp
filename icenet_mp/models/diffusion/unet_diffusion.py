@@ -15,7 +15,7 @@ from torch import nn
 
 from icenet_mp.models.common import (
     CommonConvBlock,
-    ConvBlockUpsampleNaive,
+    ConvNormActUpsample,
     TimeEmbed,
 )
 
@@ -73,9 +73,10 @@ class UNetDiffusion(nn.Module):
         channels = [start_out_channels * 2**i for i in range(4)]
 
         # Encoder
+        # input_channels C*T (n_input_channels * n_input_days)
+        # output_channels C*T (n_output_classes * n_forecast_days)
         self.conv1 = CommonConvBlock(
-            in_channels=input_channels
-            + output_channels,  # input_channels (n_input_days * n_input_channels), output_channels (n_output_classes * n_forecast_days)
+            in_channels=input_channels + output_channels,
             out_channels=channels[0],
             kernel_size=kernel_size,
             norm_type=normalization,
@@ -118,25 +119,25 @@ class UNetDiffusion(nn.Module):
         )
 
         # Decoder
-        self.up6 = ConvBlockUpsampleNaive(
+        self.up6 = ConvNormActUpsample(
             in_channels=channels[3],
             out_channels=channels[2],
             norm_type=normalization,
             activation=activation,
         )
-        self.up7 = ConvBlockUpsampleNaive(
+        self.up7 = ConvNormActUpsample(
             in_channels=channels[2],
             out_channels=channels[2],
             norm_type=normalization,
             activation=activation,
         )
-        self.up8 = ConvBlockUpsampleNaive(
+        self.up8 = ConvNormActUpsample(
             in_channels=channels[2],
             out_channels=channels[1],
             norm_type=normalization,
             activation=activation,
         )
-        self.up9 = ConvBlockUpsampleNaive(
+        self.up9 = ConvNormActUpsample(
             in_channels=channels[1],
             out_channels=channels[0],
             norm_type=normalization,
