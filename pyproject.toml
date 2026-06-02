@@ -43,7 +43,7 @@ dependencies = [
     "torch-ema>=0.3",
     "torch>=2.8.0,!=2.10.0", # uv will constantly reinstall torch 2.10.0 due to incorrect metadata https://github.com/astral-sh/uv/issues/17711
     "typer>=0.16.0",
-    "wandb>=0.21.0",
+    "wandb>=0.27.0",
     "xarray>=2025.3.0",
     "zarr<3.0.0", # v3 is not compatible with anemoi
 ]
