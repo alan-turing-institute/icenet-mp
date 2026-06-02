@@ -15,12 +15,12 @@ test:
 # Data from 2017 and 2018 (excluding 2018-01)
 train:
   - start: 2017-01-01
-    end: 2018-06-30
-  - start: 2018-08-01
+    end: 2017-12-31
+  - start: 2018-02-01
     end: 2018-12-31
 
 # This data is used for validation during training (e.g. for early stopping etc.)
 # Data from 2018-01
 validate:
-  - start: 2018-07-01
-    end: 2018-07-31
+  - start: 2018-01-01
+    end: 2018-01-31
