@@ -225,7 +225,33 @@ def cfg_scheduler() -> DictConfig:
 
 
 @pytest.fixture(scope="session")
-def mock_data() -> dict[str, dict[str, Any]]:
+def dates_as_dt() -> tuple[datetime.datetime, ...]:
+    """Fixture to provide a tuple of datetime objects for testing."""
+    return (
+        datetime.datetime(2020, 1, 1, 0, 0, 0),
+        datetime.datetime(2020, 1, 2, 0, 0, 0),
+        datetime.datetime(2020, 1, 3, 0, 0, 0),
+        datetime.datetime(2020, 1, 4, 0, 0, 0),
+        datetime.datetime(2020, 1, 5, 0, 0, 0),
+    )
+
+
+@pytest.fixture(scope="session")
+def dates_as_np(
+    dates_as_dt: tuple[datetime.datetime, ...],
+) -> tuple[np.datetime64, ...]:
+    """Fixture to provide a tuple of numpy datetime64 objects for testing."""
+    return tuple(np.datetime64(f"{dt.date()}T12:00:00", "s") for dt in dates_as_dt)
+
+
+@pytest.fixture(scope="session")
+def dates_as_str(dates_as_dt: tuple[datetime.datetime, ...]) -> tuple[str, ...]:
+    """Fixture to provide a tuple of date strings for testing."""
+    return tuple(dt.strftime(r"%Y-%m-%d") for dt in dates_as_dt)
+
+
+@pytest.fixture(scope="session")
+def mock_data(dates_as_dt: tuple[datetime.datetime, ...]) -> dict[str, dict[str, Any]]:
     """Fixture to create a mock dataset for testing."""
     return {
         "coords": {
@@ -242,13 +268,7 @@ def mock_data() -> dict[str, dict[str, Any]]:
             "time": {
                 "dims": ("time",),
                 "attrs": {"standard_name": "time"},
-                "data": [
-                    datetime.datetime(2020, 1, 1, 0, 0, 0),
-                    datetime.datetime(2020, 1, 2, 0, 0, 0),
-                    datetime.datetime(2020, 1, 3, 0, 0, 0),
-                    datetime.datetime(2020, 1, 4, 0, 0, 0),
-                    datetime.datetime(2020, 1, 5, 0, 0, 0),
-                ],
+                "data": list(dates_as_dt),
             },
         },
         "attrs": {},
@@ -292,7 +312,9 @@ def mock_data() -> dict[str, dict[str, Any]]:
 
 
 @pytest.fixture(scope="session")
-def mock_data_constant_values() -> dict[str, dict[str, Any]]:
+def mock_data_constant_values(
+    dates_as_dt: tuple[datetime.datetime, ...],
+) -> dict[str, dict[str, Any]]:
     """Fixture to create a mock dataset with constant data for testing."""
     return {
         "coords": {
@@ -309,10 +331,7 @@ def mock_data_constant_values() -> dict[str, dict[str, Any]]:
             "time": {
                 "dims": ("time",),
                 "attrs": {"standard_name": "time"},
-                "data": [
-                    datetime.datetime(2020, 1, 1),
-                    datetime.datetime(2020, 1, 2),
-                ],
+                "data": list(dates_as_dt)[:1],
             },
         },
         "attrs": {},
@@ -410,6 +429,7 @@ def mock_dataset_constant_values(
 
 @pytest.fixture(scope="session")
 def mock_dataset_missing_dates(
+    dates_as_dt: tuple[datetime.datetime, ...],
     mock_data_path: Path,
     mock_data_missing_dates: dict[str, dict[str, Any]],
 ) -> Path:
@@ -417,13 +437,7 @@ def mock_dataset_missing_dates(
     return build_zarr(
         mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr",
         mock_data_missing_dates,
-        full_dates=[
-            datetime.datetime(2020, 1, 1),
-            datetime.datetime(2020, 1, 2),
-            datetime.datetime(2020, 1, 3),
-            datetime.datetime(2020, 1, 4),
-            datetime.datetime(2020, 1, 5),
-        ],
+        full_dates=list(dates_as_dt),
         missing_date_strs=["2020-01-02", "2020-01-04"],
     )
 

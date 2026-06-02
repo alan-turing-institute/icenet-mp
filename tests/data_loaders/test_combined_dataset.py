@@ -8,16 +8,12 @@ from icenet_mp.data_loaders.single_dataset import SingleDataset
 
 
 class TestCombinedDataset:
-    dates_str = ("2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05")
-    dates_np = tuple(np.datetime64(f"{s}T12:00:00") for s in dates_str)
-
     def test_raises_on_different_frequencies(
         self, mock_dataset: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         ds_24h = SingleDataset(name="mock_dataset", input_files=[mock_dataset])
         ds_12h = SingleDataset(name="mock_dataset_2", input_files=[mock_dataset])
         monkeypatch.setitem(ds_12h.__dict__, "frequency", np.timedelta64(12, "h"))
-
         with pytest.raises(
             ValueError, match="Cannot combine datasets with different frequencies"
         ):
@@ -27,18 +23,20 @@ class TestCombinedDataset:
                 target_variables=["ice_conc"],
             )
 
-    def test_no_valid_dates_non_overlapping_ranges(self, mock_dataset: Path) -> None:
+    def test_no_valid_dates_non_overlapping_ranges(
+        self, mock_dataset: Path, dates_as_str: tuple[str, ...]
+    ) -> None:
         """Test that CombinedDataset raises ValueError when datasets have non-overlapping date ranges."""
         # Create and combine two datasets with non-overlapping date ranges
         dataset1 = SingleDataset(
             name="dataset1",
             input_files=[mock_dataset],
-            date_ranges=[{"start": self.dates_str[0], "end": self.dates_str[1]}],
+            date_ranges=[{"start": dates_as_str[0], "end": dates_as_str[1]}],
         )
         dataset2 = SingleDataset(
             name="dataset2",
             input_files=[mock_dataset],
-            date_ranges=[{"start": self.dates_str[3], "end": self.dates_str[4]}],
+            date_ranges=[{"start": dates_as_str[3], "end": dates_as_str[4]}],
         )
         combined = CombinedDataset(
             datasets=[dataset1, dataset2],
@@ -47,21 +45,19 @@ class TestCombinedDataset:
             n_history_steps=1,
             n_forecast_steps=1,
         )
-
         # Confirm that no valid dates are available
         with pytest.raises(ValueError, match="CombinedDataset has no valid dates"):
             _ = combined.dates
 
     def test_no_valid_dates_insufficient_history_steps(
-        self, mock_dataset: Path
+        self, mock_dataset: Path, dates_as_str: tuple[str, ...]
     ) -> None:
         """Test that CombinedDataset raises ValueError when history steps exceed available dates."""
         dataset = SingleDataset(
             name="dataset1",
             input_files=[mock_dataset],
-            date_ranges=[{"start": self.dates_str[0], "end": self.dates_str[1]}],
+            date_ranges=[{"start": dates_as_str[0], "end": dates_as_str[1]}],
         )
-
         # Create combined dataset with history steps larger than available dates
         combined = CombinedDataset(
             datasets=[dataset],
@@ -70,21 +66,19 @@ class TestCombinedDataset:
             n_history_steps=10,  # Only 2 dates available
             n_forecast_steps=1,
         )
-
         # Confirm that no valid dates are available
         with pytest.raises(ValueError, match="CombinedDataset has no valid dates"):
             _ = combined.dates
 
     def test_no_valid_dates_insufficient_forecast_steps(
-        self, mock_dataset: Path
+        self, mock_dataset: Path, dates_as_str: tuple[str, ...]
     ) -> None:
         """Test that CombinedDataset raises ValueError when forecast steps exceed available dates."""
         dataset = SingleDataset(
             name="dataset1",
             input_files=[mock_dataset],
-            date_ranges=[{"start": self.dates_str[0], "end": self.dates_str[1]}],
+            date_ranges=[{"start": dates_as_str[0], "end": dates_as_str[1]}],
         )
-
         # Create combined dataset with forecast steps larger than available dates
         combined = CombinedDataset(
             datasets=[dataset],
@@ -93,26 +87,20 @@ class TestCombinedDataset:
             n_history_steps=1,
             n_forecast_steps=10,  # Only 2 dates available
         )
-
         # Confirm that no valid dates are available
         with pytest.raises(ValueError, match="CombinedDataset has no valid dates"):
             _ = combined.dates
 
-    def test_no_valid_dates_incompatible_times(self, mock_dataset: Path) -> None:
+    def test_no_valid_dates_incompatible_times(
+        self, mock_dataset: Path, dates_as_np: tuple[np.datetime64, ...]
+    ) -> None:
         """Test that CombinedDataset raises ValueError when datasets have incompatible times."""
-        dataset = SingleDataset(
-            name="dataset",
-            input_files=[mock_dataset],
-        )
-        # Apply an offset of 12h to the dates in a second dataset
+        dataset = SingleDataset(name="dataset", input_files=[mock_dataset])
+        # Create a second dataset with an offset of 12h
         dataset_offset = SingleDataset(
-            name="dataset_offset",
-            input_files=[mock_dataset],
+            name="dataset_offset", input_files=[mock_dataset]
         )
-        dataset_offset.dates = [
-            date + np.timedelta64(720, "m") for date in self.dates_np
-        ]
-
+        dataset_offset.dates = [date + np.timedelta64(720, "m") for date in dates_as_np]
         # Create combined dataset
         combined = CombinedDataset(
             datasets=[dataset, dataset_offset],
@@ -121,22 +109,13 @@ class TestCombinedDataset:
             n_history_steps=1,
             n_forecast_steps=1,
         )
-
-        # Confirm that no valid dates are available
         with pytest.raises(ValueError, match="CombinedDataset has no valid dates"):
             _ = combined.dates
 
     def test_valid_dates(self, mock_dataset: Path) -> None:
         """Test that CombinedDataset works correctly with valid overlapping dates."""
-        # Create and combine two datasets with overlapping date ranges
-        dataset1 = SingleDataset(
-            name="dataset1",
-            input_files=[mock_dataset],
-        )
-        dataset2 = SingleDataset(
-            name="dataset2",
-            input_files=[mock_dataset],
-        )
+        dataset1 = SingleDataset(name="dataset1", input_files=[mock_dataset])
+        dataset2 = SingleDataset(name="dataset2", input_files=[mock_dataset])
         combined = CombinedDataset(
             datasets=[dataset1, dataset2],
             target_group_name="dataset1",
@@ -144,13 +123,13 @@ class TestCombinedDataset:
             n_history_steps=2,
             n_forecast_steps=1,
         )
-
-        # Should not raise an error
         dates = combined.dates
         assert len(dates) > 0
         assert all(isinstance(date, np.datetime64) for date in dates)
 
-    def test_dates_windowing(self, mock_dataset: Path) -> None:
+    def test_dates_windowing(
+        self, mock_dataset: Path, dates_as_np: tuple[np.datetime64, ...]
+    ) -> None:
         dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
         combined = CombinedDataset(
             datasets=[dataset],
@@ -161,9 +140,11 @@ class TestCombinedDataset:
         )
         # With these settings we have a window of (2+1=3) steps.
         # This means that only the first three dates will be valid start dates.
-        assert combined.dates == list(self.dates_np[:3])
+        assert combined.dates == list(dates_as_np[:3])
 
-    def test_dates_windowing_tight_window(self, mock_dataset: Path) -> None:
+    def test_dates_windowing_tight_window(
+        self, mock_dataset: Path, dates_as_np: tuple[np.datetime64, ...]
+    ) -> None:
         dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
         combined = CombinedDataset(
             datasets=[dataset],
@@ -174,9 +155,11 @@ class TestCombinedDataset:
         )
         # With these settings we have a window of (2+3=5) steps.
         # This means that only the first date will be a valid start date.
-        assert combined.dates == [self.dates_np[0]]
+        assert combined.dates == [dates_as_np[0]]
 
-    def test_get_history_steps(self, mock_dataset: Path) -> None:
+    def test_get_history_steps(
+        self, mock_dataset: Path, dates_as_np: tuple[np.datetime64, ...]
+    ) -> None:
         dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
         combined = CombinedDataset(
             datasets=[dataset],
@@ -185,10 +168,12 @@ class TestCombinedDataset:
             n_history_steps=3,
             n_forecast_steps=1,
         )
-        steps = combined.get_history_steps(self.dates_np[0])
-        assert steps == [self.dates_np[0], self.dates_np[1], self.dates_np[2]]
+        steps = combined.get_history_steps(dates_as_np[0])
+        assert steps == [dates_as_np[0], dates_as_np[1], dates_as_np[2]]
 
-    def test_get_forecast_steps(self, mock_dataset: Path) -> None:
+    def test_get_forecast_steps(
+        self, mock_dataset: Path, dates_as_np: tuple[np.datetime64, ...]
+    ) -> None:
         dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
         combined = CombinedDataset(
             datasets=[dataset],
@@ -197,21 +182,22 @@ class TestCombinedDataset:
             n_history_steps=2,
             n_forecast_steps=2,
         )
-        # start=Jan1, offset by 2 steps → [Jan3, Jan4]
-        steps = combined.get_forecast_steps(self.dates_np[0])
-        assert steps == [self.dates_np[2], self.dates_np[3]]
+        steps = combined.get_forecast_steps(dates_as_np[0])
+        assert steps == [dates_as_np[2], dates_as_np[3]]
 
-    def test_start_and_end_dates(self, mock_dataset: Path) -> None:
+    def test_start_and_end_dates(
+        self, mock_dataset: Path, dates_as_str: tuple[str, ...]
+    ) -> None:
         """Test that start_date and end_date are correctly calculated from available dates."""
         dataset1 = SingleDataset(
             name="dataset1",
             input_files=[mock_dataset],
-            date_ranges=[{"start": self.dates_str[0], "end": self.dates_str[-2]}],
+            date_ranges=[{"start": dates_as_str[0], "end": dates_as_str[-2]}],
         )
         dataset2 = SingleDataset(
             name="dataset2",
             input_files=[mock_dataset],
-            date_ranges=[{"start": self.dates_str[1], "end": self.dates_str[-1]}],
+            date_ranges=[{"start": dates_as_str[1], "end": dates_as_str[-1]}],
         )
         combined = CombinedDataset(
             datasets=[dataset1, dataset2],
@@ -220,7 +206,6 @@ class TestCombinedDataset:
             n_history_steps=1,
             n_forecast_steps=1,
         )
-
         assert combined.start_date == combined.dates[0]
         assert combined.end_date == combined.dates[-1]
 
@@ -242,7 +227,9 @@ class TestCombinedDataset:
         # target has shape (n_forecast_steps, C_target, H, W)
         assert batch["target"].shape == (1, 1, 2, 2)
 
-    def test_getitem_time_offset(self, mock_dataset: Path) -> None:
+    def test_getitem_time_offset(
+        self, mock_dataset: Path, dates_as_np: tuple[np.datetime64, ...]
+    ) -> None:
         """__getitem__ places the target window n_history_steps ahead of the input window."""
         dataset = SingleDataset(name="dataset1", input_files=[mock_dataset])
         combined = CombinedDataset(
@@ -258,9 +245,9 @@ class TestCombinedDataset:
         batch = combined[0]
         np.testing.assert_array_equal(
             batch["dataset1"],
-            combined.inputs[0].get_tchw([self.dates_np[0], self.dates_np[1]]),
+            combined.inputs[0].get_tchw([dates_as_np[0], dates_as_np[1]]),
         )
         np.testing.assert_array_equal(
             batch["target"],
-            combined.target.get_tchw([self.dates_np[2]]),
+            combined.target.get_tchw([dates_as_np[2]]),
         )
