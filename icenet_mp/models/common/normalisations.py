@@ -10,7 +10,7 @@ def normalisation_from_name(norm_type: str, out_channels: int) -> nn.Module:
     # Group normalisation
     if norm_type.lower() == "groupnorm":
         # Determine the highest integer less than 8 that divides `channels`
-        num_groups = max(num for num in range(1, 8) if out_channels % num == 0)
+        num_groups = max(num for num in range(1, 9) if out_channels % num == 0)
         return nn.GroupNorm(num_groups, out_channels)
 
     # No normalisation
