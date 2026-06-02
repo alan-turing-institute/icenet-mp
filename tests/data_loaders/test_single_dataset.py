@@ -418,6 +418,18 @@ class TestSingleDataset:
             "normalise=False TCHW output equals normalised output"
         )
 
+    def test_normalise_constant_channel_produces_nan(
+        self, mock_dataset_constant_values: Path
+    ) -> None:
+        """When max == min for a channel, normalisation divides by zero (0 * inf = NaN).
+
+        This documents the current behaviour so that any future fix is made deliberately.
+        """
+        dataset = SingleDataset(
+            name="constant", input_files=[mock_dataset_constant_values]
+        )
+        assert np.all(np.isnan(dataset[0]))
+
     def test_subset_preserves_normalise_flag(self, mock_dataset: Path) -> None:
         """subset() propagates the normalise flag to the child dataset."""
         for flag in (True, False):

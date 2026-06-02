@@ -292,6 +292,42 @@ def mock_data() -> dict[str, dict[str, Any]]:
 
 
 @pytest.fixture(scope="session")
+def mock_data_constant_values() -> dict[str, dict[str, Any]]:
+    """Fixture to create a mock dataset with constant data for testing."""
+    return {
+        "coords": {
+            "lat": {
+                "dims": "lat",
+                "attrs": {"units": "degrees_north", "standard_name": "latitude"},
+                "data": [-89, -90],
+            },
+            "lon": {
+                "dims": "lon",
+                "attrs": {"units": "degrees_east", "standard_name": "longitude"},
+                "data": [44, 45],
+            },
+            "time": {
+                "dims": ("time",),
+                "attrs": {"standard_name": "time"},
+                "data": [
+                    datetime.datetime(2020, 1, 1),
+                    datetime.datetime(2020, 1, 2),
+                ],
+            },
+        },
+        "attrs": {},
+        "dims": {"lat": 2, "lon": 2, "time": 2},
+        "data_vars": {
+            "constant": {
+                "dims": ("time", "lat", "lon"),
+                "attrs": {},
+                "data": [[[0.5, 0.5], [0.5, 0.5]], [[0.5, 0.5], [0.5, 0.5]]],
+            }
+        },
+    }
+
+
+@pytest.fixture(scope="session")
 def mock_data_missing_dates() -> dict[str, dict[str, Any]]:
     """Fixture to create a mock dataset with missing dates for testing."""
     return {
@@ -358,6 +394,18 @@ def mock_data_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def mock_dataset(mock_data_path: Path, mock_data: dict[str, dict[str, Any]]) -> Path:
     """Fixture to create a mock file for testing."""
     return build_zarr(mock_data_path / "anemoi" / "mock_dataset.zarr", mock_data)
+
+
+@pytest.fixture(scope="session")
+def mock_dataset_constant_values(
+    mock_data_path: Path,
+    mock_data_constant_values: dict[str, dict[str, Any]],
+) -> Path:
+    """Fixture to create a mock file with constant data for testing."""
+    return build_zarr(
+        mock_data_path / "anemoi" / "mock_dataset_constant_data.zarr",
+        mock_data_constant_values,
+    )
 
 
 @pytest.fixture(scope="session")
