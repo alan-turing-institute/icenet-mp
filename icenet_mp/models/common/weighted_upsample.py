@@ -8,8 +8,8 @@ class WeightedUpsample(nn.Module):
 
     Conv2d > PixelShuffle
 
-    The initial Conv2d is ICNR-initialised so all sub-channel groups
-    start identical, preventing early-training checkerboard.
+    The initial Conv2d is ICNR-initialised to mitigate checkerboarding that might
+    otherwise occur during early training.
     """
 
     def __init__(

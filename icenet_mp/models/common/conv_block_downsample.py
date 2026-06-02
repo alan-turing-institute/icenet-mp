@@ -6,7 +6,9 @@ from .conv_norm_act import ConvNormAct
 
 
 class ConvBlockDownsample(nn.Module):
-    """Convolutional block that halves spatial dimensions using two stacked ConvNormAct mini-blocks.
+    """Convolutional block that halves spatial dimensions.
+
+    ConvNormAct > ConvNormAct
 
     If out_channels is not specified than this will double the number of input channels.
 
@@ -36,7 +38,7 @@ class ConvBlockDownsample(nn.Module):
 
         out_channels = in_channels * 2 if out_channels is None else out_channels
         self.model = nn.Sequential(
-            # Size reducing convolution/normalisation/activation
+            # Size reducing convolution/normalisation/activation that changes channels
             ConvNormAct(
                 in_channels,
                 out_channels,
@@ -46,7 +48,7 @@ class ConvBlockDownsample(nn.Module):
                 padding=(kernel_size - 1) // 2,
                 stride=2,
             ),
-            # Size preserving convolution/normalisation/activation
+            # Size preserving convolution/normalisation/activation that maintains channels
             ConvNormAct(
                 out_channels,
                 out_channels,

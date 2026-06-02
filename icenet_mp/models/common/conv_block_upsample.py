@@ -9,7 +9,9 @@ from .weighted_upsample import WeightedUpsample
 
 
 class ConvBlockUpsample(nn.Module):
-    """Convolutional block that doubles spatial dimensions using two stacked ConvNormAct mini-blocks.
+    """Convolutional block that doubles spatial dimensions.
+
+    (WeightedUpsample > Norm > Act) > ConvNormAct > ConvNormAct
 
     If out_channels is not specified than this will halve the number of input channels.
 
@@ -37,25 +39,24 @@ class ConvBlockUpsample(nn.Module):
         """
         super().__init__()
 
-        # Set output channels to default if not specified
         out_channels = in_channels // 2 if out_channels is None else out_channels
 
         self.model = nn.Sequential(
-            # Size increasing upsample/normalisation/activation
-            WeightedUpsample(in_channels, out_channels=out_channels, upsample_factor=2),
-            normalisation_from_name(norm_type, out_channels),
+            # Size increasing upsample/normalisation/activation that maintains channels
+            WeightedUpsample(in_channels, upsample_factor=2),
+            normalisation_from_name(norm_type, in_channels),
             ACTIVATION_FROM_NAME[activation](inplace=True),
-            # Size preserving convolution/normalisation/activation
+            # Size preserving convolution/normalisation/activation that maintains channels
             ConvNormAct(
-                out_channels,
-                out_channels,
+                in_channels,
+                in_channels,
                 activation=activation,
                 kernel_size=kernel_size,
                 norm_type=norm_type,
             ),
-            # Size preserving convolution/normalisation/activation
+            # Size preserving convolution/normalisation/activation that changes channels
             ConvNormAct(
-                out_channels,
+                in_channels,
                 out_channels,
                 activation=activation,
                 kernel_size=kernel_size,
