@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.text import Text
 
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC
 from icenet_mp.visualisations.layout import (
@@ -120,9 +122,7 @@ def test_axes_have_reasonable_gaps(
         axis_rectangle(ax) for ax in colourbar_axes.values() if ax is not None
     )
 
-    def _min_horizontal_gap(
-        a: tuple[float, float, float, float], b: tuple[float, float, float, float]
-    ) -> float:
+    def _min_horizontal_gap(a: RECTANGLE, b: RECTANGLE) -> float:
         la, ba, ra, ta = a
         lb, bb, rb, tb = b
         if ra <= lb:  # a left of b
@@ -179,9 +179,7 @@ def test_y_axis_orientation_for_geographical_data() -> None:
     plt.close(fig)
 
 
-def _text_rectangle(
-    fig: plt.Figure, text_artist: plt.Text
-) -> tuple[float, float, float, float]:
+def _text_rectangle(fig: Figure, text_artist: Text) -> RECTANGLE:
     """Return text bounding box in figure-normalised coords [0, 1]."""
     fig.canvas.draw()
     # Obtain a renderer in a backend-agnostic, mypy-friendly way
