@@ -60,10 +60,11 @@
 | icenet\_mp/models/common/\_\_init\_\_.py                      |       13 |        0 |    100% |           |
 | icenet\_mp/models/common/activations.py                       |        2 |        0 |    100% |           |
 | icenet\_mp/models/common/conv\_block\_common.py               |        8 |        0 |    100% |           |
-| icenet\_mp/models/common/conv\_block\_downsample.py           |       11 |        0 |    100% |           |
+| icenet\_mp/models/common/conv\_block\_downsample.py           |       10 |        0 |    100% |           |
 | icenet\_mp/models/common/conv\_block\_upsample.py             |       13 |        0 |    100% |           |
-| icenet\_mp/models/common/conv\_block\_upsample\_naive.py      |        8 |        0 |    100% |           |
-| icenet\_mp/models/common/conv\_norm\_act.py                   |       20 |        4 |     80% | 41-46, 73 |
+| icenet\_mp/models/common/conv\_norm\_act.py                   |        9 |        0 |    100% |           |
+| icenet\_mp/models/common/conv\_norm\_act\_upsample.py         |       10 |        0 |    100% |           |
+| icenet\_mp/models/common/normalisations.py                    |       11 |        7 |     36% |     11-21 |
 | icenet\_mp/models/common/normalised\_fold.py                  |       12 |        0 |    100% |           |
 | icenet\_mp/models/common/patchembed.py                        |       13 |        8 |     38% |19-24, 38-40 |
 | icenet\_mp/models/common/permute.py                           |        7 |        0 |    100% |           |
@@ -72,6 +73,7 @@
 | icenet\_mp/models/common/shift.py                             |       14 |        0 |    100% |           |
 | icenet\_mp/models/common/time\_embed.py                       |        9 |        4 |     56% | 26-30, 37 |
 | icenet\_mp/models/common/transformerblock.py                  |       12 |        7 |     42% |16-22, 40-42 |
+| icenet\_mp/models/common/weighted\_upsample.py                |       15 |        0 |    100% |           |
 | icenet\_mp/models/ddpm.py                                     |       96 |       79 |     18% |21-22, 38, 80-152, 155-156, 168-189, 205-245, 270-308, 334-358, 386-403 |
 | icenet\_mp/models/decoders/\_\_init\_\_.py                    |        5 |        0 |    100% |           |
 | icenet\_mp/models/decoders/base\_decoder.py                   |       14 |        2 |     86% |     40-41 |
@@ -80,7 +82,7 @@
 | icenet\_mp/models/decoders/piecewise\_decoder.py              |       24 |        0 |    100% |           |
 | icenet\_mp/models/diffusion/\_\_init\_\_.py                   |        3 |        0 |    100% |           |
 | icenet\_mp/models/diffusion/gaussian\_diffusion.py            |       54 |       43 |     20% |39-72, 91-96, 115-135, 151-154, 175-180, 199-220 |
-| icenet\_mp/models/diffusion/unet\_diffusion.py                |       77 |       68 |     12% |56-177, 199-239, 255-270, 283-286 |
+| icenet\_mp/models/diffusion/unet\_diffusion.py                |       77 |       68 |     12% |56-178, 200-240, 256-271, 284-287 |
 | icenet\_mp/models/encode\_process\_decode.py                  |       30 |        5 |     83% |43-45, 52-53 |
 | icenet\_mp/models/encoders/\_\_init\_\_.py                    |        6 |        0 |    100% |           |
 | icenet\_mp/models/encoders/base\_encoder.py                   |       24 |        2 |     92% |     59-60 |
@@ -115,7 +117,7 @@
 | icenet\_mp/visualisations/range\_check.py                     |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
 | icenet\_mp/xpu/\_\_init\_\_.py                                |        9 |        0 |    100% |           |
 | icenet\_mp/xpu/accelerator.py                                 |       72 |       39 |     46% |35-42, 55, 60-62, 77-111, 125-127, 133, 144-147, 152 |
-| **TOTAL**                                                     | **4208** | **1271** | **70%** |           |
+| **TOTAL**                                                     | **4224** | **1274** | **70%** |           |
 
 
 ## Setup coverage badge
