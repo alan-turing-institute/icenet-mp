@@ -10,7 +10,7 @@ class ConvBlockDownsample(nn.Module):
 
     ConvNormAct > ConvNormAct
 
-    If out_channels is not specified than this will double the number of input channels.
+    If out_channels is not specified then this will double the number of input channels.
 
     Reverse of ConvBlockUpsample.
     """

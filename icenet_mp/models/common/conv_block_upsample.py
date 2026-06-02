@@ -13,7 +13,7 @@ class ConvBlockUpsample(nn.Module):
 
     (WeightedUpsample > Norm > Act) > ConvNormAct > ConvNormAct
 
-    If out_channels is not specified than this will halve the number of input channels.
+    If out_channels is not specified then this will halve the number of input channels.
 
     Reverse of ConvBlockDownsample, using upsampling to avoid checkerboarding.
     """
