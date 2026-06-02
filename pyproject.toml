@@ -96,6 +96,8 @@ addopts = [
     "--cov=icenet_mp",
     "--cov-report=term-missing",
     "-vvv",
+    "-n",
+    "auto",
 ]
 testpaths = ["tests"]
 norecursedirs = [
