@@ -19,7 +19,6 @@ class ConvNormActUpsample(nn.Module):
         upsample_factor: int = 2,
         upsample_mode: str = "nearest",
         stride: int = 1,
-        transposed: bool = False,
     ) -> None:
         """Initialize a ConvNormActUpsample mini-block.
 
@@ -32,7 +31,6 @@ class ConvNormActUpsample(nn.Module):
             out_channels: the number of output channels (if None, half of in_channels).
             padding: the padding to use for the convolution.
             stride: the stride to use for the convolution.
-            transposed: whether to use ConvTranspose2d instead of Conv2d.
             upsample_factor: the factor by which to upsample spatial dimensions.
             upsample_mode: the mode to use for upsampling ("nearest", "bilinear", etc.).
 
@@ -58,7 +56,6 @@ class ConvNormActUpsample(nn.Module):
                 norm_type=norm_type,
                 padding=padding,
                 stride=stride,
-                transposed=transposed,
             ),
         )
 

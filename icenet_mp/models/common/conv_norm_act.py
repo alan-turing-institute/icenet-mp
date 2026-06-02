@@ -18,7 +18,6 @@ class ConvNormAct(nn.Module):
         norm_type: str = "batchnorm",
         padding: int | str = "same",
         stride: int = 1,
-        transposed: bool = False,
     ) -> None:
         """Initialise a ConvNormAct mini-block.
 
@@ -31,13 +30,12 @@ class ConvNormAct(nn.Module):
             out_channels: Output channel size.
             padding: the padding to use for the convolution.
             stride: the stride to use for the convolution.
-            transposed: whether to use ConvTranspose2d instead of Conv2d.
 
         """
         super().__init__()
 
         self.block = nn.Sequential(
-            (nn.ConvTranspose2d if transposed else nn.Conv2d)(
+            nn.Conv2d(
                 in_channels, out_channels, kernel_size, padding=padding, stride=stride
             ),
             normalisation_from_name(norm_type, out_channels),
