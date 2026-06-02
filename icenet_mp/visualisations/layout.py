@@ -788,6 +788,7 @@ def _add_colourbars(  # noqa: PLR0913, PLR0912
     image_difference: QuadContourSet | None = None,
     plot_spec: PlotSpec,
     diff_colour_scale: DiffColourmapSpec | None = None,
+    display_ranges: tuple[tuple[float, float], tuple[float, float]] | None = None,
     cbar_axes: dict[str, Axes | None] | None = None,
 ) -> None:
     """Create and position colourbars.
@@ -814,6 +815,7 @@ def _add_colourbars(  # noqa: PLR0913, PLR0912
                          specialised colour mapping (often symmetric) for difference colourbar
         plot_spec: PlotSpec containing colourbar orientation, value ranges, and formatting
         diff_colour_scale: Optional difference colour scale specification.
+        display_ranges: Optional tuple of (groundtruth_range, prediction_range) for colourbar limits.
         cbar_axes: Optional dict with pre-allocated colourbar axes from layout builders:
                   {"groundtruth": Axes|None, "prediction": Axes|None, "difference": Axes|None}
                   None values mean "no dedicated axis" and will fall back to automatic placement.
@@ -827,6 +829,12 @@ def _add_colourbars(  # noqa: PLR0913, PLR0912
     is_vertical = orientation == "vertical"
     separate_colourbars = plot_spec.colourbar_strategy == "separate"
 
+    # Expand display_ranges tuple for clarity
+    groundtruth_vmin = display_ranges[0][0] if display_ranges else None
+    groundtruth_vmax = display_ranges[0][1] if display_ranges else None
+    prediction_vmin = display_ranges[1][0] if display_ranges else None
+    prediction_vmax = display_ranges[1][1] if display_ranges else None
+
     if separate_colourbars:
         # Create individual colourbars for each panel
 
@@ -837,8 +845,8 @@ def _add_colourbars(  # noqa: PLR0913, PLR0912
             )
             format_linear_ticks(
                 colourbar_groundtruth,
-                vmin=float(plot_spec.vmin) if plot_spec.vmin is not None else None,
-                vmax=float(plot_spec.vmax) if plot_spec.vmax is not None else None,
+                vmin=groundtruth_vmin,
+                vmax=groundtruth_vmax,
                 decimals=1,
                 is_vertical=is_vertical,
             )
@@ -849,7 +857,11 @@ def _add_colourbars(  # noqa: PLR0913, PLR0912
                 image_prediction, cax=cbar_axes["prediction"], orientation=orientation
             )
             format_linear_ticks(
-                colourbar_prediction, decimals=1, is_vertical=is_vertical
+                colourbar_prediction,
+                vmin=prediction_vmin,
+                vmax=prediction_vmax,
+                decimals=1,
+                is_vertical=is_vertical,
             )
     else:
         # Create shared colourbar for ground truth and prediction panels
@@ -867,8 +879,8 @@ def _add_colourbars(  # noqa: PLR0913, PLR0912
         # Tick formatting
         format_linear_ticks(
             colourbar_truth,
-            vmin=float(plot_spec.vmin) if plot_spec.vmin is not None else None,
-            vmax=float(plot_spec.vmax) if plot_spec.vmax is not None else None,
+            vmin=groundtruth_vmin,
+            vmax=groundtruth_vmax,
             decimals=1,
             is_vertical=is_vertical,
         )

@@ -23,8 +23,6 @@ class TestReprojectionEncoder:
             ReprojectionEncoder(
                 data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=(4, 4)),
                 latent_space=(2, 2),
-                latitudes={},
-                longitudes={},
                 n_history_steps=1,
                 project_to=OUTPUT_NAME,
             )
@@ -37,8 +35,8 @@ class TestReprojectionEncoder:
                 latent_space=(2, 2),
                 n_history_steps=1,
                 project_to=OUTPUT_NAME,
-                latitudes={OUTPUT_NAME: lats_out},
-                longitudes={OUTPUT_NAME: lons_out},
+                latitudes_fn=lambda: {OUTPUT_NAME: lats_out},
+                longitudes_fn=lambda: {OUTPUT_NAME: lons_out},
             )
 
     def test_raises_when_output_latlon_missing(self) -> None:
@@ -49,8 +47,8 @@ class TestReprojectionEncoder:
                 latent_space=(2, 2),
                 n_history_steps=1,
                 project_to=OUTPUT_NAME,
-                latitudes={INPUT_NAME: lats_in},
-                longitudes={INPUT_NAME: lons_in},
+                latitudes_fn=lambda: {INPUT_NAME: lats_in},
+                longitudes_fn=lambda: {INPUT_NAME: lons_in},
             )
 
     def test_raises_when_input_lat_wrong_size(self) -> None:
@@ -61,8 +59,8 @@ class TestReprojectionEncoder:
                 latent_space=(2, 2),
                 n_history_steps=1,
                 project_to=OUTPUT_NAME,
-                latitudes={INPUT_NAME: [0.0, 1.0], OUTPUT_NAME: lats_out},
-                longitudes={INPUT_NAME: [0.0, 1.0], OUTPUT_NAME: lons_out},
+                latitudes_fn=lambda: {INPUT_NAME: [0.0, 1.0], OUTPUT_NAME: lats_out},
+                longitudes_fn=lambda: {INPUT_NAME: [0.0, 1.0], OUTPUT_NAME: lons_out},
             )
 
     def test_raises_when_output_lat_wrong_size(self) -> None:
@@ -73,8 +71,8 @@ class TestReprojectionEncoder:
                 latent_space=(3, 3),
                 n_history_steps=1,
                 project_to=OUTPUT_NAME,
-                latitudes={INPUT_NAME: lats_in, OUTPUT_NAME: [0.0, 1.0]},
-                longitudes={INPUT_NAME: lons_in, OUTPUT_NAME: [0.0, 1.0]},
+                latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: [0.0, 1.0]},
+                longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: [0.0, 1.0]},
             )
 
     @pytest.mark.parametrize("input_shape", [(3, 3), (4, 4)])
@@ -89,8 +87,8 @@ class TestReprojectionEncoder:
             latent_space=latent_shape,
             n_history_steps=1,
             project_to=OUTPUT_NAME,
-            latitudes={INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
-            longitudes={INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
+            latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
+            longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
         )
         nn_h, nn_w = encoder.nearest_neighbours(torch.device("cpu"))
         assert nn_h.shape == latent_shape
@@ -106,8 +104,8 @@ class TestReprojectionEncoder:
             latent_space=latent_shape,
             n_history_steps=1,
             project_to=OUTPUT_NAME,
-            latitudes={INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
-            longitudes={INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
+            latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
+            longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
         )
         nn_h, nn_w = encoder.nearest_neighbours(torch.device("cpu"))
         assert torch.all((nn_h >= 0) & (nn_h < input_shape[0]))
@@ -124,8 +122,8 @@ class TestReprojectionEncoder:
             latent_space=shape,
             n_history_steps=1,
             project_to=OUTPUT_NAME,
-            latitudes={INPUT_NAME: lats, OUTPUT_NAME: lats},
-            longitudes={INPUT_NAME: lons, OUTPUT_NAME: lons},
+            latitudes_fn=lambda: {INPUT_NAME: lats, OUTPUT_NAME: lats},
+            longitudes_fn=lambda: {INPUT_NAME: lons, OUTPUT_NAME: lons},
         )
         nn_h, nn_w = encoder.nearest_neighbours(torch.device("cpu"))
         expected_h = torch.tensor([[0, 0, 0], [1, 1, 1], [2, 2, 2]])
@@ -155,8 +153,8 @@ class TestReprojectionEncoder:
             latent_space=test_latent_hw,
             n_history_steps=test_n_history_steps,
             project_to=OUTPUT_NAME,
-            latitudes={INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
-            longitudes={INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
+            latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
+            longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
         )
         x = torch.randn(test_batch_size, test_n_history_steps, channels, h, w)
         out = encoder.rollout(x)
@@ -178,8 +176,8 @@ class TestReprojectionEncoder:
             latent_space=shape,
             n_history_steps=1,
             project_to=OUTPUT_NAME,
-            latitudes={INPUT_NAME: lats, OUTPUT_NAME: lats},
-            longitudes={INPUT_NAME: lons, OUTPUT_NAME: lons},
+            latitudes_fn=lambda: {INPUT_NAME: lats, OUTPUT_NAME: lats},
+            longitudes_fn=lambda: {INPUT_NAME: lons, OUTPUT_NAME: lons},
         )
         nn_h, nn_w = encoder.nearest_neighbours(torch.device("cpu"))
         assert nn_h.shape == shape
@@ -201,8 +199,8 @@ class TestReprojectionEncoder:
             latent_space=latent_shape,
             n_history_steps=1,
             project_to=OUTPUT_NAME,
-            latitudes={INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
-            longitudes={INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
+            latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
+            longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
         )
         x = torch.randn(3, channels, *input_shape)
         out = encoder(x)

@@ -1,0 +1,3 @@
+# WARNING: fully_deterministic will disable antialiasing
+seed: 123
+fully_deterministic: true

@@ -45,9 +45,9 @@ def get_wandb_run(trainer: Trainer) -> Run | None:
 
 
 def normalise_date(np_datetime: np.datetime64) -> np.datetime64:
-    """Normalise a datetime to midnight."""
+    """Normalise a datetime to noon."""
     dt: datetime = np_datetime.astype("datetime64[ms]").astype(datetime)
-    return np.datetime64(dt.date())
+    return np.datetime64(dt.replace(hour=12, minute=0, second=0, microsecond=0))
 
 
 def to_list(value: str | list[str]) -> list[str]:

@@ -1,0 +1,26 @@
+samp-sicnorth-osisaf-25p0km-2017-2019-24h-v2:
+  name: samp-sicnorth-osisaf-25p0km-2017-2019-24h-v2
+  group_as: sic-icenet
+  description: Sea ice concentration from SMMR/SSMI/SSMIS for northern hemisphere
+  attribution: EUMETSAT/OSISAF
+  licence: CC-BY-4.0
+
+  dates:
+    start: '2017-01-01T00:00:00'
+    end: '2019-01-31T23:00:00'
+    frequency: 24h
+
+  preprocessor:
+    type: IceNetSIC
+    hemisphere: north
+
+  input:
+    pipe:
+      # Download the raw data
+      - netcdf:
+          path: ${base_path}/data/preprocessing/${.....name}/${.....preprocessor.type}/data/osisaf/${.....preprocessor.hemisphere}/siconca/*.nc
+
+      # Set the geography to EASE2 25km grid
+      - set_geography:
+          crs: "EPSG:6931"
+          resolution: "25p0km"

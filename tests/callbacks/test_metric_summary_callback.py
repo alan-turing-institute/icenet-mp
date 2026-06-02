@@ -7,8 +7,11 @@ from lightning.pytorch.loggers import WandbLogger
 from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
-from icenet_mp.metrics.base_metrics import MAEPerForecastDay, RMSEPerForecastDay
-from icenet_mp.metrics.sie_error_abs import SeaIceExtentErrorPerForecastDay
+from icenet_mp.metrics import (
+    MAEPerForecastDay,
+    RMSEPerForecastDay,
+    SeaIceExtentErrorPerForecastDay,
+)
 
 
 @pytest.fixture
@@ -52,7 +55,7 @@ class TestOnTestEnd:
         for pred, target in zip(preds, targets, strict=False):
             metric_collection.update(pred.unsqueeze(0), target.unsqueeze(0))
 
-        callback.on_test_end(mock_trainer, mock_module)
+        callback.on_test_epoch_end(mock_trainer, mock_module)
 
         mock_logger = mock_trainer.loggers[0]
         mock_logger.log_metrics.assert_called()
@@ -108,37 +111,22 @@ class TestOnTestEnd:
         targets = torch.randn(1, 3, 1, 2, 2)
         metric_collection.update(preds, targets)
 
-        # Mock wandb.Table and wandb.plot.line
-        mock_table = MagicMock()
-        mock_wandb.Table.return_value = mock_table
         mock_plot = MagicMock()
-        mock_wandb.plot.line.return_value = mock_plot
+        mock_wandb.plot.line_series.return_value = mock_plot
 
-        callback.on_test_end(trainer, mock_module)
+        callback.teardown(trainer, mock_module, stage="test")
 
-        # Assert that wandb.Table was created with the daily values
-        mock_wandb.Table.assert_called_once()
-        table_call_args = mock_wandb.Table.call_args
-        assert table_call_args[1]["columns"] == ["day", "mae_daily"]
-        # Verify data includes enumeration starting from 1
-        data = table_call_args[1]["data"]
-        assert len(data) == 3  # 3 days
-        assert data[0][0] == 1  # First day index
+        # Assert that wandb.plot.line_series was called with the daily values
+        mock_wandb.plot.line_series.assert_called_once()
+        line_series_kwargs = mock_wandb.plot.line_series.call_args[1]
+        assert line_series_kwargs["keys"] == ["test"]
+        assert line_series_kwargs["title"] == "mae_daily_per_forecast_day"
+        assert line_series_kwargs["xname"] == "day"
 
-        # Assert that wandb.plot.line was called
-        mock_wandb.plot.line.assert_called_once_with(
-            mock_table, "day", "mae_daily", title="mae_daily per day"
-        )
-
-        # Assert that wandb.log was called with the plot
+        # Assert that wandb.log was called with the plot under the correct key
         mock_run.log.assert_called_once()
         log_call_args = mock_run.log.call_args[0][0]
-        assert "mae_daily per day" in log_call_args
-
-        # Assert that the mean value was logged
-        wandb_logger.log_metrics.assert_called_once()
-        metrics_call_args = wandb_logger.log_metrics.call_args[0][0]
-        assert "mae_daily (mean)" in metrics_call_args
+        assert "mae_daily_per_forecast_day" in log_call_args
 
     def test_on_test_end_without_wandb_logger_vector_metric(
         self,
@@ -156,13 +144,13 @@ class TestOnTestEnd:
         targets = torch.randn(1, 3, 1, 2, 2)
         metric_collection.update(preds, targets)
 
-        callback.on_test_end(mock_trainer, mock_module)
+        callback.on_test_epoch_end(mock_trainer, mock_module)
 
         # Assert that the mean value was logged without wandb plotting
         mock_logger = mock_trainer.loggers[0]
         mock_logger.log_metrics.assert_called_once()
         metrics_call_args = mock_logger.log_metrics.call_args[0][0]
-        assert "mae_daily (mean)" in metrics_call_args
+        assert "test_mae_daily_mean" in metrics_call_args
 
 
 class TestMetricCalculations:

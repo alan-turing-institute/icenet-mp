@@ -6,9 +6,8 @@ defaults:
     - wandb
   - model: naive_unet_naive
   - predict: sic-icenet-2d
+  - random: default
   - train: default
   - _self_
 
 base_path: ../base
-
-seed: 555

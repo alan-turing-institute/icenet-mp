@@ -20,6 +20,7 @@ class WeightedMSELoss(nn.MSELoss):
             **kwargs: Keyword arguments passed to torch.nn.MSELoss.
 
         """
+        kwargs["reduction"] = "none"
         super().__init__(*args, **kwargs)
 
     def forward(  # type: ignore[override]
@@ -43,5 +44,5 @@ class WeightedMSELoss(nn.MSELoss):
         targets = targets.squeeze()
         sample_weights = sample_weights.squeeze()
 
-        loss = super().forward(100 * y_hat, 100 * targets) * sample_weights
+        loss = super().forward(y_hat, targets) * sample_weights
         return loss.mean()

@@ -6,6 +6,8 @@ encoders:
   latent_space: [144, 144]
   era5:
     _target_: icenet_mp.models.encoders.CNNEncoder
+  float-argo:
+    _target_: icenet_mp.models.encoders.CNNEncoder
   sic-icenet:
     _target_: icenet_mp.models.encoders.CNNEncoder
 

@@ -1,14 +1,20 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 from omegaconf import DictConfig
 
 from icenet_mp.data_loaders import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
-from icenet_mp.types import ArrayHW, ArrayTHW, ModelTestOutput, PlotSpec
+from icenet_mp.types import (
+    ArrayHW,
+    ArrayTHW,
+    Hemisphere,
+    Metadata,
+    ModelStepOutput,
+    PlotSpec,
+)
 
 from .land_mask import LandMask
 from .metadata import build_metadata, format_metadata_subtitle
@@ -24,20 +30,18 @@ class Plotter:
         self.base_path = Path(base_path) if base_path else None
         self.plot_spec = plot_spec
 
-    def set_hemisphere(self, hemisphere: Literal["north", "south"]) -> None:
-        """Set the hemisphere and update the plot spec accordingly."""
-        self.plot_spec.hemisphere = hemisphere
-        self.land_mask = LandMask(self.base_path, hemisphere)
+    def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
+        """Get metadata for the plotter based on the model test output."""
+        return build_metadata(config, model_name)
 
-    def set_metadata(self, config: DictConfig, model_name: str) -> None:
-        """Set metadata for the plotter based on the model test output."""
-        metadata = build_metadata(config, model_name)
+    def set_metadata(self, metadata: Metadata) -> None:
+        """Set metadata for the plotter, which may be used in titles and subtitles."""
         self.plot_spec.metadata_subtitle = format_metadata_subtitle(metadata)
 
     def log_static_inputs(
         self, inputs: list[SingleDataset], dates: list[datetime], image_loggers: list
     ) -> None:
-        """Extract and log raw input plots."""
+        """Extract and log static raw input plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
             for input_ds in inputs:
@@ -56,7 +60,7 @@ class Plotter:
                 for image_name, image_list in images.items():
                     for image_logger in image_loggers:
                         image_logger.log_image(
-                            key=f"static_inputs/{image_name}", images=image_list
+                            key=f"input_static/{image_name}", images=image_list
                         )
         except InvalidArrayError as exc:
             logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
@@ -64,9 +68,9 @@ class Plotter:
             logger.warning("Static plotting failed: %s", exc)
 
     def log_static_outputs(
-        self, outputs: ModelTestOutput, dates: list[datetime], image_loggers: list
+        self, outputs: ModelStepOutput, dates: list[datetime], image_loggers: list
     ) -> None:
-        """Create and log static image plots."""
+        """Create and log static output plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
             # Use the first batch, first channel -> [H,W]
@@ -87,7 +91,7 @@ class Plotter:
             for image_name, image_list in images.items():
                 for image_logger in image_loggers:
                     image_logger.log_image(
-                        key=f"outputs/{image_name}", images=image_list
+                        key=f"output_static/{image_name}", images=image_list
                     )
         except InvalidArrayError as err:
             logger.warning("Static plotting skipped due to invalid arrays: %s", err)
@@ -97,7 +101,7 @@ class Plotter:
     def log_video_inputs(
         self, inputs: list[SingleDataset], dates: list[datetime], video_loggers: list
     ) -> None:
-        """Extract and log raw input plots."""
+        """Extract and log raw input videos."""
         for input_ds in inputs:
             # Create animations for all variables
             np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
@@ -117,15 +121,15 @@ class Plotter:
                 for video_name, video_buffer in videos.items():
                     video_buffer.seek(0)
                     video_logger.log_video(
-                        key=f"video_inputs/{video_name}",
+                        key=f"input_video/{video_name}",
                         videos=[video_buffer],
                         format=[self.plot_spec.video_format],
                     )
 
     def log_video_outputs(
-        self, outputs: ModelTestOutput, dates: list[datetime], video_loggers: list
+        self, outputs: ModelStepOutput, dates: list[datetime], video_loggers: list
     ) -> None:
-        """Create and log video plots."""
+        """Create and log output videos."""
         try:
             # Use the first batch, first channel -> [T,H,W]
             ground_truth: ArrayTHW = outputs.target[0, :, 0].detach().cpu().numpy()
@@ -141,7 +145,7 @@ class Plotter:
                 for video_name, video_buffer in video_data.items():
                     video_buffer.seek(0)
                     video_logger.log_video(
-                        key=f"outputs/{video_name}",
+                        key=f"output_video/{video_name}",
                         videos=[video_buffer],
                         format=[self.plot_spec.video_format],
                     )
@@ -149,3 +153,8 @@ class Plotter:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):
             logger.exception("Video plotting failed")
+
+    def set_hemisphere(self, hemisphere: Hemisphere) -> None:
+        """Set the hemisphere and update the plot spec accordingly."""
+        self.plot_spec.hemisphere = hemisphere
+        self.land_mask = LandMask(self.base_path, hemisphere)

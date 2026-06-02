@@ -1,65 +1,8 @@
 plotting:
-  # Callback behaviour
   _target_: icenet_mp.callbacks.PlottingCallback
-  frequency: 5
-  make_input_plots: false
+  frequency:
+    batch: 5  # plot every 5 evaluation batches
+  make_input_plots: true
   make_static_plots: true
   make_video_plots: true
   base_path: ${base_path}
-  plot_spec:
-    _target_: icenet_mp.types.PlotSpec
-    # Plot specification
-    variable: "sea_ice_concentration"
-    selected_timestep: 0          # which T to render for the static map
-    title_groundtruth: "Ground Truth"
-    title_prediction: "Prediction"
-    title_difference: "Difference"
-    n_contour_levels: 51
-    colourmap: "viridis"
-    include_difference: true
-    diff_mode: "signed"             # "signed" | "absolute" | "smape"
-    diff_strategy: "precompute"     # "precompute" | "two-pass" | "per-frame"
-    vmin: 0.0
-    vmax: 1.0
-    colourbar_location: "horizontal"
-    colourbar_strategy: "separate"  # shared | separate (prediction gets its own colourbar)
-    include_footer_metadata: true
-    video_fps: 2
-    video_format: mp4             # mp4 or gif
-
-    # Per-variable styles
-    per_variable_styles:
-      # Diverging (signed)
-      "era5:10u": { cmap: "RdBu_r", two_slope_centre: 0.0, units: "m/s" } # 10m u-wind component
-      "era5:10v": { cmap: "RdBu_r", two_slope_centre: 0.0, units: "m/s" } # 10m v-wind component
-      "era5:sin_julian_day": { cmap: "PuOr", two_slope_centre: 0.0 } # sin of Julian day
-      "era5:cos_julian_day": { cmap: "PuOr", two_slope_centre: 0.0 } # cos of Julian day
-      # Sequential (physical)
-      "era5:2t": { cmap: "RdBu_r", two_slope_centre: 273.15, units: "K" } # 2m temperature
-      "era5:t_*": { cmap: "RdBu_r", two_slope_centre: 273.15, units: "K" } # temperature at various levels
-      "era5:msl": { cmap: "RdYlBu_r", units: "Pa" } # mean sea level pressure
-      "era5:sp": { cmap: "RdYlBu_r", units: "Pa" } # surface pressure
-      # Specific humidity at various levels (scientific notation handles small values better)
-      "era5:q_10": { cmap: "viridis", decimals: 2, units: "kg/kg", use_scientific_notation: true }
-      "era5:q_250": { cmap: "viridis", decimals: 2, units: "kg/kg", use_scientific_notation: true }
-      "era5:q_500": { cmap: "viridis", decimals: 2, units: "kg/kg", use_scientific_notation: true }
-      "era5:q_1000": { cmap: "viridis", decimals: 2, units: "kg/kg", use_scientific_notation: true }
-      # geopotential at various levels
-      "era5:z_*": { cmap: "plasma", units: "m" }
-      # u-wind component at various levels
-      "era5:u_*": { cmap: "RdBu_r", two_slope_centre: 0.0, units: "m/s" }
-      # v-wind component at various levels
-      "era5:v_*": { cmap: "RdBu_r", two_slope_centre: 0.0, units: "m/s" }
-      # Sea ice concentration
-      "sic-icenet:ice_conc": { cmap: "Blues_r" }
-
-      # Default fallback
-      # NOTE: This _default entry means plot_spec.colourmap above is never used.
-      # Variables that don't match any specific pattern will use this colourmap.
-      # To use plot_spec.colourmap instead, either remove this _default entry or
-      # set cmap to null: "_default": { cmap: null }
-      "_default": { cmap: "viridis" }
-
-      # Wildcard fallback for ERA5 channels
-      "era5:*":
-        origin: "upper"

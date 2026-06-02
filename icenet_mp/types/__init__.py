@@ -1,4 +1,4 @@
-from .complex_datatypes import DataSpace, ModelTestOutput
+from .complex_datatypes import DataSpace, ModelStepOutput
 from .enums import BetaSchedule, RangeRestriction, TensorDimensions
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
@@ -44,7 +44,7 @@ __all__ = [
     "DiffStrategy",
     "Hemisphere",
     "Metadata",
-    "ModelTestOutput",
+    "ModelStepOutput",
     "PlotSpec",
     "RangeRestriction",
     "SupportsMetadata",

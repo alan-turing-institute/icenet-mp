@@ -204,7 +204,8 @@ def test_build_metadata_returns_dataclass() -> None:
 
     assert isinstance(metadata, Metadata)
     assert metadata.model == "test_model"
-    assert metadata.epochs == 10
+    assert metadata.max_epochs == 10
+    assert metadata.current_epoch is None
     assert metadata.start == "2000-01-01"
     assert metadata.end == "2010-12-31"
     assert metadata.vars_by_source == {"osisaf-south": ["sea ice"]}
@@ -216,7 +217,8 @@ def test_build_metadata_empty_config() -> None:
 
     assert isinstance(metadata, Metadata)
     assert metadata.model is None
-    assert metadata.epochs is None
+    assert metadata.max_epochs is None
+    assert metadata.current_epoch is None
     assert metadata.start is None
     assert metadata.end is None
     assert metadata.cadence is None
@@ -228,7 +230,7 @@ def test_format_metadata_subtitle() -> None:
     """Test format_metadata_subtitle formats Metadata dataclass correctly."""
     metadata = Metadata(
         model="test_model",
-        epochs=5,
+        current_epoch=5,
         start="2020-01-01",
         end="2020-01-10",
         cadence="1d",
@@ -285,9 +287,9 @@ def test_plotting_callback_metadata_subtitle_from_config() -> None:
         or callback.plotter.plot_spec.metadata_subtitle == ""
     )
 
-    # Check that metadata can be set
+    # Check that metadata is stored on the callback (subtitle is applied later in make_plots)
     callback.set_metadata(config, model_name="test_model")
-    assert callback.plotter.plot_spec.metadata_subtitle is not None
-    assert "Model: test_model" in callback.plotter.plot_spec.metadata_subtitle
-    assert "Epoch: 5" in callback.plotter.plot_spec.metadata_subtitle
-    assert "2020-01-01" in callback.plotter.plot_spec.metadata_subtitle
+    assert callback.plotter_metadata is not None
+    assert callback.plotter_metadata.model == "test_model"
+    assert callback.plotter_metadata.max_epochs == 5
+    assert callback.plotter_metadata.start == "2020-01-01"

@@ -32,8 +32,6 @@ class TestPersistence:
             name="persistence",
             hemisphere="north",
             input_spaces=[input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=output_space,
@@ -70,8 +68,6 @@ class TestPersistence:
                     "shape": (1, 1),
                 }
             ],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=1,
             n_history_steps=1,
             output_space={

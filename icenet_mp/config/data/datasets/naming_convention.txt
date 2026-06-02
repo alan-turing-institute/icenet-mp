@@ -3,20 +3,27 @@ We use the Anemoi naming convention from https://anemoi.readthedocs.io/projects/
 purpose-content-source-resolution-start-year-end-year-frequency-version
 
 purpose:
+  - demo: Test datasets for use in a demo
   - full: Full datasets for use on the command line
   - nbsamp: Test datasets for use in notebooks
   - samp: Test datasets for use on the command line
 content:
+  - floatnorth: float data (northern hemisphere)
+  - floatsouth: float data (southern hemisphere)
   - sicnorth: sea ice concentration (northern hemisphere)
   - sicsouth: sea ice concentration (southern hemisphere)
   - weathernorth: weather data (northern hemisphere)
   - weathersouth: weather data (southern hemisphere)
 source:
+  - argo: Argo float data
   - era5: ERA5 weather data
-  - osisaf: OSISAF sea ice data
+  - osisaf: SSMIS sea ice data from OSISAF via IceNet v1
+  - ssmis: SSMIS sea ice data from OSISAF
 resolution:
+  - 0p25: 0.25 degree
   - 0p5: 0.5 degree
-  - 25k: 25km grid
+  - 25k: 25km grid (deprecated)
+  - 25p0km: 25km grid
 start-year:
   - YYYY: year code
 end-year:

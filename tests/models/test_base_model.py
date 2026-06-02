@@ -5,7 +5,7 @@ import torch
 from omegaconf import DictConfig
 
 from icenet_mp.models import BaseModel
-from icenet_mp.types import ModelTestOutput, TensorNTCHW
+from icenet_mp.types import ModelStepOutput, TensorNTCHW
 
 
 class FakeDataModel(BaseModel):
@@ -59,8 +59,6 @@ class TestBaseModel:
                 FakeDataModel(
                     name="fake data",
                     input_spaces=[input_space],
-                    latitudes={},
-                    longitudes={},
                     n_forecast_steps=test_n_forecast_steps,
                     n_history_steps=test_n_history_steps,
                     output_space=output_space,
@@ -77,8 +75,6 @@ class TestBaseModel:
                 FakeDataModel(
                     name="fake data",
                     input_spaces=[input_space],
-                    latitudes={},
-                    longitudes={},
                     n_forecast_steps=test_n_forecast_steps,
                     n_history_steps=test_n_history_steps,
                     output_space=output_space,
@@ -90,8 +86,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=output_space,
@@ -115,8 +109,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=1,
             n_history_steps=1,
             output_space=cfg_output_space,
@@ -137,8 +129,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=1,
             n_history_steps=1,
             output_space=cfg_output_space,
@@ -162,8 +152,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="dummy",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=1,
             n_history_steps=1,
             output_space=cfg_output_space,
@@ -207,8 +195,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=n_forecast_steps,
             n_history_steps=n_history_steps,
             output_space=cfg_output_space,
@@ -217,7 +203,7 @@ class TestBaseModel:
         )
         output_shape = batch["target"].shape
         output = model.test_step(batch, 0)
-        assert isinstance(output, ModelTestOutput)
+        assert isinstance(output, ModelStepOutput)
         assert output.prediction.shape == output_shape
         assert output.target.shape == output_shape
         assert output.loss.shape == torch.Size([])
@@ -249,8 +235,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=n_forecast_steps,
             n_history_steps=n_history_steps,
             output_space=cfg_output_space,
@@ -258,8 +242,8 @@ class TestBaseModel:
             scheduler=cfg_scheduler,
         )
         output = model.training_step(batch, 0)
-        assert isinstance(output, torch.Tensor)
-        assert output.shape == torch.Size([])
+        assert isinstance(output, ModelStepOutput)
+        assert output.loss.shape == torch.Size([])
 
     def test_validation_step(
         self,
@@ -288,8 +272,6 @@ class TestBaseModel:
         model = FakeDataModel(
             name="fake data",
             input_spaces=[cfg_input_space],
-            latitudes={},
-            longitudes={},
             n_forecast_steps=n_forecast_steps,
             n_history_steps=n_history_steps,
             output_space=cfg_output_space,
@@ -297,5 +279,5 @@ class TestBaseModel:
             scheduler=cfg_scheduler,
         )
         output = model.validation_step(batch, 0)
-        assert isinstance(output, torch.Tensor)
-        assert output.shape == torch.Size([])
+        assert isinstance(output, ModelStepOutput)
+        assert output.loss.shape == torch.Size([])

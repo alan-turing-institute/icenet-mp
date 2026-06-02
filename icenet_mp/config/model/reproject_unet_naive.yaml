@@ -7,6 +7,9 @@ encoders:
   era5:
     _target_: icenet_mp.models.encoders.ReprojectionEncoder
     project_to: "sic-icenet"
+  float-argo:
+    _target_: icenet_mp.models.encoders.ReprojectionEncoder
+    project_to: "sic-icenet"
   sic-icenet:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
 

@@ -45,8 +45,8 @@ class DataSpace:
 
 
 @dataclass
-class ModelTestOutput(Mapping[str, Tensor]):
-    """Output of a model test step."""
+class ModelStepOutput(Mapping[str, Tensor]):
+    """Output of a model step."""
 
     prediction: TensorNTCHW
     target: TensorNTCHW
@@ -60,15 +60,15 @@ class ModelTestOutput(Mapping[str, Tensor]):
             return self.target
         if key == "loss":
             return self.loss
-        msg = f"Key {key} not found in ModelTestOutput"
+        msg = f"Key {key} not found in ModelStepOutput"
         raise KeyError(msg)
 
     def __iter__(self) -> Iterator[str]:
-        """Iterate over the keys of ModelTestOutput."""
+        """Iterate over the keys of ModelStepOutput."""
         yield "prediction"
         yield "target"
         yield "loss"
 
     def __len__(self) -> int:
-        """Return ModelTestOutput length."""
+        """Return ModelStepOutput length."""
         return 3

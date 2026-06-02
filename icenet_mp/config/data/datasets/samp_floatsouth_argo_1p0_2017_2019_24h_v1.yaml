@@ -1,0 +1,31 @@
+samp-floatsouth-argo-1p0-2017-2019-24h-v1:
+  name: samp-floatsouth-argo-1p0-2017-2019-24h-v1
+  group_as: float-argo
+  description: ARGO float data for southern hemisphere
+  attribution: ARGO
+  licence: CC-BY-4.0
+
+  dates:
+    start: '2017-01-01T12:00:00'
+    end: '2019-01-31T12:00:00'
+    frequency: 24h
+
+  input:
+    pipe:
+      # Get the ARGO data
+      - argo:
+          area: "0/-180/-90/180"  # southern hemisphere
+          crs: "EPSG:4326s"
+          param:
+            - TEMP # temperature
+            - PSAL # salinity
+          resolution: "1p0"
+          shape: [90, 360]
+      # Replace NaNs with a fill value
+      - nan_to_num:
+          variables: [TEMP, PSAL]
+          replace_with: 99
+      # Set the geography to EPSG:4326 with 1 degree resolution
+      - set_geography:
+          crs: ${...0.argo.crs}
+          resolution: ${...0.argo.resolution}

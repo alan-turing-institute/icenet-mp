@@ -6,6 +6,8 @@ encoders:
   latent_space: [192, 192]
   era5:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
+  float-argo:
+    _target_: icenet_mp.models.encoders.PiecewiseEncoder
   sic-icenet:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
 

@@ -1,6 +1,7 @@
 import logging
 import time
 from datetime import datetime, timedelta
+from typing import ClassVar
 
 import numpy as np
 import xarray as xr
@@ -10,34 +11,49 @@ from anemoi.datasets.create.sources import source_registry
 from anemoi.datasets.create.sources.xarray import load_one
 from anemoi.datasets.dates.groups import GroupOfDates
 from argopy import DataFetcher
+from argopy.errors import NoData
 from earthkit.data import FieldList
 from haversine import Unit, haversine_vector
 from pandas import DataFrame
+
+from icenet_mp.geotools import grid_factory
 
 logger = logging.getLogger(__name__)
 
 
 @source_registry.register("argo")
 class ArgoSource(Source):
+    missing_dates: ClassVar[set[datetime]] = set()
+
     def __init__(  # noqa: PLR0913
         self,
         context: Context,
         *,
         area: str,
+        crs: str,
         param: list[str],
-        skip_interpolation: bool = False,
-        grid_resolution_degrees: float = 1,
+        resolution: str,
+        shape: tuple[int, int],
         distance_scale_km: float = 2000,
+        ignore_missing_dates: bool = False,
         min_weight: float = 1e-10,
         time_half_window_hrs: int = 2,
     ) -> None:
         """Set parameters for fetching and interpolating Argo float data."""
         self.context = context
         self.param = param
-        self.skip_interpolation = skip_interpolation
-        self.grid_resolution_degrees = grid_resolution_degrees
+
+        # Set the output geography
+        self.output_geography = grid_factory.create(
+            crs, resolution=resolution, shape=shape
+        )
+
+        # Set weighting parameters for interpolation
         self.distance_scale_km = distance_scale_km
+        self.ignore_missing_dates = ignore_missing_dates
         self.min_weight = min_weight
+
+        # Set and verify the window parameters
         self.time_half_window_hrs = time_half_window_hrs
         self.north, self.west, self.south, self.east = map(float, area.split("/"))
         if (self.north < self.south) or (self.east < self.west):
@@ -46,33 +62,20 @@ class ArgoSource(Source):
 
     def execute(self, dates: list[datetime] | GroupOfDates) -> FieldList:
         """Download Argo float data within given date range."""
-        # Set constants
         # Construct the grid that we want to project onto
-        lats = np.arange(
-            self.south + 0.5 * self.grid_resolution_degrees,
-            self.north + 0.5 * self.grid_resolution_degrees,
-            self.grid_resolution_degrees,
-        )
-        lons = np.arange(
-            self.west + 0.5 * self.grid_resolution_degrees,
-            self.east + 0.5 * self.grid_resolution_degrees,
-            self.grid_resolution_degrees,
-        )
+        grid_points = np.stack(
+            (self.output_geography.latitudes(), self.output_geography.longitudes()),
+            axis=-1,
+        )  # shape: (n_lat, n_lon, 2)
+        grid_shape = grid_points.shape[0:2]
+        grid_points_flat = grid_points.reshape(-1, 2)  # shape: (n_lat*n_lon, 2)
+        logger.info("Created grid with %d latitudes and %d longitudes.", *grid_shape)
 
-        lat_grid, lon_grid = np.meshgrid(lats, lons, indexing="ij")
-        grid_points = np.column_stack((lat_grid.ravel(), lon_grid.ravel()))
-        logger.info(
-            "Created grid with %d latitudes and %d longitudes, total %d grid points",
-            len(lats),
-            len(lons),
-            len(lats) * len(lons),
-        )
+        # Create a dummy data structure of the correct shape
+        requested_dates: list[datetime] = sorted(date for date in dates)
 
-        requested_dates = sorted(date for date in dates)
         weighted_data: dict[str, np.ndarray] = {
-            variable: np.full(
-                (len(requested_dates), len(lats), len(lons)), np.nan, dtype=float
-            )
+            variable: np.full((len(requested_dates), *grid_shape), np.nan, dtype=float)
             for variable in self.param
         }
         logger.info(
@@ -84,28 +87,23 @@ class ArgoSource(Source):
             min(requested_dates),
             max(requested_dates),
         )
-        missing_dates = []
 
+        # Iterate over dates, requesting data for each one separately
         for t_idx, date in enumerate(requested_dates):
-            logger.info("Processing data from %s", date.date())
+            logger.info("Requesting data for %s", date.date())
             start_time = date - timedelta(hours=self.time_half_window_hrs)
             end_time = date + timedelta(hours=self.time_half_window_hrs)
 
             # Extract data for the mixed layer (top 50m), retry if 503 error from erddap
-            region = [self.west, self.east, self.south, self.north, 0, 50]
-            time_window = [
-                start_time,
-                end_time,
-            ]
-            df = _fetch_argo_dataframe_with_retry(region, time_window)
-
-            if df.empty:
-                logger.info("No Argo observations for %s; returning NaNs", date)
-                missing_dates.append(date)
-                continue
-
-            if self.skip_interpolation:
-                continue
+            try:
+                region = [self.west, self.east, self.south, self.north, 0, 50]
+                time_window = [start_time, end_time]
+                df = _fetch_argo_dataframe_with_retry(region, time_window)
+            except LookupError:
+                if self.ignore_missing_dates:
+                    ArgoSource.missing_dates.add(date)
+                    continue
+                raise
 
             # Get positions of observations
             obs_lat = df["LATITUDE"].to_numpy(dtype=float)
@@ -115,7 +113,7 @@ class ArgoSource(Source):
             # Pairwise distances in km
             distance_km: np.ndarray = haversine_vector(
                 obs_points,
-                grid_points,
+                grid_points_flat,
                 unit=Unit.KILOMETERS,
                 comb=True,
                 check=False,  # faster if your lat/lon are already valid
@@ -132,22 +130,22 @@ class ArgoSource(Source):
                 unweighted_data = df[variable].to_numpy(dtype=float)
                 weighted_array[t_idx] = (
                     np.matmul(weights, unweighted_data) / sum_weights
-                ).reshape(len(lats), len(lons))  # shape: (n_lat, n_lon)
+                ).reshape(*grid_shape)  # shape: (n_lat, n_lon)
 
-        if self.skip_interpolation or missing_dates:
-            logger.info("Found %d missing dates:", len(missing_dates))
-            for missing_date in missing_dates:
-                logger.warning(missing_date)
-            msg = f"Missing data for {len(missing_dates)} out of {len(requested_dates)}"
-            raise ValueError(msg)
+        if self.ignore_missing_dates:
+            logger.info(
+                "Identified %d missing dates:",
+                len(ArgoSource.missing_dates),
+            )
+            for missing_date in sorted(ArgoSource.missing_dates):
+                logger.warning(missing_date.isoformat())
 
         # Construct an xarray dataset
         ds_out = xr.Dataset(
             data_vars={
                 variable: (
-                    ("time", "lat", "lon"),
+                    ("time", "x_pos", "y_pos"),
                     data_array,
-                    {"coordinates": "time lat lon"},
                 )
                 for variable, data_array in weighted_data.items()
             },
@@ -162,16 +160,16 @@ class ArgoSource(Source):
                     },
                 ),
                 "lat": (
-                    "lat",
-                    lats,
+                    ("x_pos", "y_pos"),
+                    self.output_geography.latitudes(),
                     {
                         "standard_name": "latitude",
                         "units": "degrees_north",
                     },
                 ),
                 "lon": (
-                    "lon",
-                    lons,
+                    ("x_pos", "y_pos"),
+                    self.output_geography.longitudes(),
                     {
                         "standard_name": "longitude",
                         "units": "degrees_east",
@@ -180,21 +178,15 @@ class ArgoSource(Source):
             },
         )
 
-        multi_field_list = load_one(
+        return load_one(
             "📂", self.context, [date.isoformat() for date in requested_dates], ds_out
         )
-        n_dates = len(multi_field_list) // len(self.param)
-        if n_dates != len(requested_dates):
-            msg = f"Expected {len(requested_dates)} dates, got {n_dates} dates"
-            raise ValueError(msg)
-
-        return multi_field_list
 
 
 def _fetch_argo_dataframe_with_retry(
     region: list[float],
     time_window: list[datetime],
-    max_retries: int = 5,
+    max_attempts: int = 5,
     initial_backoff_s: float = 0.5,
 ) -> DataFrame:
     """Fetch Argo data with exponential backoff.
@@ -202,52 +194,46 @@ def _fetch_argo_dataframe_with_retry(
     Args:
         region: List of [west, east, south, north, depth_min, depth_max]
         time_window: List of [start_time, end_time]
-        max_retries: Number of retry attempts for ERDDAP 503 or 500 responses.
+        max_attempts: Maximum number of attempts to make when ERDDAP download fails.
         initial_backoff_s: Initial backoff delay in seconds before retrying.
 
     Returns:
         DataFrame from Argo data
 
+    Raises:
+        LookupError if data cannot be retrieved.
+
     """
-    # Try erddap with exponential backoff
-    for attempt in range(1, max_retries + 1):
+    data_target = (
+        f"Argo float data for {region} between {time_window[0].isoformat()} and "
+        f"{time_window[1].isoformat()}"
+    )
+
+    # Download from ERDDAP with exponential backoff
+    for attempt in range(1, max_attempts + 1):
         try:
-            fetcher = DataFetcher().region(region + time_window)
-        except Exception as exc:
-            logger.info("Failed to fetch Argo data from ERDDAP: %s", type(exc))
-            error_str = str(exc)
-            is_500 = "500" in error_str
-            is_503 = "503" in error_str
+            return DataFetcher().region(region + time_window).to_dataframe()
+        except (FileNotFoundError, TimeoutError) as exc:
+            # Annoyingly, both 50x errors and 404 errors raise a FileNotFoundError and
+            # the error message does not contain the HTTP status code so we need to
+            # retry both cases.
+            logger.warning(
+                "Downloading %s attempt %d/%d failed.",
+                data_target,
+                attempt,
+                max_attempts,
+            )
+            if attempt >= max_attempts:
+                msg = f"{data_target} is unavailable."
+                raise LookupError(msg) from exc
+            backoff = initial_backoff_s * (2 ** (attempt - 1))
+            logger.info("Retrying download in %.1fs.", backoff)
+            time.sleep(backoff)
+        except NoData as exc:
+            msg = f"{data_target} is unavailable."
+            logger.warning(msg)
+            raise LookupError(msg) from exc
 
-            # Retry on 503 or 500 errors, with exponential backoff
-            if (is_503 or is_500) and attempt < max_retries:
-                backoff = initial_backoff_s * (2 ** (attempt - 1))
-
-                msg = (
-                    f"ERDDAP data server unavailable, retrying in {backoff:.1f}s "
-                    f"(attempt {attempt}/{max_retries})"
-                )
-                logger.warning(msg)
-                time.sleep(backoff)
-                continue
-
-            # Otherwise raise an exception
-            if is_500:
-                msg = f"ERDDAP data server failed with 500 after {max_retries} retries. Error: {error_str}"
-                raise RuntimeError(msg) from exc
-            if is_503:
-                msg = f"ERDDAP data server failed with 503 after {max_retries} retries. Error: {error_str}"
-                raise RuntimeError(msg) from exc
-            raise
-        else:
-            # If we successfully fetched the data, attempt to return it as a DataFrame
-            try:
-                msg = f"Successfully fetched data from erddap on attempt {attempt}"
-                logger.debug(msg)
-                return fetcher.to_dataframe()
-            except FileNotFoundError:
-                msg = f"Failed to load data for {region} and {time_window}. Check whether the data exists at https://erddap.ifremer.fr/erddap/tabledap/ArgoFloats.html"
-                logger.warning(msg)
-
-    # Return empty DataFrame if file not found (e.g., no data for that region/time)
-    return DataFrame()
+    # Raise an error if all retries have failed
+    msg = f"{data_target} could not be downloaded after {max_attempts} attempts."
+    raise LookupError(msg)
