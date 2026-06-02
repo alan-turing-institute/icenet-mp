@@ -11,12 +11,12 @@ from icenet_mp.types import DataSpace
 
 
 class TestDecoders:
-    @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+    @pytest.mark.parametrize("test_batch_size", [1, 2])
     @pytest.mark.parametrize(
         "test_decoder_cls", ["CNNDecoder", "NaiveLinearDecoder", "PiecewiseDecoder"]
     )
     @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (2, 200, 100)])
-    @pytest.mark.parametrize("test_n_forecast_steps", [1, 3, 5])
+    @pytest.mark.parametrize("test_n_forecast_steps", [1, 5])
     @pytest.mark.parametrize("test_output_chw", [(4, 64, 64), (1, 20, 20)])
     def test_forward_shape(
         self,

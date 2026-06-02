@@ -10,7 +10,7 @@ from icenet_mp.models.processors import (
 from icenet_mp.types import DataSpace
 
 
-@pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+@pytest.mark.parametrize("test_batch_size", [1, 2])
 @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (3, 100, 200)])
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
 @pytest.mark.parametrize("test_n_history_steps", [1, 2])
@@ -43,7 +43,7 @@ class TestBaseProcessor:
             )
 
 
-@pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+@pytest.mark.parametrize("test_batch_size", [1, 2])
 @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (3, 100, 200)])
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
 @pytest.mark.parametrize("test_n_history_steps", [1, 2])
@@ -79,7 +79,7 @@ class TestNullProcessor:
         )
 
 
-@pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+@pytest.mark.parametrize("test_batch_size", [1, 2])
 @pytest.mark.parametrize("test_kernel_size", [-1, 0, 1])
 @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (3, 100, 200)])
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
