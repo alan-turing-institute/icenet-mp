@@ -160,7 +160,7 @@ class TestOnTestEnd:
 
 
 class TestMetricCalculations:
-    """Tests for on_test_end method."""
+    """Tests for per-forecast-day metric calculation correctness."""
 
     def test_calculates_mean_mae_daily_correctly(self) -> None:
         """Test that MAE daily is calculated correctly."""

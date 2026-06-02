@@ -98,6 +98,7 @@ def _make_circular_arctic(
     ring_width: float = 6.0,
     noise: float = 0.05,
 ) -> np.ndarray:
+    """Return a synthetic [H, W] sea-ice concentration map with a circular ice ring."""
     # Create a grid of distances from the centre
     cy, cx = (height - 1) / 2.0, (width - 1) / 2.0
     yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing="ij")
