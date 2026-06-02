@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import torch
@@ -75,16 +75,22 @@ class TestOnTestEnd:
         mock_logger = mock_trainer.loggers[0]
         mock_logger.log_metrics.assert_not_called()
 
-    @patch("icenet_mp.callbacks.metric_summary_callback.get_wandb_run")
-    @patch("icenet_mp.callbacks.metric_summary_callback.wandb")
     def test_on_test_end_with_wandb_logger_vector_metric(
         self,
-        mock_wandb: MagicMock,
-        mock_get_wandb_run: MagicMock,
         callback: MetricSummaryCallback,
         mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test on_test_end with WandbLogger and a metric returning a vector."""
+        mock_wandb = MagicMock()
+        mock_get_wandb_run = MagicMock()
+        monkeypatch.setattr(
+            "icenet_mp.callbacks.metric_summary_callback.wandb", mock_wandb
+        )
+        monkeypatch.setattr(
+            "icenet_mp.callbacks.metric_summary_callback.get_wandb_run",
+            mock_get_wandb_run,
+        )
 
         # Mock wandb.Run for isinstance check
         class MockWandbRun:
