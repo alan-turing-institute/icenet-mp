@@ -194,13 +194,24 @@ class DataDownloader:
         try:
             ds_info = InspectZarr()._info(str(self.path_dataset))
             download_in_progress = ds_info.copy_in_progress
+            statistics_ready = ds_info.statistics_ready
             if (copy_flags := ds_info.copy_flags) is not None:
                 download_complete = bool(all(copy_flags))
             elif (build_flags := ds_info.build_flags) is not None:
                 download_complete = len(build_flags) > 0 and bool(all(build_flags))
             else:
-                download_complete = False
-            statistics_ready = ds_info.statistics_ready
+                # Flag arrays are removed after dataset finalisation
+                # We therefore check missing dates against our expectation.
+                expected_missing = set(ds_info.metadata.get("missing_dates", []))
+                actual_missing = (
+                    set(ds_info.dataset.missing)
+                    if ds_info.dataset is not None
+                    else None
+                )
+                if actual_missing is not None:
+                    download_complete = actual_missing == expected_missing
+                else:
+                    download_complete = statistics_ready
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             logger.error(  # noqa: TRY400
                 "Unable to get status for %s at %s.",
