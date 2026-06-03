@@ -12,7 +12,7 @@ def build_zarr(
     zarr_path: Path,
     data_dict: dict[str, Any],
     full_dates: list[datetime.datetime] | None = None,
-    missing_date_strs: list[str] | None = None,
+    missing_dates: list[datetime.datetime] | None = None,
 ) -> Path:
     """Write a minimal anemoi-compatible zarr store without using Create().
 
@@ -51,16 +51,19 @@ def build_zarr(
     latitudes = lat_grid.ravel().astype(np.float64)
     longitudes = lon_grid.ravel().astype(np.float64)
 
-    # Convert dates into timestamps at noon
-    date_timestamps = np.array(
-        [np.datetime64(f"{d.date()}T12:00:00", "s") for d in full_dates],
+    # Convert dates into the format needed by Anemoi
+    full_dates_anemoi = np.array(
+        [np.datetime64(d, "s") for d in full_dates],
         dtype="datetime64[s]",
     )
+    missing_dates_anemoi = [
+        d.isoformat(timespec="seconds") for d in (missing_dates or [])
+    ]
 
     zarr_path.mkdir(parents=True, exist_ok=True)
     z = zarr.open_group(str(zarr_path), mode="w")
     z.create_dataset("data", data=data, chunks=(1, C, 1, H * W))
-    z.create_dataset("dates", data=date_timestamps)
+    z.create_dataset("dates", data=full_dates_anemoi)
     z.create_dataset("latitudes", data=latitudes)
     z.create_dataset("longitudes", data=longitudes)
     z.create_dataset("mean", data=means)
@@ -72,7 +75,7 @@ def build_zarr(
             "field_shape": [H, W],
             "frequency": "24h",
             "variables": variables,
-            "missing_dates": [f"{s[:10]}T12:00:00" for s in (missing_date_strs or [])],
+            "missing_dates": missing_dates_anemoi,
             "flatten_grid": True,
             "ensemble_dimension": 2,
         }
@@ -347,7 +350,9 @@ def mock_data_constant_values(
 
 
 @pytest.fixture(scope="session")
-def mock_data_missing_dates() -> dict[str, dict[str, Any]]:
+def mock_data_missing_dates(
+    dates_as_dt: tuple[datetime.datetime, ...],
+) -> dict[str, dict[str, Any]]:
     """Fixture to create a mock dataset with missing dates for testing."""
     return {
         "coords": {
@@ -364,11 +369,7 @@ def mock_data_missing_dates() -> dict[str, dict[str, Any]]:
             "time": {
                 "dims": ("time",),
                 "attrs": {"standard_name": "time"},
-                "data": [
-                    datetime.datetime(2020, 1, 1, 0, 0, 0),
-                    datetime.datetime(2020, 1, 3, 0, 0, 0),
-                    datetime.datetime(2020, 1, 5, 0, 0, 0),
-                ],
+                "data": [dates_as_dt[0], dates_as_dt[2], dates_as_dt[4]],
             },
         },
         "attrs": {},
@@ -438,7 +439,7 @@ def mock_dataset_missing_dates(
         mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr",
         mock_data_missing_dates,
         full_dates=list(dates_as_dt),
-        missing_date_strs=["2020-01-02", "2020-01-04"],
+        missing_dates=[dates_as_dt[1], dates_as_dt[3]],
     )
 
 
