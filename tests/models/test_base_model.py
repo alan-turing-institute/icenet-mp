@@ -4,7 +4,6 @@ import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from icenet_mp.losses.rmse_loss import RMSELoss
 from icenet_mp.models import BaseModel
 from icenet_mp.types import ModelTestOutput, TensorNTCHW
 
@@ -24,7 +23,9 @@ class FakeDataModel(BaseModel):
         b = next(iter(inputs.values())).shape[0]
         return torch.randn(b, self.t, self.c, self.h, self.w)
 
+
 _DEFAULT_LOSS = OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
+
 
 class TestBaseModel:
     @pytest.mark.parametrize("test_input_chw", [(4, 512, 512), (1, 10, 20)])
@@ -123,7 +124,6 @@ class TestBaseModel:
         # Test loss
         prediction = torch.zeros(1, 1, 1, 1)
         target = torch.ones(1, 1, 1, 1)
-        # assert model.loss(prediction, target) == torch.tensor(1.0)
         result = model.loss(prediction, target)
         assert isinstance(result, torch.Tensor)
         assert result.ndim == 0
