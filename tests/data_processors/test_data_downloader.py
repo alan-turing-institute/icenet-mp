@@ -1,8 +1,8 @@
+import datetime
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock
 
-import anemoi.datasets.create
+import anemoi.datasets.create.tasks
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
@@ -34,52 +34,59 @@ def mock_downloader(tmp_path: Path) -> DataDownloader:
 
 
 @pytest.fixture
-def mock_creator(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Patch anemoi creator_factory to return a MagicMock for testing."""
-    creator = MagicMock()
+def mock_dispatcher(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Patch anemoi TaskDispatcher to return a MagicMock for testing."""
+    dispatcher = MagicMock()
 
-    def mock_factory(name: str, **kwargs: Any) -> MagicMock:
-        """A mock creator factory that captures the task name, config, and path."""
-        creator.task_name = name
-        creator.config = kwargs.get("config")
-        creator.path = kwargs.get("path")
-        return creator
+    def mock_init(creator: object) -> MagicMock:
+        dispatcher.creator = creator
+        return dispatcher
 
-    monkeypatch.setattr(anemoi.datasets.create, "creator_factory", mock_factory)
-    return creator
+    monkeypatch.setattr(anemoi.datasets.create.tasks, "TaskDispatcher", mock_init)
+    return dispatcher
 
 
 class TestDataDownloader:
-    """Verify that DataDownloader delivers the right config and path to the anemoi creator."""
+    """Verify that DataDownloader delivers the right recipe and path to the anemoi creator."""
 
-    def test_initialise_config_and_path_reach_creator(
+    start_date = datetime.datetime(2020, 1, 1)
+    end_date = datetime.datetime(2020, 1, 31)
+    frequency = datetime.timedelta(hours=24)
+
+    def test_initialise_recipe_and_path_reach_creator(
         self,
         mock_downloader: DataDownloader,
-        mock_creator: MagicMock,
+        mock_dispatcher: MagicMock,
     ) -> None:
         mock_downloader.initialise()
-        assert mock_creator.task_name == "init"
-        assert mock_creator.config is mock_downloader.config
-        assert mock_creator.path == str(mock_downloader.path_dataset)
+        mock_dispatcher.task_init.assert_called_once()
+        assert mock_dispatcher.creator.recipe.dates.start == self.start_date
+        assert mock_dispatcher.creator.recipe.dates.end == self.end_date
+        assert mock_dispatcher.creator.recipe.dates.frequency == self.frequency
+        assert mock_dispatcher.creator.path == str(mock_downloader.path_dataset)
 
-    def test_finalise_config_and_path_reach_creator(
+    def test_finalise_recipe_and_path_reach_creator(
         self,
         mock_downloader: DataDownloader,
-        mock_creator: MagicMock,
+        mock_dispatcher: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(mock_downloader, "create_masks", MagicMock())
         mock_downloader.finalise(overwrite=False)
-        assert mock_creator.task_name == "finalise"
-        assert mock_creator.config is mock_downloader.config
-        assert mock_creator.path == str(mock_downloader.path_dataset)
+        mock_dispatcher.task_finalise.assert_called_once()
+        assert mock_dispatcher.creator.recipe.dates.start == self.start_date
+        assert mock_dispatcher.creator.recipe.dates.end == self.end_date
+        assert mock_dispatcher.creator.recipe.dates.frequency == self.frequency
+        assert mock_dispatcher.creator.path == str(mock_downloader.path_dataset)
 
-    def test_load_in_chunks_config_and_path_reach_creator(
+    def test_load_in_chunks_recipe_and_path_reach_creator(
         self,
         mock_downloader: DataDownloader,
-        mock_creator: MagicMock,
+        mock_dispatcher: MagicMock,
     ) -> None:
         mock_downloader.load_in_chunks()
-        assert mock_creator.task_name == "load"
-        assert mock_creator.config is mock_downloader.config
-        assert mock_creator.path == str(mock_downloader.path_dataset)
+        mock_dispatcher.task_load.assert_called_once()
+        assert mock_dispatcher.creator.recipe.dates.start == self.start_date
+        assert mock_dispatcher.creator.recipe.dates.end == self.end_date
+        assert mock_dispatcher.creator.recipe.dates.frequency == self.frequency
+        assert mock_dispatcher.creator.path == str(mock_downloader.path_dataset)
