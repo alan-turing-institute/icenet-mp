@@ -1,7 +1,10 @@
 import pytest
 import torch
+from omegaconf import OmegaConf
 
 from icenet_mp.models import Persistence
+
+_DEFAULT_LOSS = OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
 
 
 class TestPersistence:
@@ -37,6 +40,7 @@ class TestPersistence:
             output_space=output_space,
             optimizer={},
             scheduler={},
+            loss=_DEFAULT_LOSS,
         )
         batch = {
             "input": torch.randn(
@@ -77,6 +81,7 @@ class TestPersistence:
             },
             optimizer={},
             scheduler={},
+            loss=_DEFAULT_LOSS,
         )
         assert model.configure_optimizers() is None, (
             "No optimizer should be initialized"
