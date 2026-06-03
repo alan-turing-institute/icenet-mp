@@ -1,5 +1,6 @@
 import pytest
 import torch
+from hydra.errors import InstantiationException
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.losses.rmse_loss import RMSELoss
@@ -69,7 +70,7 @@ class TestLossConfig:
             {"_target_": "icenet_mp.losses.does_not_exist.FakeLoss"}
         )
         # AFTER
-        with pytest.raises(ImportError):
+        with pytest.raises(InstantiationException):
             FakeDataModel(
                 name="fake data",
                 input_spaces=[cfg_input_space],
