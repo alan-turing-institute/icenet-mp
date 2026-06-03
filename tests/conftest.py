@@ -331,7 +331,7 @@ def mock_data_constant_values(
             "time": {
                 "dims": ("time",),
                 "attrs": {"standard_name": "time"},
-                "data": list(dates_as_dt)[:1],
+                "data": list(dates_as_dt)[:2],
             },
         },
         "attrs": {},
