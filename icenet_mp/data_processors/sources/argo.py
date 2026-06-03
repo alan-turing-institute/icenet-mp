@@ -186,7 +186,7 @@ class ArgoSource(Source):
 def _fetch_argo_dataframe_with_retry(
     region: list[float],
     time_window: list[datetime],
-    max_attempts: int = 5,
+    max_attempts: int = 10,
     initial_backoff_s: float = 0.5,
 ) -> DataFrame:
     """Fetch Argo data with exponential backoff.
