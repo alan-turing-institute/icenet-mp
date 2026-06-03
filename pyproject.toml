@@ -55,6 +55,7 @@ dev = [
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
     "types-cachetools>=6.1.0",
     "types-pyyaml>=6.0.12.20260518",
 ]
@@ -76,26 +77,16 @@ omit= [
   "tests/*",
 ]
 
-[[tool.mypy.overrides]]
-module = [
-    "anemoi.datasets.*",
-    "anemoi.transform.*",
-    "anemoi.utils.*",
-    "argopy.*",
-    "earthkit.*",
-    "fsspec.*",
-    "haversine.*",
-    "icenet.data.sic.*",
-    "imageio_ffmpeg.*",
-    "zarr.*",
-]
-ignore_missing_imports = true
+[tool.mypy]
+disable_error_code = ["import-untyped"]
 
 [tool.pytest.ini_options]
 addopts = [
     "--cov=icenet_mp",
     "--cov-report=term-missing",
     "-vvv",
+    "-n",
+    "auto",
 ]
 testpaths = ["tests"]
 norecursedirs = [

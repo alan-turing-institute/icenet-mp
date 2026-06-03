@@ -6,6 +6,9 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.text import Text
 
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC
 from icenet_mp.visualisations.layout import (
@@ -17,7 +20,29 @@ from icenet_mp.visualisations.layout import (
     set_suptitle_with_box,
 )
 
-from .test_helper_plot_layout import axis_rectangle, rectangles_overlap
+EPSILON: float = 1e-6
+RECTANGLE = tuple[float, float, float, float]  # (Left, Bottom, Right, Top)
+
+
+def axis_rectangle(ax: Axes) -> RECTANGLE:
+    """Return (left, bottom, right, top) in figure-normalised coords [0, 1]."""
+    bbox = ax.get_position()
+    return (bbox.x0, bbox.y0, bbox.x1, bbox.y1)
+
+
+def rectangles_overlap(
+    rect_a: RECTANGLE,
+    rect_b: RECTANGLE,
+    *,
+    epsilon: float = EPSILON,
+) -> bool:
+    """True if two axis-aligned rectangles overlap (with tolerance)."""
+    la, ba, ra, ta = rect_a
+    lb, bb, rb, tb = rect_b
+    separated_h = ra <= lb + epsilon or rb <= la + epsilon
+    separated_v = ta <= bb + epsilon or tb <= ba + epsilon
+    return not (separated_h or separated_v)
+
 
 # Silence Matplotlib animation warning in this test module
 pytestmark = pytest.mark.filterwarnings(
@@ -97,9 +122,7 @@ def test_axes_have_reasonable_gaps(
         axis_rectangle(ax) for ax in colourbar_axes.values() if ax is not None
     )
 
-    def _min_horizontal_gap(
-        a: tuple[float, float, float, float], b: tuple[float, float, float, float]
-    ) -> float:
+    def _min_horizontal_gap(a: RECTANGLE, b: RECTANGLE) -> float:
         la, ba, ra, ta = a
         lb, bb, rb, tb = b
         if ra <= lb:  # a left of b
@@ -156,9 +179,7 @@ def test_y_axis_orientation_for_geographical_data() -> None:
     plt.close(fig)
 
 
-def _text_rectangle(
-    fig: plt.Figure, text_artist: plt.Text
-) -> tuple[float, float, float, float]:
+def _text_rectangle(fig: Figure, text_artist: Text) -> RECTANGLE:
     """Return text bounding box in figure-normalised coords [0, 1]."""
     fig.canvas.draw()
     # Obtain a renderer in a backend-agnostic, mypy-friendly way
