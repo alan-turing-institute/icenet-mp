@@ -4,8 +4,14 @@ from typing import Any
 
 import numpy as np
 import pytest
+import torch
 import zarr
 from omegaconf import DictConfig
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
+    """Restrict PyTorch to a single thread to avoid OpenMP issues under pytest."""
+    torch.set_num_threads(1)
 
 
 def build_zarr(
