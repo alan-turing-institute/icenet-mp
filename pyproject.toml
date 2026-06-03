@@ -56,7 +56,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
-    "types-cachetools>=6.1.0",
+    "types-cachetools>=7.0.0.20260518",
     "types-pyyaml>=6.0.12.20260518",
 ]
 notebooks = [
