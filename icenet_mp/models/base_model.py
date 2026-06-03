@@ -40,7 +40,7 @@ class BaseModel(LightningModule, ABC):
         optimizer: DictConfig,
         output_space: DictConfig,
         scheduler: DictConfig,
-        loss: DictConfig | None = None,
+        loss: DictConfig,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
