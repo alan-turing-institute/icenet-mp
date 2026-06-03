@@ -9,9 +9,7 @@ from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
 from anemoi.datasets.commands.load import Load
 from anemoi.datasets.data import open_dataset
-from anemoi.datasets.data.dataset import Dataset as AnemoiDataset
 from omegaconf import DictConfig, OmegaConf
-from zarr.core import Array as ZarrArray
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
@@ -196,12 +194,10 @@ class DataDownloader:
         try:
             ds_info = InspectZarr()._info(str(self.path_dataset))
             download_in_progress = ds_info.copy_in_progress
-            if isinstance(dataset := ds_info.dataset, AnemoiDataset) and isinstance(
-                array := ds_info.data, ZarrArray
-            ):
-                n_dates_expected = len(dataset.dates) - len(dataset.missing)
-                n_dates_in_zarr = array.nchunks_initialized
-                download_complete = n_dates_expected == n_dates_in_zarr
+            if (copy_flags := ds_info.copy_flags) is not None:
+                download_complete = bool(all(copy_flags))
+            elif (build_flags := ds_info.build_flags) is not None:
+                download_complete = len(build_flags) > 0 and bool(all(build_flags))
             else:
                 download_complete = False
             statistics_ready = ds_info.statistics_ready
