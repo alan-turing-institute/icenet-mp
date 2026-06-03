@@ -25,7 +25,7 @@ class EncodeFitter(BaseModel):
         latent_space: tuple[int, int],
         **kwargs: Any,
     ) -> None:
-        """Initialise an EncodeFitter."""
+        """Initialise an EncodeFitter with a trainable encoder and a disposable decoder."""
         super().__init__(**kwargs)
 
         # Store channel names

@@ -16,7 +16,7 @@ from icenet_mp.compatibility.torch import patch_interpolate_antialias
 from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
-from icenet_mp.models.autoencoders import DecoderFitter, EncodeFitter
+from icenet_mp.models.autoencoders import DecoderFitter, EncodeFitter, ProcessorFitter
 from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
@@ -350,6 +350,25 @@ class ModelService:
         # Train the model
         trainer.fit(
             model=decoder_model,
+            datamodule=self.data_module,
+        )
+
+        # Stage 3: train a processor on the latent space
+        log.info("Preparing to train the processor...")
+        processor_model = ProcessorFitter.from_template(
+            processor=self.config["model"]["processor"],
+            decoder_fitter=decoder_model,
+        )
+        trainer = self.build_trainer(job_type="pretrain", job_stage="processor")
+        log.info(
+            "Starting processor training for %d epochs using %d threads across %d %s device(s).",
+            trainer.max_epochs,
+            torch.get_num_threads(),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
+        )
+        trainer.fit(
+            model=processor_model,
             datamodule=self.data_module,
         )
 

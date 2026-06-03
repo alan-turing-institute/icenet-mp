@@ -12,7 +12,6 @@ from icenet_mp.types import DataSpace, ModelStepOutput, TensorNTCHW
 
 if TYPE_CHECKING:
     from icenet_mp.models.decoders import BaseDecoder
-    from icenet_mp.models.encoders import BaseEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +29,8 @@ class DecoderFitter(BaseModel):
         super().__init__(**kwargs)
 
         # Copy encoders from EncodeFitters, freeze their parameters and register them
-        self.encoder_names: list[str] = [encoder.dataset_name for encoder in encoders]
-        self.encoders: list[BaseEncoder] = [
-            copy.deepcopy(encoder.encoder) for encoder in encoders
-        ]
+        self.encoder_names = [encoder.dataset_name for encoder in encoders]
+        self.encoders = [copy.deepcopy(encoder.encoder) for encoder in encoders]
         for encoder in self.encoders:
             for param in encoder.parameters():
                 param.requires_grad = False
