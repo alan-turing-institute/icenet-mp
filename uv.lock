@@ -134,7 +134,7 @@ wheels = [
 
 [[package]]
 name = "anemoi-transform"
-version = "0.1.27"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anemoi-utils" },
@@ -146,14 +146,14 @@ dependencies = [
     { name = "healpy" },
     { name = "pandas" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/b3/f6a981138246bca158069324c60036f50d8eecfcd88ce968e0c471c1dc3e/anemoi_transform-0.1.27.tar.gz", hash = "sha256:0ab0f8d3d09594f11d5e416327e7f1fc36f0834f78b065d0f4966144e8323452", size = 188740, upload-time = "2026-02-27T10:49:18.99Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/37/af/603d610bef7919c428052dafecc786ac3de2f62c9b34a3b40df40b9105d0/anemoi_transform-0.4.0.tar.gz", hash = "sha256:bb17813b7f1a789f82cdfa9f0889b164cf17538ba07dffa11cb3bf6db21ff262", size = 199451, upload-time = "2026-05-26T09:11:13.235Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/ed/44ad5fa77999618ac372887e60f380ec621f98192ffd00a849c6f35f5835/anemoi_transform-0.1.27-py3-none-any.whl", hash = "sha256:306ab92fbc25ab867b263e4ac551c4a853cf059d2ec3cede44e993c8bd9b04a1", size = 142797, upload-time = "2026-02-27T10:49:17.667Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/69/be4257fdbd711aec45cfc25d25ec18205a64c515b405811a498dc8f78cb3/anemoi_transform-0.4.0-py3-none-any.whl", hash = "sha256:ad54d30e4659a25e2cccff8a318216fca267d4192d03d8be85b02c15474ad939", size = 155204, upload-time = "2026-05-26T09:11:11.846Z" },
 ]
 
 [[package]]
 name = "anemoi-utils"
-version = "0.5.0"
+version = "0.5.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aniso8601" },
@@ -168,9 +168,9 @@ dependencies = [
     { name = "rich" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c2/6f/08aedc4e745ca64f06e4fc23df844793a84cc0f8446ab69fa5fc18d5bf83/anemoi_utils-0.5.0.tar.gz", hash = "sha256:8047cc893e4a9c3ef6119795062a90ffcb9129ec5b96c5ab0b234fe53a34a61f", size = 146794, upload-time = "2026-02-10T14:05:58.511Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/29/fe3b0b7fd992c00cc512e531fb7ca9a79c564e145d364125b24dbea1d755/anemoi_utils-0.5.4.tar.gz", hash = "sha256:d4d636a439a1346fa0d73bddff4a9eec053ba79bfc3871ac4af22c31b278204c", size = 159376, upload-time = "2026-06-03T15:36:32.304Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/9d/e40db2217669e098c61b0c365ade408ea19652f5dfe4816202275abd80a8/anemoi_utils-0.5.0-py3-none-any.whl", hash = "sha256:6cb95ba40300501400285510b8271bf4e1646fd21c54a3a9c2aa40ced633e006", size = 93828, upload-time = "2026-02-10T14:05:57.562Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/dc/c3ce3660ffc231d2df8889db56b5924eb07d166e19d3ea3a6656819312fb/anemoi_utils-0.5.4-py3-none-any.whl", hash = "sha256:1116c4690e0e93e75a692460fdfc0fbd497dd42bf4bea8cb9d624fb1c458ba83", size = 98090, upload-time = "2026-06-03T15:36:31.263Z" },
 ]
 
 [[package]]
@@ -1835,7 +1835,7 @@ notebooks = [
 [package.metadata]
 requires-dist = [
     { name = "anemoi-datasets", specifier = ">=0.5.27" },
-    { name = "anemoi-transform", specifier = ">=0.1.16" },
+    { name = "anemoi-transform", specifier = ">=0.4.0" },
     { name = "anemoi-utils", specifier = ">=0.4.42" },
     { name = "argopy", specifier = ">=1.4.0" },
     { name = "cachetools", specifier = ">=6.1.0" },
