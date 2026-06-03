@@ -8,9 +8,10 @@ from omegaconf import DictConfig
 
 from icenet_mp.models import BaseModel
 from icenet_mp.models.autoencoders.decoder_fitter import DecoderFitter
-from icenet_mp.types import TensorNTCHW
+from icenet_mp.types import ModelStepOutput, TensorNTCHW
 
 if TYPE_CHECKING:
+    from icenet_mp.models.encoders import BaseEncoder
     from icenet_mp.models.processors import BaseProcessor
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,19 @@ class ProcessorFitter(BaseModel):
             for param in encoder.parameters():
                 param.requires_grad = False
             self.add_module(encoder.name, encoder)
+
+        # Identify which encoder to use to encode the target if needed
+        try:
+            target_encoder_idx = self.encoder_names.index(decoder_fitter.target_name)
+        except ValueError:
+            msg = (
+                f"Target dataset '{decoder_fitter.target_name}' has no corresponding "
+                f"encoder in {self.encoder_names}. ProcessorFitter requires an "
+                "appropriate encoder for the target dataset to support latent-space "
+                "losses."
+            )
+            raise ValueError(msg) from None
+        self.target_encoder: BaseEncoder = self.encoders[target_encoder_idx]
 
         # Copy combined latent space from DecoderFitter
         combined_latent_space = decoder_fitter.decoder.data_space_in
@@ -71,19 +85,78 @@ class ProcessorFitter(BaseModel):
             scheduler=copy.deepcopy(decoder_fitter.scheduler_cfg),
         )
 
+    def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+        """Encode all input datasets and concatenate along the channel dimension."""
+        latent_inputs: list[TensorNTCHW] = [
+            encoder.rollout(inputs[encoder.name]) for encoder in self.encoders
+        ]
+        return torch.cat(latent_inputs, dim=2)
+
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Forward step of the model.
+        """Forward step of the model (used for inference and the standard decode path).
 
         - encode each input with frozen encoder.rollout() -> NTCHW latents
         - concatenate latents along the channel dimension
         - process in latent space with trainable processor.rollout() -> NTCHW
         - decode with frozen decoder.rollout() -> output space NTCHW
         """
-        latent_inputs: list[TensorNTCHW] = [
-            encoder.rollout(inputs[encoder.name]) for encoder in self.encoders
-        ]
-        latent_input_combined: TensorNTCHW = torch.cat(latent_inputs, dim=2)
+        combined_latent: TensorNTCHW = self.encode_inputs(inputs)
         latent_output: TensorNTCHW = self.processor.rollout(
-            latent_input_combined, inputs.get("target")
+            combined_latent, inputs.get("target")
         )
         return self.decoder.rollout(latent_output)
+
+    def training_step(
+        self,
+        batch: dict[str, TensorNTCHW],
+        _batch_idx: int,
+    ) -> ModelStepOutput:
+        """Run the training step.
+
+        If the processor implements compute_loss, both inputs and target are encoded into
+        latent space and the processor's custom loss is used for backpropagation. The
+        decoded prediction is still computed (under no_grad) so that metrics and callbacks
+        remain meaningful.
+
+        Otherwise, the standard encode→process→decode path is used and the loss is
+        computed by comparing the decoded prediction to the target.
+
+        Args:
+            batch: Dictionary with one NTCHW entry per input dataset (n_history_steps)
+                   and a "target" entry (n_forecast_steps).
+
+        Returns:
+            A ModelStepOutput containing the prediction, target and loss.
+
+        """
+        target = batch["target"].clone().detach()
+        combined_latent = self.encode_inputs(batch)
+
+        # See whether the process implements a custom loss
+        target_latent = self.target_encoder.rollout(target)
+        loss = self.processor.custom_loss(combined_latent, target_latent)
+
+        if loss is not None:
+            # Custom loss path: processor owns the training signal.
+            # Decode under no_grad for metrics/callbacks only.
+            with torch.no_grad():
+                prediction = self.decoder.rollout(
+                    self.processor.rollout(combined_latent)
+                )
+        else:
+            # Standard path: compare decoded output to target.
+            prediction = self.decoder.rollout(self.processor.rollout(combined_latent))
+            loss = self.loss(prediction, target)
+
+        # Log metrics; computation will be done at epoch end
+        self.log(
+            "train_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.train_metrics.update(prediction, target)
+
+        return ModelStepOutput(prediction, target, loss)

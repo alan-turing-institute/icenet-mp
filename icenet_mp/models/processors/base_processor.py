@@ -1,4 +1,4 @@
-from torch import nn, stack
+from torch import Tensor, nn, stack
 
 from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
 
@@ -25,6 +25,24 @@ class BaseProcessor(nn.Module):
         self.data_space = data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
+
+    def custom_loss(self, x: TensorNTCHW, y: TensorNTCHW) -> Tensor | None:  # noqa: ARG002
+        """Compute a custom training loss in latent space.
+
+        Processors, like diffusion models, that compute loss internally should override
+        this method.
+
+        Args:
+            x: Combined latent history TensorNTCHW with (batch_size, n_history_steps,
+               n_latent_channels_total, latent_height, latent_width)
+            y: Encoded target TensorNTCHW with (batch_size, n_forecast_steps,
+               n_latent_channels_total, latent_height, latent_width)
+
+        Returns:
+            A loss Tensor, or None to use loss computed on the decoded output.
+
+        """
+        return None
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: process in NCHW latent space for a single timestep.
