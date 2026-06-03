@@ -13,6 +13,7 @@ from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
+    AnemoiDatasetStatus,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
     AnemoiInspectArgs,
@@ -41,6 +42,41 @@ class DataDownloader:
         self.config: DictConfig = OmegaConf.to_object(config["data"]["datasets"][name])  # type: ignore[assignment]
         self.preprocessor = cls_preprocessor(self.config)
 
+    def check_status(self) -> AnemoiDatasetStatus:
+        """Return the status of the dataset."""
+        try:
+            ds_info = InspectZarr()._info(str(self.path_dataset))
+            is_finalised = ds_info.statistics_ready
+            if (copy_flags := ds_info.copy_flags) is not None:
+                download_complete = bool(all(copy_flags))
+            elif (build_flags := ds_info.build_flags) is not None:
+                download_complete = len(build_flags) > 0 and bool(all(build_flags))
+            else:
+                # Flag arrays are removed after dataset finalisation
+                # We therefore check missing dates against our expectation.
+                expected_missing = set(ds_info.metadata.get("missing_dates", []))
+                actual_missing = (
+                    set(ds_info.dataset.missing)
+                    if ds_info.dataset is not None
+                    else None
+                )
+                if actual_missing is not None:
+                    download_complete = actual_missing == expected_missing
+                else:
+                    download_complete = is_finalised
+        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+            logger.error(  # noqa: TRY400
+                "Unable to get status for %s at %s.",
+                self.name,
+                self.path_dataset,
+            )
+            raise typer.Exit(1) from exc
+        return AnemoiDatasetStatus(
+            copy_in_progress=ds_info.copy_in_progress,
+            download_complete=download_complete,
+            is_finalised=is_finalised,
+        )
+
     def create(self, *, overwrite: bool = False) -> None:
         """Ensure that a single Anemoi dataset exists."""
         # If we are overwriting we delete any existing dataset
@@ -54,9 +90,9 @@ class DataDownloader:
 
         # Otherwise we check whether a valid dataset exists
         elif self.path_dataset.exists():
-            download_in_progress, download_complete, statistics_ready = self.status()
+            status = self.check_status()
             # The dataset is being downloaded
-            if download_in_progress:
+            if status.copy_in_progress:
                 logger.warning(
                     "Dataset %s at %s is currently being downloaded by another process.",
                     self.name,
@@ -64,10 +100,9 @@ class DataDownloader:
                 )
                 return
             # If the download is complete then check whether the dataset is valid
-            if download_complete:
-                # If the statistics are not ready we should finalise
-                if not statistics_ready:
-                    self.finalise(overwrite=overwrite)
+            if status.download_complete:
+                # Attempt to finalise, creating masks if necessary
+                self.finalise(overwrite=overwrite, status=status)
 
                 # Inspect the dataset for validity
                 try:
@@ -100,33 +135,33 @@ class DataDownloader:
         self.initialise()
         # Load in parts
         self.load_in_chunks()
-        # Finalise if the status indicates the dataset is complete
-        download_in_progress, download_complete, statistics_ready = self.status()
-        if download_complete and not download_in_progress:
-            if statistics_ready:
-                self.generate_masks(overwrite=overwrite)
-            else:
-                self.finalise(overwrite=overwrite)
+        # Attempt to finalise, creating masks if necessary
+        status = self.check_status()
+        if status.copy_in_progress:
+            logger.warning(
+                "Dataset %s at %s is still being copied by another process, skipping finalise.",
+                self.name,
+                self.path_dataset,
+            )
+        elif status.download_complete:
+            self.finalise(overwrite=overwrite, status=status)
         else:
             logger.warning(
                 "Dataset %s at %s is not fully loaded, skipping finalise.",
                 self.name,
                 self.path_dataset,
             )
-            if not download_complete:
-                logger.info("Not all files have been downloaded.")
-            if download_in_progress:
-                logger.info("Dataset is still being downloaded by another process.")
 
-    def finalise(self, *, overwrite: bool) -> None:
+    def finalise(self, *, overwrite: bool, status: AnemoiDatasetStatus) -> None:
         """Finalise the segmented Anemoi dataset."""
-        Finalise().run(
-            AnemoiFinaliseArgs(
-                path=str(self.path_dataset),
-                config=self.config,
+        if not status.is_finalised:
+            Finalise().run(
+                AnemoiFinaliseArgs(
+                    path=str(self.path_dataset),
+                    config=self.config,
+                )
             )
-        )
-        logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
+            logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
 
         # create active grid cell and land masks for the SSMIS dataset
         self.generate_masks(overwrite=overwrite)
@@ -237,36 +272,3 @@ class DataDownloader:
                 config=self.config,
             )
         )
-
-    def status(self) -> tuple[bool, bool, bool]:
-        """Return a tuple indicating whether the dataset exists and whether it is complete."""
-        try:
-            ds_info = InspectZarr()._info(str(self.path_dataset))
-            download_in_progress = ds_info.copy_in_progress
-            statistics_ready = ds_info.statistics_ready
-            if (copy_flags := ds_info.copy_flags) is not None:
-                download_complete = bool(all(copy_flags))
-            elif (build_flags := ds_info.build_flags) is not None:
-                download_complete = len(build_flags) > 0 and bool(all(build_flags))
-            else:
-                # Flag arrays are removed after dataset finalisation
-                # We therefore check missing dates against our expectation.
-                expected_missing = set(ds_info.metadata.get("missing_dates", []))
-                actual_missing = (
-                    set(ds_info.dataset.missing)
-                    if ds_info.dataset is not None
-                    else None
-                )
-                if actual_missing is not None:
-                    download_complete = actual_missing == expected_missing
-                else:
-                    download_complete = statistics_ready
-        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
-            logger.error(  # noqa: TRY400
-                "Unable to get status for %s at %s.",
-                self.name,
-                self.path_dataset,
-            )
-            raise typer.Exit(1) from exc
-        return (download_in_progress, download_complete, statistics_ready)
-

@@ -7,6 +7,14 @@ from omegaconf import DictConfig, OmegaConf
 from .typedefs import DiffMode, DiffStrategy
 
 
+class AnemoiDatasetStatus(NamedTuple):
+    """Status of an Anemoi dataset."""
+
+    copy_in_progress: bool
+    download_complete: bool
+    is_finalised: bool
+
+
 @dataclass
 class AnemoiFinaliseArgs:
     """Arguments for anemoi finalise."""
