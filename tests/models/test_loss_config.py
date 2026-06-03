@@ -40,3 +40,23 @@ class TestLossConfig:
                 scheduler=DictConfig({}),
                 # loss intentionally omitted
             )
+
+        # 2. Initialising with loss X creates a model that uses loss X
+        @pytest.mark.parametrize("loss_name", list(LOSS_CONFIGS.keys()))
+        @staticmethod
+        def test_loss_type(
+            loss_name: str,
+            cfg_input_space: DictConfig,
+            cfg_output_space: DictConfig,
+        ) -> None:
+            model = FakeDataModel(
+                name="fake data",
+                input_spaces=[cfg_input_space],
+                n_forecast_steps=1,
+                n_history_steps=1,
+                output_space=cfg_output_space,
+                optimizer=DictConfig({}),
+                scheduler=DictConfig({}),
+                loss=LOSS_CONFIGS[loss_name],
+            )
+            assert isinstance(model._loss_fn, LOSS_TYPES[loss_name])
