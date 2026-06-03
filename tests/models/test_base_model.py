@@ -84,6 +84,7 @@ class TestBaseModel:
                     output_space=output_space,
                     optimizer=DictConfig({}),
                     scheduler=DictConfig({}),
+                    loss=_DEFAULT_LOSS,
                 )
             return
 
