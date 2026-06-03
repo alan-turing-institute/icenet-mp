@@ -43,7 +43,10 @@ def inspect(
     factory = DataDownloaderFactory(config)
     for downloader in factory.downloaders:
         logger.info("Working on %s.", downloader.name)
-        downloader.inspect(statistics=statistics)
+        try:
+            downloader.inspect(statistics=statistics)
+        except RuntimeError:
+            logger.error("Inspecting %s failed, skipping.", downloader.name)  # noqa: TRY400
 
 
 @datasets_cli.command("masks")

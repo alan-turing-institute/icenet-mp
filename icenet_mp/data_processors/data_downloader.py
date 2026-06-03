@@ -77,7 +77,7 @@ class DataDownloader:
                         self.name,
                         self.path_dataset,
                     )
-                except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+                except RuntimeError as exc:
                     # If the dataset is invalid we flag this to the user and exit
                     logger.error(  # noqa: TRY400
                         "Dataset %s at %s seems to be invalid. Please check manually.",
@@ -146,13 +146,10 @@ class DataDownloader:
                 )
             )
             logger.info("Initialised dataset %s at %s.", self.name, self.path_dataset)
-        except (AttributeError, FileNotFoundError, PathNotFoundError):
-            logger.exception(
-                "Failed to initialise dataset %s at %s.",
-                self.name,
-                self.path_dataset,
-            )
-            raise
+        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+            msg = f"Failed to initialise dataset {self.name} at {self.path_dataset}."
+            logger.exception(msg)
+            raise RuntimeError(msg) from exc
 
     def inspect(
         self,
@@ -174,14 +171,12 @@ class DataDownloader:
                         size=size,
                     )
                 )
-            except (AttributeError, FileNotFoundError, PathNotFoundError):
-                logger.error(  # noqa: TRY400
-                    "Failed to load dataset %s at %s.",
-                    self.name,
-                    self.path_dataset,
-                )
+            except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+                msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
+                raise RuntimeError(msg) from exc
         else:
-            logger.error("Dataset %s not found at %s.", self.name, self.path_dataset)
+            msg = f"Dataset {self.name} not found at {self.path_dataset}"
+            raise RuntimeError(msg)
 
     def load_in_chunks(self) -> None:
         """Download a single Anemoi dataset in chunks, skipping those already present."""
