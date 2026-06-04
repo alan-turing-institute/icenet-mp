@@ -36,7 +36,6 @@ class EncodeProcessDecode(BaseModel):
                     latent_space=encoders["latent_space"],
                     latitudes_fn=self.latitudes_fn,
                     longitudes_fn=self.longitudes_fn,
-                    n_history_steps=self.n_history_steps,
                 )
                 for input_space in self.input_spaces
             ]

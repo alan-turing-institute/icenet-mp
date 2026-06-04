@@ -38,7 +38,6 @@ class EncodeFitter(BaseModel):
             latent_space=latent_space,
             latitudes_fn=self.latitudes_fn,
             longitudes_fn=self.longitudes_fn,
-            n_history_steps=self.n_history_steps,
         )
 
         # Decode from the latent space back to the original input space
