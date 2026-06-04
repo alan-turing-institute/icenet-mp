@@ -45,7 +45,6 @@ class EncodeFitter(BaseModel):
             decoder,
             data_space_in=self.encoder.data_space_out,
             data_space_out=self.encoder.data_space_in,
-            n_forecast_steps=self.n_forecast_steps,
         )
 
     @property

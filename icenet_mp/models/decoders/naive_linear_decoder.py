@@ -13,10 +13,10 @@ class NaiveLinearDecoder(BaseDecoder):
     """Naive, linear decoder that takes data in a latent space and translates it to a larger output space.
 
     Latent space:
-        TensorNTCHW with (batch_size, n_forecast_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
 
     Output space:
-        TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
+        TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
     def __init__(self, *, bounded: bool = False, **kwargs: Any) -> None:

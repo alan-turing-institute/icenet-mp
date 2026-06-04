@@ -54,7 +54,6 @@ class DecoderFitter(BaseModel):
             decoder,
             data_space_in=combined_latent_space,
             data_space_out=target_space,
-            n_forecast_steps=self.n_forecast_steps,
         )
 
     @classmethod

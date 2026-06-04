@@ -22,10 +22,10 @@ class PiecewiseDecoder(BaseDecoder):
     - Combine patches into output of size output_height x output_width
 
     Latent space:
-        TensorNTCHW with (batch_size, n_forecast_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
 
     Output space:
-        TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
+        TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
     def __init__(

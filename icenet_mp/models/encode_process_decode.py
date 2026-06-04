@@ -68,7 +68,6 @@ class EncodeProcessDecode(BaseModel):
             decoder,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
-            n_forecast_steps=self.n_forecast_steps,
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
