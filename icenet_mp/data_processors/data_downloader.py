@@ -84,54 +84,48 @@ class DataDownloader:
             )
             shutil.rmtree(self.path_dataset, ignore_errors=True)
 
-        # Otherwise we check whether a valid dataset exists
+        # Otherwise check whether a valid dataset exists
         elif self.path_dataset.exists():
             try:
                 status = self.check_status()
-            except RuntimeError:
-                logger.warning(
-                    "Dataset %s at %s is in an unreadable state, likely from an interrupted "
-                    "initialisation. Removing and re-downloading.",
+            except RuntimeError as exc:
+                # If we cannot get the status, we ask the user for a manual check
+                logger.error(  # noqa: TRY400
+                    "Dataset %s at %s is in an unreadable state. Please check manually.",
                     self.name,
                     self.path_dataset,
                 )
-                shutil.rmtree(self.path_dataset, ignore_errors=True)
-                self.download(overwrite=overwrite)
-                return
-            # The dataset is being downloaded
-            if status.copy_in_progress:
-                logger.warning(
-                    "Dataset %s at %s is currently being downloaded by another process.",
-                    self.name,
-                    self.path_dataset,
-                )
-                return
-            # If the download is complete then check whether the dataset is valid
-            if status.download_complete:
-                # Attempt to finalise, creating masks if necessary
-                self.finalise(overwrite=overwrite, status=status)
-
-                # Inspect the dataset for validity
-                try:
-                    self.inspect()
+                raise typer.Exit(1) from exc
+            else:
+                if status.copy_in_progress:
+                    # If the dataset is being written to, we exit without error
+                    logger.warning(
+                        "Dataset %s at %s is currently being downloaded by another process.",
+                        self.name,
+                        self.path_dataset,
+                    )
+                    return
+                if status.download_complete:
+                    self.finalise(overwrite=overwrite, status=status)
+                    try:
+                        self.inspect()
+                    except RuntimeError as exc:
+                        # If inspection fails here we ask the user for a manual check
+                        logger.error(  # noqa: TRY400
+                            "Dataset %s at %s seems to be invalid. Please check manually.",
+                            self.name,
+                            self.path_dataset,
+                        )
+                        raise typer.Exit(1) from exc
+                    # At this point we have a valid dataset so we exit without error
                     logger.info(
                         "Dataset %s at %s has been downloaded and seems to be valid.",
                         self.name,
                         self.path_dataset,
                     )
-                except RuntimeError as exc:
-                    # If the dataset is invalid we flag this to the user and exit
-                    logger.error(  # noqa: TRY400
-                        "Dataset %s at %s seems to be invalid. Please check manually.",
-                        self.name,
-                        self.path_dataset,
-                    )
-                    raise typer.Exit(1) from exc
-                else:
-                    # If the dataset is valid we return here
                     return
 
-        # Download the dataset
+        # At this point there is no dataset at the requested path so we download to it
         self.download(overwrite=overwrite)
 
     def download(self, *, overwrite: bool) -> None:
@@ -241,7 +235,7 @@ class DataDownloader:
             logger.info("Initialised dataset %s at %s.", self.name, self.path_dataset)
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             msg = f"Failed to initialise dataset {self.name} at {self.path_dataset}."
-            logger.exception(msg)
+            logger.error(msg)  # noqa: TRY400
             raise RuntimeError(msg) from exc
 
     def inspect(
