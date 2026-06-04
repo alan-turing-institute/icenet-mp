@@ -45,26 +45,33 @@ class DataDownloader:
         """Return the status of the dataset."""
         try:
             ds_info = InspectZarr()._info(str(self.path_dataset))
-            # Start by trying to check copy/build flags
-            if (copy_flags := ds_info.copy_flags) is not None:
-                download_complete = bool(all(copy_flags))
-            elif (build_flags := ds_info.build_flags) is not None:
-                download_complete = len(build_flags) > 0 and bool(all(build_flags))
-            # If the dataset is missing then download cannot be complete
-            elif ds_info.dataset is None:
+            copy_in_progress = ds_info.copy_in_progress
+            statistics_ready = ds_info.statistics_ready
+            if ds_info.dataset is None:
+                # ... if there is no dataset object then the download is incomplete
                 download_complete = False
-            # Fallback to checking missing dates
+            elif copy_in_progress:
+                # If a copy is in progress then the download is incomplete
+                download_complete = False
+            elif (build_flags := ds_info.build_flags) is not None:
+                # If build flags are present and all true then the download is complete
+                download_complete = len(build_flags) > 0 and bool(all(build_flags))
+            elif ds_info.statistics_started is not None:
+                # If statistics generation has started then the download is complete
+                download_complete = True
             else:
-                expected_missing = set(ds_info.metadata.get("missing_dates", []))
-                actual_missing = set(ds_info.dataset.missing)
-                download_complete = actual_missing == expected_missing
+                msg = (
+                    f"Unable to determine readiness status for dataset {self.name} at "
+                    f"{self.path_dataset}. Please check manually."
+                )
+                raise RuntimeError(msg)
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             msg = f"Unable to get status for {self.name} at {self.path_dataset}"
             raise RuntimeError(msg) from exc
         return AnemoiDatasetStatus(
-            copy_in_progress=ds_info.copy_in_progress,
+            copy_in_progress=copy_in_progress,
             download_complete=download_complete,
-            is_finalised=download_complete and ds_info.statistics_ready,
+            is_finalised=download_complete and statistics_ready,
         )
 
     def create(self, *, overwrite: bool = False) -> None:
