@@ -241,23 +241,26 @@ class DataDownloader:
     def inspect(
         self,
         *,
-        detailed: bool = True,
-        size: bool = True,
         statistics: bool = False,
+        verbose: bool = False,
     ) -> None:
         """Inspect an Anemoi dataset."""
-        logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
         if self.path_dataset.exists():
             try:
-                InspectZarr().run(
-                    AnemoiInspectArgs(
-                        path=str(self.path_dataset),
-                        detailed=detailed,
-                        progress=(not detailed),
-                        statistics=statistics,
-                        size=size,
+                if verbose:
+                    InspectZarr().run(
+                        AnemoiInspectArgs(
+                            path=str(self.path_dataset),
+                            detailed=True,
+                            progress=False,
+                            statistics=statistics,
+                            size=True,
+                        )
                     )
-                )
+                else:
+                    ds_info = InspectZarr()._info(str(self.path_dataset))
+                    ds_info.describe()
+                    ds_info.progress()
             except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
                 msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
                 raise RuntimeError(msg) from exc
