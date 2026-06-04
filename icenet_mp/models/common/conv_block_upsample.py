@@ -47,7 +47,7 @@ class ConvBlockUpsample(nn.Module):
             # Size increasing upsample/normalisation/activation that maintains channels
             WeightedUpsample(in_channels, upsample_factor=2),
             normalisation_from_name(norm_type, in_channels),
-            ACTIVATION_FROM_NAME[activation](inplace=True),
+            ACTIVATION_FROM_NAME[activation](),
             *(
                 # Size preserving convolution/normalisation/activation
                 # Final block also changes channels to out_channels
