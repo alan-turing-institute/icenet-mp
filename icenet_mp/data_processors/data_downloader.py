@@ -227,7 +227,6 @@ class DataDownloader:
     def inspect(
         self,
         *,
-        statistics: bool = False,
         verbose: bool = False,
     ) -> None:
         """Inspect an Anemoi dataset."""
@@ -239,7 +238,7 @@ class DataDownloader:
                             path=str(self.path_dataset),
                             detailed=True,
                             progress=False,
-                            statistics=statistics,
+                            statistics=False,  # recalculate statistics on-the-fly
                             size=True,
                         )
                     )

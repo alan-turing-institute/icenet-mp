@@ -39,9 +39,6 @@ def create(
 def inspect(
     config: DictConfig,
     *,
-    statistics: Annotated[
-        bool, typer.Option(help="Recalculate dataset statistics")
-    ] = False,
     verbose: Annotated[
         bool, typer.Option(help="Show detailed dataset information")
     ] = False,
@@ -51,7 +48,7 @@ def inspect(
     for downloader in factory.downloaders:
         logger.info("Inspecting dataset %s.", downloader.name)
         try:
-            downloader.inspect(statistics=statistics, verbose=verbose)
+            downloader.inspect(verbose=verbose)
         except RuntimeError:
             logger.error("Inspecting dataset %s failed, skipping.", downloader.name)  # noqa: TRY400
 
