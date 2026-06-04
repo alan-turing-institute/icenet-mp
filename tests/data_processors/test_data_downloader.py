@@ -7,6 +7,7 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.data_processors.data_downloader import DataDownloader
+from icenet_mp.types import AnemoiDatasetStatus
 
 
 @pytest.fixture
@@ -68,8 +69,11 @@ class TestDataDownloader:
         mock_creator: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(mock_downloader, "create_masks", MagicMock())
-        mock_downloader.finalise(overwrite=False)
+        monkeypatch.setattr(mock_downloader, "generate_masks", MagicMock())
+        status = AnemoiDatasetStatus(
+            copy_in_progress=False, download_complete=True, is_finalised=False
+        )
+        mock_downloader.finalise(overwrite=False, status=status)
         assert mock_creator.task_name == "finalise"
         assert mock_creator.config is mock_downloader.config
         assert mock_creator.path == str(mock_downloader.path_dataset)
