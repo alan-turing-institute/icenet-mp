@@ -94,7 +94,10 @@ class UNetProcessor(BaseProcessor):
         """
         _, _, h, w = x.shape
         if h % 16 or h <= 16 or w % 16 or w <= 16:  # noqa: PLR2004
-            msg = f"Latent space height and width must be divisible by 16 with a factor more than 1, got {h} and {w}."
+            msg = (
+                f"Latent space height ({h}) and width ({w}) must each be divisible by "
+                f"16 with a factor more than 1."
+            )
             raise ValueError(msg)
 
         # Encoder
