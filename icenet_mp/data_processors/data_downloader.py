@@ -65,12 +65,8 @@ class DataDownloader:
                 else:
                     download_complete = is_finalised
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
-            logger.error(  # noqa: TRY400
-                "Unable to get status for %s at %s.",
-                self.name,
-                self.path_dataset,
-            )
-            raise typer.Exit(1) from exc
+            msg = f"Unable to get status for {self.name} at {self.path_dataset}"
+            raise RuntimeError(msg) from exc
         return AnemoiDatasetStatus(
             copy_in_progress=ds_info.copy_in_progress,
             download_complete=download_complete,
@@ -90,7 +86,18 @@ class DataDownloader:
 
         # Otherwise we check whether a valid dataset exists
         elif self.path_dataset.exists():
-            status = self.check_status()
+            try:
+                status = self.check_status()
+            except RuntimeError:
+                logger.warning(
+                    "Dataset %s at %s is in an unreadable state, likely from an interrupted "
+                    "initialisation. Removing and re-downloading.",
+                    self.name,
+                    self.path_dataset,
+                )
+                shutil.rmtree(self.path_dataset, ignore_errors=True)
+                self.download(overwrite=overwrite)
+                return
             # The dataset is being downloaded
             if status.copy_in_progress:
                 logger.warning(

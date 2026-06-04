@@ -27,7 +27,11 @@ def create(
     factory = DataDownloaderFactory(config)
     for downloader in factory.downloaders:
         logger.info("Working on %s.", downloader.name)
-        downloader.create(overwrite=overwrite)
+        try:
+            downloader.create(overwrite=overwrite)
+        except RuntimeError as exc:
+            logger.error("Failed to create %s: %s", downloader.name, exc)  # noqa: TRY400
+            raise typer.Exit(1) from exc
 
 
 @datasets_cli.command("inspect")
