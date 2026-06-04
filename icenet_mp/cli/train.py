@@ -1,4 +1,6 @@
 import logging
+from pathlib import Path
+from typing import Annotated
 
 import typer
 from omegaconf import DictConfig
@@ -15,10 +17,21 @@ log = logging.getLogger(__name__)
 
 @training_cli.command()
 @hydra_adaptor
-def pretrain(config: DictConfig) -> None:
+def pretrain(
+    config: DictConfig,
+    checkpoint: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "Path to a directory of existing encoder checkpoints. "
+                "Any encoder whose checkpoint ({name}.ckpt) already exists there will skip training."
+            )
+        ),
+    ] = None,
+) -> None:
     """Pretrain an autoencoder model."""
     model = ModelService.from_config(config)
-    model.pretrain()
+    model.pretrain(checkpoint_dir=Path(checkpoint).resolve() if checkpoint else None)
 
 
 @training_cli.command()

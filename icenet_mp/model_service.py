@@ -287,7 +287,7 @@ class ModelService:
             datamodule=self.data_module,
         )
 
-    def pretrain(self) -> None:
+    def pretrain(self, *, checkpoint_dir: Path | None = None) -> None:
         """Pretrain an autoencoder model."""
         if not isinstance(self.model, EncodeProcessDecode):
             msg = "Pretraining is only supported for EncodeProcessDecode models."
@@ -299,6 +299,20 @@ class ModelService:
         # Stage 1: train each encoder separately with a corresponding decoder
         encoder_checkpoint_paths = []
         for encoder in self.model.encoders:
+            if checkpoint_dir is not None and (
+                matches := sorted(
+                    checkpoint_dir.glob(f"{encoder.name}.epoch=*-step=*.ckpt")
+                )
+            ):
+                existing_checkpoint_path = matches[-1]  # take the latest match
+                log.info(
+                    "Using existing checkpoint %s instead of training encoder %s.",
+                    existing_checkpoint_path,
+                    encoder.name,
+                )
+                encoder_checkpoint_paths.append(existing_checkpoint_path)
+                continue
+
             encoder_fitter = EncodeFitter.from_template(
                 channel_names=self.data_module.variable_names[encoder.name],
                 dataset=encoder.name,
