@@ -30,6 +30,7 @@ class CNNEncoder(BaseEncoder):
         activation: str = "ReLU",
         kernel_size: int = 3,
         n_layers: int = 3,
+        n_subblocks: int = 2,
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNEncoder."""
@@ -57,7 +58,10 @@ class CNNEncoder(BaseEncoder):
         for _ in range(n_layers):
             layers.append(
                 ConvBlockDownsample(
-                    n_channels, activation=activation, kernel_size=kernel_size
+                    n_channels,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                    n_subblocks=n_subblocks,
                 )
             )
             logger.debug(

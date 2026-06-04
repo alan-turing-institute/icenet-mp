@@ -33,6 +33,7 @@ class CNNDecoder(BaseDecoder):
         activation: str = "ReLU",
         kernel_size: int = 3,
         n_layers: int = 3,
+        n_subblocks: int = 2,
         bounded: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -85,7 +86,10 @@ class CNNDecoder(BaseDecoder):
         for _ in range(n_layers):
             layers.append(
                 ConvBlockUpsample(
-                    n_channels, activation=activation, kernel_size=kernel_size
+                    n_channels,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                    n_subblocks=n_subblocks,
                 )
             )
             logger.debug(

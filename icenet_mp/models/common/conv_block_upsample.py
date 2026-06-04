@@ -24,6 +24,7 @@ class ConvBlockUpsample(nn.Module):
         *,
         activation: str = "ReLU",
         kernel_size: int = 3,
+        n_subblocks: int = 2,
         norm_type: str = "batchnorm",
         out_channels: int | None = None,
     ) -> None:
@@ -33,6 +34,7 @@ class ConvBlockUpsample(nn.Module):
             in_channels: the number of input channels.
             activation: the activation function to use.
             kernel_size: the size of the convolutional kernel.
+            n_subblocks: the number of ConvNormAct blocks to stack (default 2).
             norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
             out_channels: the number of output channels (if None, half of in_channels).
 
@@ -46,21 +48,17 @@ class ConvBlockUpsample(nn.Module):
             WeightedUpsample(in_channels, upsample_factor=2),
             normalisation_from_name(norm_type, in_channels),
             ACTIVATION_FROM_NAME[activation](inplace=True),
-            # Size preserving convolution/normalisation/activation that maintains channels
-            ConvNormAct(
-                in_channels,
-                in_channels,
-                activation=activation,
-                kernel_size=kernel_size,
-                norm_type=norm_type,
-            ),
-            # Size preserving convolution/normalisation/activation that changes channels
-            ConvNormAct(
-                in_channels,
-                out_channels,
-                activation=activation,
-                kernel_size=kernel_size,
-                norm_type=norm_type,
+            *(
+                # Size preserving convolution/normalisation/activation
+                # Final block also changes channels to out_channels
+                ConvNormAct(
+                    in_channels,
+                    out_channels if idx_subblock == n_subblocks - 1 else in_channels,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                    norm_type=norm_type,
+                )
+                for idx_subblock in range(n_subblocks)
             ),
         )
 
