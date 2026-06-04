@@ -3,7 +3,6 @@ import shutil
 from pathlib import Path
 
 import numpy as np
-import typer
 from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
@@ -84,13 +83,9 @@ class DataDownloader:
             try:
                 status = self.check_status()
             except RuntimeError as exc:
-                # If we cannot get the status, we ask the user for a manual check
-                logger.error(  # noqa: TRY400
-                    "Dataset %s at %s is in an unreadable state. Please check manually.",
-                    self.name,
-                    self.path_dataset,
-                )
-                raise typer.Exit(1) from exc
+                msg = f"Status of dataset {self.name} at {self.path_dataset} could not be determined. Please check manually."
+                logger.error(msg)  # noqa: TRY400
+                raise RuntimeError(msg) from exc
             else:
                 if status.copy_in_progress:
                     # If the dataset is being written to, we exit without error
@@ -105,13 +100,9 @@ class DataDownloader:
                     try:
                         self.inspect()
                     except RuntimeError as exc:
-                        # If inspection fails here we ask the user for a manual check
-                        logger.error(  # noqa: TRY400
-                            "Dataset %s at %s seems to be invalid. Please check manually.",
-                            self.name,
-                            self.path_dataset,
-                        )
-                        raise typer.Exit(1) from exc
+                        msg = f"Dataset {self.name} at {self.path_dataset} could not be inspected. Please check manually."
+                        logger.error(msg)  # noqa: TRY400
+                        raise RuntimeError(msg) from exc
                     # At this point we have a valid dataset so we exit without error
                     logger.info(
                         "Dataset %s at %s has been downloaded and seems to be valid.",
