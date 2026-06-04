@@ -46,31 +46,26 @@ class DataDownloader:
         """Return the status of the dataset."""
         try:
             ds_info = InspectZarr()._info(str(self.path_dataset))
-            is_finalised = ds_info.statistics_ready
+            # Start by trying to check copy/build flags
             if (copy_flags := ds_info.copy_flags) is not None:
                 download_complete = bool(all(copy_flags))
             elif (build_flags := ds_info.build_flags) is not None:
                 download_complete = len(build_flags) > 0 and bool(all(build_flags))
+            # If the dataset is missing then download cannot be complete
+            elif ds_info.dataset is None:
+                download_complete = False
+            # Fallback to checking missing dates
             else:
-                # Flag arrays are removed after dataset finalisation
-                # We therefore check missing dates against our expectation.
                 expected_missing = set(ds_info.metadata.get("missing_dates", []))
-                actual_missing = (
-                    set(ds_info.dataset.missing)
-                    if ds_info.dataset is not None
-                    else None
-                )
-                if actual_missing is not None:
-                    download_complete = actual_missing == expected_missing
-                else:
-                    download_complete = is_finalised
+                actual_missing = set(ds_info.dataset.missing)
+                download_complete = actual_missing == expected_missing
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             msg = f"Unable to get status for {self.name} at {self.path_dataset}"
             raise RuntimeError(msg) from exc
         return AnemoiDatasetStatus(
             copy_in_progress=ds_info.copy_in_progress,
             download_complete=download_complete,
-            is_finalised=is_finalised,
+            is_finalised=download_complete and ds_info.statistics_ready,
         )
 
     def create(self, *, overwrite: bool = False) -> None:
