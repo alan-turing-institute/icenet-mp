@@ -128,7 +128,7 @@ class ModelService:
         model_cls: type[BaseModel] = hydra.utils.get_class(
             builder.config["model"]["_target_"]
         )
-        with torch.serialization.safe_globals([PosixPath]):
+        with torch.serialization.safe_globals([DictConfig, PosixPath]):
             log.info("Loading a trained %s model...", builder.config["model"]["name"])
             builder.model_ = model_cls.load_from_checkpoint(
                 checkpoint_path,
@@ -297,32 +297,41 @@ class ModelService:
         OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
 
         # Stage 1: train each encoder separately with a corresponding decoder
-        encoder_fitters = []
+        encoder_checkpoint_paths = []
         for encoder in self.model.encoders:
-            encoder_fitters.append(
-                EncodeFitter.from_template(
-                    channel_names=self.data_module.variable_names[encoder.name],
-                    dataset=encoder.name,
-                    decoder=self.config["model"]["decoder"],
-                    encoder=self.config["model"]["encoders"][encoder.name],
-                    template=self.model,
-                )
+            encoder_fitter = EncodeFitter.from_template(
+                channel_names=self.data_module.variable_names[encoder.name],
+                dataset=encoder.name,
+                decoder=self.config["model"]["decoder"],
+                encoder=self.config["model"]["encoders"][encoder.name],
+                template=self.model,
             )
             # Log training details
             trainer = self.build_trainer(
                 job_type="pretrain", job_stage=f"encoder-{encoder.name}"
             )
             log.info(
-                "Starting encoder training for %d epochs using %d threads across %d %s device(s).",
+                "Starting encoder %s training for %d epochs using %d threads across %d %s device(s).",
+                encoder.name,
                 trainer.max_epochs,
                 torch.get_num_threads(),
                 trainer.num_devices,
                 get_device_name(trainer.accelerator.name()),
             )
             # Train the model
-            trainer.fit(
-                model=encoder_fitters[-1],
-                datamodule=self.data_module,
+            trainer.fit(model=encoder_fitter, datamodule=self.data_module)
+            # Save final checkpoint at a predictable path named after the encoder
+            encoder_checkpoint_path = (
+                self.build_run_directory(trainer)
+                / "checkpoints"
+                / f"{encoder.name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+            )
+            trainer.save_checkpoint(encoder_checkpoint_path)
+            encoder_checkpoint_paths.append(encoder_checkpoint_path)
+            log.info(
+                "Saved encoder '%s' checkpoint to %s.",
+                encoder.name,
+                encoder_checkpoint_path,
             )
 
         # Stage 2: train a decoder on the combined latent space of all encoders
@@ -332,11 +341,13 @@ class ModelService:
             or self.data_module.variable_names[self.data_module.target_group_name]
         )
         target_variable_indices = [target_variables.index(v) for v in target_variables]
-        decoder_model = DecoderFitter.from_template(
+        decoder_model = DecoderFitter.from_checkpoints(
             decoder=self.config["model"]["decoder"],
-            encoders=encoder_fitters,
+            encoder_checkpoint_paths=encoder_checkpoint_paths,
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
+            latitudes_fn=lambda: self.data_module.latitudes,
+            longitudes_fn=lambda: self.data_module.longitudes,
         )
         # Log training details
         trainer = self.build_trainer(job_type="pretrain", job_stage="decoder")

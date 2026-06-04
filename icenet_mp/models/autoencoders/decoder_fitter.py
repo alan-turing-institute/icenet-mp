@@ -1,5 +1,7 @@
 import copy
 import logging
+from collections.abc import Callable
+from pathlib import Path, PosixPath
 from typing import TYPE_CHECKING, Any
 
 import hydra
@@ -79,6 +81,34 @@ class DecoderFitter(BaseModel):
             optimizer=copy.deepcopy(encoders[0].optimizer_cfg),
             output_space=encoders[0].output_space.to_dict(),
             scheduler=copy.deepcopy(encoders[0].scheduler_cfg),
+        )
+
+    @classmethod
+    def from_checkpoints(
+        cls,
+        *,
+        decoder: DictConfig,
+        encoder_checkpoint_paths: list[Path],
+        target_dataset_name: str,
+        target_variable_indices: list[int],
+        latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+    ) -> "DecoderFitter":
+        """Create a DecoderFitter from a list of trained EncodeFitter checkpoints."""
+        with torch.serialization.safe_globals([DictConfig, PosixPath]):
+            encoders = [
+                EncodeFitter.load_from_checkpoint(
+                    path,
+                    latitudes_fn=latitudes_fn,
+                    longitudes_fn=longitudes_fn,
+                )
+                for path in encoder_checkpoint_paths
+            ]
+        return cls.from_template(
+            decoder=decoder,
+            encoders=encoders,
+            target_dataset_name=target_dataset_name,
+            target_variable_indices=target_variable_indices,
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
