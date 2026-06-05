@@ -11,7 +11,10 @@ from icenet_mp.types import ModelStepOutput, TensorNTCHW
 class FakeDataModel(BaseModel):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialise a fake data model for testing purposes."""
-        super().__init__(*args, hemisphere="north", **kwargs)
+        loss_cfg = kwargs.pop(
+            "loss", OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
+        )
+        super().__init__(*args, loss=loss_cfg, hemisphere="north", **kwargs)
         self.t = kwargs["n_forecast_steps"]
         self.c = kwargs["output_space"]["channels"]
         self.h = kwargs["output_space"]["shape"][0]
@@ -22,9 +25,6 @@ class FakeDataModel(BaseModel):
         """FakeData forward method."""
         b = next(iter(inputs.values())).shape[0]
         return torch.randn(b, self.t, self.c, self.h, self.w)
-
-
-_DEFAULT_LOSS = OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
 
 
 class TestBaseModel:
@@ -89,7 +89,6 @@ class TestBaseModel:
             output_space=output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
-            loss=_DEFAULT_LOSS,
         )
         assert model.name == "fake data"
         assert model.input_spaces[0].channels == test_input_chw[0]
@@ -112,7 +111,6 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
-            loss=_DEFAULT_LOSS,
         )
         # Test loss
         prediction = torch.zeros(1, 1, 1, 1)
@@ -136,7 +134,6 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=DictConfig({}),
-            loss=_DEFAULT_LOSS,
         )
         opt_sched_cfg = model.configure_optimizers()
         assert isinstance(opt_sched_cfg, dict)
@@ -160,7 +157,6 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
-            loss=_DEFAULT_LOSS,
         )
         opt_sched_cfg = model.configure_optimizers()
         assert isinstance(opt_sched_cfg, dict)
@@ -204,7 +200,6 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
-            loss=_DEFAULT_LOSS,
         )
         output_shape = batch["target"].shape
         output = model.test_step(batch, 0)
@@ -245,7 +240,6 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
-            loss=_DEFAULT_LOSS,
         )
         output = model.training_step(batch, 0)
         assert isinstance(output, ModelStepOutput)
@@ -283,7 +277,6 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
-            loss=_DEFAULT_LOSS,
         )
         output = model.validation_step(batch, 0)
         assert isinstance(output, ModelStepOutput)
