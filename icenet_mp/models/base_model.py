@@ -1,5 +1,4 @@
 import itertools
-import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from functools import cached_property
@@ -20,8 +19,6 @@ from torchmetrics import MetricCollection
 from icenet_mp.metrics.base_metrics import MAEPerForecastDay, RMSEPerForecastDay
 from icenet_mp.metrics.sie_error_abs import SeaIceExtentErrorPerForecastDay
 from icenet_mp.types import DataSpace, Hemisphere, ModelTestOutput, TensorNTCHW
-
-log = logging.getLogger(__name__)
 
 
 class BaseModel(LightningModule, ABC):
