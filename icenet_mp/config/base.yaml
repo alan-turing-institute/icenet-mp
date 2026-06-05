@@ -8,7 +8,7 @@ defaults:
   - predict: sic-icenet-2d
   - random: default
   - train: default
-  - losses: huber
+  - loss: huber
   - _self_
 
 base_path: ../base
