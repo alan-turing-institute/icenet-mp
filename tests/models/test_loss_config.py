@@ -1,10 +1,25 @@
+from typing import Any
+
 import pytest
 import torch
 from hydra.errors import InstantiationException
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.losses.rmse_loss import RMSELoss
-from tests.models.test_base_model import FakeDataModel
+from icenet_mp.models import BaseModel
+from icenet_mp.types import TensorNTCHW
+
+
+class FakeDataModelNoDefault(BaseModel):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialise a fake data model with no default loss for testing purposes."""
+        super().__init__(*args, hemisphere="north", **kwargs)
+        self.model = torch.nn.Linear(1, 1)
+
+    def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+        b = next(iter(inputs.values())).shape[0]
+        return torch.randn(b, 1, 1, 1, 1)
+
 
 LOSS_CONFIGS = {
     "mse": OmegaConf.create({"_target_": "torch.nn.MSELoss"}),
@@ -31,7 +46,7 @@ class TestLossConfig:
         self, cfg_input_space: DictConfig, cfg_output_space: DictConfig
     ) -> None:
         with pytest.raises(TypeError):
-            FakeDataModel(
+            FakeDataModelNoDefault(
                 name="fake data",
                 input_spaces=[cfg_input_space],
                 n_forecast_steps=1,
@@ -50,7 +65,7 @@ class TestLossConfig:
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
     ) -> None:
-        model = FakeDataModel(
+        model = FakeDataModelNoDefault(
             name="fake data",
             input_spaces=[cfg_input_space],
             n_forecast_steps=1,
@@ -71,7 +86,7 @@ class TestLossConfig:
         )
         # AFTER
         with pytest.raises(InstantiationException):
-            FakeDataModel(
+            FakeDataModelNoDefault(
                 name="fake data",
                 input_spaces=[cfg_input_space],
                 n_forecast_steps=1,
