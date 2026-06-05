@@ -175,6 +175,10 @@ def cfg_model_service() -> DictConfig:
             "model": {
                 "_target_": "MockModel",
                 "name": "mock-model",
+                "loss": {
+                    "_target_": "torch.nn.HuberLoss",
+                    "delta": 0.5,
+                },
             },
             "predict": {
                 "target": {"group_name": "mock-dataset-group-1"},
