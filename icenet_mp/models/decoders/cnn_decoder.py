@@ -110,14 +110,16 @@ class CNNDecoder(BaseDecoder):
                 self.data_space_out.shape,
             )
 
-        # If necessary, convolve to the required number of output channels
-        if n_channels != self.data_space_out.channels:
-            layers.append(nn.Conv2d(n_channels, self.data_space_out.channels, 1))
-            logger.debug(
-                "- Channel convolution from %d to %d",
-                n_channels,
-                self.data_space_out.channels,
-            )
+        # Run a final convolution that will both ensure that we have the right number of
+        # output channels and also the the final operation is a layer that can produce
+        # values across the full output range (not just the range of the activation
+        # function in the last ConvBlockUpsample).
+        layers.append(nn.Conv2d(n_channels, self.data_space_out.channels, 1))
+        logger.debug(
+            "- Channel convolution from %d to %d",
+            n_channels,
+            self.data_space_out.channels,
+        )
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)
