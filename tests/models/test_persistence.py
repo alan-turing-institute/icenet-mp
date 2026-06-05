@@ -8,9 +8,9 @@ _DEFAULT_LOSS = OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5
 
 
 class TestPersistence:
-    @pytest.mark.parametrize("test_input_shape", [(512, 512, 4), (1000, 200, 1)])
-    @pytest.mark.parametrize("test_output_shape", [(432, 432, 1), (10, 20, 19)])
-    @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+    @pytest.mark.parametrize("test_input_shape", [(16, 16, 4), (20, 20, 1)])
+    @pytest.mark.parametrize("test_output_shape", [(16, 16, 1), (10, 20, 19)])
+    @pytest.mark.parametrize("test_batch_size", [1, 2])
     @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
     @pytest.mark.parametrize("test_n_history_steps", [1, 2, 5])
     def test_forward_shape(

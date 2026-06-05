@@ -1,25 +1,86 @@
 import datetime
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 import pytest
-import xarray as xr
-from anemoi.datasets.commands.create import Create
+import zarr
 from omegaconf import DictConfig
 
 
-class MockAnemoiCreateArgs:
-    """Arguments for anemoi create."""
+def build_zarr(
+    zarr_path: Path,
+    data_dict: dict[str, Any],
+    full_dates: list[datetime.datetime] | None = None,
+    missing_dates: list[datetime.datetime] | None = None,
+) -> Path:
+    """Write a minimal anemoi-compatible zarr store without using Create().
 
-    def __init__(self, config: DictConfig, path: Path) -> None:
-        """Initialise the arguments."""
-        self.command = "unused"
-        self.config = config
-        self.path = str(path)
-        self.processes = 0
-        self.threads = 0
+    Bypasses the slow anemoi create pipeline (which has ~40s fixed overhead) by writing
+    the zarr arrays directly to disk.
+    """
+    data_dates: list[datetime.datetime] = data_dict["coords"]["time"]["data"]
+    full_dates = full_dates if full_dates is not None else data_dates
+    variables = list(data_dict["data_vars"].keys())
+    lats: list[float] = data_dict["coords"]["lat"]["data"]
+    lons: list[float] = data_dict["coords"]["lon"]["data"]
+
+    T, C, H, W = len(full_dates), len(variables), len(lats), len(lons)  # noqa: N806
+
+    # Build (T, C, 1, H * W) data array; missing timesteps stay zero.
+    available_dates = {d.date() for d in data_dates}
+    data = np.zeros((T, C, 1, H * W), dtype=np.float32)
+    data_idx = 0
+    for t, d in enumerate(full_dates):
+        if d.date() in available_dates:
+            for c, var in enumerate(variables):
+                data[t, c, 0, :] = np.array(
+                    data_dict["data_vars"][var]["data"][data_idx], dtype=np.float32
+                ).ravel()
+            data_idx += 1
+
+    # Compute per-variable statistics from available timesteps only.
+    flat = data[[d.date() in available_dates for d in full_dates], :, 0, :]
+    means = flat.mean(axis=(0, 2)).astype(np.float64)
+    stdevs = flat.std(axis=(0, 2)).astype(np.float64)
+    minimums = flat.min(axis=(0, 2)).astype(np.float64)
+    maximums = flat.max(axis=(0, 2)).astype(np.float64)
+
+    # Create lat/lon grid
+    lat_grid, lon_grid = np.meshgrid(lats, lons, indexing="ij")
+    latitudes = lat_grid.ravel().astype(np.float64)
+    longitudes = lon_grid.ravel().astype(np.float64)
+
+    # Convert dates into the format needed by Anemoi
+    full_dates_anemoi = np.array(
+        [np.datetime64(d, "s") for d in full_dates],
+        dtype="datetime64[s]",
+    )
+    missing_dates_anemoi = [
+        d.isoformat(timespec="seconds") for d in (missing_dates or [])
+    ]
+
+    zarr_path.mkdir(parents=True, exist_ok=True)
+    z = zarr.open_group(str(zarr_path), mode="w")
+    z.create_dataset("data", data=data, chunks=(1, C, 1, H * W))
+    z.create_dataset("dates", data=full_dates_anemoi)
+    z.create_dataset("latitudes", data=latitudes)
+    z.create_dataset("longitudes", data=longitudes)
+    z.create_dataset("mean", data=means)
+    z.create_dataset("stdev", data=stdevs)
+    z.create_dataset("minimum", data=minimums)
+    z.create_dataset("maximum", data=maximums)
+    z.attrs.update(
+        {
+            "field_shape": [H, W],
+            "frequency": "24h",
+            "variables": variables,
+            "missing_dates": missing_dates_anemoi,
+            "flatten_grid": True,
+            "ensemble_dimension": 2,
+        }
+    )
+    return zarr_path
 
 
 @pytest.fixture
@@ -76,7 +137,7 @@ def cfg_input_space() -> DictConfig:
         {
             "channels": 4,
             "name": "test-input",
-            "shape": (512, 512),
+            "shape": (16, 16),
         }
     )
 
@@ -143,7 +204,7 @@ def cfg_output_space() -> DictConfig:
         {
             "channels": 1,
             "name": "target",
-            "shape": (432, 432),
+            "shape": (16, 16),
         }
     )
 
@@ -167,7 +228,33 @@ def cfg_scheduler() -> DictConfig:
 
 
 @pytest.fixture(scope="session")
-def mock_data() -> dict[str, dict[str, Any]]:
+def dates_as_dt() -> tuple[datetime.datetime, ...]:
+    """Fixture to provide a tuple of datetime objects for testing."""
+    return (
+        datetime.datetime(2020, 1, 1, 0, 0, 0),
+        datetime.datetime(2020, 1, 2, 0, 0, 0),
+        datetime.datetime(2020, 1, 3, 0, 0, 0),
+        datetime.datetime(2020, 1, 4, 0, 0, 0),
+        datetime.datetime(2020, 1, 5, 0, 0, 0),
+    )
+
+
+@pytest.fixture(scope="session")
+def dates_as_np(
+    dates_as_dt: tuple[datetime.datetime, ...],
+) -> tuple[np.datetime64, ...]:
+    """Fixture to provide a tuple of numpy datetime64 objects for testing."""
+    return tuple(np.datetime64(f"{dt.date()}T12:00:00", "s") for dt in dates_as_dt)
+
+
+@pytest.fixture(scope="session")
+def dates_as_str(dates_as_dt: tuple[datetime.datetime, ...]) -> tuple[str, ...]:
+    """Fixture to provide a tuple of date strings for testing."""
+    return tuple(dt.strftime(r"%Y-%m-%d") for dt in dates_as_dt)
+
+
+@pytest.fixture(scope="session")
+def mock_data(dates_as_dt: tuple[datetime.datetime, ...]) -> dict[str, dict[str, Any]]:
     """Fixture to create a mock dataset for testing."""
     return {
         "coords": {
@@ -184,13 +271,7 @@ def mock_data() -> dict[str, dict[str, Any]]:
             "time": {
                 "dims": ("time",),
                 "attrs": {"standard_name": "time"},
-                "data": [
-                    datetime.datetime(2020, 1, 1, 0, 0, 0),
-                    datetime.datetime(2020, 1, 2, 0, 0, 0),
-                    datetime.datetime(2020, 1, 3, 0, 0, 0),
-                    datetime.datetime(2020, 1, 4, 0, 0, 0),
-                    datetime.datetime(2020, 1, 5, 0, 0, 0),
-                ],
+                "data": list(dates_as_dt),
             },
         },
         "attrs": {},
@@ -234,7 +315,44 @@ def mock_data() -> dict[str, dict[str, Any]]:
 
 
 @pytest.fixture(scope="session")
-def mock_data_missing_dates() -> dict[str, dict[str, Any]]:
+def mock_data_constant_values(
+    dates_as_dt: tuple[datetime.datetime, ...],
+) -> dict[str, dict[str, Any]]:
+    """Fixture to create a mock dataset with constant data for testing."""
+    return {
+        "coords": {
+            "lat": {
+                "dims": "lat",
+                "attrs": {"units": "degrees_north", "standard_name": "latitude"},
+                "data": [-89, -90],
+            },
+            "lon": {
+                "dims": "lon",
+                "attrs": {"units": "degrees_east", "standard_name": "longitude"},
+                "data": [44, 45],
+            },
+            "time": {
+                "dims": ("time",),
+                "attrs": {"standard_name": "time"},
+                "data": list(dates_as_dt)[:2],
+            },
+        },
+        "attrs": {},
+        "dims": {"lat": 2, "lon": 2, "time": 2},
+        "data_vars": {
+            "constant": {
+                "dims": ("time", "lat", "lon"),
+                "attrs": {},
+                "data": [[[0.5, 0.5], [0.5, 0.5]], [[0.5, 0.5], [0.5, 0.5]]],
+            }
+        },
+    }
+
+
+@pytest.fixture(scope="session")
+def mock_data_missing_dates(
+    dates_as_dt: tuple[datetime.datetime, ...],
+) -> dict[str, dict[str, Any]]:
     """Fixture to create a mock dataset with missing dates for testing."""
     return {
         "coords": {
@@ -251,11 +369,7 @@ def mock_data_missing_dates() -> dict[str, dict[str, Any]]:
             "time": {
                 "dims": ("time",),
                 "attrs": {"standard_name": "time"},
-                "data": [
-                    datetime.datetime(2020, 1, 1, 0, 0, 0),
-                    datetime.datetime(2020, 1, 3, 0, 0, 0),
-                    datetime.datetime(2020, 1, 5, 0, 0, 0),
-                ],
+                "data": [dates_as_dt[0], dates_as_dt[2], dates_as_dt[4]],
             },
         },
         "attrs": {},
@@ -299,57 +413,34 @@ def mock_data_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture(scope="session")
 def mock_dataset(mock_data_path: Path, mock_data: dict[str, dict[str, Any]]) -> Path:
     """Fixture to create a mock file for testing."""
-    # Use the mock data to create a NetCDF file
-    netcdf_path = mock_data_path / "mock_dataset.nc"
-    xr.Dataset.from_dict(mock_data).to_netcdf(netcdf_path)
-    # Create an Anemoi dataset from the NetCDF file
-    config = DictConfig(
-        {
-            "dates": {
-                "start": "2020-01-01T00:00:00",
-                "end": "2020-01-05T23:00:00",
-                "frequency": "24h",
-            },
-            "input": {
-                "netcdf": {
-                    "path": str(netcdf_path),
-                }
-            },
-        }
+    return build_zarr(mock_data_path / "anemoi" / "mock_dataset.zarr", mock_data)
+
+
+@pytest.fixture(scope="session")
+def mock_dataset_constant_values(
+    mock_data_path: Path,
+    mock_data_constant_values: dict[str, dict[str, Any]],
+) -> Path:
+    """Fixture to create a mock file with constant data for testing."""
+    return build_zarr(
+        mock_data_path / "anemoi" / "mock_dataset_constant_data.zarr",
+        mock_data_constant_values,
     )
-    zarr_path = mock_data_path / "anemoi" / "mock_dataset.zarr"
-    Create().run(MockAnemoiCreateArgs(config, zarr_path))
-    return Path(str(zarr_path))
 
 
 @pytest.fixture(scope="session")
 def mock_dataset_missing_dates(
+    dates_as_dt: tuple[datetime.datetime, ...],
     mock_data_path: Path,
     mock_data_missing_dates: dict[str, dict[str, Any]],
 ) -> Path:
     """Fixture to create a mock file with missing dates for testing."""
-    # Use the mock data to create a NetCDF file
-    netcdf_path = mock_data_path / "mock_dataset_missing_dates.nc"
-    xr.Dataset.from_dict(mock_data_missing_dates).to_netcdf(netcdf_path)
-    # Create an Anemoi dataset from the NetCDF file
-    config = DictConfig(
-        {
-            "dates": {
-                "start": "2020-01-01T00:00:00",
-                "end": "2020-01-05T23:00:00",
-                "frequency": "24h",
-                "missing": ["2020-01-02T00:00:00", "2020-01-04T00:00:00"],
-            },
-            "input": {
-                "netcdf": {
-                    "path": str(netcdf_path),
-                }
-            },
-        }
+    return build_zarr(
+        mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr",
+        mock_data_missing_dates,
+        full_dates=list(dates_as_dt),
+        missing_dates=[dates_as_dt[1], dates_as_dt[3]],
     )
-    zarr_path = mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr"
-    Create().run(MockAnemoiCreateArgs(config, zarr_path))
-    return Path(str(zarr_path))
 
 
 @pytest.fixture(scope="session")
@@ -358,222 +449,7 @@ def mock_dataset_non_normalized_times(
     mock_data_non_normalized_times: dict[str, dict[str, Any]],
 ) -> Path:
     """Fixture to create a mock file with non-normalized times for testing."""
-    # Use the mock data to create a NetCDF file
-    netcdf_path = mock_data_path / "mock_dataset_non_normalized_times.nc"
-    xr.Dataset.from_dict(mock_data_non_normalized_times).to_netcdf(netcdf_path)
-    # Create an Anemoi dataset from the NetCDF file
-    config = DictConfig(
-        {
-            "dates": {
-                "start": "2020-01-01T03:47:42",
-                "end": "2020-01-05T23:00:00",
-                "frequency": "24h",
-            },
-            "input": {
-                "netcdf": {
-                    "path": str(netcdf_path),
-                }
-            },
-        }
+    return build_zarr(
+        mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr",
+        mock_data_non_normalized_times,
     )
-    zarr_path = mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr"
-    Create().run(MockAnemoiCreateArgs(config, zarr_path))
-    return Path(str(zarr_path))
-
-
-class MakeCircularArctic(Protocol):
-    def __call__(
-        self,
-        height: int,
-        width: int,
-        *,
-        rng: np.random.Generator,
-        ring_width: int = ...,
-        noise: float = ...,
-    ) -> np.ndarray: ...
-
-
-class CircularArcticFactory:
-    """Callable factory for generating circular Arctic SIC maps.
-
-    Defaults are provided at construction, but can be overridden per-call.
-    Satisfies the `MakeCircularArctic` protocol.
-    """
-
-    def __init__(self, ring_width: int = 6, noise: float = 0.05) -> None:
-        """Initialise the factory with default parameters.
-
-        Args:
-            ring_width: Width of the ring.
-            noise: Noise level.
-
-        """
-        self.ring_width = ring_width
-        self.noise = noise
-
-    def __call__(
-        self,
-        height: int,
-        width: int,
-        *,
-        rng: np.random.Generator,
-        ring_width: int | None = None,
-        noise: float | None = None,
-    ) -> np.ndarray:
-        """Generate a circular Arctic SIC map.
-
-        Args:
-            height: Height of the map.
-            width: Width of the map.
-            rng: Random number generator.
-            ring_width: Width of the ring.
-            noise: Noise level.
-
-        """
-        # Resolve per-call overrides or fall back to defaults
-        effective_ring_width = self.ring_width if ring_width is None else ring_width
-        effective_noise = self.noise if noise is None else noise
-
-        # Create a grid of distances from the centre
-        cy, cx = (height - 1) / 2.0, (width - 1) / 2.0
-        yy, xx = np.meshgrid(np.arange(height), np.arange(width), indexing="ij")
-        dist = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
-
-        # Choose a radius so the land takes most of the centre
-        radius = min(height, width) * 0.25
-
-        # Distance from the coastline (ring at the circle): 0 on the ring, >0 outside
-        d_outside = np.maximum(0.0, dist - radius)
-
-        # Ice strength: 1 at the ring, then smoothly falls to 0 with distance
-        falloff = np.exp(-(d_outside / max(1.0, float(effective_ring_width))))
-
-        # Add a tiny bit of texture so the ring looks less perfect
-        texture = rng.normal(0.0, effective_noise, size=(height, width))
-        sic = np.clip(falloff + texture, 0.0, 1.0)
-
-        # Land mask: everything strictly inside the circle is NaN (temporary: set to 0)
-        # Note: When land masking is implemented, set to np.nan instead of 0.0
-        sic[dist < radius] = 0.0
-        return sic.astype(np.float32)
-
-
-@pytest.fixture
-def make_circular_arctic() -> MakeCircularArctic:
-    """Return a callable that creates a simple circular Arctic SIC map.
-
-    Signature:
-        (height: int, width: int, *, rng: np.random.Generator, ring_width: int = 6, noise: float = 0.05) -> np.ndarray
-    """
-    return CircularArcticFactory()
-
-
-def make_varying_sic_stream(
-    *,
-    dist_grid: np.ndarray,
-    timesteps: int,
-    base_radius: float,
-    rng: np.random.Generator,
-    ring_width: float = 6.0,
-    noise_std: float = 0.03,
-    radius_oscillation_amplitude: float = 0.5,
-    radius_oscillation_frequency: float = 0.7,
-) -> np.ndarray:
-    """Vectorized [T, H, W] sea-ice concentration with oscillating coastline radius.
-
-    - Coastline radius varies sinusoidally over time about base_radius
-    - Concentration decays exponentially with distance outside the coastline
-    - Adds small Gaussian noise and masks land (inside radius) to 0.0
-    """
-    height, width = dist_grid.shape
-
-    t_idx = np.arange(timesteps, dtype=float)
-    radius_t = base_radius + radius_oscillation_amplitude * np.sin(
-        radius_oscillation_frequency * t_idx
-    )  # [T]
-
-    dist_b = dist_grid[None, :, :]  # [1,H,W]
-    radius_b = radius_t[:, None, None]  # [T,1,1]
-
-    outside = np.maximum(0.0, dist_b - radius_b)  # [T,H,W]
-    falloff = np.exp(-(outside / max(1.0, float(ring_width))))
-
-    noise = rng.normal(0.0, noise_std, size=(timesteps, height, width))
-    sic = np.clip(falloff + noise, 0.0, 1.0)
-
-    # Land mask: inside coastline set to 0.0 (temporary until NaN land masking)
-    sic[dist_b < radius_b] = 0.0
-    return sic.astype(np.float32)
-
-
-def _apply_scale(array: np.ndarray, scale: float) -> None:
-    """In-place multiply array by scale (keeps dtype)."""
-    array *= float(scale)
-
-
-def _add_noise(
-    array: np.ndarray, sigma: float, rng: np.random.Generator | None = None
-) -> None:
-    """In-place add Gaussian noise with std sigma. Deterministic if rng provided."""
-    if rng is None:
-        rng = np.random.default_rng(0)
-    array += rng.normal(0.0, float(sigma), size=array.shape)
-
-
-def _insert_outliers(array: np.ndarray, value: float, fraction: float = 0.1) -> None:
-    """In-place set the first N flattened entries to `value` where N ~= fraction*size.
-
-    Args:
-        array: Array to insert outliers into.
-        value: Value to insert.
-        fraction: Fraction of entries to insert outliers into.
-
-    """
-    flat = array.ravel()
-    n = int(max(1, round(float(fraction) * flat.size))) if fraction > 0 else 0
-    if n > 0:
-        flat[:n] = value
-        array[:] = flat.reshape(array.shape)
-
-
-def _make_bad_prediction(
-    base_prediction: np.ndarray,
-    *,
-    scale: float | None = None,
-    outlier: float | None = None,
-    fraction: float = 0.0,
-    noise: float | None = None,
-    rng: np.random.Generator | None = None,
-) -> np.ndarray:
-    """Return a mutated copy of base_prediction according to the provided options.
-
-    Args:
-        base_prediction: Base prediction to mutate.
-        scale: Scale to apply to the prediction.
-        outlier: Outlier to insert into the prediction.
-        fraction: Fraction of entries to insert outliers into.
-        noise: Noise to add to the prediction.
-        rng: Random number generator to use.
-
-    Returns:
-        Mutated prediction.
-
-    """
-    prediction = base_prediction.copy()
-    if scale is not None:
-        _apply_scale(prediction, scale)
-    if noise is not None:
-        _add_noise(prediction, noise, rng=rng)
-    if outlier is not None and fraction > 0.0:
-        _insert_outliers(prediction, outlier, fraction=fraction)
-    return prediction
-
-
-@pytest.fixture
-def bad_prediction_maker() -> Callable[..., np.ndarray]:
-    """Fixture returning a callable to produce mutated prediction arrays.
-
-    Signature (positional):
-        (base_prediction, *, scale=None, outlier=None, fraction=0.0, noise=None, rng=None) -> ndarray
-    """
-    return _make_bad_prediction

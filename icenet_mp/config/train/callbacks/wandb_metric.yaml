@@ -1,2 +1,0 @@
-wandb_metric:
-  _target_: icenet_mp.callbacks.WandbMetric

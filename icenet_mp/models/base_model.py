@@ -1,6 +1,7 @@
 import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from copy import deepcopy
 from functools import cached_property
 from typing import Any
 
@@ -14,11 +15,15 @@ from lightning.pytorch.utilities.types import (
     OptimizerLRSchedulerConfig,
 )
 from omegaconf import DictConfig
-from torchmetrics import MetricCollection
+from torchmetrics import Metric, MetricCollection
 
-from icenet_mp.metrics.base_metrics import MAEPerForecastDay, RMSEPerForecastDay
-from icenet_mp.metrics.sie_error_abs import SeaIceExtentErrorPerForecastDay
-from icenet_mp.types import DataSpace, Hemisphere, ModelTestOutput, TensorNTCHW
+from icenet_mp.metrics import (
+    IceNetAccuracy,
+    MAEPerForecastDay,
+    RMSEPerForecastDay,
+    SeaIceExtentErrorPerForecastDay,
+)
+from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
 
 
 class BaseModel(LightningModule, ABC):
@@ -51,7 +56,7 @@ class BaseModel(LightningModule, ABC):
 
         # Save model name, hemisphere and lat/lon information
         self.name = name
-        self.hemisphere = hemisphere
+        self.hemisphere: Hemisphere = hemisphere
         self.latitudes_fn = latitudes_fn
         self.longitudes_fn = longitudes_fn
 
@@ -73,13 +78,16 @@ class BaseModel(LightningModule, ABC):
         self.optimizer_cfg = optimizer
         self.scheduler_cfg = scheduler
 
-        self.test_metrics = MetricCollection(
-            {
-                "sieerror": SeaIceExtentErrorPerForecastDay(),
-                "rmse": RMSEPerForecastDay(),
-                "mae": MAEPerForecastDay(),
-            }
-        )
+        # Metrics
+        _common_metrics: dict[str, Metric | MetricCollection] = {
+            "accuracy": IceNetAccuracy(),
+            "mae": MAEPerForecastDay(),
+            "rmse": RMSEPerForecastDay(),
+            "sieerror": SeaIceExtentErrorPerForecastDay(),
+        }
+        self.test_metrics = MetricCollection(deepcopy(_common_metrics))
+        self.train_metrics = MetricCollection(deepcopy(_common_metrics))
+        self.validation_metrics = MetricCollection(deepcopy(_common_metrics))
 
         self._loss_fn: torch.nn.Module = hydra.utils.instantiate(loss)
         # Save all non-ignored arguments to __init__ as hyperparameters
@@ -147,7 +155,7 @@ class BaseModel(LightningModule, ABC):
         self,
         batch: dict[str, TensorNTCHW],
         _batch_idx: int,  # noqa: PT019
-    ) -> ModelTestOutput:
+    ) -> ModelStepOutput:
         """Run the test step, in PyTorch eval model (i.e. no gradients).
 
         - Separate the batch into inputs and target
@@ -160,22 +168,31 @@ class BaseModel(LightningModule, ABC):
                    TensorNTCHW with (batch_size, n_history_steps, C, H, W).
 
         Returns:
-            A ModelTestOutput containing the prediction, target and loss for the batch.
+            A ModelStepOutput containing the prediction, target and loss for the batch.
 
         """
         target = batch.pop("target")
         prediction = self(batch)
         loss = self.loss(prediction, target)
-        # update test metrics with the current batch; computation will be done at epoch end
+
+        # Log metrics; computation will be done at epoch end
+        self.log(
+            "test_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
         self.test_metrics.update(prediction, target)
 
-        return ModelTestOutput(prediction, target, loss)
+        return ModelStepOutput(prediction, target, loss)
 
     def training_step(
         self,
         batch: dict[str, TensorNTCHW],
         _batch_idx: int,
-    ) -> torch.Tensor:
+    ) -> ModelStepOutput:
         """Run the training step.
 
         - Separate the batch into inputs and target
@@ -188,13 +205,14 @@ class BaseModel(LightningModule, ABC):
                    TensorNTCHW with (batch_size, n_history_steps, C, H, W).
 
         Returns:
-            A Tensor containing the loss for the batch.
+            A ModelStepOutput containing the prediction, target and loss for the batch.
 
         """
         target = batch["target"].clone().detach()
         prediction = self(batch)
         loss = self.loss(prediction, target)
 
+        # Log metrics; computation will be done at epoch end
         self.log(
             "train_loss",
             loss,
@@ -203,13 +221,15 @@ class BaseModel(LightningModule, ABC):
             prog_bar=True,
             sync_dist=True,
         )
-        return loss
+        self.train_metrics.update(prediction, target)
+
+        return ModelStepOutput(prediction, target, loss)
 
     def validation_step(
         self,
         batch: dict[str, TensorNTCHW],
         _batch_idx: int,
-    ) -> torch.Tensor:
+    ) -> ModelStepOutput:
         """Run the validation step.
 
         A batch contains one tensor for each input dataset and one for the target
@@ -225,12 +245,14 @@ class BaseModel(LightningModule, ABC):
                    TensorNTCHW with (batch_size, n_history_steps, C, H, W).
 
         Returns:
-            A Tensor containing the loss for the batch.
+            A ModelStepOutput containing the prediction, target and loss for the batch.
 
         """
         target = batch["target"].clone().detach()
         prediction = self(batch)
         loss = self.loss(prediction, target)
+
+        # Log metrics; computation will be done at epoch end
         self.log(
             "validation_loss",
             loss,
@@ -239,4 +261,6 @@ class BaseModel(LightningModule, ABC):
             prog_bar=True,
             sync_dist=True,
         )
-        return loss
+        self.validation_metrics.update(prediction, target)
+
+        return ModelStepOutput(prediction, target, loss)

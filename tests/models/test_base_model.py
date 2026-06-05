@@ -5,7 +5,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.models import BaseModel
-from icenet_mp.types import ModelTestOutput, TensorNTCHW
+from icenet_mp.types import ModelStepOutput, TensorNTCHW
 
 
 class FakeDataModel(BaseModel):
@@ -28,11 +28,39 @@ _DEFAULT_LOSS = OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5
 
 
 class TestBaseModel:
+    def test_init_invalid_forecast_steps(self) -> None:
+        with pytest.raises(
+            ValueError, match="Number of forecast steps must be greater than 0."
+        ):
+            FakeDataModel(
+                name="fake data",
+                input_spaces=[{"channels": 1, "name": "input", "shape": (2, 2)}],
+                n_forecast_steps=0,
+                n_history_steps=1,
+                output_space={"channels": 1, "name": "target", "shape": (2, 2)},
+                optimizer=DictConfig({}),
+                scheduler=DictConfig({}),
+            )
+
+    def test_init_invalid_history_steps(self) -> None:
+        with pytest.raises(
+            ValueError, match="Number of history steps must be greater than 0."
+        ):
+            FakeDataModel(
+                name="fake data",
+                input_spaces=[{"channels": 1, "name": "input", "shape": (2, 2)}],
+                n_forecast_steps=1,
+                n_history_steps=0,
+                output_space={"channels": 1, "name": "target", "shape": (2, 2)},
+                optimizer=DictConfig({}),
+                scheduler=DictConfig({}),
+            )
+
     @pytest.mark.parametrize("test_input_chw", [(4, 512, 512), (1, 10, 20)])
     @pytest.mark.parametrize("test_output_chw", [(1, 432, 432), (19, 10, 20)])
-    @pytest.mark.parametrize("test_n_forecast_steps", [0, 1, 2, 5])
-    @pytest.mark.parametrize("test_n_history_steps", [0, 1, 2, 5])
-    def test_init(
+    @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
+    @pytest.mark.parametrize("test_n_history_steps", [1, 2, 5])
+    def test_init_valid(
         self,
         test_input_chw: tuple[int, int, int],
         test_n_forecast_steps: int,
@@ -53,41 +81,6 @@ class TestBaseModel:
                 "shape": test_output_chw[1:],
             }
         )
-
-        # Catch invalid n_forecast_steps
-        if test_n_forecast_steps <= 0:
-            with pytest.raises(
-                ValueError, match="Number of forecast steps must be greater than 0."
-            ):
-                FakeDataModel(
-                    name="fake data",
-                    input_spaces=[input_space],
-                    n_forecast_steps=test_n_forecast_steps,
-                    n_history_steps=test_n_history_steps,
-                    output_space=output_space,
-                    optimizer=DictConfig({}),
-                    scheduler=DictConfig({}),
-                    loss=_DEFAULT_LOSS,
-                )
-            return
-
-        # Catch invalid n_history_steps
-        if test_n_history_steps <= 0:
-            with pytest.raises(
-                ValueError, match="Number of history steps must be greater than 0."
-            ):
-                FakeDataModel(
-                    name="fake data",
-                    input_spaces=[input_space],
-                    n_forecast_steps=test_n_forecast_steps,
-                    n_history_steps=test_n_history_steps,
-                    output_space=output_space,
-                    optimizer=DictConfig({}),
-                    scheduler=DictConfig({}),
-                    loss=_DEFAULT_LOSS,
-                )
-            return
-
         model = FakeDataModel(
             name="fake data",
             input_spaces=[input_space],
@@ -98,7 +91,6 @@ class TestBaseModel:
             scheduler=DictConfig({}),
             loss=_DEFAULT_LOSS,
         )
-
         assert model.name == "fake data"
         assert model.input_spaces[0].channels == test_input_chw[0]
         assert model.input_spaces[0].name == "input"
@@ -216,7 +208,7 @@ class TestBaseModel:
         )
         output_shape = batch["target"].shape
         output = model.test_step(batch, 0)
-        assert isinstance(output, ModelTestOutput)
+        assert isinstance(output, ModelStepOutput)
         assert output.prediction.shape == output_shape
         assert output.target.shape == output_shape
         assert output.loss.shape == torch.Size([])
@@ -256,8 +248,8 @@ class TestBaseModel:
             loss=_DEFAULT_LOSS,
         )
         output = model.training_step(batch, 0)
-        assert isinstance(output, torch.Tensor)
-        assert output.shape == torch.Size([])
+        assert isinstance(output, ModelStepOutput)
+        assert output.loss.shape == torch.Size([])
 
     def test_validation_step(
         self,
@@ -294,5 +286,5 @@ class TestBaseModel:
             loss=_DEFAULT_LOSS,
         )
         output = model.validation_step(batch, 0)
-        assert isinstance(output, torch.Tensor)
-        assert output.shape == torch.Size([])
+        assert isinstance(output, ModelStepOutput)
+        assert output.loss.shape == torch.Size([])

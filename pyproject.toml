@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.8.3,<0.9.0"]
+requires = ["uv_build>=0.11.16,<0.12.0"]
 build-backend = "uv_build"
 
 [project]
@@ -43,7 +43,7 @@ dependencies = [
     "torch-ema>=0.3",
     "torch>=2.8.0,!=2.10.0", # uv will constantly reinstall torch 2.10.0 due to incorrect metadata https://github.com/astral-sh/uv/issues/17711
     "typer>=0.16.0",
-    "wandb>=0.21.0",
+    "wandb>=0.27.0",
     "xarray>=2025.3.0",
     "zarr<3.0.0", # v3 is not compatible with anemoi
 ]
@@ -54,9 +54,10 @@ dev = [
     "pandas-stubs>=2.3.0.250703",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
-    "pytest-cov>=6.2.1",
-    "types-cachetools>=6.1.0",
-    "types-pyyaml>=6.0.12",
+    "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
+    "types-cachetools>=7.0.0.20260518",
+    "types-pyyaml>=6.0.12.20260518",
 ]
 notebooks = [
     "cmocean>=4.0.3",
@@ -76,26 +77,16 @@ omit= [
   "tests/*",
 ]
 
-[[tool.mypy.overrides]]
-module = [
-    "anemoi.datasets.*",
-    "anemoi.transform.*",
-    "anemoi.utils.*",
-    "argopy.*",
-    "earthkit.*",
-    "fsspec.*",
-    "haversine.*",
-    "icenet.data.sic.*",
-    "imageio_ffmpeg.*",
-    "zarr.*",
-]
-ignore_missing_imports = true
+[tool.mypy]
+disable_error_code = ["import-untyped"]
 
 [tool.pytest.ini_options]
 addopts = [
     "--cov=icenet_mp",
     "--cov-report=term-missing",
     "-vvv",
+    "-n",
+    "auto",
 ]
 testpaths = ["tests"]
 norecursedirs = [

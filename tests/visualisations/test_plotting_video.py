@@ -8,7 +8,7 @@ styling configurations.
 import io
 from collections.abc import Callable, Sequence
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import date
 from typing import Literal
 
 import numpy as np
@@ -73,8 +73,9 @@ class TestPlotVideoPrediction:
         # Reference the fixture to avoid unused-argument lint error
         assert fake_video_from_animation is not None
 
-        assert "sea-ice_concentration-video-maps" in result
-        buffer = result["sea-ice_concentration-video-maps"]
+        expected_key = f"sea-ice-concentration-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert expected_key in result
+        buffer = result[expected_key]
         assert isinstance(buffer, io.BytesIO)
         assert buffer.getvalue()  # not empty
 
@@ -173,10 +174,7 @@ class TestPlotVideoSingleInput:
         base_plot_spec: PlotSpec,
     ) -> None:
         """Test error when number of dates doesn't match timesteps."""
-        wrong_dates = [
-            TEST_DATE,
-            TEST_DATE + timedelta(days=1),
-        ]  # Only 2 dates for 4 timesteps
+        wrong_dates = [TEST_DATE]  # Only 1 date for 2 timesteps
 
         with pytest.raises(
             InvalidArrayError, match="Number of dates.*!= number of timesteps"
@@ -222,8 +220,9 @@ class TestPlotVideoInputs:
 
         assert len(results) == len(variables)
         for name in variables:
-            assert name in results
-            video_buffer = results[name]
+            key = f"{name}-{test_dates_short[0].strftime('%Y-%m-%d')}"
+            assert key in results
+            video_buffer = results[key]
             assert isinstance(video_buffer, io.BytesIO)
             video_buffer.seek(0)
             assert len(video_buffer.read()) > 1000

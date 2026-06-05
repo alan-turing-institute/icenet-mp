@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from dataclasses import replace
 from datetime import date
 from typing import Literal
@@ -12,6 +11,29 @@ from icenet_mp.visualisations.plotting_core import (
     make_diff_colourmap,
 )
 from icenet_mp.visualisations.range_check import compute_range_check_report
+
+
+def make_bad_prediction(
+    base: np.ndarray,
+    *,
+    scale: float | None = None,
+    outlier: float | None = None,
+    fraction: float = 0.0,
+    noise: float | None = None,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Helper to create mutated predictions for testing range check behavior."""
+    prediction = base.copy()
+    if scale is not None:
+        prediction *= float(scale)
+    if noise is not None:
+        prediction += (rng or np.random.default_rng(0)).normal(
+            0.0, float(noise), size=prediction.shape
+        )
+    if outlier is not None and fraction > 0.0:
+        n = int(max(1, round(fraction * prediction.size)))
+        prediction.ravel()[:n] = outlier
+    return prediction
 
 
 @pytest.mark.parametrize(
@@ -91,18 +113,14 @@ def test_difference_colour_scale_modes(
 )
 def test_range_check_parametrized(
     sic_pair_2d: tuple[np.ndarray, np.ndarray, object],
-    bad_prediction_maker: Callable[..., np.ndarray],
     mutation_kwargs: dict,
     *,
     expect_colour: bool,
     expect_magnitude: bool,
 ) -> None:
     """Parametrised checks of compute_range_check_report using readable mutation helpers."""
-    # base pair comes from existing plotting fixtures
     gt_base, pred_base, _ = sic_pair_2d
-
-    # Build mutated prediction according to the scenario
-    pred = bad_prediction_maker(pred_base, **mutation_kwargs)
+    pred = make_bad_prediction(pred_base, **mutation_kwargs)
 
     # Use shared display range for clarity in these tests
     spec_vmin, spec_vmax = 0.0, 1.0

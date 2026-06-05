@@ -3,7 +3,7 @@ from typing import Any
 import torch
 from torch import nn
 
-from icenet_mp.models.common import CommonConvBlock, ConvBlockUpsampleNaive
+from icenet_mp.models.common import CommonConvBlock, ConvNormActUpsample
 from icenet_mp.types import TensorNCHW
 
 from .base_processor import BaseProcessor
@@ -65,10 +65,10 @@ class UNetProcessor(BaseProcessor):
         self.conv5 = CommonConvBlock(channels[2], channels[3], kernel_size=kernel_size)
 
         # Decoder
-        self.up6 = ConvBlockUpsampleNaive(channels[3], channels[2])
-        self.up7 = ConvBlockUpsampleNaive(channels[2], channels[2])
-        self.up8 = ConvBlockUpsampleNaive(channels[2], channels[1])
-        self.up9 = ConvBlockUpsampleNaive(channels[1], channels[0])
+        self.up6 = ConvNormActUpsample(channels[3], channels[2])
+        self.up7 = ConvNormActUpsample(channels[2], channels[2])
+        self.up8 = ConvNormActUpsample(channels[2], channels[1])
+        self.up9 = ConvNormActUpsample(channels[1], channels[0])
 
         self.up6b = CommonConvBlock(channels[3], channels[2], kernel_size=kernel_size)
         self.up7b = CommonConvBlock(channels[3], channels[2], kernel_size=kernel_size)

@@ -1,8 +1,8 @@
-from dataclasses import dataclass
-from typing import Literal, NamedTuple, TypedDict
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal, NamedTuple, TypedDict, cast
 
 from matplotlib.colors import Normalize
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from .typedefs import DiffMode, DiffStrategy
 
@@ -83,7 +83,8 @@ class Metadata:
 
     Attributes:
         model: Model name (if available).
-        epochs: Maximum number of training epochs (if available).
+        max_epochs: Maximum number of training epochs (if available).
+        current_epoch: Current training epoch (if available).
         start: Training start date string (if available).
         end: Training end date string (if available).
         cadence: Training data cadence string (if available).
@@ -94,7 +95,8 @@ class Metadata:
     """
 
     model: str | None = None
-    epochs: int | None = None
+    max_epochs: int | None = None
+    current_epoch: int | None = None
     start: str | None = None
     end: str | None = None
     cadence: str | None = None
@@ -128,7 +130,7 @@ class PlotSpec:
 
     """
 
-    variable: str
+    variable: str = "sea_ice_concentration"
     title_groundtruth: str = "Ground Truth"
     title_prediction: str = "Prediction"
     title_difference: str = "Difference"
@@ -169,4 +171,24 @@ class PlotSpec:
     video_format: Literal["mp4", "gif"] = "mp4"
 
     # Per-variable styles
-    per_variable_styles: dict[str, dict[str, str | float | bool]] | None = None
+    per_variable_styles: dict[str, dict[str, str | float | bool]] = field(
+        default_factory=lambda: {
+            # Sea ice concentration
+            "sic-icenet:ice_conc": {"cmap": "Blues_r"},
+            "sic-ssmis:ice_conc": {"cmap": "Blues_r"},
+        }
+    )
+
+    def __add__(
+        self, other: "PlotSpec | DictConfig | dict [str, Any] | None"
+    ) -> "PlotSpec":
+        """Combine two PlotSpec instances or a PlotSpec with a dictionary."""
+        if other is None:
+            return self
+        if isinstance(other, PlotSpec):
+            dict_other = asdict(other)
+        elif isinstance(other, DictConfig):
+            dict_other = cast("dict[str, Any]", OmegaConf.to_container(other))
+        else:
+            dict_other = dict(other)
+        return PlotSpec(**(asdict(self) | dict_other))

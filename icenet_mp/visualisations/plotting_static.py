@@ -54,11 +54,12 @@ def plot_static_prediction(
     date: date | datetime,
     land_mask: LandMask,
     plot_spec: PlotSpec,
+    variable_name: str = "sea-ice-concentration",
 ) -> dict[str, list[ImageFile]]:
-    """Create static maps comparing ground truth and prediction sea ice concentration data.
+    """Create static maps comparing ground truth and prediction data.
 
-    Create static maps and (optional) the difference. The plots use contour mapping with customisable colour
-    schemes and include proper axis scaling and colourbars.
+    Create static maps and (optional) the difference. The plots use contour mapping with
+    customisable colour schemes and include proper axis scaling and colourbars.
 
     Args:
         ground_truth: 2D array of ground truth sea ice concentration values.
@@ -67,11 +68,13 @@ def plot_static_prediction(
             other visualisation parameters.
         land_mask: Land mask to apply to the data.
         date: Date/datetime for the data being visualised, used in the plot title.
+        variable_name: Name of the variable being plotted, used in the plot title and
+            output key.
 
     Returns:
         Dictionary that maps plot names to lists of PIL ImageFile objects. Currently
-        returns a single key "sea-ice_concentration-static-maps" containing a list
-        with one image representing the generated plot.
+        returns a single key `variable_name`-`date` containing a list with one image
+        representing the generated plot.
 
     Raises:
         InvalidArrayError: If ground_truth and prediction arrays have incompatible shapes.
@@ -125,7 +128,9 @@ def plot_static_prediction(
 
     _set_axes_limits(axs, width=width, height=height)
     try:
-        title_text = set_suptitle_with_box(fig, _build_title_static(plot_spec, date))
+        title_text = set_suptitle_with_box(
+            fig, _build_title_static(variable_name, plot_spec, date)
+        )
     except Exception:
         logger.exception("Failed to draw suptitle; continuing without title.")
         title_text = None
@@ -134,7 +139,9 @@ def plot_static_prediction(
     _maybe_add_footer(fig, plot_spec)
 
     try:
-        return {"sea-ice_concentration-static-maps": [image_from_figure(fig)]}
+        return {
+            f"{variable_name}-{date.strftime(r'%Y-%m-%d')}": [image_from_figure(fig)]
+        }
     finally:
         plt.close(fig)
 
@@ -238,8 +245,9 @@ def plot_static_inputs(
             plt.close(fig)
 
         # Add image to results dict
-        if variable_name not in results:
-            results[variable_name] = []
-        results[variable_name].append(pil_img)
+        key = f"{variable_name}-{when.strftime(r'%Y-%m-%d')}"
+        if key not in results:
+            results[key] = []
+        results[key].append(pil_img)
 
     return results
