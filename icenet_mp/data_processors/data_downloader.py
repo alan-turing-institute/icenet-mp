@@ -47,16 +47,16 @@ class DataDownloader:
             ds_info = InspectZarr()._info(str(self.path_dataset))
             copy_in_progress = ds_info.copy_in_progress
             statistics_ready = ds_info.statistics_ready
-            if ds_info.dataset is None:
-                # ... if there is no dataset object then the download is incomplete
-                download_complete = False
-            elif copy_in_progress:
+            if copy_in_progress:
                 # If a copy is in progress then the download is incomplete
+                download_complete = False
+            elif ds_info.dataset is None:
+                # ... if there is no dataset object then the download is incomplete
                 download_complete = False
             elif (build_flags := ds_info.build_flags) is not None:
                 # If build flags are present and all true then the download is complete
                 download_complete = len(build_flags) > 0 and bool(all(build_flags))
-            elif ds_info.statistics_started is not None:
+            elif statistics_ready or (ds_info.statistics_started is not None):
                 # If statistics generation has started then the download is complete
                 download_complete = True
             else:
@@ -91,7 +91,6 @@ class DataDownloader:
                 status = self.check_status()
             except RuntimeError as exc:
                 msg = f"Status of dataset {self.name} at {self.path_dataset} could not be determined. Please check manually."
-                logger.error(msg)  # noqa: TRY400
                 raise RuntimeError(msg) from exc
             else:
                 if status.copy_in_progress:
@@ -108,7 +107,6 @@ class DataDownloader:
                         self.inspect()
                     except RuntimeError as exc:
                         msg = f"Dataset {self.name} at {self.path_dataset} could not be inspected. Please check manually."
-                        logger.error(msg)  # noqa: TRY400
                         raise RuntimeError(msg) from exc
                     # At this point we have a valid dataset so we exit without error
                     logger.info(
@@ -228,7 +226,6 @@ class DataDownloader:
             logger.info("Initialised dataset %s at %s.", self.name, self.path_dataset)
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             msg = f"Failed to initialise dataset {self.name} at {self.path_dataset}."
-            logger.error(msg)  # noqa: TRY400
             raise RuntimeError(msg) from exc
 
     def inspect(
