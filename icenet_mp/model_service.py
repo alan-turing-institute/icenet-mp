@@ -88,6 +88,7 @@ class ModelService:
             output_space=builder.data_module.output_space.to_dict(),
             optimizer=config["train"]["optimizer"],
             scheduler=config["train"]["scheduler"],
+            loss=config["loss"],
             _recursive_=False,
             _convert_="object",
         )
