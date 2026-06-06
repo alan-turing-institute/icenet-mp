@@ -173,11 +173,16 @@ class DataDownloader:
             logger.info("Both masks already exist, skipping creation.")
             return
 
-        # Unpack status flags into a binary array
+        # Unpack status flags into a binary array, skipping any missing dates
         ds_sf = open_dataset(self.path_dataset, select="status_flag")
-        shape, dates = ds_sf.shape, ds_sf.dates
-        status_flag = np.array(ds_sf).astype(np.uint8).reshape(*shape)
-        binary = np.unpackbits(status_flag, axis=-1).reshape(*shape, 8)
+        missing_indices = getattr(ds_sf, "missing", set())
+        if missing_indices:
+            logger.warning(
+                "Skipping %d missing dates when generating masks.", len(missing_indices)
+            )
+        available_indices = [i for i in range(len(ds_sf)) if i not in missing_indices]
+        status_flag = np.stack([ds_sf[i] for i in available_indices]).astype(np.uint8)
+        binary = np.unpackbits(status_flag, axis=-1).reshape(*status_flag.shape, 8)
 
         # land mask: land = 0, sea = 1
         if land_mask_path.exists() and not overwrite:
@@ -198,7 +203,8 @@ class DataDownloader:
             logger.info("Active mask already exists, skipping creation.")
         else:
             # Identify grid cells that are inactive for all time steps
-            inactive_mask = np.squeeze(binary[..., [0]]).sum(axis=0) >= dates.shape[0]
+            inactive_count = np.squeeze(binary[..., [0]]).sum(axis=0)
+            inactive_mask = inactive_count >= len(available_indices)
             # convert to binary mask, and set to 1 for active grid cells
             active_mask = 1 - (inactive_mask > 0).astype(np.uint8)
             # reshape to 2D grid
