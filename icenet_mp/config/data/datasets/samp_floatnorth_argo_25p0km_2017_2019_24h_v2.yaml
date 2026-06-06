@@ -1,0 +1,31 @@
+samp-floatnorth-argo-25p0km-2017-2019-24h-v2:
+  name: samp-floatnorth-argo-25p0km-2017-2019-24h-v2
+  group_as: float-argo
+  description: ARGO float data for northern hemisphere
+  attribution: ARGO
+  licence: CC-BY-4.0
+
+  dates:
+    start: '2017-01-01T12:00:00'
+    end: '2019-01-31T12:00:00'
+    frequency: 24h
+
+  input:
+    pipe:
+      # Get the ARGO data
+      - argo:
+          area: "90/-180/0/180"  # northern hemisphere
+          crs: "EPSG:6931"
+          param:
+            - TEMP # temperature
+            - PSAL # salinity
+          resolution: "25p0km"
+          shape: [432, 432]
+      # Replace NaNs with a fill value
+      - nan_to_num:
+          variables: [TEMP, PSAL]
+          replace_with: 99
+      # Set the geography to EASE2 25km grid
+      - set_geography:
+          crs: ${...0.argo.crs}
+          resolution: ${...0.argo.resolution}
