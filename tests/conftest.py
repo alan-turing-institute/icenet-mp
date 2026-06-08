@@ -172,7 +172,7 @@ def cfg_model_service() -> DictConfig:
             "evaluate": {"callbacks": {}},
             "hemisphere": "north",
             "loggers": {},
-            "loss": {},
+            "loss": {"_target_": "torch.nn.HuberLoss", "delta": 0.5},
             "model": {
                 "_target_": "MockModel",
                 "name": "mock-model",
