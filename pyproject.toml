@@ -20,9 +20,9 @@ authors = [
 ]
 requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with the tensorflow requirement from icenet
 dependencies = [
-    "anemoi-datasets>=0.5.27", # to get the fix from https://github.com/ecmwf/anemoi-datasets/pull/372
-    "anemoi-transform>=0.1.16",
-    "anemoi-utils>=0.4.42",
+    "anemoi-datasets>=0.5.37",
+    "anemoi-transform>=0.4.0",
+    "anemoi-utils>=0.5.3",
     "argopy>=1.4.0",
     "cachetools>=6.1.0",
     "cdsapi>=0.7.6",
@@ -45,7 +45,7 @@ dependencies = [
     "typer>=0.16.0",
     "wandb>=0.27.0",
     "xarray>=2025.3.0",
-    "zarr<3.0.0", # v3 is not compatible with anemoi
+    "zarr>=2.18", # anemoi-datasets==0.5.37 still depends on zarr<=3
 ]
 
 [dependency-groups]
