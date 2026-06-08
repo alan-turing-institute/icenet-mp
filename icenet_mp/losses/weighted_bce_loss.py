@@ -20,7 +20,8 @@ class WeightedBCEWithLogitsLoss(nn.BCEWithLogitsLoss):
             **kwargs: Keyword arguments passed to torch.nn.BCEWithLogitsLoss.
 
         """
-        super().__init__(*args, reduction="none", **kwargs)
+        kwargs["reduction"] = "none"
+        super().__init__(*args, **kwargs)
 
     def forward(  # type: ignore[override]
         self,
