@@ -245,28 +245,29 @@ class DataDownloader:
         verbose: bool = False,
     ) -> None:
         """Inspect an Anemoi dataset."""
-        if self.path_dataset.exists():
-            try:
-                if verbose:
-                    InspectZarr().run(
-                        AnemoiInspectArgs(
-                            path=str(self.path_dataset),
-                            detailed=True,
-                            progress=False,
-                            statistics=False,  # recalculate statistics on-the-fly
-                            size=True,
-                        )
-                    )
-                else:
-                    ds_info = InspectZarr()._info(str(self.path_dataset))
-                    ds_info.describe()
-                    ds_info.progress()
-            except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
-                msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
-                raise RuntimeError(msg) from exc
-        else:
+        if not self.path_dataset.exists():
             msg = f"Dataset {self.name} not found at {self.path_dataset}"
             raise RuntimeError(msg)
+        try:
+            if verbose:
+                InspectZarr().run(
+                    AnemoiInspectArgs(
+                        path=str(self.path_dataset),
+                        detailed=True,
+                        progress=False,
+                        statistics=False,  # recalculate statistics on-the-fly
+                        size=True,
+                    )
+                )
+            else:
+                ds_info = InspectZarr()._info(str(self.path_dataset))
+                ds_info.describe()
+                ds_info.progress()
+        except ValueError:
+            logger.warning("Dataset progress unavailable.")
+        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+            msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
+            raise RuntimeError(msg) from exc
 
     def load_in_chunks(self) -> None:
         """Download a single Anemoi dataset in chunks, skipping those already present."""
