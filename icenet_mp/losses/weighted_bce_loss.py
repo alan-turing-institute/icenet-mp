@@ -20,23 +20,29 @@ class WeightedBCEWithLogitsLoss(nn.BCEWithLogitsLoss):
             **kwargs: Keyword arguments passed to torch.nn.BCEWithLogitsLoss.
 
         """
+        kwargs["reduction"] = "none"
         super().__init__(*args, **kwargs)
 
     def forward(  # type: ignore[override]
         self,
-        inputs: Tensor,
+        preds: Tensor,
         targets: Tensor,
-        sample_weights: Tensor,
+        sample_weights: Tensor | None = None,
     ) -> Tensor:  # type: ignore[override]
-        """Weighted BCEWithLogitsLoss.
+        """Compute weighted BCEWithLogits loss.
 
-        Compute BCEWithLogitsLoss weighted by masking.
-        Using BCEWithLogitsLoss instead of BCELoss, as it is more numerically stable:
-        https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
+        Args:
+            preds (Tensor): Predicted values.
+            targets (Tensor): Ground-truth values.
+            sample_weights (Tensor | None): Elementwise weighting tensor. If None, no weighting is applied.
+
+        Returns:
+            Tensor: Scalar weighted loss value.
+
         """
-        loss = super().forward(
-            inputs.movedim(-2, 1),
-            targets.movedim(-1, 1),
-        ) * sample_weights.movedim(-1, 1)
-
+        y_hat = preds.squeeze()
+        targets = targets.squeeze()
+        loss = super().forward(y_hat, targets)
+        if sample_weights is not None:
+            loss = loss * sample_weights.squeeze()
         return loss.mean()

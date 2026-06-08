@@ -25,24 +25,24 @@ class WeightedMSELoss(nn.MSELoss):
 
     def forward(  # type: ignore[override]
         self,
-        inputs: Tensor,
+        preds: Tensor,
         targets: Tensor,
-        sample_weights: Tensor,
+        sample_weights: Tensor | None = None,
     ) -> Tensor:
         """Compute weighted mean squared error loss.
 
         Args:
-            inputs (Tensor): Predicted values.
+            preds (Tensor): Predicted values.
             targets (Tensor): Ground-truth values.
-            sample_weights (Tensor): Elementwise weighting tensor.
+            sample_weights (Tensor | None): Elementwise weighting tensor. If None, no weighting is applied.
 
         Returns:
             Tensor: Scalar weighted loss value.
 
         """
-        y_hat = inputs.squeeze()
+        y_hat = preds.squeeze()
         targets = targets.squeeze()
-        sample_weights = sample_weights.squeeze()
-
-        loss = super().forward(y_hat, targets) * sample_weights
+        loss = super().forward(y_hat, targets)
+        if sample_weights is not None:
+            loss = loss * sample_weights.squeeze()
         return loss.mean()

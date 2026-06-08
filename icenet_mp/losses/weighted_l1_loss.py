@@ -5,7 +5,6 @@ Adapted from the IceNet repository: https://github.com/icenet-ai/icenet-notebook
 
 from typing import Any
 
-import torch
 from torch import Tensor, nn
 
 
@@ -20,19 +19,29 @@ class WeightedL1Loss(nn.L1Loss):
             **kwargs: Keyword arguments passed to torch.nn.L1Loss.
 
         """
+        kwargs["reduction"] = "none"
         super().__init__(*args, **kwargs)
 
     def forward(  # type: ignore[override]
         self,
-        inputs: Tensor,
+        preds: Tensor,
         targets: Tensor,
-        sample_weights: Tensor,
+        sample_weights: Tensor | None = None,
     ) -> Tensor:  # type: ignore[override]
         """Compute weighted L1 loss.
 
-        The loss is computed as elementwise L1 error multiplied by
-        `sample_weights`, then averaged to a scalar.
+        Args:
+            preds (Tensor): Predicted values.
+            targets (Tensor): Ground-truth values.
+            sample_weights (Tensor | None): Elementwise weighting tensor. If None, no weighting is applied.
+
+        Returns:
+            Tensor: Scalar weighted loss value.
+
         """
-        y_hat = torch.sigmoid(inputs)
-        loss = super().forward(100 * y_hat, 100 * targets) * sample_weights
+        y_hat = preds.squeeze()
+        targets = targets.squeeze()
+        loss = super().forward(y_hat, targets)
+        if sample_weights is not None:
+            loss = loss * sample_weights.squeeze()
         return loss.mean()
