@@ -1,21 +1,17 @@
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 
+import anemoi.datasets.create
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.data_processors.data_downloader import DataDownloader
-from icenet_mp.data_processors.preprocessors.ipreprocessor import IPreprocessor
 
 
-class DummyPreprocessor(IPreprocessor):
-    """A dummy preprocessor for testing."""
-
-    def download(self, preprocessor_path: Path) -> None:  # pragma: no cover - unused
-        preprocessor_path.mkdir(parents=True, exist_ok=True)
-
-
-def _build_downloader(tmp_path: Path, dataset_cfg: dict) -> DataDownloader:
-    """Helper to create a DataDownloader with a dummy preprocessor."""
+@pytest.fixture
+def mock_downloader(tmp_path: Path) -> DataDownloader:
+    """A DataDownloader built from a minimal dataset config."""
     full_cfg: DictConfig = OmegaConf.create(
         {
             "base_path": str(tmp_path),
@@ -24,43 +20,66 @@ def _build_downloader(tmp_path: Path, dataset_cfg: dict) -> DataDownloader:
                     "test": {
                         "name": "test",
                         "preprocessor": {"type": "dummy"},
-                        **dataset_cfg,
+                        "dates": {
+                            "start": "2020-01-01",
+                            "end": "2020-01-31",
+                            "frequency": "24h",
+                        },
                     }
                 },
             },
         }
     )
-    return DataDownloader("test", full_cfg, DummyPreprocessor)
+    return DataDownloader("test", full_cfg, MagicMock)
 
 
 @pytest.fixture
-def downloader_with_file_dataset(tmp_path: Path) -> DataDownloader:
-    """Fixture that creates a downloader with a file-based dataset path."""
-    downloader = _build_downloader(
-        tmp_path,
-        {
-            "start": "2020-01-01",
-            "end": "2020-01-31",
-            "group_by": "monthly",
-        },
-    )
-    downloader.path_dataset = tmp_path / "test.zarr"
-    # Create the file to ensure it exists
-    downloader.path_dataset.touch()
-    return downloader
+def mock_creator(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Patch anemoi creator_factory to return a MagicMock for testing."""
+    creator = MagicMock()
+
+    def mock_factory(name: str, **kwargs: Any) -> MagicMock:
+        """A mock creator factory that captures the task name, config, and path."""
+        creator.task_name = name
+        creator.config = kwargs.get("config")
+        creator.path = kwargs.get("path")
+        return creator
+
+    monkeypatch.setattr(anemoi.datasets.create, "creator_factory", mock_factory)
+    return creator
 
 
-@pytest.fixture
-def downloader_with_directory_dataset(tmp_path: Path) -> DataDownloader:
-    """Fixture that creates a downloader with a directory-based dataset path."""
-    downloader = _build_downloader(
-        tmp_path,
-        {
-            "start": "2020-01-01",
-            "end": "2020-01-31",
-            "group_by": "monthly",
-        },
-    )
-    downloader.path_dataset = tmp_path / "test_dir.zarr"
-    downloader.path_dataset.mkdir(parents=True, exist_ok=True)
-    return downloader
+class TestDataDownloader:
+    """Verify that DataDownloader delivers the right config and path to the anemoi creator."""
+
+    def test_initialise_config_and_path_reach_creator(
+        self,
+        mock_downloader: DataDownloader,
+        mock_creator: MagicMock,
+    ) -> None:
+        mock_downloader.initialise()
+        assert mock_creator.task_name == "init"
+        assert mock_creator.config is mock_downloader.config
+        assert mock_creator.path == str(mock_downloader.path_dataset)
+
+    def test_finalise_config_and_path_reach_creator(
+        self,
+        mock_downloader: DataDownloader,
+        mock_creator: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(mock_downloader, "create_masks", MagicMock())
+        mock_downloader.finalise(overwrite=False)
+        assert mock_creator.task_name == "finalise"
+        assert mock_creator.config is mock_downloader.config
+        assert mock_creator.path == str(mock_downloader.path_dataset)
+
+    def test_load_in_chunks_config_and_path_reach_creator(
+        self,
+        mock_downloader: DataDownloader,
+        mock_creator: MagicMock,
+    ) -> None:
+        mock_downloader.load_in_chunks()
+        assert mock_creator.task_name == "load"
+        assert mock_creator.config is mock_downloader.config
+        assert mock_creator.path == str(mock_downloader.path_dataset)

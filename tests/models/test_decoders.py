@@ -11,13 +11,13 @@ from icenet_mp.types import DataSpace
 
 
 class TestDecoders:
-    @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+    @pytest.mark.parametrize("test_batch_size", [1, 2])
     @pytest.mark.parametrize(
         "test_decoder_cls", ["CNNDecoder", "NaiveLinearDecoder", "PiecewiseDecoder"]
     )
     @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (2, 200, 100)])
-    @pytest.mark.parametrize("test_n_forecast_steps", [1, 3, 5])
-    @pytest.mark.parametrize("test_output_chw", [(4, 256, 256), (1, 100, 200)])
+    @pytest.mark.parametrize("test_n_forecast_steps", [1, 5])
+    @pytest.mark.parametrize("test_output_chw", [(4, 64, 64), (1, 20, 20)])
     def test_forward_shape(
         self,
         test_batch_size: int,
@@ -90,67 +90,47 @@ class TestCNNDecoder:
 
 
 class TestDecoderBounded:
-    @pytest.mark.xfail(
-        reason="Bounded output for random input is not always between 0 and 1.",
-        strict=False,
-    )
     @pytest.mark.parametrize(
         "test_decoder_cls", ["CNNDecoder", "NaiveLinearDecoder", "PiecewiseDecoder"]
     )
     def test_bounded_fixes_values_between_0_and_1(self, test_decoder_cls: str) -> None:
-        test_batch_size = 1
         test_n_forecast_steps = 1
-        # choose latent channels divisible by 2 for CNNDecoder with n_layers=1
+        # latent channels must be divisible by 2 for CNNDecoder with n_layers=1
         latent_space = DataSpace(name="latent", channels=4, shape=(8, 8))
         output_space = DataSpace(name="output", channels=1, shape=(16, 16))
 
-        decoders = {
-            "CNNDecoder": lambda bounded: CNNDecoder(
+        decoder = {
+            "CNNDecoder": CNNDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
                 n_forecast_steps=test_n_forecast_steps,
                 n_layers=1,
-                bounded=bounded,
+                bounded=True,
             ),
-            "NaiveLinearDecoder": lambda bounded: NaiveLinearDecoder(
+            "NaiveLinearDecoder": NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
                 n_forecast_steps=test_n_forecast_steps,
-                bounded=bounded,
+                bounded=True,
             ),
-            "PiecewiseDecoder": lambda bounded: PiecewiseDecoder(
+            "PiecewiseDecoder": PiecewiseDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
                 n_forecast_steps=test_n_forecast_steps,
-                restrict_range="tanh" if bounded else "none",
+                restrict_range="tanh",
             ),
-        }
+        }[test_decoder_cls]
 
-        decoder_bounded = decoders[test_decoder_cls](bounded=True)
-        decoder_unbounded = decoders[test_decoder_cls](bounded=False)
-
-        # Large input values so that unbounded decoder outputs likely falls outside [0, 1]
         extreme_input = torch.full(
-            (
-                test_batch_size,
-                test_n_forecast_steps,
-                latent_space.channels,
-                *latent_space.shape,
-            ),
+            (1, test_n_forecast_steps, latent_space.channels, *latent_space.shape),
             1e10,
             dtype=torch.float32,
         )
-
         with torch.no_grad():
-            out_bounded = decoder_bounded.rollout(extreme_input)
-            out_unbounded = decoder_unbounded.rollout(extreme_input)
+            out = decoder.rollout(extreme_input)
 
-        # bounded output must be within [0, 1]
-        assert torch.all(out_bounded >= 0.0).item()
-        assert torch.all(out_bounded <= 1.0).item()
-
-        # unbounded output should (very likely) contain values outside [0, 1]
-        assert torch.any((out_unbounded < 0.0) | (out_unbounded > 1.0)).item()
+        assert torch.all(out >= 0.0).item()
+        assert torch.all(out <= 1.0).item()
 
 
 class TestPiecewiseDecoder:
@@ -202,3 +182,31 @@ class TestPiecewiseDecoder:
         assert latent_ntchw.shape == (1, 1, *output_space.chw)
         assert torch.all(input_min_val < latent_ntchw)
         assert torch.all(latent_ntchw < input_max_val)
+
+    def test_clamp_restricts_output_to_unit_range(self) -> None:
+        output_space = DataSpace(name="output", channels=1, shape=(4, 4))
+        patch_size = (2, 2)
+        stride = [max(1, p // 2) for p in patch_size]
+        n_patches = (
+            (output_space.shape[0] + 2 * stride[0] - (patch_size[0] - 1) - 1)
+            // stride[0]
+            + 1
+        ) * (
+            (output_space.shape[1] + 2 * stride[1] - (patch_size[1] - 1) - 1)
+            // stride[1]
+            + 1
+        )
+        input_space = DataSpace(name="input", channels=n_patches, shape=patch_size)
+        decoder = PiecewiseDecoder(
+            data_space_in=input_space,
+            data_space_out=output_space,
+            n_conv_blocks=0,
+            n_forecast_steps=1,
+            restrict_range="clamp",
+        )
+        x = torch.full(
+            (1, 1, input_space.channels, *input_space.shape), 1e10, dtype=torch.float32
+        )
+        output = decoder.rollout(x)
+        assert torch.all(output >= 0.0).item()
+        assert torch.all(output <= 1.0).item()

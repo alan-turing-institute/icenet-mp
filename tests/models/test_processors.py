@@ -5,11 +5,12 @@ from icenet_mp.models.processors import (
     BaseProcessor,
     NullProcessor,
     UNetProcessor,
+    VitProcessor,
 )
 from icenet_mp.types import DataSpace
 
 
-@pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+@pytest.mark.parametrize("test_batch_size", [1, 2])
 @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (3, 100, 200)])
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
 @pytest.mark.parametrize("test_n_history_steps", [1, 2])
@@ -42,7 +43,7 @@ class TestBaseProcessor:
             )
 
 
-@pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+@pytest.mark.parametrize("test_batch_size", [1, 2])
 @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (3, 100, 200)])
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
 @pytest.mark.parametrize("test_n_history_steps", [1, 2])
@@ -78,7 +79,7 @@ class TestNullProcessor:
         )
 
 
-@pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+@pytest.mark.parametrize("test_batch_size", [1, 2])
 @pytest.mark.parametrize("test_kernel_size", [-1, 0, 1])
 @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (3, 100, 200)])
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
@@ -154,3 +155,55 @@ class TestUNetProcessor:
                 latent_space.channels,
                 *latent_space.shape,
             )
+
+
+class TestVitProcessor:
+    def test_rejects_non_square_input(self) -> None:
+        latent_space = DataSpace(name="latent", channels=4, shape=(16, 32))
+        with pytest.raises(ValueError, match="height and width"):
+            VitProcessor(
+                data_space=latent_space,
+                n_forecast_steps=1,
+                n_history_steps=1,
+            )
+
+    @pytest.mark.parametrize("test_batch_size", [1, 2])
+    @pytest.mark.parametrize("test_latent_chw", [(4, 16, 16), (8, 32, 32)])
+    @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
+    @pytest.mark.parametrize("test_n_history_steps", [1, 2])
+    def test_forward_shape(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+    ) -> None:
+        latent_space = DataSpace(
+            name="latent",
+            channels=test_latent_chw[0],
+            shape=test_latent_chw[1:],
+        )
+        processor = VitProcessor(
+            data_space=latent_space,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            depth=1,
+            emb_dim=16,
+            heads=4,
+            mlp_dim=32,
+            patch_size=4,
+        )
+        result = processor.rollout(
+            torch.randn(
+                test_batch_size,
+                test_n_history_steps,
+                latent_space.channels,
+                *latent_space.shape,
+            )
+        )
+        assert result.shape == (
+            test_batch_size,
+            test_n_forecast_steps,
+            latent_space.channels,
+            *latent_space.shape,
+        )

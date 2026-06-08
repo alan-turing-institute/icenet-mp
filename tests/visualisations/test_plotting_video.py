@@ -8,7 +8,7 @@ styling configurations.
 import io
 from collections.abc import Callable, Sequence
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import date
 from typing import Literal
 
 import numpy as np
@@ -174,10 +174,7 @@ class TestPlotVideoSingleInput:
         base_plot_spec: PlotSpec,
     ) -> None:
         """Test error when number of dates doesn't match timesteps."""
-        wrong_dates = [
-            TEST_DATE,
-            TEST_DATE + timedelta(days=1),
-        ]  # Only 2 dates for 4 timesteps
+        wrong_dates = [TEST_DATE]  # Only 1 date for 2 timesteps
 
         with pytest.raises(
             InvalidArrayError, match="Number of dates.*!= number of timesteps"
