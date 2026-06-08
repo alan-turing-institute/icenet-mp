@@ -63,6 +63,7 @@ notebooks = [
     "cmocean>=4.0.3",
     "download-toolbox>=0.0.6",
     "jupyter>=1.1.1",
+    "s2sphere>=0.2.5",
 ]
 
 [project.scripts]
