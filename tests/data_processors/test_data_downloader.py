@@ -1,5 +1,5 @@
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -17,7 +17,7 @@ class MockDsInfo:
 
     copy_in_progress: bool = False
     statistics_ready: bool = False
-    dataset: object = object()  # _DATASET_PRESENT
+    dataset: object = field(default_factory=object)
     build_flags: list[bool] | None = None
     statistics_started: str | None = None
 
