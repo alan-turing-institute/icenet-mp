@@ -1,13 +1,15 @@
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+from anemoi.datasets import open_dataset
 from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
 from anemoi.datasets.commands.load import Load
-from anemoi.datasets.data import open_dataset
+from anemoi.datasets.create.recipe import Recipe
 from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
@@ -38,8 +40,11 @@ class DataDownloader:
         self.path_preprocessor = _data_path / "preprocessing"
         self.path_masks = self.path_preprocessor / "masks" / name
         # Note that Anemoi 'forcings' need to be escaped with `\${}` to avoid being resolved here
-        self.config: DictConfig = OmegaConf.to_object(config["data"]["datasets"][name])  # type: ignore[assignment]
-        self.preprocessor = cls_preprocessor(self.config)
+        anemoi_config: dict[str, Any] = OmegaConf.to_object(
+            config["data"]["datasets"][name]
+        )  # type: ignore[assignment]
+        self.recipe = Recipe(**anemoi_config)
+        self.preprocessor = cls_preprocessor(anemoi_config)
 
     def check_status(self) -> AnemoiDatasetStatus:
         """Return the status of the dataset."""
@@ -150,7 +155,7 @@ class DataDownloader:
             Finalise().run(
                 AnemoiFinaliseArgs(
                     path=str(self.path_dataset),
-                    config=self.config,
+                    recipe=self.recipe,
                 )
             )
             logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
@@ -226,7 +231,7 @@ class DataDownloader:
             Init().run(
                 AnemoiInitArgs(
                     path=str(self.path_dataset),
-                    config=self.config,
+                    recipe=self.recipe,
                 )
             )
             logger.info("Initialised dataset %s at %s.", self.name, self.path_dataset)
@@ -268,6 +273,6 @@ class DataDownloader:
         Load().run(
             AnemoiLoadArgs(
                 path=str(self.path_dataset),
-                config=self.config,
+                recipe=self.recipe,
             )
         )

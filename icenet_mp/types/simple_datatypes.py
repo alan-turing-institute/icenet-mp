@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, NamedTuple, TypedDict, cast
 
+from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
 from omegaconf import DictConfig, OmegaConf
 
@@ -19,8 +20,8 @@ class AnemoiDatasetStatus(NamedTuple):
 class AnemoiFinaliseArgs:
     """Arguments for anemoi finalise."""
 
-    config: DictConfig
     path: str
+    recipe: Recipe
     command: str = "unused"
 
 
@@ -28,8 +29,8 @@ class AnemoiFinaliseArgs:
 class AnemoiInitArgs:
     """Arguments for anemoi init."""
 
-    config: DictConfig
     path: str
+    recipe: Recipe
     command: str = "unused"
     overwrite: bool = False
 
@@ -49,8 +50,8 @@ class AnemoiInspectArgs:
 class AnemoiLoadArgs:
     """Arguments for anemoi load."""
 
-    config: DictConfig
     path: str
+    recipe: Recipe
     command: str = "unused"
 
 

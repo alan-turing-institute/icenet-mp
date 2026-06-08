@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import ClassVar, TypeVar, cast
 
 import numpy as np
-from anemoi.datasets.data import open_dataset
-from anemoi.datasets.data.dataset import Dataset as AnemoiDataset
+from anemoi.datasets import open_dataset
+from anemoi.datasets.usage.dataset import Dataset as AnemoiDataset
 from torch.utils.data import Dataset
 
 from icenet_mp.types import ArrayCHW, ArrayTCHW, DataSpace, Hemisphere

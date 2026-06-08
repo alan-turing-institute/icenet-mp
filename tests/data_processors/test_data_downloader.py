@@ -1,9 +1,9 @@
+import datetime
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock
 
-import anemoi.datasets.create
+import anemoi.datasets.create.tasks
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
@@ -60,18 +60,16 @@ def mock_data_downloader(tmp_path: Path) -> DataDownloader:
 
 
 @pytest.fixture
-def mock_creator(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Patch anemoi creator_factory to return a MagicMock for testing."""
-    creator = MagicMock()
+def mock_dispatcher(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Patch anemoi TaskDispatcher to return a MagicMock for testing."""
+    dispatcher = MagicMock()
 
-    def mock_factory(name: str, **kwargs: Any) -> MagicMock:
-        creator.task_name = name
-        creator.config = kwargs.get("config")
-        creator.path = kwargs.get("path")
-        return creator
+    def mock_init(creator: object) -> MagicMock:
+        dispatcher.creator = creator
+        return dispatcher
 
-    monkeypatch.setattr(anemoi.datasets.create, "creator_factory", mock_factory)
-    return creator
+    monkeypatch.setattr(anemoi.datasets.create.tasks, "TaskDispatcher", mock_init)
+    return dispatcher
 
 
 @pytest.fixture
@@ -86,22 +84,28 @@ def mock_inspect_zarr(monkeypatch: pytest.MonkeyPatch) -> MockInspectZarr:
 
 
 class TestDataDownloader:
-    """Verify that DataDownloader delivers the right config and path to the anemoi creator."""
+    """Verify that DataDownloader delivers the right recipe and path to the anemoi creator."""
 
-    def test_initialise_config_and_path_reach_creator(
+    start_date = datetime.datetime(2020, 1, 1)
+    end_date = datetime.datetime(2020, 1, 31)
+    frequency = datetime.timedelta(hours=24)
+
+    def test_initialise_recipe_and_path_reach_creator(
         self,
         mock_data_downloader: DataDownloader,
-        mock_creator: MagicMock,
+        mock_dispatcher: MagicMock,
     ) -> None:
         mock_data_downloader.initialise()
-        assert mock_creator.task_name == "init"
-        assert mock_creator.config is mock_data_downloader.config
-        assert mock_creator.path == str(mock_data_downloader.path_dataset)
+        mock_dispatcher.task_init.assert_called_once()
+        assert mock_dispatcher.creator.recipe.dates.start == self.start_date
+        assert mock_dispatcher.creator.recipe.dates.end == self.end_date
+        assert mock_dispatcher.creator.recipe.dates.frequency == self.frequency
+        assert mock_dispatcher.creator.path == str(mock_data_downloader.path_dataset)
 
-    def test_finalise_config_and_path_reach_creator(
+    def test_finalise_recipe_and_path_reach_creator(
         self,
         mock_data_downloader: DataDownloader,
-        mock_creator: MagicMock,
+        mock_dispatcher: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(mock_data_downloader, "generate_masks", MagicMock())
@@ -109,27 +113,30 @@ class TestDataDownloader:
             copy_in_progress=False, download_complete=True, is_finalised=False
         )
         mock_data_downloader.finalise(overwrite=False, status=status)
-        assert mock_creator.task_name == "finalise"
-        assert mock_creator.config is mock_data_downloader.config
-        assert mock_creator.path == str(mock_data_downloader.path_dataset)
+        mock_dispatcher.task_finalise.assert_called_once()
+        assert mock_dispatcher.creator.recipe.dates.start == self.start_date
+        assert mock_dispatcher.creator.recipe.dates.end == self.end_date
+        assert mock_dispatcher.creator.recipe.dates.frequency == self.frequency
+        assert mock_dispatcher.creator.path == str(mock_data_downloader.path_dataset)
 
-    def test_load_in_chunks_config_and_path_reach_creator(
+    def test_load_in_chunks_recipe_and_path_reach_creator(
         self,
         mock_data_downloader: DataDownloader,
-        mock_creator: MagicMock,
+        mock_dispatcher: MagicMock,
     ) -> None:
         mock_data_downloader.load_in_chunks()
-        assert mock_creator.task_name == "load"
-        assert mock_creator.config is mock_data_downloader.config
-        assert mock_creator.path == str(mock_data_downloader.path_dataset)
+        mock_dispatcher.task_load.assert_called_once()
+        assert mock_dispatcher.creator.recipe.dates.start == self.start_date
+        assert mock_dispatcher.creator.recipe.dates.end == self.end_date
+        assert mock_dispatcher.creator.recipe.dates.frequency == self.frequency
+        assert mock_dispatcher.creator.path == str(mock_data_downloader.path_dataset)
 
-    def test_copy_in_progress(
+    def test_copy_in_progress_not_complete(
         self,
         mock_data_downloader: DataDownloader,
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(copy_in_progress=True)
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=True, download_complete=False, is_finalised=False
         )
@@ -140,7 +147,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(dataset=None)
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=False, is_finalised=False
         )
@@ -153,7 +159,6 @@ class TestDataDownloader:
         mock_inspect_zarr.ds_info = MockDsInfo(
             statistics_ready=True, build_flags=[True, True, True]
         )
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=True, is_finalised=True
         )
@@ -164,7 +169,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(build_flags=[True, True, True])
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=True, is_finalised=False
         )
@@ -175,7 +179,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(build_flags=[])
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=False, is_finalised=False
         )
@@ -186,7 +189,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(build_flags=[True, False, True])
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=False, is_finalised=False
         )
@@ -197,7 +199,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(statistics_ready=True)
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=True, is_finalised=True
         )
@@ -208,7 +209,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(statistics_started="2020-01-31")
-
         assert mock_data_downloader.check_status() == AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=True, is_finalised=False
         )
@@ -219,7 +219,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = MockDsInfo(statistics_started=None)
-
         with pytest.raises(RuntimeError, match="Unable to determine readiness"):
             mock_data_downloader.check_status()
 
@@ -229,7 +228,6 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = FileNotFoundError("no dataset at path")
-
         with pytest.raises(RuntimeError, match="Unable to get status"):
             mock_data_downloader.check_status()
 
@@ -239,6 +237,5 @@ class TestDataDownloader:
         mock_inspect_zarr: MockInspectZarr,
     ) -> None:
         mock_inspect_zarr.ds_info = AttributeError("unexpected ds_info shape")
-
         with pytest.raises(RuntimeError, match="Unable to get status"):
             mock_data_downloader.check_status()
