@@ -5,5 +5,3 @@ defaults:
   - override /data: nbsample
   - _self_
 
-ship_tracks_csv_path: ${base_path}/data/notebooks/whale_corridors/  # update with specific filename
-gfw_api_token: ""  # set in whale_corridors.local.yaml — register at globalfishingwatch.org/api-docs
