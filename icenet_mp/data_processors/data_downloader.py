@@ -186,7 +186,10 @@ class DataDownloader:
                 "Skipping %d missing dates when generating masks.", len(missing_indices)
             )
         available_indices = [i for i in range(len(ds_sf)) if i not in missing_indices]
-        status_flag = np.stack([ds_sf[i] for i in available_indices]).astype(np.uint8)
+        if not available_indices:
+            msg = f"No available timesteps in status_flag for dataset {self.name}."
+            raise RuntimeError(msg)
+        status_flag = np.asarray(ds_sf, dtype=np.uint8)[available_indices]
         binary = np.unpackbits(status_flag, axis=-1).reshape(*status_flag.shape, 8)
 
         # land mask: land = 0, sea = 1
