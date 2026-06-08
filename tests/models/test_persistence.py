@@ -1,10 +1,8 @@
 import pytest
 import torch
-from omegaconf import OmegaConf
+from omegaconf import DictConfig
 
 from icenet_mp.models import Persistence
-
-_DEFAULT_LOSS = OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
 
 
 class TestPersistence:
@@ -20,6 +18,7 @@ class TestPersistence:
         test_n_forecast_steps: int,
         test_n_history_steps: int,
         test_output_shape: tuple[int, int, int],
+        cfg_loss: DictConfig,
     ) -> None:
         input_space = {
             "channels": test_input_shape[2],
@@ -40,7 +39,7 @@ class TestPersistence:
             output_space=output_space,
             optimizer={},
             scheduler={},
-            loss=_DEFAULT_LOSS,
+            loss=cfg_loss,
         )
         batch = {
             "input": torch.randn(
@@ -61,7 +60,7 @@ class TestPersistence:
         result: torch.Tensor = model(batch)
         assert result.shape == batch["target"].shape
 
-    def test_optimizer(self) -> None:
+    def test_optimizer(self, cfg_loss: DictConfig) -> None:
         model = Persistence(
             name="persistence",
             hemisphere="north",
@@ -81,7 +80,7 @@ class TestPersistence:
             },
             optimizer={},
             scheduler={},
-            loss=_DEFAULT_LOSS,
+            loss=cfg_loss,
         )
         assert model.configure_optimizers() is None, (
             "No optimizer should be initialized"

@@ -1,10 +1,8 @@
 import pytest
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from icenet_mp.models import EncodeProcessDecode
-
-_DEFAULT_LOSS = OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
 
 
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
@@ -17,6 +15,7 @@ class TestEncodeProcessDecode:
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
+        cfg_loss: DictConfig,
         test_n_forecast_steps: int,
         test_n_history_steps: int,
     ) -> None:
@@ -32,7 +31,7 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
-            loss=_DEFAULT_LOSS,
+            loss=cfg_loss,
         )
 
         assert model.name == "encode-null-decode"
@@ -53,6 +52,7 @@ class TestEncodeProcessDecode:
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
+        cfg_loss: DictConfig,
         test_batch_size: int,
         test_n_forecast_steps: int,
         test_n_history_steps: int,
@@ -69,7 +69,7 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
-            loss=_DEFAULT_LOSS,
+            loss=cfg_loss,
         )
         result: torch.Tensor = model(
             {

@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 import pytest
 import zarr
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 
 def build_zarr(
@@ -454,3 +454,9 @@ def mock_dataset_non_normalized_times(
         mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr",
         mock_data_non_normalized_times,
     )
+
+
+@pytest.fixture
+def cfg_loss() -> DictConfig:
+    """Test configuration for a loss function."""
+    return OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
