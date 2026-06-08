@@ -115,10 +115,7 @@ class TestBaseModel:
         # Test loss
         prediction = torch.zeros(1, 1, 1, 1)
         target = torch.ones(1, 1, 1, 1)
-        result = model.loss(prediction, target)
-        assert isinstance(result, torch.Tensor)
-        assert result.ndim == 0
-        assert result.item() > 0
+        assert model.loss(prediction, target) == torch.tensor(0.375)
 
     def test_optimizer(
         self,
