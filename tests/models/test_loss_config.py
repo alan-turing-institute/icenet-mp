@@ -59,8 +59,8 @@ class TestLossConfig:
 
     # 2. Initialising with loss X creates a model that uses loss X
     @pytest.mark.parametrize("loss_name", list(LOSS_CONFIGS.keys()))
-    @staticmethod
     def test_loss_type(
+        self,
         loss_name: str,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
