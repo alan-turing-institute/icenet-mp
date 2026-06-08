@@ -24,15 +24,15 @@
 | icenet\_mp/data\_loaders/common\_data\_module.py              |       79 |       27 |     66% |48-49, 93, 101-105, 110, 115, 120, 125, 133-135, 141-157, 163-176, 182-198, 204-217 |
 | icenet\_mp/data\_loaders/single\_dataset.py                   |      116 |        5 |     96% |112, 117, 141, 215-220 |
 | icenet\_mp/data\_processors/\_\_init\_\_.py                   |        2 |        0 |    100% |           |
-| icenet\_mp/data\_processors/data\_downloader.py               |      128 |       86 |     33% |49-95, 99-118, 136-139, 148-154, 164-183, 196-215, 220-273 |
+| icenet\_mp/data\_processors/data\_downloader.py               |      131 |       86 |     34% |54-100, 104-123, 141-144, 153-159, 169-188, 201-220, 225-278 |
 | icenet\_mp/data\_processors/data\_downloader\_factory.py      |       11 |        4 |     64% |     19-26 |
 | icenet\_mp/data\_processors/filters/\_\_init\_\_.py           |       13 |        0 |    100% |           |
 | icenet\_mp/data\_processors/filters/nan\_to\_num\_filter.py   |        9 |        2 |     78% |    13, 17 |
 | icenet\_mp/data\_processors/filters/reproject\_filter.py      |       31 |       15 |     52% |40, 57-91, 107-111 |
 | icenet\_mp/data\_processors/filters/set\_geography\_filter.py |       19 |        8 |     58% |26-28, 31, 47-51 |
 | icenet\_mp/data\_processors/preprocessors/\_\_init\_\_.py     |        4 |        0 |    100% |           |
-| icenet\_mp/data\_processors/preprocessors/icenet\_sic.py      |       63 |       46 |     27% |20-26, 30, 35-66, 74-131 |
-| icenet\_mp/data\_processors/preprocessors/ipreprocessor.py    |        9 |        2 |     78% |     10-11 |
+| icenet\_mp/data\_processors/preprocessors/icenet\_sic.py      |       64 |       46 |     28% |21-27, 31, 36-67, 75-132 |
+| icenet\_mp/data\_processors/preprocessors/ipreprocessor.py    |       10 |        2 |     80% |     10-11 |
 | icenet\_mp/data\_processors/preprocessors/null.py             |        5 |        1 |     80% |         9 |
 | icenet\_mp/data\_processors/sources/\_\_init\_\_.py           |       12 |        0 |    100% |           |
 | icenet\_mp/data\_processors/sources/argo.py                   |       88 |       12 |     86% |60-61, 104-105, 136-141, 233-239 |
@@ -100,7 +100,7 @@
 | icenet\_mp/types/complex\_datatypes.py                        |       39 |       12 |     69% |57-64, 68-70, 74 |
 | icenet\_mp/types/enums.py                                     |       16 |        1 |     94% |        23 |
 | icenet\_mp/types/protocols.py                                 |        4 |        0 |    100% |           |
-| icenet\_mp/types/simple\_datatypes.py                         |       64 |        6 |     91% |   188-194 |
+| icenet\_mp/types/simple\_datatypes.py                         |       65 |        6 |     91% |   189-195 |
 | icenet\_mp/types/typedefs.py                                  |       16 |        0 |    100% |           |
 | icenet\_mp/utils.py                                           |       36 |       20 |     44% |12, 17-29, 34, 39-44, 57 |
 | icenet\_mp/visualisations/\_\_init\_\_.py                     |        7 |        0 |    100% |           |
@@ -116,7 +116,7 @@
 | icenet\_mp/visualisations/range\_check.py                     |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
 | icenet\_mp/xpu/\_\_init\_\_.py                                |        9 |        0 |    100% |           |
 | icenet\_mp/xpu/accelerator.py                                 |       72 |       39 |     46% |35-42, 55, 60-62, 77-111, 125-127, 133, 144-147, 152 |
-| **TOTAL**                                                     | **4211** | **1212** | **71%** |           |
+| **TOTAL**                                                     | **4217** | **1212** | **71%** |           |
 
 
 ## Setup coverage badge
