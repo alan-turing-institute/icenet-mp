@@ -42,6 +42,7 @@ class BaseModel(LightningModule, ABC):
         optimizer: DictConfig,
         output_space: DictConfig,
         scheduler: DictConfig,
+        loss: DictConfig,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
@@ -88,6 +89,11 @@ class BaseModel(LightningModule, ABC):
         self.train_metrics = MetricCollection(deepcopy(_common_metrics))
         self.validation_metrics = MetricCollection(deepcopy(_common_metrics))
 
+        loss_fn = hydra.utils.instantiate(loss)
+        if not isinstance(loss_fn, torch.nn.Module):
+            msg = "Configured loss must instantiate to a torch.nn.Module; check that `loss` has a valid `_target_`."
+            raise TypeError(msg)
+        self._loss_fn = loss_fn
         # Save all non-ignored arguments to __init__ as hyperparameters
         # This will also save the parameters of whichever child class is used
         # Note that W&B will log all hyperparameters
@@ -147,7 +153,7 @@ class BaseModel(LightningModule, ABC):
 
     def loss(self, prediction: TensorNTCHW, target: TensorNTCHW) -> torch.Tensor:
         """Calculate the loss given a prediction and target."""
-        return torch.nn.functional.l1_loss(prediction, target)
+        return self._loss_fn(prediction, target)
 
     def test_step(
         self,
