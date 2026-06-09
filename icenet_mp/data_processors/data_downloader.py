@@ -189,7 +189,9 @@ class DataDownloader:
 
         # Unpack status flags into a binary array, skipping any missing dates
         ds_sf = open_dataset(self.path_dataset, select="status_flag")
-        missing_indices: set[int] = set(getattr(ds_sf, "missing", ()) or ())
+        missing_indices: set[int] = (
+            set(m) if (m := getattr(ds_sf, "missing", None)) is not None else set()
+        )
         if missing_indices:
             logger.warning(
                 "Skipping %d missing dates when generating masks.", len(missing_indices)
