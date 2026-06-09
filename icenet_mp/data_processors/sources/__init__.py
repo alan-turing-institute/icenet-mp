@@ -41,7 +41,10 @@ def register_sources() -> None:
     # into it
     _factories.cache_clear()
     _schemas.cache_clear()
-    _action.Action = Annotated[Union[_schemas()], Discriminator(_discriminator)]  # noqa: UP007
+    _action.Action = Annotated[
+        Union[*_schemas()],
+        Discriminator(_discriminator),
+    ]
     Recipe.model_rebuild(force=True)
 
 
