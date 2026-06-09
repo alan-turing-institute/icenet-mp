@@ -51,7 +51,10 @@ class DataDownloader:
         try:
             ds_info = InspectZarr()._info(str(self.path_dataset))
             copy_in_progress = ds_info.copy_in_progress
-            statistics_ready = ds_info.statistics_ready
+            try:
+                statistics_ready = ds_info.statistics_ready
+            except KeyError:
+                statistics_ready = False
             if copy_in_progress:
                 # If a copy is in progress then the download is incomplete
                 download_complete = False
