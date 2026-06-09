@@ -4,9 +4,12 @@ Adapted from the IceNet repository at:
 - https://github.com/icenet-ai/icenet-notebooks/blob/main/pytorch/1_icenet_forecast_unet.ipynb
 """
 
+import logging
 from typing import Any
 
 from torch import Tensor, nn
+
+log = logging.getLogger(__name__)
 
 
 class WeightedMSELoss(nn.MSELoss):
@@ -21,10 +24,11 @@ class WeightedMSELoss(nn.MSELoss):
 
         """
         if "reduction" in kwargs and kwargs["reduction"] != "none":
-          log.warning(
-              "Ignoring reduction='%s'; this loss requires reduction='none' "
-              "for weighted loss computation.", kwargs["reduction"]
-          )
+            log.warning(
+                "Ignoring reduction='%s'; this loss requires reduction='none' "
+                "for weighted loss computation.",
+                kwargs["reduction"],
+            )
         kwargs["reduction"] = "none"
         super().__init__(*args, **kwargs)
 
