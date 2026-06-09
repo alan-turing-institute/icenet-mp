@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.models import BaseModel
 from icenet_mp.types import ModelStepOutput, TensorNTCHW
@@ -11,7 +11,10 @@ from icenet_mp.types import ModelStepOutput, TensorNTCHW
 class FakeDataModel(BaseModel):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialise a fake data model for testing purposes."""
-        super().__init__(*args, hemisphere="north", **kwargs)
+        loss_cfg = kwargs.pop(
+            "loss", OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
+        )
+        super().__init__(*args, loss=loss_cfg, hemisphere="north", **kwargs)
         self.t = kwargs["n_forecast_steps"]
         self.c = kwargs["output_space"]["channels"]
         self.h = kwargs["output_space"]["shape"][0]
@@ -112,7 +115,7 @@ class TestBaseModel:
         # Test loss
         prediction = torch.zeros(1, 1, 1, 1)
         target = torch.ones(1, 1, 1, 1)
-        assert model.loss(prediction, target) == torch.tensor(1.0)
+        assert model.loss(prediction, target) == torch.tensor(0.375)
 
     def test_optimizer(
         self,
