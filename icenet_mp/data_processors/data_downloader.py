@@ -73,7 +73,13 @@ class DataDownloader:
                     f"{self.path_dataset}. Please check manually."
                 )
                 raise RuntimeError(msg)
-        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+        except (
+            AttributeError,
+            FileNotFoundError,
+            KeyError,
+            PathNotFoundError,
+            ValueError,
+        ) as exc:
             msg = f"Unable to get status for {self.name} at {self.path_dataset}"
             raise RuntimeError(msg) from exc
         return AnemoiDatasetStatus(
