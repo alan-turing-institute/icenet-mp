@@ -266,8 +266,8 @@ class DataDownloader:
                 ds_info = InspectZarr()._info(str(self.path_dataset))
                 ds_info.describe()
                 ds_info.progress()
-        except ValueError:
-            logger.warning("Dataset progress unavailable.")
+        except (ValueError, KeyError):
+            logger.warning("Further dataset information unavailable.")
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
             raise RuntimeError(msg) from exc
