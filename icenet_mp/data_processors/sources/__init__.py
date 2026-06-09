@@ -22,12 +22,11 @@ logger = logging.getLogger(__name__)
 def register_sources() -> None:
     """Rebuild anemoi's Recipe validation to include icenet-mp sources.
 
-    Although our customs sources are registered with the source registry at import time,
+    Although our custom sources are registered with the source registry at import time,
     the Recipe Action union is only built once at module load time. To force a rebuild
     we clear cached factories and schemas, reset the Action union then rebuild Recipe.
     """
-    # Although ArgoSource and FTPSource should be registered at import time, we perform
-    # an idempotent registration here.
+    # Perform an idempotent source registration
     sources = {
         "ftp": FTPSource,
         "argo": ArgoSource,
