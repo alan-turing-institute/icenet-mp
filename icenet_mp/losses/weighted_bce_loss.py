@@ -20,6 +20,11 @@ class WeightedBCEWithLogitsLoss(nn.BCEWithLogitsLoss):
             **kwargs: Keyword arguments passed to torch.nn.BCEWithLogitsLoss.
 
         """
+        if "reduction" in kwargs and kwargs["reduction"] != "none":
+        log.warning(
+            "Ignoring reduction='%s'; this loss requires reduction='none' "
+            "for weighted loss computation.", kwargs["reduction"]
+         )
         kwargs["reduction"] = "none"
         super().__init__(*args, **kwargs)
 
