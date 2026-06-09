@@ -275,8 +275,18 @@ class DataDownloader:
                 )
             else:
                 ds_info = InspectZarr()._info(str(self.path_dataset))
-                ds_info.describe()
-                ds_info.progress()
+                logger.info("  Path    : %s", ds_info.path)
+                if (flags := ds_info.build_flags) is not None:
+                    completion_fraction = sum(flags) / len(flags)
+                    chunk_info = f"{sum(flags)}/{len(flags)}"
+                else:
+                    completion_fraction = 1
+                    chunk_info = "all"
+                logger.info(
+                    "  Progress: %.0f%% (%s chunks downloaded).",
+                    100 * completion_fraction,
+                    chunk_info,
+                )
         except (ValueError, KeyError):
             logger.warning("Further dataset information unavailable.")
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
