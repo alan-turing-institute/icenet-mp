@@ -277,7 +277,9 @@ class DataDownloader:
                 ds_info = InspectZarr()._info(str(self.path_dataset))
                 logger.info("  Path    : %s", ds_info.path)
                 if (flags := ds_info.build_flags) is not None:
-                    completion_fraction = sum(flags) / len(flags)
+                    done = sum(flags)
+                    total = len(flags)
+                    completion_fraction = done / total if total else 0.0
                     chunk_info = f"{sum(flags)}/{len(flags)}"
                 else:
                     completion_fraction = 1
