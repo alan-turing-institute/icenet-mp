@@ -185,6 +185,26 @@ class TestSingleDataset:
         with pytest.raises(ValueError, match="cannot reshape array"):
             dataset.get_tchw_slice(dates_as_np[0], 3, check=False)
 
+    def test_touching_ranges_merge_into_one_dataslice(
+        self,
+        mock_dataset: Path,
+        dates_as_str: tuple[str, ...],
+        dates_as_np: tuple[np.datetime64, ...],
+    ) -> None:
+        # a small test of merging touching ranges, described in issue #279.
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+            date_ranges=[
+                {"start": dates_as_str[0], "end": dates_as_str[1]},
+                {"start": dates_as_str[2], "end": dates_as_str[4]},
+            ],
+        )
+        assert len(dataset.dataslices) == 1
+        assert len(dataset) == 5
+        result = dataset.get_tchw_slice(dates_as_np[0], 3, check=False)
+        assert result.shape == (3, 3, 2, 2)
+
     def test_get_tchw_with_missing_dates(
         self,
         mock_dataset_missing_dates: Path,

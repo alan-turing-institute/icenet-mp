@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
@@ -12,6 +13,31 @@ from icenet_mp.types import ArrayCHW, ArrayTCHW, DataSpace, Hemisphere
 from icenet_mp.utils import normalise_date
 
 ArrayType = TypeVar("ArrayType", ArrayCHW, ArrayTCHW)
+
+logger = logging.getLogger(__name__)
+
+# helpers: check if any two stacks touch (stack B start is consecutive to stack A end)  --> merge if yes  
+def _ranges_touch(
+    prev: dict[str, str | None],
+    nxt: dict[str, str | None],
+    frequency: np.timedelta64,
+) -> bool:
+    """Whether two ranges touch at the end points.
+
+    Yes when the next range start_date is consecutive to the
+    previous range end_date, ie, no missing day between them (overlap counts
+    too). Open-ended (None) bounds are out of scope, dont merge -- diverse to future fixes/discussions.
+    """
+    if prev["end"] is None or nxt["start"] is None:
+        return False
+    return np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency
+
+
+def _later_end(a: dict[str, str | None], b: dict[str, str | None]) -> str | None:
+    """Return the end of the merged span."""
+    if a["end"] is None or b["end"] is None:
+        return None
+    return a["end"] if np.datetime64(a["end"]) >= np.datetime64(b["end"]) else b["end"]
 
 
 class SingleDataset(Dataset):
@@ -73,6 +99,41 @@ class SingleDataset(Dataset):
         return idx2anemoi
 
     @cached_property
+    def _merged_date_ranges(self) -> list[dict[str, str | None]]:
+        """Fuse touching/overlapping ranges into single spans.
+
+        Adjacent ranges touching/overlapping must merge into one
+        single Anemoi subset, or else a run that straddles the range gap/seam is
+        approved against the time step outside the range but fetching is still restricted 
+        to be within the range only, therefore will comes back short, and fails to reshape (issue #279). 
+        Merges are logged to remind the user that their config ranges are touching.
+        """
+        if len(self._date_ranges)  <=  1:
+            return [dict(date_range) for date_range in self._date_ranges]
+        
+        frequency = np.timedelta64(self.load_dataset(self._input_files).frequency)
+        merged: list[dict[str, str | None]] = []
+        for date_range in self._date_ranges:
+            if merged and _ranges_touch(merged[-1], date_range, frequency):
+                prev = merged.pop()
+                fused: dict[str, str | None] = {
+                    "start": prev["start"],
+                    "end": _later_end(prev, date_range),
+                }
+                logger.warning(
+                    "Merged touching date ranges %s and %s into %s for dataset %r "
+                    "Please check cofig file range setting if unintended",
+                    prev,
+                    date_range,
+                    fused,
+                    self._name,
+                )
+                merged.append(fused)
+            else:
+                merged.append(dict(date_range))
+        return merged
+
+    @cached_property
     def dataslices(self) -> list[AnemoiDataset]:
         """Get all slices of contiguous dates from the underlying Anemoi dataset."""
         return [
@@ -82,7 +143,7 @@ class SingleDataset(Dataset):
                 end=date_range["end"],
                 **({"select": self._variables} if self._variables else {}),
             )
-            for date_range in self._date_ranges
+            for date_range in self._merged_date_ranges
         ]
 
     @cached_property
