@@ -16,7 +16,8 @@ ArrayType = TypeVar("ArrayType", ArrayCHW, ArrayTCHW)
 
 logger = logging.getLogger(__name__)
 
-# helpers: check if any two stacks touch (stack B start is consecutive to stack A end)  --> merge if yes  
+
+# helpers: check if any two stacks touch (stack B start is consecutive to stack A end)  --> merge if yes
 def _ranges_touch(
     prev: dict[str, str | None],
     nxt: dict[str, str | None],
@@ -30,7 +31,7 @@ def _ranges_touch(
     """
     if prev["end"] is None or nxt["start"] is None:
         return False
-    return np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency
+    return bool(np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency)
 
 
 def _later_end(a: dict[str, str | None], b: dict[str, str | None]) -> str | None:
@@ -104,13 +105,13 @@ class SingleDataset(Dataset):
 
         Adjacent ranges touching/overlapping must merge into one
         single Anemoi subset, or else a run that straddles the range gap/seam is
-        approved against the time step outside the range but fetching is still restricted 
-        to be within the range only, therefore will comes back short, and fails to reshape (issue #279). 
+        approved against the time step outside the range but fetching is still restricted
+        to be within the range only, therefore will comes back short, and fails to reshape (issue #279).
         Merges are logged to remind the user that their config ranges are touching.
         """
-        if len(self._date_ranges)  <=  1:
+        if len(self._date_ranges) <= 1:
             return [dict(date_range) for date_range in self._date_ranges]
-        
+
         frequency = np.timedelta64(self.load_dataset(self._input_files).frequency)
         merged: list[dict[str, str | None]] = []
         for date_range in self._date_ranges:
