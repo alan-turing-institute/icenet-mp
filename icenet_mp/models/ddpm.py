@@ -61,6 +61,7 @@ class DDPM(BaseModel):
         normalization: str = "groupnorm",
         time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
+        use_autoregressive: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
@@ -74,11 +75,13 @@ class DDPM(BaseModel):
             normalization (str): Normalization layer type (e.g., "groupnorm").
             time_embed_dim (int): Dimensionality of the timestep embedding.
             dropout_rate (float): Dropout probability applied inside the UNet blocks.
+            use_autoregressive (bool): Whether to use autoregressive prediction. Default is True.
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """
         super().__init__(**kwargs)
 
+        self.use_autoregressive = use_autoregressive
         self.osisaf_key = self.output_space.name
 
         era5_space = next(
@@ -107,6 +110,19 @@ class DDPM(BaseModel):
         # "InstanceNorm" calculates the mean/std per batch, removing the need for offline preprocessing
         self.era5_norm = torch.nn.InstanceNorm3d(self.era5_space, affine=True)
 
+        # For autoregressive, we predict one step at a time
+        if self.use_autoregressive:
+            self.output_channels = self.base_output_channels
+        else:
+            self.output_channels = self.n_forecast_steps * self.base_output_channels
+
+        self.timesteps = timesteps
+        self.cond_channels = 64
+        self.input_channels = self.cond_channels
+
+        # "InstanceNorm" calculates the mean/std per batch, removing the need for offline preprocessing
+        self.era5_norm = torch.nn.InstanceNorm3d(self.era5_space, affine=True)
+        
         # Reduces the many ERA5 channels down to 32 important ones using 1x1 Conv
         self.era5_compressed_channels = 32
         self.era5_projector = torch.nn.Sequential(
