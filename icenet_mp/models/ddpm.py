@@ -221,14 +221,35 @@ class DDPM(BaseModel):
             return self._sample_parallel(x, sample_weight)
 
     def _sample_parallel(self, x: TensorNCHW) -> TensorNCHW:
-        """Perform reverse diffusion sampling starting from noise.
+        """
+        Non-autoregressive (parallel) reverse diffusion sampling.
+
+        This method generates the entire forecast sequence in a single
+        diffusion process applied to one joint output tensor.
+
+        The forecast steps are encoded as channels in a single tensor:
+
+            [B, n_forecast_steps * base_output_channels, H, W]
+
+        There is no sequential dependency between forecast steps because:
+            - all steps are represented simultaneously in the same tensor
+            - the diffusion process operates on the full tensor jointly
 
         Args:
-            x (TensorNCHW): Conditioning input [B, C, H, W].
+            x (TensorNCHW):
+                Conditioning tensor of shape [B, C, H, W].
 
         Returns:
-            TensorNCHW: Denoised output of shape [B, C, H, W].
+            TensorNCHW:
+                Denoised forecast tensor of shape:
+                [B, n_forecast_steps * base_output_channels, H, W]
 
+                Produced by a single reverse diffusion process.
+
+        Notes:
+            - Sampling starts from Gaussian noise.
+            - The model predicts v-parameterization at each diffusion step.
+            - All forecast steps are denoised together as a single object.
         """
         shape = (
             x.shape[0],
