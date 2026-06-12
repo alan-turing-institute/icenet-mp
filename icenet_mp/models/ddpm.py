@@ -122,7 +122,7 @@ class DDPM(BaseModel):
 
         # "InstanceNorm" calculates the mean/std per batch, removing the need for offline preprocessing
         self.era5_norm = torch.nn.InstanceNorm3d(self.era5_space, affine=True)
-        
+
         # Reduces the many ERA5 channels down to 32 important ones using 1x1 Conv
         self.era5_compressed_channels = 32
         self.era5_projector = torch.nn.Sequential(
@@ -171,7 +171,56 @@ class DDPM(BaseModel):
         msg = "This model uses `training_step`, `validation_step`, and `test_step` instead of `forward()`"
         raise NotImplementedError(msg)
 
-    def sample(self, x: TensorNCHW) -> TensorNCHW:
+    def sample(
+        self,
+        x: torch.Tensor,
+        sample_weight: torch.Tensor | None,  # noqa: ARG002
+    ) -> torch.Tensor:
+        """
+        Generate forecasts using a reverse diffusion process.
+
+        This method selects between two diffusion sampling strategies:
+
+        1. Non-autoregressive (parallel) sampling:
+        - The model generates the entire future sequence in a single diffusion process.
+        - No temporal dependency exists between forecast steps.
+
+        2. Autoregressive sampling:
+        - Forecast steps are generated sequentially.
+        - Each step is produced via an independent diffusion process.
+        - The conditioning tensor is updated after each step to incorporate
+            previously generated outputs.
+
+        Args:
+            x (torch.Tensor):
+                Conditioning tensor of shape [B, C, H, W].
+
+            sample_weight (torch.Tensor | None):
+                Optional weighting tensor.
+
+        Returns:
+            torch.Tensor:
+                Forecast tensor of shape:
+                [B, n_forecast_steps * base_output_channels, H, W]
+
+                The output format is identical in both modes.
+
+                - Parallel mode:
+                    Produced in a single reverse diffusion process.
+
+                - Autoregressive mode:
+                    Constructed by concatenating step-wise diffusion outputs.
+
+        Notes:
+            - The diffusion process follows v-parameterization.
+            - Sampling begins from standard Gaussian noise.
+        """
+        if self.use_autoregressive:
+                return self._sample_autoregressive(x, sample_weight)
+        else:
+            return self._sample_parallel(x, sample_weight)
+
+    def _sample_parallel(self, x: TensorNCHW) -> TensorNCHW:
         """Perform reverse diffusion sampling starting from noise.
 
         Args:
