@@ -274,6 +274,48 @@ class DDPM(BaseModel):
 
         return torch.clamp(y, 0, 1)
 
+    def _sample_autoregressive(
+        self,
+        x: torch.Tensor,
+        sample_weight: torch.Tensor | None,  # noqa: ARG002
+    ) -> torch.Tensor:
+        """Autoregressive sampling (one forecast step at a time)."""
+        B, C, H, W = x.shape
+        
+        # Store all predictions
+        all_predictions = []
+        
+        for step in range(self.n_forecast_steps):
+            # Shape for single step prediction
+            shape = (B, self.base_output_channels, H, W)
+            
+            # Start from pure noise for this step
+            y = torch.randn(shape, device=self.device)
+            
+            dim_threshold = 3
+            
+            # Diffusion reverse process
+            for t in reversed(range(self.timesteps)):
+                t_batch = torch.full_like(
+                    x[:, 0, 0, 0], t, dtype=torch.long, device=self.device
+                )
+                pred_v: torch.Tensor = self.model(y, t_batch, x)
+                pred_v = (
+                    pred_v.squeeze(3) if pred_v.dim() > dim_threshold else pred_v.squeeze()
+                )
+                y = self.diffusion.p_sample(y, t_batch, pred_v)
+            
+            # Clamp and store prediction
+            y_step = torch.clamp(y, 0, 1)
+            all_predictions.append(y_step)
+            
+            # Update conditioning for next step (if not the last step)
+            if step < self.n_forecast_steps - 1:
+                x = self._update_conditioning(x, y_step)
+        
+        # Concatenate all predictions along channel dimension
+        return torch.cat(all_predictions, dim=1)
+
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.
 
