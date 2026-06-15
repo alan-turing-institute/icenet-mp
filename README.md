@@ -75,8 +75,6 @@ Alternatively, you can apply overrides to specific options at the command line l
 uv run imp <command> ++base_path=/local/path/to/my/data
 ```
 
-See `config/demo_north.yaml` for an example of this.
-
 :warning: Note that `base_persistence.yaml` overrides the specific options in `base.yaml` needed to run the `Persistence` model.
 
 ### HPC-specific configurations
@@ -106,9 +104,39 @@ uv run imp datasets create --config-name <a config file that requires this datas
 This will then attempt to download the full dataset, ignoring any exceptions that would usually be raised by missing dates.
 It will also print a list of missing dates at the end of each data group.
 
+### Running with different datasets
+
+The default set of datasets to run over is defined by the `data` key which is set to `sample` in `base.yaml`.
+This means that the default set of datasets are the ones defined in `config/data/sample.yaml`.
+To understand how dataset properties are encoded in its name, read `config/data/datasets/naming_convention.txt`.
+To define a custom set of datasets, for example for comparison testing, you can do the following.
+
+- create a custom dataset list in `config/data/my_datasets.local.yaml` that might look like this:
+
+```
+defaults:
+  - datasets:
+    - samp_sicsouth_osisaf_25p0km_2017_2019_24h_v2
+    - samp_weathersouth_era5_0p5_2017_2019_24h_v2
+  - split: sample_dataset
+  - _self_
+```
+
+- in this example we have excluded the Argo float data and used ERA5 on the native 0.5 degree grid, instead of the reprojected datasets
+- now create a custom main config file, for example `config/my_datasets.local.yaml` that might look like this:
+
+```
+defaults:
+  - <the base config file you are using>
+  - override /data: my_datasets.local
+  - _self_
+```
+
+- now run with `uv run imp train --config-name my_datasets.local`
+
 ## Running IceNet-MP commands
 
-:information_source: Note that if you are running the below commands locally, specify the base path in your local config, then add the argument `--config-name <your local config>.yaml`.
+:information_source: Note that if you are running the below commands locally, specify the base path in your local config, then add the argument `--config-name <your local YAML config>`.
 
 ### Create
 

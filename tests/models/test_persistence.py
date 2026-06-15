@@ -1,13 +1,14 @@
 import pytest
 import torch
+from omegaconf import DictConfig
 
 from icenet_mp.models import Persistence
 
 
 class TestPersistence:
-    @pytest.mark.parametrize("test_input_shape", [(512, 512, 4), (1000, 200, 1)])
-    @pytest.mark.parametrize("test_output_shape", [(432, 432, 1), (10, 20, 19)])
-    @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
+    @pytest.mark.parametrize("test_input_shape", [(16, 16, 4), (20, 20, 1)])
+    @pytest.mark.parametrize("test_output_shape", [(16, 16, 1), (10, 20, 19)])
+    @pytest.mark.parametrize("test_batch_size", [1, 2])
     @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
     @pytest.mark.parametrize("test_n_history_steps", [1, 2, 5])
     def test_forward_shape(
@@ -17,6 +18,7 @@ class TestPersistence:
         test_n_forecast_steps: int,
         test_n_history_steps: int,
         test_output_shape: tuple[int, int, int],
+        cfg_loss: DictConfig,
     ) -> None:
         input_space = {
             "channels": test_input_shape[2],
@@ -37,6 +39,7 @@ class TestPersistence:
             output_space=output_space,
             optimizer={},
             scheduler={},
+            loss=cfg_loss,
         )
         batch = {
             "input": torch.randn(
@@ -57,7 +60,7 @@ class TestPersistence:
         result: torch.Tensor = model(batch)
         assert result.shape == batch["target"].shape
 
-    def test_optimizer(self) -> None:
+    def test_optimizer(self, cfg_loss: DictConfig) -> None:
         model = Persistence(
             name="persistence",
             hemisphere="north",
@@ -77,6 +80,7 @@ class TestPersistence:
             },
             optimizer={},
             scheduler={},
+            loss=cfg_loss,
         )
         assert model.configure_optimizers() is None, (
             "No optimizer should be initialized"

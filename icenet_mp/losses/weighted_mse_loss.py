@@ -4,9 +4,12 @@ Adapted from the IceNet repository at:
 - https://github.com/icenet-ai/icenet-notebooks/blob/main/pytorch/1_icenet_forecast_unet.ipynb
 """
 
+import logging
 from typing import Any
 
 from torch import Tensor, nn
+
+log = logging.getLogger(__name__)
 
 
 class WeightedMSELoss(nn.MSELoss):
@@ -20,29 +23,35 @@ class WeightedMSELoss(nn.MSELoss):
             **kwargs: Keyword arguments passed to torch.nn.MSELoss.
 
         """
+        if "reduction" in kwargs and kwargs["reduction"] != "none":
+            log.warning(
+                "Ignoring reduction='%s'; this loss requires reduction='none' "
+                "for weighted loss computation.",
+                kwargs["reduction"],
+            )
         kwargs["reduction"] = "none"
         super().__init__(*args, **kwargs)
 
     def forward(  # type: ignore[override]
         self,
-        inputs: Tensor,
+        preds: Tensor,
         targets: Tensor,
-        sample_weights: Tensor,
+        sample_weights: Tensor | None = None,
     ) -> Tensor:
         """Compute weighted mean squared error loss.
 
         Args:
-            inputs (Tensor): Predicted values.
+            preds (Tensor): Predicted values.
             targets (Tensor): Ground-truth values.
-            sample_weights (Tensor): Elementwise weighting tensor.
+            sample_weights (Tensor | None): Elementwise weighting tensor. If None, no weighting is applied.
 
         Returns:
             Tensor: Scalar weighted loss value.
 
         """
-        y_hat = inputs.squeeze()
+        y_hat = preds.squeeze()
         targets = targets.squeeze()
-        sample_weights = sample_weights.squeeze()
-
-        loss = super().forward(y_hat, targets) * sample_weights
+        loss = super().forward(y_hat, targets)
+        if sample_weights is not None:
+            loss = loss * sample_weights.squeeze()
         return loss.mean()

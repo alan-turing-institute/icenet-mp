@@ -431,54 +431,24 @@ def compute_display_ranges(
         InvalidArrayError: If the arrays are not 2D or have different shapes.
 
     """
-    if plot_spec.colourbar_strategy == "shared":
-        # Both panels use spec vmin/vmax (current behavior)
-        vmin = plot_spec.vmin if plot_spec.vmin is not None else 0.0
-        vmax = plot_spec.vmax if plot_spec.vmax is not None else 1.0
-        spec_range = (vmin, vmax)
-        return spec_range, spec_range
+    # Get data ranges for ground_truth and prediction
+    groundtruth_min = float(np.nanmin(ground_truth))
+    groundtruth_max = float(np.nanmax(ground_truth))
+    prediction_min = float(np.nanmin(prediction))
+    prediction_max = float(np.nanmax(prediction))
 
+    # Both panels use the same vmin/vmax (ground truth used as reference)
+    if plot_spec.colourbar_strategy == "shared":
+        shared_range = (groundtruth_min, groundtruth_max)
+        return shared_range, shared_range
+
+    # Each panel uses its own data range
     if plot_spec.colourbar_strategy == "separate":
-        # Each panel uses its own data range
-        groundtruth_range = (
-            float(np.nanmin(ground_truth)),
-            float(np.nanmax(ground_truth)),
-        )
-        prediction_range = (float(np.nanmin(prediction)), float(np.nanmax(prediction)))
-        return groundtruth_range, prediction_range
+        return (groundtruth_min, groundtruth_max), (prediction_min, prediction_max)
 
     # Fallback - should not reach here but required for type checking
-    vmin = plot_spec.vmin if plot_spec.vmin is not None else 0.0
-    vmax = plot_spec.vmax if plot_spec.vmax is not None else 1.0
-    spec_range = (vmin, vmax)
-    return spec_range, spec_range
-
-
-def compute_display_ranges_stream(
-    ground_truth_stream: np.ndarray, prediction_stream: np.ndarray, plot_spec: PlotSpec
-) -> tuple[tuple[float, float], tuple[float, float]]:
-    """Compute stable vmin/vmax for Ground Truth and Prediction over the entire video.
-
-    Args:
-        ground_truth_stream: The ground truth array. [T,H,W]
-        prediction_stream: The prediction array. [T,H,W]
-        plot_spec: The plotting specification.
-
-    Returns:
-        The display ranges. (vmin, vmax)
-
-    Raises:
-        InvalidArrayError: If the arrays are not 3D or have different shapes.
-
-    """
-    if plot_spec.colourbar_strategy == "shared":
-        vmin = plot_spec.vmin if plot_spec.vmin is not None else 0.0
-        vmax = plot_spec.vmax if plot_spec.vmax is not None else 1.0
-        spec_range = (vmin, vmax)
-        return spec_range, spec_range
-    # "separate"
-    groundtruth_min = float(np.nanmin(ground_truth_stream))
-    groundtruth_max = float(np.nanmax(ground_truth_stream))
-    prediction_min = float(np.nanmin(prediction_stream))
-    prediction_max = float(np.nanmax(prediction_stream))
-    return (groundtruth_min, groundtruth_max), (prediction_min, prediction_max)
+    default_range = (
+        plot_spec.vmin if plot_spec.vmin is not None else 0.0,
+        plot_spec.vmax if plot_spec.vmax is not None else 1.0,
+    )
+    return default_range, default_range

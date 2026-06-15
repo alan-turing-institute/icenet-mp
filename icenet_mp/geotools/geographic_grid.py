@@ -27,6 +27,8 @@ class GeographicGrid(Geography):
         self.longitudes_: NDArray[np.float32] | None = None
 
     def _load_lat_lon(self) -> tuple[NDArray[np.float32], NDArray[np.float32]]:
+        if "EPSG:4326" in self.native_crs:
+            return self.y(), self.x()
         latlon_trf = Transformer.from_crs(self.native_crs, "EPSG:4326")
         return latlon_trf.transform(self.x(), self.y())
 

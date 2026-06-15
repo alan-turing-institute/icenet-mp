@@ -167,15 +167,12 @@ def _format_title(
     return f"{variable}{units_s}{hemi}   Shown: {shown}"
 
 
-def _draw_main_panels(  # noqa: PLR0913
+def _draw_main_panels(
     axs: list,
     ground_truth: np.ndarray,
     prediction: np.ndarray,
     plot_spec: PlotSpec,
-    groundtruth_vmin: float,
-    groundtruth_vmax: float,
-    prediction_vmin: float,
-    prediction_vmax: float,
+    display_ranges: tuple[tuple[float, float], tuple[float, float]],
     levels_override: np.ndarray | None = None,
 ) -> tuple:
     """Draw ground truth and prediction panels.
@@ -185,23 +182,25 @@ def _draw_main_panels(  # noqa: PLR0913
         ground_truth: Ground truth data array.
         prediction: Prediction data array.
         plot_spec: Plotting specification.
-        groundtruth_vmin: Minimum value for ground truth display.
-        groundtruth_vmax: Maximum value for ground truth display.
-        prediction_vmin: Minimum value for prediction display.
-        prediction_vmax: Maximum value for prediction display.
+        display_ranges: Tuple of (vmin, vmax) for ground truth and prediction.
         levels_override: Optional custom contour levels.
 
     Returns:
         Tuple of (image_groundtruth, image_prediction).
 
     """
-    # Use PlotSpec levels for ground_truth and prediction unless overridden
-    levels = levels_from_spec(plot_spec) if levels_override is None else levels_override
-
     # Create colourmap with bad color handling for NaN values
     cmap = colourmap_with_bad(plot_spec.colourmap, bad_color="lightgrey")
 
-    if plot_spec.colourbar_strategy == "separate":
+    # Expand display_ranges tuple for clarity
+    (groundtruth_vmin, groundtruth_vmax), (prediction_vmin, prediction_vmax) = (
+        display_ranges
+    )
+
+    # Set the contour colour levels
+    if levels_override is not None:
+        groundtruth_levels = prediction_levels = levels_override
+    elif plot_spec.colourbar_strategy == "separate":
         # For separate strategy, use explicit levels to prevent breathing
         groundtruth_levels = _safe_linspace(
             groundtruth_vmin, groundtruth_vmax, plot_spec.n_contour_levels
@@ -209,41 +208,30 @@ def _draw_main_panels(  # noqa: PLR0913
         prediction_levels = _safe_linspace(
             prediction_vmin, prediction_vmax, plot_spec.n_contour_levels
         )
-
-        image_groundtruth = axs[0].contourf(
-            ground_truth,
-            levels=groundtruth_levels,
-            cmap=cmap,
-            vmin=groundtruth_vmin,
-            vmax=groundtruth_vmax,
-            origin="lower",
-        )
-        image_prediction = axs[1].contourf(
-            prediction,
-            levels=prediction_levels,
-            cmap=cmap,
-            vmin=prediction_vmin,
-            vmax=prediction_vmax,
-            origin="lower",
-        )
     else:
         # For shared strategy, use same levels for both panels
-        image_groundtruth = axs[0].contourf(
-            ground_truth,
-            levels=levels,
-            cmap=cmap,
-            vmin=groundtruth_vmin,
-            vmax=groundtruth_vmax,
-            origin="lower",
+        groundtruth_levels = prediction_levels = _safe_linspace(
+            min(groundtruth_vmin, prediction_vmin),
+            max(groundtruth_vmax, prediction_vmax),
+            plot_spec.n_contour_levels,
         )
-        image_prediction = axs[1].contourf(
-            prediction,
-            levels=levels,
-            cmap=cmap,
-            vmin=prediction_vmin,
-            vmax=prediction_vmax,
-            origin="lower",
-        )
+
+    image_groundtruth = axs[0].contourf(
+        ground_truth,
+        levels=groundtruth_levels,
+        cmap=cmap,
+        vmin=groundtruth_vmin,
+        vmax=groundtruth_vmax,
+        origin="lower",
+    )
+    image_prediction = axs[1].contourf(
+        prediction,
+        levels=prediction_levels,
+        cmap=cmap,
+        vmin=prediction_vmin,
+        vmax=prediction_vmax,
+        origin="lower",
+    )
 
     return image_groundtruth, image_prediction
 
@@ -306,7 +294,7 @@ def _draw_frame(  # noqa: PLR0913
     difference = land_mask.apply_to(difference)
 
     # Compute display ranges - use override if provided for stable animation
-    (groundtruth_vmin, groundtruth_vmax), (prediction_vmin, prediction_vmax) = (
+    display_ranges = (
         compute_display_ranges(ground_truth, prediction, plot_spec)
         if display_ranges_override is None
         else display_ranges_override
@@ -318,10 +306,7 @@ def _draw_frame(  # noqa: PLR0913
         ground_truth,
         prediction,
         plot_spec,
-        groundtruth_vmin,
-        groundtruth_vmax,
-        prediction_vmin,
-        prediction_vmax,
+        display_ranges,
         levels_override,
     )
 
@@ -456,19 +441,22 @@ def _format_date_for_title(dt: date | datetime) -> str:
     return dt.isoformat()
 
 
-def _build_title_static(plot_spec: PlotSpec, when: date | datetime) -> str:
+def _build_title_static(
+    variable_name: str, plot_spec: PlotSpec, when: date | datetime
+) -> str:
     """Compose a simple suptitle for static plots.
 
     Lines:
       1) "<Variable> (<Hemisphere>)  Shown: YYYY-MM-DD"
          (Footer contains any metadata such as model/epoch/training data if present)
     """
-    metric = _formatted_variable_name(plot_spec.variable)
+    metric = _formatted_variable_name(variable_name)
     hemi = f" ({plot_spec.hemisphere.capitalize()})" if plot_spec.hemisphere else ""
     return f"{metric}{hemi} Prediction   Shown: {_format_date_for_title(when)}"
 
 
 def _build_title_video(
+    variable_name: str,
     plot_spec: PlotSpec,
     dates: Sequence[date | datetime],
     current_index: int,
@@ -481,7 +469,7 @@ def _build_title_video(
       3) Footer: "Model: <model>  Epoch: <num>  Training Dates: <start> — <end> (<cadence>) <num> pts" (optional)
       4) Footer: "Training Data: <source> (<vars>) <source> (<vars>)" (optional)
     """
-    metric = _formatted_variable_name(plot_spec.variable)
+    metric = _formatted_variable_name(variable_name)
     hemi = f" ({plot_spec.hemisphere.capitalize()})" if plot_spec.hemisphere else ""
     if dates:
         return f"{metric}{hemi} Prediction   Frame: {_format_date_for_title(dates[current_index])}"

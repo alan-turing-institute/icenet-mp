@@ -1,0 +1,2 @@
+device_stats:
+  _target_: lightning.pytorch.callbacks.LearningRateMonitor

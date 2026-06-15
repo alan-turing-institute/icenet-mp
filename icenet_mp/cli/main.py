@@ -16,8 +16,10 @@ logging.basicConfig(
     format="😈 [%(asctime)s] %(message)s",
     datefmt=r"%Y-%m-%d %H:%M:%S",
     level=logging.INFO,
+    force=True,
 )
 logger = logging.getLogger(__name__)
+logging.getLogger("anemoi").setLevel(logging.ERROR)
 
 # Register all plugins
 register_plugins()

@@ -2,7 +2,9 @@ defaults:
   - callbacks:
     - device_stats
     - ema_weight_averaging
-    - wandb_metric
+    - learning_rate
+    - metric_summary
+    - plotting
   - optimizer: default
   - scheduler: default
   - trainer: default

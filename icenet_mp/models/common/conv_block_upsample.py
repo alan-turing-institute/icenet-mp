@@ -3,67 +3,65 @@ from torch import nn
 from icenet_mp.types import TensorNCHW
 
 from .activations import ACTIVATION_FROM_NAME
+from .conv_norm_act import ConvNormAct
+from .normalisations import normalisation_from_name
+from .weighted_upsample import WeightedUpsample
 
 
 class ConvBlockUpsample(nn.Module):
-    """Convolutional block that doubles the resolution.
+    """Convolutional block that doubles spatial dimensions.
 
-    (ConvTranspose2d → Normalization → Activation) → (ConvTranspose2d → Normalization → Activation)
+    (WeightedUpsample > Norm > Act) > ConvNormAct > ConvNormAct
 
-    This is the reverse of ConvBlockDownsample.
+    If out_channels is not specified then this will halve the number of input channels.
+
+    Reverse of ConvBlockDownsample, using upsampling to avoid checkerboarding.
     """
 
     def __init__(
         self,
-        n_input_channels: int,
+        in_channels: int,
         *,
         activation: str = "ReLU",
         kernel_size: int = 3,
-        n_output_channels: int | None = None,
+        norm_type: str = "batchnorm",
+        out_channels: int | None = None,
     ) -> None:
-        """Initialize the ConvBlockUpsample module.
+        """Initialize a ConvBlockUpsample module.
 
         Args:
+            in_channels: the number of input channels.
             activation: the activation function to use.
-            kernel_size: the size of the convolutional kernel (odd numbers are preferable!).
-            n_input_channels: the number of input channels.
-            n_output_channels: the number of output channels (if None, half of n_input_channels).
+            kernel_size: the size of the convolutional kernel.
+            norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
+            out_channels: the number of output channels (if None, half of in_channels).
 
         """
         super().__init__()
-        activation_layer = ACTIVATION_FROM_NAME[activation]
 
-        # Calculate convolutional parameters
-        n_output_channels = (
-            n_input_channels // 2 if n_output_channels is None else n_output_channels
-        )
-        padding = (kernel_size - 1) // 2
-        output_padding = kernel_size % 2
+        out_channels = in_channels // 2 if out_channels is None else out_channels
 
         self.model = nn.Sequential(
-            # Size reducing convolution/normalisation/activation
-            nn.ConvTranspose2d(
-                n_input_channels,
-                n_output_channels,
+            # Size increasing upsample/normalisation/activation that maintains channels
+            WeightedUpsample(in_channels, upsample_factor=2),
+            normalisation_from_name(norm_type, in_channels),
+            ACTIVATION_FROM_NAME[activation](inplace=True),
+            # Size preserving convolution/normalisation/activation that maintains channels
+            ConvNormAct(
+                in_channels,
+                in_channels,
+                activation=activation,
                 kernel_size=kernel_size,
-                output_padding=output_padding,
-                padding=padding,
-                stride=2,
+                norm_type=norm_type,
             ),
-            nn.BatchNorm2d(n_output_channels),
-            activation_layer(inplace=True),
-            # Size preserving convolution/normalisation/activation
-            # Since ConvTranspose2d does not yet support `padding=same`, even-sized
-            # kernels cannot preserve size. We therefore adjust the kernel size and
-            # padding accordingly.
-            nn.ConvTranspose2d(
-                n_output_channels,
-                n_output_channels,
-                kernel_size=kernel_size + 1 - output_padding,
-                padding=padding + 1 - output_padding,
+            # Size preserving convolution/normalisation/activation that changes channels
+            ConvNormAct(
+                in_channels,
+                out_channels,
+                activation=activation,
+                kernel_size=kernel_size,
+                norm_type=norm_type,
             ),
-            nn.BatchNorm2d(n_output_channels),
-            activation_layer(inplace=True),
         )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:

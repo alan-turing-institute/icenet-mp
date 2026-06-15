@@ -28,7 +28,7 @@ from icenet_mp.visualisations.layout import (
 from icenet_mp.visualisations.plotting_core import (
     colourmap_with_bad,
     compute_difference,
-    compute_display_ranges_stream,
+    compute_display_ranges,
     create_normalisation,
     levels_from_spec,
     make_diff_colourmap,
@@ -69,11 +69,12 @@ def plot_video_prediction(
     dates: Sequence[date | datetime],
     land_mask: LandMask,
     plot_spec: PlotSpec,
+    variable_name: str = "sea-ice-concentration",
 ) -> dict[str, io.BytesIO]:
-    """Generate animated visualisations showing the temporal evolution of sea ice concentration.
+    """Generate animations showing the temporal evolution of sea ice concentration.
 
-    Compares ground truth data with model predictions. Supports multiple video formats and
-    difference computation strategies for optimal performance with large datasets.
+    Compares ground truth data with model predictions. Supports multiple video formats
+    and difference computation strategies for optimal performance with large datasets.
 
     Args:
         ground_truth: 3D array with shape (time, height, width) containing
@@ -86,11 +87,13 @@ def plot_video_prediction(
         land_mask: Land mask to apply to the data.
         plot_spec: Configuration object specifying titles, colourmaps, value ranges, and
             other visualisation parameters.
+        variable_name: Name of the variable being plotted, used in the plot title and
+            output key.
 
     Returns:
-        Dictionary mapping video names to BytesIO objects containing the encoded video data.
-        Currently returns a single key "sea-ice_concentration-video-maps" containing the video
-        data suitable for direct wandb.Video logging.
+        Dictionary mapping video names to BytesIO objects containing the encoded video
+        data. Currently this returns a single key `variable_name`-`date` containing the
+        video data suitable for direct wandb.Video logging.
 
     Raises:
         InvalidArrayError: If arrays have incompatible shapes or if the number of
@@ -124,7 +127,7 @@ def plot_video_prediction(
     levels = levels_from_spec(plot_spec)
 
     # Stable ranges for the whole animation
-    display_ranges = compute_display_ranges_stream(
+    display_ranges = compute_display_ranges(
         masked_ground_truth, masked_prediction, plot_spec
     )
 
@@ -172,11 +175,14 @@ def plot_video_prediction(
         image_difference=image_difference,
         plot_spec=plot_spec,
         diff_colour_scale=diff_colour_scale,
+        display_ranges=display_ranges,
         cbar_axes=cbar_axes,
     )
     _set_axes_limits(axs, width=width, height=height)
     try:
-        title_text = set_suptitle_with_box(fig, _build_title_video(plot_spec, dates, 0))
+        title_text = set_suptitle_with_box(
+            fig, _build_title_video(variable_name, plot_spec, dates, 0)
+        )
     except Exception:
         logger.exception("Failed to draw suptitle; continuing without title.")
         title_text = None
@@ -212,7 +218,7 @@ def plot_video_prediction(
         _set_titles(axs, plot_spec)
 
         if title_text is not None:
-            title_text.set_text(_build_title_video(plot_spec, dates, tt))
+            title_text.set_text(_build_title_video(variable_name, plot_spec, dates, tt))
         return ()
 
     try:
@@ -232,7 +238,7 @@ def plot_video_prediction(
             video_format=plot_spec.video_format,
         )
         # Return the video buffer
-        return {"sea-ice_concentration-video-maps": video_buffer}
+        return {f"{variable_name}-{dates[0].strftime(r'%Y-%m-%d')}": video_buffer}
     finally:
         # Clean up by closing figure
         plt.close(fig)
@@ -413,7 +419,7 @@ def plot_video_inputs(
         variables: Dictionary of variable name to THW 3D array of values.
 
     Returns:
-        Dictionary mapping variable_name to video_buffer.
+        Dictionary mapping `variable_name`-`date` to video_buffer.
 
     Raises:
         InvalidArrayError: If arrays/names count mismatch or invalid shapes.
@@ -434,8 +440,7 @@ def plot_video_inputs(
                 land_mask=land_mask,
                 plot_spec=plot_spec,
             )
-
-            results[variable_name] = video_buffer
+            results[f"{variable_name}-{dates[0].strftime(r'%Y-%m-%d')}"] = video_buffer
 
         except (InvalidArrayError, ValueError, MemoryError, OSError):
             logger.exception(

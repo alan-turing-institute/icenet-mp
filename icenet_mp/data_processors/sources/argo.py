@@ -16,6 +16,8 @@ from earthkit.data import FieldList
 from haversine import Unit, haversine_vector
 from pandas import DataFrame
 
+from icenet_mp.geotools import grid_factory
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,20 +30,30 @@ class ArgoSource(Source):
         context: Context,
         *,
         area: str,
+        crs: str,
         param: list[str],
-        ignore_missing_dates: bool = False,
-        grid_resolution_degrees: float = 1,
+        resolution: str,
+        shape: tuple[int, int],
         distance_scale_km: float = 2000,
+        ignore_missing_dates: bool = False,
         min_weight: float = 1e-10,
         time_half_window_hrs: int = 2,
     ) -> None:
         """Set parameters for fetching and interpolating Argo float data."""
         self.context = context
+        self.param = param
+
+        # Set the output geography
+        self.output_geography = grid_factory.create(
+            crs, resolution=resolution, shape=shape
+        )
+
+        # Set weighting parameters for interpolation
         self.distance_scale_km = distance_scale_km
-        self.grid_resolution_degrees = grid_resolution_degrees
         self.ignore_missing_dates = ignore_missing_dates
         self.min_weight = min_weight
-        self.param = param
+
+        # Set and verify the window parameters
         self.time_half_window_hrs = time_half_window_hrs
         self.north, self.west, self.south, self.east = map(float, area.split("/"))
         if (self.north < self.south) or (self.east < self.west):
@@ -50,34 +62,20 @@ class ArgoSource(Source):
 
     def execute(self, dates: list[datetime] | GroupOfDates) -> FieldList:
         """Download Argo float data within given date range."""
-        # Set constants
         # Construct the grid that we want to project onto
-        lats = np.arange(
-            self.south + 0.5 * self.grid_resolution_degrees,
-            self.north + 0.5 * self.grid_resolution_degrees,
-            self.grid_resolution_degrees,
-        )
-        lons = np.arange(
-            self.west + 0.5 * self.grid_resolution_degrees,
-            self.east + 0.5 * self.grid_resolution_degrees,
-            self.grid_resolution_degrees,
-        )
+        grid_points = np.stack(
+            (self.output_geography.latitudes(), self.output_geography.longitudes()),
+            axis=-1,
+        )  # shape: (n_lat, n_lon, 2)
+        grid_shape = grid_points.shape[0:2]
+        grid_points_flat = grid_points.reshape(-1, 2)  # shape: (n_lat*n_lon, 2)
+        logger.info("Created grid with %d latitudes and %d longitudes.", *grid_shape)
 
-        lat_grid, lon_grid = np.meshgrid(lats, lons, indexing="ij")
-        grid_points = np.column_stack((lat_grid.ravel(), lon_grid.ravel()))
-        logger.info(
-            "Created grid with %d latitudes and %d longitudes, total %d grid points",
-            len(lats),
-            len(lons),
-            len(lats) * len(lons),
-        )
-
+        # Create a dummy data structure of the correct shape
         requested_dates: list[datetime] = sorted(date for date in dates)
 
         weighted_data: dict[str, np.ndarray] = {
-            variable: np.full(
-                (len(requested_dates), len(lats), len(lons)), np.nan, dtype=float
-            )
+            variable: np.full((len(requested_dates), *grid_shape), np.nan, dtype=float)
             for variable in self.param
         }
         logger.info(
@@ -90,8 +88,9 @@ class ArgoSource(Source):
             max(requested_dates),
         )
 
+        # Iterate over dates, requesting data for each one separately
         for t_idx, date in enumerate(requested_dates):
-            logger.info("Processing data from %s", date.date())
+            logger.info("Requesting data for %s", date.date())
             start_time = date - timedelta(hours=self.time_half_window_hrs)
             end_time = date + timedelta(hours=self.time_half_window_hrs)
 
@@ -114,7 +113,7 @@ class ArgoSource(Source):
             # Pairwise distances in km
             distance_km: np.ndarray = haversine_vector(
                 obs_points,
-                grid_points,
+                grid_points_flat,
                 unit=Unit.KILOMETERS,
                 comb=True,
                 check=False,  # faster if your lat/lon are already valid
@@ -131,7 +130,7 @@ class ArgoSource(Source):
                 unweighted_data = df[variable].to_numpy(dtype=float)
                 weighted_array[t_idx] = (
                     np.matmul(weights, unweighted_data) / sum_weights
-                ).reshape(len(lats), len(lons))  # shape: (n_lat, n_lon)
+                ).reshape(*grid_shape)  # shape: (n_lat, n_lon)
 
         if self.ignore_missing_dates:
             logger.info(
@@ -145,9 +144,8 @@ class ArgoSource(Source):
         ds_out = xr.Dataset(
             data_vars={
                 variable: (
-                    ("time", "lat", "lon"),
+                    ("time", "x_pos", "y_pos"),
                     data_array,
-                    {"coordinates": "time lat lon"},
                 )
                 for variable, data_array in weighted_data.items()
             },
@@ -162,16 +160,16 @@ class ArgoSource(Source):
                     },
                 ),
                 "lat": (
-                    "lat",
-                    lats,
+                    ("x_pos", "y_pos"),
+                    self.output_geography.latitudes(),
                     {
                         "standard_name": "latitude",
                         "units": "degrees_north",
                     },
                 ),
                 "lon": (
-                    "lon",
-                    lons,
+                    ("x_pos", "y_pos"),
+                    self.output_geography.longitudes(),
                     {
                         "standard_name": "longitude",
                         "units": "degrees_east",
@@ -188,7 +186,7 @@ class ArgoSource(Source):
 def _fetch_argo_dataframe_with_retry(
     region: list[float],
     time_window: list[datetime],
-    max_attempts: int = 5,
+    max_attempts: int = 10,
     initial_backoff_s: float = 0.5,
 ) -> DataFrame:
     """Fetch Argo data with exponential backoff.
@@ -220,7 +218,7 @@ def _fetch_argo_dataframe_with_retry(
             # the error message does not contain the HTTP status code so we need to
             # retry both cases.
             logger.warning(
-                "Downloading %s failed after %d/%d attempts.",
+                "Downloading %s attempt %d/%d failed.",
                 data_target,
                 attempt,
                 max_attempts,
@@ -229,7 +227,7 @@ def _fetch_argo_dataframe_with_retry(
                 msg = f"{data_target} is unavailable."
                 raise LookupError(msg) from exc
             backoff = initial_backoff_s * (2 ** (attempt - 1))
-            logger.debug("Retrying download in %.1fs.", backoff)
+            logger.info("Retrying download in %.1fs.", backoff)
             time.sleep(backoff)
         except NoData as exc:
             msg = f"{data_target} is unavailable."

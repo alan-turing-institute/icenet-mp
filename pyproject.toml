@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.8.3,<0.9.0"]
+requires = ["uv_build>=0.11.18,<0.12.0"]
 build-backend = "uv_build"
 
 [project]
@@ -20,9 +20,9 @@ authors = [
 ]
 requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with the tensorflow requirement from icenet
 dependencies = [
-    "anemoi-datasets>=0.5.27", # to get the fix from https://github.com/ecmwf/anemoi-datasets/pull/372
-    "anemoi-transform>=0.1.16",
-    "anemoi-utils>=0.4.42",
+    "anemoi-datasets>=0.5.37",
+    "anemoi-transform>=0.4.0",
+    "anemoi-utils>=0.5.3",
     "argopy>=1.4.0",
     "cachetools>=6.1.0",
     "cdsapi>=0.7.6",
@@ -43,9 +43,9 @@ dependencies = [
     "torch-ema>=0.3",
     "torch>=2.8.0,!=2.10.0", # uv will constantly reinstall torch 2.10.0 due to incorrect metadata https://github.com/astral-sh/uv/issues/17711
     "typer>=0.16.0",
-    "wandb>=0.21.0",
+    "wandb>=0.27.0",
     "xarray>=2025.3.0",
-    "zarr<3.0.0", # v3 is not compatible with anemoi
+    "zarr>=2.18", # anemoi-datasets==0.5.37 still depends on zarr<=3
 ]
 
 [dependency-groups]
@@ -54,14 +54,16 @@ dev = [
     "pandas-stubs>=2.3.0.250703",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
-    "pytest-cov>=6.2.1",
-    "types-cachetools>=6.1.0",
-    "types-pyyaml>=6.0.12",
+    "pytest-cov>=7.1.0",
+    "pytest-xdist>=3.8.0",
+    "types-cachetools>=7.0.0.20260518",
+    "types-pyyaml>=6.0.12.20260518",
 ]
 notebooks = [
     "cmocean>=4.0.3",
     "download-toolbox>=0.0.6",
     "jupyter>=1.1.1",
+    "s2sphere>=0.2.5",
 ]
 
 [project.scripts]
@@ -76,26 +78,16 @@ omit= [
   "tests/*",
 ]
 
-[[tool.mypy.overrides]]
-module = [
-    "anemoi.datasets.*",
-    "anemoi.transform.*",
-    "anemoi.utils.*",
-    "argopy.*",
-    "earthkit.*",
-    "fsspec.*",
-    "haversine.*",
-    "icenet.data.sic.*",
-    "imageio_ffmpeg.*",
-    "zarr.*",
-]
-ignore_missing_imports = true
+[tool.mypy]
+disable_error_code = ["import-untyped"]
 
 [tool.pytest.ini_options]
 addopts = [
     "--cov=icenet_mp",
     "--cov-report=term-missing",
     "-vvv",
+    "-n",
+    "auto",
 ]
 testpaths = ["tests"]
 norecursedirs = [

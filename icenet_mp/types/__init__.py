@@ -1,7 +1,8 @@
-from .complex_datatypes import DataSpace, ModelTestOutput
+from .complex_datatypes import DataSpace, ModelStepOutput
 from .enums import BetaSchedule, RangeRestriction, TensorDimensions
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
+    AnemoiDatasetStatus,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
     AnemoiInspectArgs,
@@ -26,6 +27,7 @@ from .typedefs import (
 )
 
 __all__ = [
+    "AnemoiDatasetStatus",
     "AnemoiFinaliseArgs",
     "AnemoiInitArgs",
     "AnemoiInspectArgs",
@@ -44,7 +46,7 @@ __all__ = [
     "DiffStrategy",
     "Hemisphere",
     "Metadata",
-    "ModelTestOutput",
+    "ModelStepOutput",
     "PlotSpec",
     "RangeRestriction",
     "SupportsMetadata",
