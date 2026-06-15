@@ -17,30 +17,6 @@ ArrayType = TypeVar("ArrayType", ArrayCHW, ArrayTCHW)
 logger = logging.getLogger(__name__)
 
 
-# helpers: check if any two stacks touch (stack B start is consecutive to stack A end)  --> merge if yes
-def _ranges_touch(
-    prev: dict[str, str | None],
-    nxt: dict[str, str | None],
-    frequency: np.timedelta64,
-) -> bool:
-    """Whether two ranges touch at the end points.
-
-    Yes when the next range start_date is consecutive to the
-    previous range end_date, ie, no missing day between them (overlap counts
-    too). Open-ended (None) bounds are out of scope, dont merge -- diverse to future fixes/discussions.
-    """
-    if prev["end"] is None or nxt["start"] is None:
-        return False
-    return bool(np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency)
-
-
-def _later_end(a: dict[str, str | None], b: dict[str, str | None]) -> str | None:
-    """Return the end of the merged span."""
-    if a["end"] is None or b["end"] is None:
-        return None
-    return a["end"] if np.datetime64(a["end"]) >= np.datetime64(b["end"]) else b["end"]
-
-
 class SingleDataset(Dataset):
     """A dataset containing one or more timeslices of data from a single source."""
 
@@ -62,9 +38,7 @@ class SingleDataset(Dataset):
         We reshape this to CHW before returning.
         """
         super().__init__()
-        self._date_ranges = sorted(
-            date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
-        )
+        self._date_ranges = self.normalise_date_ranges(date_ranges)
         self.hemisphere: Hemisphere = (
             "north"
             if any("north" in str(input_file).lower() for input_file in input_files)
@@ -99,35 +73,53 @@ class SingleDataset(Dataset):
                     idx2anemoi[idx_global] = (idx_ds, idx_date)
         return idx2anemoi
 
-    @cached_property
-    def _merged_date_ranges(self) -> list[dict[str, str | None]]:
-        """Fuse touching/overlapping ranges into single spans.
+    @staticmethod
+    def normalise_date_ranges(
+        date_ranges: Sequence[dict[str, str | None]],
+    ) -> list[dict[str, str | None]]:
+        """Sort the ranges, then merge touching ones into single spans.
 
-        Adjacent ranges touching/overlapping must merge into one
-        single Anemoi subset, or else a run that straddles the range gap/seam is
-        approved against the time step outside the range but fetching is still restricted
-        to be within the range only, therefore will comes back short, and fails to reshape (issue #279).
-        Merges are logged to remind the user that their config ranges are touching.
+        Adjacent ranges that touch must merge into one Anemoi subset, or a run
+        that crosses the seam is approved against a date outside the range while
+        the fetch stays inside it, so the read comes back short and fails to
+        reshape. Merges are logged so a user notices adjoining config ranges.
+        The merged span just takes the later range's end. Note that:
+        a "None" in prev and nxt means the first/last available date in the data;
+        overlapping ranges are assumed unused, no need to fix;
         """
-        if len(self._date_ranges) <= 1:
-            return [dict(date_range) for date_range in self._date_ranges]
+        ranges = sorted(
+            date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
+        )
+        if len(ranges) <= 1:
+            return [dict(date_range) for date_range in ranges]
 
-        frequency = np.timedelta64(self.load_dataset(self._input_files).frequency)
+        #  Assume data always has a daily freuquency; for future updates: read from source metadata
+        frequency = np.timedelta64(1, "D")
+
+        def _ranges_touch(
+            prev: dict[str, str | None], nxt: dict[str, str | None]
+        ) -> bool:
+            """Check whether nxt starts within one time-step of prev's end."""
+            if prev["end"] is None or nxt["start"] is None:
+                return False
+            return bool(
+                np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency
+            )
+
         merged: list[dict[str, str | None]] = []
-        for date_range in self._date_ranges:
-            if merged and _ranges_touch(merged[-1], date_range, frequency):
+        for date_range in ranges:
+            if merged and _ranges_touch(merged[-1], date_range):
                 prev = merged.pop()
                 fused: dict[str, str | None] = {
                     "start": prev["start"],
-                    "end": _later_end(prev, date_range),
+                    "end": date_range["end"],
                 }
                 logger.warning(
-                    "Merged touching date ranges %s and %s into %s for dataset %r "
-                    "Please check cofig file range setting if unintended",
+                    "Merged touching date ranges %s and %s into %s. "
+                    "Please check config file range setting if unintended",
                     prev,
                     date_range,
                     fused,
-                    self._name,
                 )
                 merged.append(fused)
             else:
@@ -144,7 +136,7 @@ class SingleDataset(Dataset):
                 end=date_range["end"],
                 **({"select": self._variables} if self._variables else {}),
             )
-            for date_range in self._merged_date_ranges
+            for date_range in self._date_ranges
         ]
 
     @cached_property
