@@ -485,14 +485,15 @@ class DDPM(BaseModel):
             - loss: test loss value
 
         """
-        # Prepare input tensor
-        x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
+        # # Prepare input tensor
+        # x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
 
         # Extract target and optional weights
         y = batch["target"].squeeze(2)  # [B, T, H, W]
 
         # Generate samples
-        y_hat = self.sample(x)
+        # y_hat = self.sample(x)
+        y_hat = self.sample(batch)
 
         # Calculate loss
         loss = self.loss(y_hat, y)
@@ -538,9 +539,10 @@ class DDPM(BaseModel):
             - loss: test loss value
 
         """
-        x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
+        # x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
         y = batch["target"]  # [B, T, 1, H, W]
-        y_hat = self.sample(x).unsqueeze(2)  # [B, C_cond, 1, H, W]
+        # y_hat = self.sample(x).unsqueeze(2)  # [B, C_cond, 1, H, W]
+        y_hat = self.sample(batch).unsqueeze(2)  # [B, C_cond, 1, H, W]
 
         loss = self.loss(y_hat, y)
         self.log(
