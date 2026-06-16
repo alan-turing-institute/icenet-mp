@@ -276,42 +276,67 @@ class DDPM(BaseModel):
 
     def _sample_autoregressive(
         self,
-        x: torch.Tensor,
-        sample_weight: torch.Tensor | None,  # noqa: ARG002
+        batch: dict[str, TensorNTCHW],
     ) -> torch.Tensor:
         """Autoregressive sampling (one forecast step at a time)."""
-        B, C, H, W = x.shape
+        # B, C, H, W = x.shape
         
-        # Store all predictions
+        # # Store all predictions
+        # all_predictions = []
         all_predictions = []
+        osisaf = batch[self.osisaf_key].clone()  # [B, T, 1, H, W]
+        era5 = batch["era5"].clone()             # [B, T, C, H2, W2]
+        era5_forecast = batch.get("era5_forecast", None)
         
+        # for step in range(self.n_forecast_steps):
+        #     # Shape for single step prediction
+        #     shape = (B, self.base_output_channels, H, W)
+            
+        #     # Start from pure noise for this step
+        #     y = torch.randn(shape, device=self.device)
         for step in range(self.n_forecast_steps):
-            # Shape for single step prediction
-            shape = (B, self.base_output_channels, H, W)
+            current_batch = {
+                self.osisaf_key: osisaf[:, -self.n_history_steps:],
+                "era5": era5[:, -self.n_history_steps:],
+            }
+            x = self.prepare_inputs(current_batch)  # [B, cond_channels, H, W]
+
+            B, _, H, W = x.shape
+            y = torch.randn((B, self.base_output_channels, H, W), device=self.device)
             
-            # Start from pure noise for this step
-            y = torch.randn(shape, device=self.device)
-            
-            dim_threshold = 3
+            # dim_threshold = 3
             
             # Diffusion reverse process
+            # for t in reversed(range(self.timesteps)):
+            #     t_batch = torch.full_like(
+            #         x[:, 0, 0, 0], t, dtype=torch.long, device=self.device
+            #     )
+            #     pred_v: torch.Tensor = self.model(y, t_batch, x)
+            #     pred_v = (
+            #         pred_v.squeeze(3) if pred_v.dim() > dim_threshold else pred_v.squeeze()
+            #     )
+            #     y = self.diffusion.p_sample(y, t_batch, pred_v)
             for t in reversed(range(self.timesteps)):
-                t_batch = torch.full_like(
-                    x[:, 0, 0, 0], t, dtype=torch.long, device=self.device
-                )
+                t_batch = torch.full((B,), t, dtype=torch.long, device=self.device)
                 pred_v: torch.Tensor = self.model(y, t_batch, x)
-                pred_v = (
-                    pred_v.squeeze(3) if pred_v.dim() > dim_threshold else pred_v.squeeze()
-                )
                 y = self.diffusion.p_sample(y, t_batch, pred_v)
             
             # Clamp and store prediction
             y_step = torch.clamp(y, 0, 1)
             all_predictions.append(y_step)
             
-            # Update conditioning for next step (if not the last step)
-            if step < self.n_forecast_steps - 1:
-                x = self._update_conditioning(x, y_step)
+            # # Update conditioning for next step (if not the last step)
+            # if step < self.n_forecast_steps - 1:
+            #     x = self._update_conditioning(x, y_step)
+            # Slide OSISAF window: append prediction as new frame
+            osisaf = torch.cat([osisaf, y_step.unsqueeze(1)], dim=1)
+
+            # Slide ERA5 window: use forecast if available, else repeat last frame
+            if era5_forecast is not None:
+                next_era5 = era5_forecast[:, step:step + 1]
+            else:
+                next_era5 = era5[:, -1:]
+            era5 = torch.cat([era5, next_era5], dim=1)
         
         # Concatenate all predictions along channel dimension
         return torch.cat(all_predictions, dim=1)
