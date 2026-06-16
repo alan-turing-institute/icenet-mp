@@ -85,7 +85,7 @@ class SingleDataset(Dataset):
         reshape. Merges are logged so a user notices adjoining config ranges.
         The merged span just takes the later range's end. Note that:
         a "None" in prev and nxt means the first/last available date in the data;
-        overlapping ranges are assumed unused, no need to fix;
+        overlapping ranges are left as-is (not merged), as are open-ended bounds.
         """
         ranges = sorted(
             date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
@@ -99,12 +99,17 @@ class SingleDataset(Dataset):
         def _ranges_touch(
             prev: dict[str, str | None], nxt: dict[str, str | None]
         ) -> bool:
-            """Check whether nxt starts within one time-step of prev's end."""
+            """Whether nxt is adjacent to prev: starts on, or the day after, prev's end.
+
+            Only consecutive ranges merge. Overlapping ranges (nxt starts before
+            prev ends) and open-ended (None) bounds fall through to False and are
+            left untouched.
+            """
             if prev["end"] is None or nxt["start"] is None:
                 return False
-            return bool(
-                np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency
-            )
+            end = np.datetime64(prev["end"])
+            start = np.datetime64(nxt["start"])
+            return bool(end <= start) and bool(start <= end + frequency)
 
         merged: list[dict[str, str | None]] = []
         for date_range in ranges:

@@ -432,3 +432,62 @@ class TestSingleDataset:
             )
             subset = dataset.subset(variables=["ice_conc"])
             assert subset._normalise is flag
+
+    def test_normalise_date_ranges_adjacent_merge(self) -> None:
+        """Consecutive ranges (next starts the day after) merge into one span."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2020-01-01", "end": "2020-06-30"},
+                {"start": "2020-07-01", "end": "2020-12-31"},
+            ]
+        ) == [{"start": "2020-01-01", "end": "2020-12-31"}]
+
+    def test_normalise_date_ranges_shared_boundary_merge(self) -> None:
+        """Ranges meeting on the same day merge (treated as consecutive)."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2020-01-01", "end": "2020-07-01"},
+                {"start": "2020-07-01", "end": "2020-12-31"},
+            ]
+        ) == [{"start": "2020-01-01", "end": "2020-12-31"}]
+
+    def test_normalise_date_ranges_gap_not_merged(self) -> None:
+        """A missing day between ranges leaves them as separate spans."""
+        ranges: list[dict[str, str | None]] = [
+            {"start": "2020-01-01", "end": "2020-06-30"},
+            {"start": "2020-07-02", "end": "2020-12-31"},
+        ]
+        assert SingleDataset.normalise_date_ranges(ranges) == ranges
+
+    def test_normalise_date_ranges_overlap_left_alone(self) -> None:
+        """Overlapping ranges are not merged (and not truncated)."""
+        ranges: list[dict[str, str | None]] = [
+            {"start": "2020-01-01", "end": "2020-12-31"},
+            {"start": "2020-03-01", "end": "2020-06-30"},
+        ]
+        assert SingleDataset.normalise_date_ranges(ranges) == ranges
+
+    def test_normalise_date_ranges_end_none_left_alone(self) -> None:
+        """An open end (None = last date) overlaps a later range, so it is left alone."""
+        ranges: list[dict[str, str | None]] = [
+            {"start": "2020-01-01", "end": None},
+            {"start": "2020-06-01", "end": "2020-09-30"},
+        ]
+        assert SingleDataset.normalise_date_ranges(ranges) == ranges
+
+    def test_normalise_date_ranges_start_none_left_alone(self) -> None:
+        """Two open starts (None = first date) overlap, so they are left alone."""
+        ranges: list[dict[str, str | None]] = [
+            {"start": None, "end": "2020-03-31"},
+            {"start": None, "end": "2020-06-30"},
+        ]
+        assert SingleDataset.normalise_date_ranges(ranges) == ranges
+
+    def test_normalise_date_ranges_open_outer_ends_merge(self) -> None:
+        """Open-beginning + open-ending halves that meet merge to the whole range."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": None, "end": "2020-06-30"},
+                {"start": "2020-07-01", "end": None},
+            ]
+        ) == [{"start": None, "end": None}]
