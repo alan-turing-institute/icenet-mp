@@ -316,6 +316,33 @@ class DDPM(BaseModel):
         # Concatenate all predictions along channel dimension
         return torch.cat(all_predictions, dim=1)
 
+    def _update_conditioning(self, x: torch.Tensor, new_prediction: torch.Tensor) -> torch.Tensor:
+        """Update conditioning by incorporating the latest prediction.
+        
+        Args:
+            x: Current conditioning [B, C, H, W]
+            new_prediction: Latest prediction [B, base_output_channels, H, W]
+            
+        Returns:
+            Updated conditioning [B, C, H, W]
+        
+        """
+        # Keep ERA5 features unchanged (second half)
+        era5_features = x[:, self.cond_channels // 2:, :, :]
+        
+        # For OSISAF features (first half), encode the new prediction
+        new_encoded = self.osisaf_encoder.net[0](new_prediction.unsqueeze(1))
+        new_encoded = F.adaptive_avg_pool2d(new_encoded, (x.shape[-2], x.shape[-1]))
+        
+        # Get current OSISAF features
+        osisaf_features = x[:, :self.cond_channels // 2, :, :]
+        
+        # Blend in new information
+        alpha = 0.3  # Weight for new prediction
+        osisaf_features = (1 - alpha) * osisaf_features + alpha * new_encoded.squeeze(1)
+        
+        return torch.cat([osisaf_features, era5_features], dim=1)
+
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.
 
