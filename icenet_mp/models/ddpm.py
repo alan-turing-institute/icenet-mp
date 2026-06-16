@@ -173,8 +173,8 @@ class DDPM(BaseModel):
 
     def sample(
         self,
-        x: torch.Tensor,
-        sample_weight: torch.Tensor | None,  # noqa: ARG002
+        batch: dict[str, TensorNTCHW],
+        sample_weight: torch.Tensor | None = None,  # noqa: ARG002
     ) -> torch.Tensor:
         """
         Generate forecasts using a reverse diffusion process.
@@ -216,9 +216,10 @@ class DDPM(BaseModel):
             - Sampling begins from standard Gaussian noise.
         """
         if self.use_autoregressive:
-                return self._sample_autoregressive(x, sample_weight)
+            return self._sample_autoregressive(batch)
         else:
-            return self._sample_parallel(x, sample_weight)
+            x = self.prepare_inputs(batch)
+            return self._sample_parallel(x)
 
     def _sample_parallel(self, x: TensorNCHW) -> TensorNCHW:
         """
@@ -464,7 +465,6 @@ class DDPM(BaseModel):
         y = batch["target"].squeeze(2)  # [B, T, H, W]
 
         # Generate samples
-        # y_hat = self.sample(x)
         y_hat = self.sample(batch)
 
         # Calculate loss
