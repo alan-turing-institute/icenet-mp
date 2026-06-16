@@ -226,7 +226,9 @@ class ModelService:
         )
 
         # Assign workers for data loading
-        self.data_module.assign_workers(suggested_max_num_workers(trainer.num_devices))
+        self.data_module.assign_workers(
+            min(8, suggested_max_num_workers(trainer.num_devices))
+        )
 
         # Ensure the run directory exists
         run_directory = self.build_run_directory(trainer)
