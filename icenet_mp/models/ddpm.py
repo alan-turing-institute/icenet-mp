@@ -279,21 +279,11 @@ class DDPM(BaseModel):
         batch: dict[str, TensorNTCHW],
     ) -> torch.Tensor:
         """Autoregressive sampling (one forecast step at a time)."""
-        # B, C, H, W = x.shape
-        
-        # # Store all predictions
-        # all_predictions = []
         all_predictions = []
         osisaf = batch[self.osisaf_key].clone()  # [B, T, 1, H, W]
         era5 = batch["era5"].clone()             # [B, T, C, H2, W2]
         era5_forecast = batch.get("era5_forecast", None)
         
-        # for step in range(self.n_forecast_steps):
-        #     # Shape for single step prediction
-        #     shape = (B, self.base_output_channels, H, W)
-            
-        #     # Start from pure noise for this step
-        #     y = torch.randn(shape, device=self.device)
         for step in range(self.n_forecast_steps):
             current_batch = {
                 self.osisaf_key: osisaf[:, -self.n_history_steps:],
@@ -304,18 +294,7 @@ class DDPM(BaseModel):
             B, _, H, W = x.shape
             y = torch.randn((B, self.base_output_channels, H, W), device=self.device)
             
-            # dim_threshold = 3
-            
             # Diffusion reverse process
-            # for t in reversed(range(self.timesteps)):
-            #     t_batch = torch.full_like(
-            #         x[:, 0, 0, 0], t, dtype=torch.long, device=self.device
-            #     )
-            #     pred_v: torch.Tensor = self.model(y, t_batch, x)
-            #     pred_v = (
-            #         pred_v.squeeze(3) if pred_v.dim() > dim_threshold else pred_v.squeeze()
-            #     )
-            #     y = self.diffusion.p_sample(y, t_batch, pred_v)
             for t in reversed(range(self.timesteps)):
                 t_batch = torch.full((B,), t, dtype=torch.long, device=self.device)
                 pred_v: torch.Tensor = self.model(y, t_batch, x)
@@ -325,9 +304,6 @@ class DDPM(BaseModel):
             y_step = torch.clamp(y, 0, 1)
             all_predictions.append(y_step)
             
-            # # Update conditioning for next step (if not the last step)
-            # if step < self.n_forecast_steps - 1:
-            #     x = self._update_conditioning(x, y_step)
             # Slide OSISAF window: append prediction as new frame
             osisaf = torch.cat([osisaf, y_step.unsqueeze(1)], dim=1)
 
@@ -341,32 +317,6 @@ class DDPM(BaseModel):
         # Concatenate all predictions along channel dimension
         return torch.cat(all_predictions, dim=1)
 
-    def _update_conditioning(self, x: torch.Tensor, new_prediction: torch.Tensor) -> torch.Tensor:
-        """Update conditioning by incorporating the latest prediction.
-        
-        Args:
-            x: Current conditioning [B, C, H, W]
-            new_prediction: Latest prediction [B, base_output_channels, H, W]
-            
-        Returns:
-            Updated conditioning [B, C, H, W]
-        
-        """
-        # Keep ERA5 features unchanged (second half)
-        era5_features = x[:, self.cond_channels // 2:, :, :]
-        
-        # For OSISAF features (first half), encode the new prediction
-        new_encoded = self.osisaf_encoder.net[0](new_prediction.unsqueeze(1))
-        new_encoded = F.adaptive_avg_pool2d(new_encoded, (x.shape[-2], x.shape[-1]))
-        
-        # Get current OSISAF features
-        osisaf_features = x[:, :self.cond_channels // 2, :, :]
-        
-        # Blend in new information
-        alpha = 0.3  # Weight for new prediction
-        osisaf_features = (1 - alpha) * osisaf_features + alpha * new_encoded.squeeze(1)
-        
-        return torch.cat([osisaf_features, era5_features], dim=1)
 
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.
@@ -510,9 +460,6 @@ class DDPM(BaseModel):
             - loss: test loss value
 
         """
-        # # Prepare input tensor
-        # x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
-
         # Extract target and optional weights
         y = batch["target"].squeeze(2)  # [B, T, H, W]
 
@@ -564,9 +511,7 @@ class DDPM(BaseModel):
             - loss: test loss value
 
         """
-        # x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
         y = batch["target"]  # [B, T, 1, H, W]
-        # y_hat = self.sample(x).unsqueeze(2)  # [B, C_cond, 1, H, W]
         y_hat = self.sample(batch).unsqueeze(2)  # [B, C_cond, 1, H, W]
 
         loss = self.loss(y_hat, y)
