@@ -279,7 +279,38 @@ class DDPM(BaseModel):
         self,
         batch: dict[str, TensorNTCHW],
     ) -> torch.Tensor:
-        """Autoregressive sampling (one forecast step at a time)."""
+        """Autoregressive reverse diffusion sampling (one forecast step at a time).
+
+        Each forecast step is generated sequentially via an independent reverse
+        diffusion process. After each step, the conditioning window is updated:
+        the predicted SIC frame is appended to the OSISAF history, and either the
+        corresponding ERA5 forecast frame (if provided) or a repetition of the last
+        observed ERA5 frame is appended to the ERA5 history.
+
+        Args:
+            batch (dict[str, TensorNTCHW]):
+                Dictionary containing:
+                    - self.osisaf_key: OSISAF SIC history tensor of shape
+                    [B, T, 1, H, W].
+                    - era5: ERA5 input tensor of shape [B, T, C, H2, W2].
+                    - era5_forecast (optional): ERA5 forecast tensor of shape
+                    [B, n_forecast_steps, C, H2, W2]. When absent, the last
+                    observed ERA5 frame is repeated for each step.
+
+        Returns:
+            torch.Tensor:
+                Forecast tensor of shape
+                [B, n_forecast_steps * base_output_channels, H, W],
+                formed by concatenating all per-step predictions along the
+                channel dimension.
+
+        Notes:
+            - Sampling at each step starts from standard Gaussian noise.
+            - The model predicts v-parameterization at every diffusion timestep.
+            - The OSISAF conditioning window slides forward by one frame per step,
+            using the model's own prediction as the new observation.
+
+        """
         all_predictions = []
         osisaf = batch[self.osisaf_key].clone()  # [B, T, 1, H, W]
         era5 = batch["era5"].clone()             # [B, T, C, H2, W2]
@@ -401,7 +432,8 @@ class DDPM(BaseModel):
         x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
 
         # Extract target
-        y = batch["target"].squeeze(2)  # B, T, H, W
+        # y = batch["target"].squeeze(2)  # B, T, H, W
+        y = batch["target"][:, 0] #.squeeze(1)  # [B, 1, H, W] #first target only
 
         # Sample random timesteps
         t = torch.randint(
