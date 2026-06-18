@@ -77,15 +77,17 @@ class SingleDataset(Dataset):
     def normalise_date_ranges(
         date_ranges: Sequence[dict[str, str | None]],
     ) -> list[dict[str, str | None]]:
-        """Sort the ranges, then merge touching ones into single spans.
+        """Sort the ranges, then merge overlapping or touching ones into single spans.
 
-        Adjacent ranges that touch must merge into one Anemoi subset, or a run
+        Ranges that overlap or touch must merge into one Anemoi subset, or a run
         that crosses the seam is approved against a date outside the range while
         the fetch stays inside it, so the read comes back short and fails to
-        reshape. Merges are logged so a user notices adjoining config ranges.
-        The merged span just takes the later range's end. Note that:
-        a "None" in prev and nxt means the first/last available date in the data;
-        overlapping ranges are left as-is (not merged), as are open-ended bounds.
+        reshape. Two ranges merge when the later one starts on or before the day
+        after the earlier one ends; the merged span runs from the earliest start
+        to the latest end. A "None" bound is open: a "None" start is before any
+        date and a "None" end is after any date, so an open bound always overlaps
+        its neighbour. Each merge is logged so a user notices that their config
+        ranges were altered (e.g. a mistyped year that creates an overlap).
         """
         ranges = sorted(
             date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
@@ -93,34 +95,42 @@ class SingleDataset(Dataset):
         if len(ranges) <= 1:
             return [dict(date_range) for date_range in ranges]
 
-        #  Assume data always has a daily freuquency; for future updates: read from source metadata
+        #  Assume data always has a daily frequency; for future updates: read from source metadata
         frequency = np.timedelta64(1, "D")
 
-        def _ranges_touch(
+        def _ranges_overlap_or_touch(
             prev: dict[str, str | None], nxt: dict[str, str | None]
         ) -> bool:
-            """Whether nxt is adjacent to prev: starts on, or the day after, prev's end.
+            """Whether nxt overlaps or is consecutive with prev, so they should merge.
 
-            Only consecutive ranges merge. Overlapping ranges (nxt starts before
-            prev ends) and open-ended (None) bounds fall through to False and are
-            left untouched.
+            Ranges are sorted by start, so nxt never begins before prev. They
+            merge when nxt starts on or before the day after prev ends. An open
+            end on prev (None = after any date) covers everything later, and an
+            open start on nxt (None = before any date) sits inside prev, so in
+            either case they always merge.
             """
             if prev["end"] is None or nxt["start"] is None:
-                return False
-            end = np.datetime64(prev["end"])
-            start = np.datetime64(nxt["start"])
-            return bool(end <= start) and bool(start <= end + frequency)
+                return True
+            return bool(
+                np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency
+            )
+
+        def _later_end(a: str | None, b: str | None) -> str | None:
+            """Return the later of two end dates; None (open) is after any date."""
+            if a is None or b is None:
+                return None
+            return a if np.datetime64(a) >= np.datetime64(b) else b
 
         merged: list[dict[str, str | None]] = []
         for date_range in ranges:
-            if merged and _ranges_touch(merged[-1], date_range):
+            if merged and _ranges_overlap_or_touch(merged[-1], date_range):
                 prev = merged.pop()
                 fused: dict[str, str | None] = {
                     "start": prev["start"],
-                    "end": date_range["end"],
+                    "end": _later_end(prev["end"], date_range["end"]),
                 }
                 logger.warning(
-                    "Merged touching date ranges %s and %s into %s. "
+                    "Merged overlapping or touching date ranges %s and %s into %s. "
                     "Please check config file range setting if unintended",
                     prev,
                     date_range,
