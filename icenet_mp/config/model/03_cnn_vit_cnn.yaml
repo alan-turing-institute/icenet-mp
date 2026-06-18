@@ -3,19 +3,25 @@ _target_: icenet_mp.models.EncodeProcessDecode
 name: cnn-vit-cnn
 
 encoders:
-  latent_space: [144, 144]
+  latent_space: [108, 108]
   era5:
     _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 2
   float-argo:
     _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 2
   sic-icenet:
     _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 2
   sic-ssmis:
     _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 2
 
 processor:
   _target_: icenet_mp.models.processors.VitProcessor
+  patch_size: 12  # 108 / 12 = 9 patches per dimension
 
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
-  bounded: false # Whether to bound the output between 0 and 1
+  bounded: false
+  n_layers: 2

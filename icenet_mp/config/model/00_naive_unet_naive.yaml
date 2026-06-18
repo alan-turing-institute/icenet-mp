@@ -15,8 +15,8 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
-  start_out_channels: 100 # Reduce number of channels to support 21 day forecasts
+  start_out_channels: 100
 
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
-  bounded: false # Whether to bound the output between 0 and 1
+  bounded: false
