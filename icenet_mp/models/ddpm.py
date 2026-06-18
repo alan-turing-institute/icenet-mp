@@ -61,7 +61,7 @@ class DDPM(BaseModel):
         normalization: str = "groupnorm",
         time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
-        use_autoregressive: bool = False, #True,
+        use_autoregressive: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
