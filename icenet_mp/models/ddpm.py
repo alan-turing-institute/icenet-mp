@@ -61,7 +61,7 @@ class DDPM(BaseModel):
         normalization: str = "groupnorm",
         time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
-        use_autoregressive: bool = True,
+        use_autoregressive: bool = False, #True,
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
@@ -432,8 +432,10 @@ class DDPM(BaseModel):
         x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
 
         # Extract target
-        # y = batch["target"].squeeze(2)  # B, T, H, W
-        y = batch["target"][:, 0] #.squeeze(1)  # [B, 1, H, W] #first target only
+        if self.use_autoregressive:
+            y = batch["target"][:, 0]  # [B, 1, H, W] — one step at a time
+        else:
+            y = batch["target"].squeeze(2)  # [B, T, H, W] — all steps at once
 
         # Sample random timesteps
         t = torch.randint(
