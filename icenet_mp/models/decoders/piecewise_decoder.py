@@ -1,8 +1,9 @@
+from pathlib import Path
 from typing import Any
-import os
 
 import numpy as np
-from torch import from_numpy, nn
+from torch import from_numpy, nn, ones
+from torch.nn.functional import sigmoid
 
 from icenet_mp.models.common import (
     CommonConvBlock,
@@ -37,18 +38,27 @@ class PiecewiseDecoder(BaseDecoder):
         conv_kernel_size: int = 3,
         n_conv_blocks: int = 3,
         restrict_range: str = "clamp",
-        mask_path: str | None = None, 
+        mask_path: str | None = None,
+        bounded: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseDecoder."""
         super().__init__(**kwargs)
 
-        # load in the land mask and save it as a tensor
-        mask_np = np.load(os.path.join(mask_path))
-        self.register_buffer(
-            "active_gridcell_mask", from_numpy(mask_np).float(), persistent=False
-        )
-        
+        # specify whether the output is bounded between 0 and 1
+        self.bounded = bounded
+
+        # load in the mask and save it as a tensor
+        if mask_path is not None:
+            mask_np = np.load(Path(mask_path))
+            self.register_buffer("mask", from_numpy(mask_np).float(), persistent=False)
+        else:
+            self.register_buffer(
+                "mask",
+                ones(self.data_space_out.shape[2:]),
+                persistent=False,
+            )
+
         # Calculate the number of patches required
         # We set the stride to be half the patch size to ensure overlap, which will
         # capture more of the spatial structure of the data.
@@ -135,9 +145,9 @@ class PiecewiseDecoder(BaseDecoder):
         """
         output = self.model(x)
 
-        # set all values in the active grid cell mask to be zero
-        output = output * self.active_gridcell_mask.to(dtype=output.dtype)
-        # output = output * (1 - self.land_mask.to(dtype=output.dtype))
+        # set all masked cells to zero
+        output = output * self.mask.to(dtype=output.dtype)
 
+        if self.bounded:
+            return sigmoid(output)
         return output
-

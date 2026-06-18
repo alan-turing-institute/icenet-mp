@@ -1,9 +1,9 @@
 import logging
-import os
+from pathlib import Path
 from typing import Any
 
 import numpy as np
-from torch import from_numpy, nn
+from torch import from_numpy, nn, ones
 from torch.nn.functional import sigmoid
 
 from icenet_mp.models.common import ConvBlockUpsample, ResizingInterpolation
@@ -36,7 +36,7 @@ class CNNDecoder(BaseDecoder):
         kernel_size: int = 3,
         n_layers: int = 3,
         bounded: bool = False,
-        mask_path: str | None = None, 
+        mask_path: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNDecoder."""
@@ -45,12 +45,17 @@ class CNNDecoder(BaseDecoder):
         # specify whether the output is bounded between 0 and 1
         self.bounded = bounded
 
-        # load in the land mask and save it as a tensor
-        mask_np = np.load(os.path.join(mask_path))
-        self.register_buffer(
-            "active_gridcell_mask", from_numpy(mask_np).float(), persistent=False
-        )
-        
+        # load in the mask and save it as a tensor
+        if mask_path is not None:
+            mask_np = np.load(Path(mask_path))
+            self.register_buffer("mask", from_numpy(mask_np).float(), persistent=False)
+        else:
+            self.register_buffer(
+                "mask",
+                ones(self.data_space_out.shape[2:]),
+                persistent=False,
+            )
+
         # Calculate the factor by which the scale changes after n_layers
         layer_factor = 2**n_layers
 
@@ -139,9 +144,8 @@ class CNNDecoder(BaseDecoder):
         """
         output = self.model(x)
 
-        # set all values in the active grid cell mask to be zero
-        output = output * self.active_gridcell_mask.to(dtype=output.dtype)
-        # output = output * (1 - self.land_mask.to(dtype=output.dtype))
+        # set all masked cells to zero
+        output = output * self.mask.to(dtype=output.dtype)
 
         if self.bounded:
             return sigmoid(output)
