@@ -59,6 +59,10 @@ dev = [
     "types-cachetools>=7.0.0.20260518",
     "types-pyyaml>=6.0.12.20260518",
 ]
+docs = [
+    "mkdocstrings-python>=2.0.5",
+    "zensical>=0.0.45",
+]
 notebooks = [
     "cmocean>=4.0.3",
     "download-toolbox>=0.0.6",
