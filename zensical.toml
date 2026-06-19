@@ -9,12 +9,25 @@ site_dir = "docs/_build"
 nav = [
     { "Home" = "index.md" },
     { "User Guide" = "user-guide/index.md" },
-    { "API Reference" = "api/index.md" },
+    { "API Reference" = [
+        { "Overview" = "api/index.md" },
+        { "Callbacks" = "api/callbacks.md" },
+        { "Compatibility" = "api/compatibility.md" },
+        { "Data Loaders" = "api/data_loaders.md" },
+        { "Data Processors" = "api/data_processors.md" },
+        { "Geotools" = "api/geotools.md" },
+        { "Losses" = "api/losses.md" },
+        { "Metrics" = "api/metrics.md" },
+        { "Models" = "api/models.md" },
+        { "Types" = "api/types.md" },
+        { "Visualisations" = "api/visualisations.md" },
+    ] },
 ]
 
 [project.theme]
 variant = "classic"
 features = [
+    "navigation.indexes",
     "navigation.sections",
     "navigation.top",
     "toc.integrate",
@@ -32,9 +45,11 @@ paths = ["icenet_mp"]
 
 [project.plugins.mkdocstrings.handlers.python.options]
 docstring_style = "google"
+filters = ["!^__all__$", "!^_"]
 inherited_members = false
 members_order = "source"
 show_if_no_docstring = true
 show_root_full_path = false
-show_root_heading = true
+show_root_heading = false
+show_root_toc_entry = false
 show_source = false

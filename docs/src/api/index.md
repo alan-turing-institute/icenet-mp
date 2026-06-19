@@ -1,52 +1,17 @@
 # API Reference
 
-Every public module, class, and function in `icenet_mp` is documented below.
-Signatures and descriptions are extracted automatically from source docstrings.
+Every public module, class, and function in `icenet_mp` is documented here.
+Select a module from the navigation to view its full API.
 
-## icenet_mp
-
-::: icenet_mp
-
-## icenet_mp.callbacks
-
-::: icenet_mp.callbacks
-
-## icenet_mp.config
-
-::: icenet_mp.config
-
-## icenet_mp.data_loaders
-
-::: icenet_mp.data_loaders
-
-## icenet_mp.data_processors
-
-::: icenet_mp.data_processors
-
-## icenet_mp.geotools
-
-::: icenet_mp.geotools
-
-## icenet_mp.losses
-
-::: icenet_mp.losses
-
-## icenet_mp.metrics
-
-::: icenet_mp.metrics
-
-## icenet_mp.models
-
-::: icenet_mp.models
-
-## icenet_mp.types
-
-::: icenet_mp.types
-
-## icenet_mp.visualisations
-
-::: icenet_mp.visualisations
-
-## icenet_mp.xpu
-
-::: icenet_mp.xpu
+| Module | Description |
+|---|---|
+| [callbacks](callbacks.md) | Training callbacks (activation saving, etc.) |
+| [compatibility](compatibility.md) | Compatibility functions for external libraries |
+| [data_loaders](data_loaders.md) | PyTorch data loaders and datasets |
+| [data_processors](data_processors.md) | Data pre- and post-processing utilities |
+| [geotools](geotools.md) | Geospatial helpers (projections, grids) |
+| [losses](losses.md) | Custom loss functions |
+| [metrics](metrics.md) | Evaluation metrics |
+| [models](models.md) | Neural network architectures |
+| [types](types.md) | Shared type aliases and protocols |
+| [visualisations](visualisations.md) | Plotting and animation utilities |
