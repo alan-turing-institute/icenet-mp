@@ -61,6 +61,7 @@ class DDPM(BaseModel):
         normalization: str = "groupnorm",
         time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
+        *,
         use_autoregressive: bool = True,
         **kwargs: Any,
     ) -> None:
@@ -176,8 +177,7 @@ class DDPM(BaseModel):
         batch: dict[str, TensorNTCHW],
         sample_weight: torch.Tensor | None = None,  # noqa: ARG002
     ) -> torch.Tensor:
-        """
-        Generate forecasts using a reverse diffusion process.
+        """Generate forecasts using a reverse diffusion process.
 
         This method selects between two diffusion sampling strategies:
 
@@ -192,8 +192,8 @@ class DDPM(BaseModel):
             previously generated outputs.
 
         Args:
-            x (torch.Tensor):
-                Conditioning tensor of shape [B, C, H, W].
+            batch (dict[str, TensorNTCHW]):
+                Dictionary containing the input data.
 
             sample_weight (torch.Tensor | None):
                 Optional weighting tensor.
@@ -214,16 +214,15 @@ class DDPM(BaseModel):
         Notes:
             - The diffusion process follows v-parameterization.
             - Sampling begins from standard Gaussian noise.
+
         """
         if self.use_autoregressive:
             return self._sample_autoregressive(batch)
-        else:
-            x = self.prepare_inputs(batch)
-            return self._sample_parallel(x)
+        x = self.prepare_inputs(batch)
+        return self._sample_parallel(x)
 
     def _sample_parallel(self, x: TensorNCHW) -> TensorNCHW:
-        """
-        Non-autoregressive (parallel) reverse diffusion sampling.
+        """Non-autoregressive (parallel) reverse diffusion sampling.
 
         This method generates the entire forecast sequence in a single
         diffusion process applied to one joint output tensor.
@@ -251,6 +250,7 @@ class DDPM(BaseModel):
             - Sampling starts from Gaussian noise.
             - The model predicts v-parameterization at each diffusion step.
             - All forecast steps are denoised together as a single object.
+
         """
         shape = (
             x.shape[0],
@@ -313,42 +313,41 @@ class DDPM(BaseModel):
         """
         all_predictions = []
         osisaf = batch[self.osisaf_key].clone()  # [B, T, 1, H, W]
-        era5 = batch["era5"].clone()             # [B, T, C, H2, W2]
-        era5_forecast = batch.get("era5_forecast", None)
-        
+        era5 = batch["era5"].clone()  # [B, T, C, H2, W2]
+        era5_forecast = batch.get("era5_forecast")
+
         for step in range(self.n_forecast_steps):
             current_batch = {
-                self.osisaf_key: osisaf[:, -self.n_history_steps:],
-                "era5": era5[:, -self.n_history_steps:],
+                self.osisaf_key: osisaf[:, -self.n_history_steps :],
+                "era5": era5[:, -self.n_history_steps :],
             }
             x = self.prepare_inputs(current_batch)  # [B, cond_channels, H, W]
 
-            B, _, H, W = x.shape
+            B, _, H, W = x.shape  # noqa: N806
             y = torch.randn((B, self.base_output_channels, H, W), device=self.device)
-            
+
             # Diffusion reverse process
             for t in reversed(range(self.timesteps)):
                 t_batch = torch.full((B,), t, dtype=torch.long, device=self.device)
                 pred_v: torch.Tensor = self.model(y, t_batch, x)
                 y = self.diffusion.p_sample(y, t_batch, pred_v)
-            
+
             # Clamp and store prediction
             y_step = torch.clamp(y, 0, 1)
             all_predictions.append(y_step)
-            
+
             # Slide OSISAF window: append prediction as new frame
             osisaf = torch.cat([osisaf, y_step.unsqueeze(1)], dim=1)
 
             # Slide ERA5 window: use forecast if available, else repeat last frame
             if era5_forecast is not None:
-                next_era5 = era5_forecast[:, step:step + 1]
+                next_era5 = era5_forecast[:, step : step + 1]
             else:
                 next_era5 = era5[:, -1:]
             era5 = torch.cat([era5, next_era5], dim=1)
-        
+
         # Concatenate all predictions along channel dimension
         return torch.cat(all_predictions, dim=1)
-
 
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.
