@@ -1,6 +1,5 @@
+from lightning.pytorch.callbacks import WeightAveraging
 from torch.optim.swa_utils import get_ema_multi_avg_fn
-
-from .weight_averaging import WeightAveraging
 
 
 class EMAWeightAveragingCallback(WeightAveraging):
