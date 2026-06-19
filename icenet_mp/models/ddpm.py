@@ -103,7 +103,6 @@ class DDPM(BaseModel):
         else:
             self.base_output_channels = self.output_space.channels
 
-        self.output_channels = self.n_forecast_steps * self.base_output_channels
         self.timesteps = timesteps
         self.cond_channels = 64
         self.input_channels = self.cond_channels
