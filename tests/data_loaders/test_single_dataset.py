@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -512,3 +513,36 @@ class TestSingleDataset:
                 {"start": "2020-07-01", "end": None},
             ]
         ) == [{"start": None, "end": None}]
+
+    def test_normalise_date_ranges_warns_on_merge(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A merge emits exactly one warning so the user notices ranges were altered."""
+        with caplog.at_level(logging.WARNING):
+            result = SingleDataset.normalise_date_ranges(
+                [
+                    {"start": "2020-01-01", "end": "2020-06-30"},
+                    {"start": "2020-07-01", "end": "2020-12-31"},
+                ]
+            )
+        assert result == [{"start": "2020-01-01", "end": "2020-12-31"}]
+        merge_warnings = [
+            record
+            for record in caplog.records
+            if record.levelno == logging.WARNING
+            and "Merged overlapping or touching date ranges" in record.getMessage()
+        ]
+        assert len(merge_warnings) == 1
+
+    def test_normalise_date_ranges_single_and_empty_passthrough(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Empty or single-range input is returned unchanged with no merge warning."""
+        with caplog.at_level(logging.WARNING):
+            assert SingleDataset.normalise_date_ranges([]) == []
+            assert SingleDataset.normalise_date_ranges(
+                [{"start": "2020-01-01", "end": "2020-06-30"}]
+            ) == [{"start": "2020-01-01", "end": "2020-06-30"}]
+        assert not [
+            record for record in caplog.records if record.levelno == logging.WARNING
+        ]

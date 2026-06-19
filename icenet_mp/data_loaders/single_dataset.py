@@ -79,15 +79,14 @@ class SingleDataset(Dataset):
     ) -> list[dict[str, str | None]]:
         """Sort the ranges, then merge overlapping or touching ones into single spans.
 
-        Ranges that overlap or touch must merge into one Anemoi subset, or a run
-        that crosses the seam is approved against a date outside the range while
-        the fetch stays inside it, so the read comes back short and fails to
-        reshape. Two ranges merge when the later one starts on or before the day
-        after the earlier one ends; the merged span runs from the earliest start
-        to the latest end. A "None" bound is open: a "None" start is before any
-        date and a "None" end is after any date, so an open bound always overlaps
-        its neighbour. Each merge is logged so a user notices that their config
-        ranges were altered (e.g. a mistyped year that creates an overlap).
+        Ranges that overlap/touch must merge into one Anemoi subset, or data fetching step comes back
+        short and fails to reshape. Two ranges merge when the later one starts on/before the day
+        after the earlier one finishes; the merged span is the union of all ranges.
+
+        A "None" bound is open, an open-ended previous range always overlap with the later ranges, an
+        open-started later range always overlap with previous ranges.
+
+        Each merge is logged so a user notices that their config ranges were altered and verifies.
         """
         ranges = sorted(
             date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
@@ -103,11 +102,10 @@ class SingleDataset(Dataset):
         ) -> bool:
             """Whether nxt overlaps or is consecutive with prev, so they should merge.
 
-            Ranges are sorted by start, so nxt never begins before prev. They
-            merge when nxt starts on or before the day after prev ends. An open
-            end on prev (None = after any date) covers everything later, and an
-            open start on nxt (None = before any date) sits inside prev, so in
-            either case they always merge.
+            Ranges are sorted by start. They merge when nxt starts on or before the
+            day after prev ends. An open end on prev (None = after any date) covers
+            everything later, and an open start on nxt (None = before any date) sits
+            inside prev, so in either case they always merge.
             """
             if prev["end"] is None or nxt["start"] is None:
                 return True
