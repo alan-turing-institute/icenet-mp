@@ -7,6 +7,7 @@ __pycache__
 .vscode
 *local.yaml
 dist
+docs/_build
 outputs
 wandb
 notebooks/data
