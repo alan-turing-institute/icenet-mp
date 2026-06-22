@@ -703,10 +703,10 @@ full-floatsouth-argo-25p0km-1999-2025-24h-v2:
           resolution: "25p0km"
           shape: [432, 432]
       # Replace NaNs with a fill value
-      - nan_to_num:
+      - nan-to-num:
           variables: [TEMP, PSAL]
           replace_with: 99
       # Set the geography to EASE2 25km grid
-      - set_geography:
+      - set-geography:
           crs: ${...0.argo.crs}
           resolution: ${...0.argo.resolution}
