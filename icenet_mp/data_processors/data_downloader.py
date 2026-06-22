@@ -186,26 +186,23 @@ class DataDownloader:
                     "Cleaned up temporary artifacts for dataset %s.", self.name
                 )
             except ValueError:
-                logger.warning(
-                    "The following artifacts could not be automatically deleted:",
-                    self.name,
-                )
+                logger.warning("The following artifacts were not deleted:")
                 for artifact in artifacts:
-                    logger.warning(f"... {artifact}")
+                    logger.warning("... %s", artifact)
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for the SSMIS dataset."""
         # Create the masks if this is an SSMIS dataset
         if "ssmis" not in self.name:
             return
-        logger.info("Generating land and active grid cell masks for SSMIS dataset.")
+        logger.debug("Generating land and active grid cell masks for SSMIS dataset.")
 
         self.path_masks.mkdir(parents=True, exist_ok=True)
         land_mask_path = self.path_masks / "land_mask.npy"
         active_mask_path = self.path_masks / "active_mask.npy"
 
         if land_mask_path.exists() and active_mask_path.exists() and not overwrite:
-            logger.info("Both masks already exist, skipping creation.")
+            logger.debug("Both masks already exist, skipping creation.")
             return
 
         # Unpack status flags into a binary array, skipping any missing dates
@@ -226,7 +223,7 @@ class DataDownloader:
 
         # land mask: land = 0, sea = 1
         if land_mask_path.exists() and not overwrite:
-            logger.info("Land mask already exists, skipping creation.")
+            logger.debug("Land mask already exists, skipping creation.")
             land_mask = np.load(land_mask_path)
         else:
             land_mask = np.squeeze(binary[..., [7]]).sum(axis=0)
@@ -240,7 +237,7 @@ class DataDownloader:
 
         # active mask: active grid cells = 1, inactive = 0
         if active_mask_path.exists() and not overwrite:
-            logger.info("Active mask already exists, skipping creation.")
+            logger.debug("Active mask already exists, skipping creation.")
         else:
             # Identify grid cells that are inactive for all time steps
             inactive_count = np.squeeze(binary[..., [0]]).sum(axis=0)
