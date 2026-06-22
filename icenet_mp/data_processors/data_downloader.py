@@ -1,5 +1,6 @@
 import logging
 import shutil
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +49,14 @@ class DataDownloader:
         self.recipe = Recipe(**anemoi_config)
         self.preprocessor = cls_preprocessor(anemoi_config)
 
+    def artifacts(self) -> list[Path]:
+        """Return a list of temporary artifacts created during the download and finalise process."""
+        return [
+            path
+            for path in self.path_dataset.parent.glob(f"{self.path_dataset.stem}.*")
+            if path != self.path_dataset
+        ]
+
     def check_status(self) -> AnemoiDatasetStatus:
         """Return the status of the dataset."""
         try:
@@ -87,7 +96,9 @@ class DataDownloader:
         return AnemoiDatasetStatus(
             copy_in_progress=copy_in_progress,
             download_complete=download_complete,
-            is_finalised=download_complete and statistics_ready,
+            is_finalised=download_complete
+            and statistics_ready
+            and not self.artifacts(),
         )
 
     def create(self, *, overwrite: bool = False) -> None:
@@ -175,20 +186,15 @@ class DataDownloader:
         self.generate_masks(overwrite=overwrite)
 
         # Cleanup any temporary artifacts created during the download and finalise process
-        if artifacts := [
-            path
-            for path in self.path_dataset.parent.glob(f"{self.path_dataset.stem}.*")
-            if path != self.path_dataset
-        ]:
-            try:
+        if self.artifacts():
+            with suppress(ValueError):
                 Cleanup().run(AnemoiCleanupArgs(path=str(self.path_dataset)))
-                logger.info(
-                    "Cleaned up temporary artifacts for dataset %s.", self.name
-                )
-            except ValueError:
-                logger.warning("The following artifacts were not deleted:")
-                for artifact in artifacts:
+            if remaining := self.artifacts():
+                logger.warning("Residual artifacts for dataset %s:", self.name)
+                for artifact in remaining:
                     logger.warning("... %s", artifact)
+            else:
+                logger.info("Cleaned up temporary artifacts for dataset %s.", self.name)
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for the SSMIS dataset."""
