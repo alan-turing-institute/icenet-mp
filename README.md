@@ -102,7 +102,7 @@
 | icenet\_mp/models/processors/unet.py                            |       53 |        0 |    100% |           |
 | icenet\_mp/models/processors/vit.py                             |       36 |        0 |    100% |           |
 | icenet\_mp/types/\_\_init\_\_.py                                |        6 |        0 |    100% |           |
-| icenet\_mp/types/complex\_datatypes.py                          |       39 |       12 |     69% |57-64, 68-70, 74 |
+| icenet\_mp/types/complex\_datatypes.py                          |       41 |        3 |     93% | 63-64, 74 |
 | icenet\_mp/types/enums.py                                       |       16 |        1 |     94% |        23 |
 | icenet\_mp/types/protocols.py                                   |        4 |        0 |    100% |           |
 | icenet\_mp/types/simple\_datatypes.py                           |       66 |        6 |     91% |   197-203 |
@@ -119,7 +119,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |134-136, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      117 |       17 |     85% |107-108, 110-113, 144-149, 186-188, 196-197, 340, 366-367, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **4252** | **1176** | **72%** |           |
+| **TOTAL**                                                       | **4254** | **1167** | **73%** |           |
 
 
 ## Setup coverage badge
