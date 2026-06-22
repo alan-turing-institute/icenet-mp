@@ -1,24 +1,57 @@
 # IceNet Multimodal Pipeline
 
-IceNet-MP is a multimodal pipeline for predicting sea ice.
+[![Tests](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/test_code.yaml/badge.svg)](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/test_code.yaml)
+[![Docs](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/build_docs.yml/badge.svg)](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/build_docs.yml)
+[![Code style](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/code_style.yaml/badge.svg)](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/code_style.yaml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
-## Setting up your environment
+IceNet-MP fuses satellite observations, Argo float sensor data, and ERA5 reanalysis fields to produce short-term sea ice concentration forecasts. It uses an encode-process-decode architecture that projects each input dataset into a shared latent space, allowing new data sources to be added without changing the core model.
 
-See the [Installation](https://alan-turing-institute.github.io/icenet-mp/user-guide/installation/) page in the docs for full installation instructions, including HPC-specific prerequisites.
+## Quick start
 
-See the [Configuration](https://alan-turing-institute.github.io/icenet-mp/user-guide/configuration/) page in the docs for details on local config files, HPC configs, and custom datasets.
+```bash
+git clone git@github.com:alan-turing-institute/icenet-mp.git
+cd icenet-mp
+uv sync --managed-python
+```
 
-## Running IceNet-MP commands
+Create a local config in `icenet_mp/config/` (see [Configuration](https://alan-turing-institute.github.io/icenet-mp/user-guide/configuration/) for details):
 
-See the [Commands](https://alan-turing-institute.github.io/icenet-mp/user-guide/commands/) page in the docs for details on `datasets create`, `datasets inspect`, `train`, and `evaluate`.
+```yaml
+# icenet_mp/config/my.local.yaml
+defaults:
+  - base
+  - _self_
 
-## Adding a new model
+base_path: /path/to/my/data
+```
 
-See [Add a model](https://alan-turing-institute.github.io/icenet-mp/how-to/add-a-model/) in the docs for the tensor format and a comparison of standalone vs. processor model architectures.
+Then download datasets and train:
+
+```bash
+uv run imp datasets create --config-name my.local
+uv run imp train --config-name my.local
+```
+
+Evaluate a checkpoint:
+
+```bash
+uv run imp evaluate --checkpoint /path/to/checkpoint.ckpt --config-name my.local
+```
+
+## Documentation
+
+- [Installation](https://alan-turing-institute.github.io/icenet-mp/user-guide/installation/) — prerequisites, `uv` setup, HPC-specific steps
+- [Configuration](https://alan-turing-institute.github.io/icenet-mp/user-guide/configuration/) — local config files, model overrides, custom datasets
+- [Commands](https://alan-turing-institute.github.io/icenet-mp/user-guide/commands/) — `datasets create`, `datasets inspect`, `train`, `evaluate`
+- [Add a model](https://alan-turing-institute.github.io/icenet-mp/how-to/add-a-model/) — tensor format, standalone vs. processor model architectures
 
 ## Jupyter notebooks
 
-There are various demonstrator Jupyter notebooks in the `notebooks` folder.
-You can run these with `uv run --group notebooks jupyter notebook`.
+The `notebooks/` folder contains demonstrator notebooks. Run them with:
 
-A good one to start with is `notebooks/demo_pipeline.ipynb` which gives a more detailed overview of the pipeline.
+```bash
+uv run --group notebooks jupyter notebook
+```
+
+Start with `notebooks/demo_pipeline.ipynb` for a worked example of the full pipeline.
