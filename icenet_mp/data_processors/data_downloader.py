@@ -175,9 +175,23 @@ class DataDownloader:
         self.generate_masks(overwrite=overwrite)
 
         # Cleanup any temporary artifacts created during the download and finalise process
-        if self.check_status().is_finalised:
-            Cleanup().run(AnemoiCleanupArgs(path=str(self.path_dataset)))
-            logger.info("Cleaned up temporary artifacts for dataset %s.", self.name)
+        if artifacts := [
+            path
+            for path in self.path_dataset.parent.glob(f"{self.path_dataset.stem}.*")
+            if path != self.path_dataset
+        ]:
+            try:
+                Cleanup().run(AnemoiCleanupArgs(path=str(self.path_dataset)))
+                logger.info(
+                    "Cleaned up temporary artifacts for dataset %s.", self.name
+                )
+            except ValueError:
+                logger.warning(
+                    "The following artifacts could not be automatically deleted:",
+                    self.name,
+                )
+                for artifact in artifacts:
+                    logger.warning(f"... {artifact}")
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for the SSMIS dataset."""
