@@ -43,8 +43,7 @@ class DeepCompressionEncoder(BaseEncoder):
         stride: int = 2,
         patch_size: int = 1,
         pixel_shuffle: bool = True,
-        norm: str = "group",
-        groups: int = 16,
+        norm: str = "groupnorm",
         attention_heads: dict[int, int] = {},  # noqa: B006
         ffn_factor: int = 1,
         periodic: bool = False,
@@ -115,7 +114,6 @@ class DeepCompressionEncoder(BaseEncoder):
                 ResBlock(
                     hid_channels[idx],
                     norm=norm,
-                    groups=groups,
                     attention_heads=attention_heads.get(idx),
                     ffn_factor=ffn_factor,
                     dropout=dropout,

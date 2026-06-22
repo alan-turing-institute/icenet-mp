@@ -7,21 +7,9 @@ Reference:
 
 from typing import Any
 
-import torch
 from torch import Tensor, nn
 
-
-class LayerNorm2D(nn.Module):
-    """Standardise over the channel dimension of a ``(B, C, H, W)`` tensor."""
-
-    def __init__(self, eps: float = 1e-5) -> None:
-        """Initialise a LayerNorm2D."""
-        super().__init__()
-        self.register_buffer("eps", torch.as_tensor(eps))
-
-    def forward(self, x: Tensor) -> Tensor:
-        variance, mean = torch.var_mean(x, dim=1, keepdim=True)
-        return (x - mean) * torch.rsqrt(variance + self.eps)
+from .normalisations import normalisation_from_name
 
 
 class SelfAttention2D(nn.Module):
@@ -53,8 +41,7 @@ class ResBlock(nn.Module):
         self,
         channels: int,
         *,
-        norm: str = "group",
-        groups: int = 16,
+        norm: str = "groupnorm",
         attention_heads: int | None = None,
         ffn_factor: int = 1,
         dropout: float | None = None,
@@ -63,16 +50,7 @@ class ResBlock(nn.Module):
         """Initialise a ResBlock."""
         super().__init__()
 
-        if norm == "layer":
-            self.norm = LayerNorm2D()
-        elif norm == "group":
-            self.norm = nn.GroupNorm(
-                num_groups=min(groups, channels), num_channels=channels, affine=False
-            )
-        else:
-            msg = f"Unknown norm: {norm!r}"
-            raise NotImplementedError(msg)
-
+        self.norm = normalisation_from_name(norm, channels)
         self.attn = (
             SelfAttention2D(channels, heads=attention_heads)
             if attention_heads is not None

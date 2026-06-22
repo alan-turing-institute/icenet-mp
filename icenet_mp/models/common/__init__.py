@@ -2,11 +2,7 @@ from .conv_block_common import CommonConvBlock
 from .conv_block_downsample import ConvBlockDownsample
 from .conv_block_upsample import ConvBlockUpsample
 from .conv_norm_act_upsample import ConvNormActUpsample
-from .dcae_blocks import (
-    LayerNorm2D,
-    ResBlock,
-    SelfAttention2D,
-)
+from .dcae_blocks import ResBlock, SelfAttention2D
 from .mask import Mask
 from .normalised_fold import NormalisedFold
 from .patchembed import PatchEmbedding
@@ -23,7 +19,6 @@ __all__ = [
     "ConvBlockUpsample",
     "ConvNormActUpsample",
     "Mask",
-    "LayerNorm2D",
     "NormalisedFold",
     "PatchEmbedding",
     "Permute",
