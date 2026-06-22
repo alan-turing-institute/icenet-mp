@@ -72,3 +72,7 @@ class ModelStepOutput(Mapping[str, Tensor]):
     def __len__(self) -> int:
         """Return ModelStepOutput length."""
         return 3
+
+    def copy(self) -> dict[str, Tensor]:
+        """Return a plain dict copy, required by Lightning's manual optimization loop."""
+        return dict(self)
