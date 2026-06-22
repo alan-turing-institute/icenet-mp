@@ -2,7 +2,7 @@
 
 Reference:
     Deep Compression Autoencoder for Efficient High-Resolution Diffusion Models
-    (Chen et al., 2024)
+    (Chen et al., 2024) [https://arxiv.org/abs/2410.10733]
 """
 
 import logging
@@ -68,53 +68,57 @@ class DeepCompressionEncoder(BaseEncoder):
             "padding_mode": "circular" if periodic else "zeros",
         }
 
-        self.patch: nn.Module = (
-            nn.PixelUnshuffle(patch_size) if patch_size > 1 else nn.Identity()
+        # Construct list of layers
+        layers: list[nn.Module] = []
+        logger.debug(
+            "DeepCompressionEncoder (%s): %d layers, %d -> %d channels",
+            self.name,
+            len(hid_channels),
+            in_channels,
+            latent_channels,
         )
 
-        self.descent = nn.ModuleList()
 
-        for i, num_blocks in enumerate(hid_blocks):
-            blocks: list[nn.Module] = []
-
-            if i == 0:
-                # First level: project from (possibly patchified) input channels
-                blocks.append(
+        for idx, num_blocks in enumerate(hid_blocks):
+            if idx == 0:
+                # Shallowest layer: (optionally patchify) then convolve the input
+                if patch_size > 1:
+                    layers.append(nn.PixelUnshuffle(patch_size))
+                layers.append(
                     nn.Conv2d(
                         patch_size**2 * in_channels,
-                        hid_channels[i],
+                        hid_channels[idx],
                         **conv_kwargs,
                     )
                 )
             elif pixel_shuffle:
-                # Downsample via patchify then project
-                blocks.append(
-                    nn.Sequential(
-                        nn.PixelUnshuffle(stride),
-                        nn.Conv2d(
-                            hid_channels[i - 1] * stride**2,
-                            hid_channels[i],
-                            **conv_kwargs,
-                        ),
-                    )
-                )
-            else:
-                # Downsample via strided convolution
-                blocks.append(
+                # Subsequent layers: downsample via patchify then convolve
+                layers.extend((
+                    nn.PixelUnshuffle(stride),
                     nn.Conv2d(
-                        hid_channels[i - 1],
-                        hid_channels[i],
+                        hid_channels[idx - 1] * stride**2,
+                        hid_channels[idx],
+                        **conv_kwargs,
+                    ),
+                ))
+            else:
+                # Subsequent layers: downsample via strided convolution
+                layers.append(
+                    nn.Conv2d(
+                        hid_channels[idx - 1],
+                        hid_channels[idx],
                         stride=stride,
                         **conv_kwargs,
                     )
                 )
 
-            blocks.extend(
+            # Add `num_blocks` residual blocks
+            layers.extend(
                 ResBlock(
-                    hid_channels[i],
+                    hid_channels[idx],
                     norm=norm,
                     groups=groups,
-                    attention_heads=attention_heads.get(i),
+                    attention_heads=attention_heads.get(idx),
                     ffn_factor=ffn_factor,
                     dropout=dropout,
                     checkpointing=checkpointing,
@@ -123,27 +127,21 @@ class DeepCompressionEncoder(BaseEncoder):
                 for _ in range(num_blocks)
             )
 
-            if i + 1 == len(hid_blocks):
-                # Final level: project to latent channels
-                blocks.append(
+            if idx + 1 == len(hid_blocks):
+                # Deepest layer: convolve to latent channels
+                layers.append(
                     nn.Conv2d(
-                        hid_channels[i],
+                        hid_channels[idx],
                         latent_channels,
                         **conv_kwargs,
                     )
                 )
 
-            self.descent.append(nn.ModuleList(blocks))
-
+        # Set the number of output channels correctly
         self.data_space_out.channels = latent_channels
 
-        logger.debug(
-            "DCEncoder (%s): %d levels, %d -> %d channels",
-            self.name,
-            len(hid_channels),
-            in_channels,
-            latent_channels,
-        )
+        # Combine the layers sequentially
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Encode a single timestep from input space to latent space.
@@ -155,8 +153,4 @@ class DeepCompressionEncoder(BaseEncoder):
             TensorNCHW with (batch_size, latent_channels, H_lat, W_lat)
 
         """
-        x = self.patch(x)
-        for blocks in self.descent:
-            for block in blocks:
-                x = block(x)
-        return x
+        return self.model(x)

@@ -23,8 +23,8 @@ class DeepCompressionDecoder(BaseDecoder):
     """Decoder following the Deep Compression AutoEncoder (DCAE) architecture.
 
     Mirror of :class:`DeepCompressionEncoder`: ascends from latent channels through
-    levels of ResBlocks with pixel-shuffle (or nearest-upsample) upsampling between
-    levels, ending with an optional unpatchify step.
+    layers of ResBlocks with pixel-shuffle (or nearest-upsample) upsampling between
+    layers, ending with an optional unpatchify step.
 
     Latent space:
         TensorNTCHW with (batch_size, n_forecast_steps, latent_channels, H_lat, W_lat)
@@ -69,84 +69,60 @@ class DeepCompressionDecoder(BaseDecoder):
             "padding_mode": "circular" if periodic else "zeros",
         }
 
-        self.unpatch: nn.Module = (
-            nn.PixelShuffle(patch_size) if patch_size > 1 else nn.Identity()
-        )
-
-        self.ascent = nn.ModuleList()
-
-        # Build levels in reverse order (deepest first) to mirror the encoder
-        for i in reversed(range(len(hid_blocks))):
-            blocks: list[nn.Module] = []
-
-            if i + 1 == len(hid_blocks):
-                # Deepest level: project from latent channels
-                blocks.append(
-                    nn.Conv2d(
-                        in_channels,
-                        hid_channels[i],
-                        **conv_kwargs,
-                    )
-                )
-
-            blocks.extend(
-                ResBlock(
-                    hid_channels[i],
-                    norm=norm,
-                    groups=groups,
-                    attention_heads=attention_heads.get(i),
-                    ffn_factor=ffn_factor,
-                    dropout=dropout,
-                    checkpointing=checkpointing,
-                    **conv_kwargs,
-                )
-                for _ in range(hid_blocks[i])
-            )
-
-            if i > 0:
-                if pixel_shuffle:
-                    # Upsample via project then unpatchify
-                    blocks.append(
-                        nn.Sequential(
-                            nn.Conv2d(
-                                hid_channels[i],
-                                hid_channels[i - 1] * stride**2,
-                                **conv_kwargs,
-                            ),
-                            nn.PixelShuffle(stride),
-                        )
-                    )
-                else:
-                    # Upsample via nearest-neighbour then project
-                    blocks.append(
-                        nn.Sequential(
-                            nn.Upsample(scale_factor=stride, mode="nearest"),
-                            nn.Conv2d(
-                                hid_channels[i],
-                                hid_channels[i - 1],
-                                **conv_kwargs,
-                            ),
-                        )
-                    )
-            else:
-                # Shallowest level: project to (possibly pre-unpatchify) output channels
-                blocks.append(
-                    nn.Conv2d(
-                        hid_channels[i],
-                        patch_size**2 * out_channels,
-                        **conv_kwargs,
-                    )
-                )
-
-            self.ascent.append(nn.ModuleList(blocks))
-
+        # Construct list of layers
+        layers: list[nn.Module] = []
         logger.debug(
-            "DCDecoder (%s): %d levels, %d → %d channels",
+            "DeepCompressionDecoder (%s): %d layers, %d -> %d channels",
             self.name,
             len(hid_channels),
             in_channels,
             out_channels,
         )
+
+        # Build in reverse order (deepest first) to mirror the encoder
+        for idx in reversed(range(len(hid_blocks))):
+            if idx + 1 == len(hid_blocks):
+                # Deepest layer: convolve from latent channels
+                layers.append(nn.Conv2d(in_channels, hid_channels[idx], **conv_kwargs))
+
+            # Add `num_blocks` residual blocks
+            layers.extend(
+                ResBlock(
+                    hid_channels[idx],
+                    norm=norm,
+                    groups=groups,
+                    attention_heads=attention_heads.get(idx),
+                    ffn_factor=ffn_factor,
+                    dropout=dropout,
+                    checkpointing=checkpointing,
+                    **conv_kwargs,
+                )
+                for _ in range(hid_blocks[idx])
+            )
+
+            if idx > 0:
+                if pixel_shuffle:
+                    # Subsequent layers: upsample via convolve then unpatchify
+                    layers.extend((
+                        nn.Conv2d(hid_channels[idx], hid_channels[idx - 1] * stride**2, **conv_kwargs),
+                        nn.PixelShuffle(stride),
+                    ))
+                else:
+                    # Subsequent layers: upsample via interpolation then convolve
+                    layers.append(
+                        nn.Sequential(
+                            nn.Upsample(scale_factor=stride, mode="nearest"),
+                            nn.Conv2d(hid_channels[idx], hid_channels[idx - 1], **conv_kwargs),
+                        )
+                    )
+            else:
+                # Shallowest layer: convolve then (optionally unpatchify)
+                layers.append(nn.Conv2d(hid_channels[idx], patch_size**2 * out_channels, **conv_kwargs))
+                if patch_size > 1:
+                    layers.append(nn.PixelShuffle(patch_size))
+
+        # Combine the layers sequentially
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Decode a single timestep from latent space to output space.
@@ -158,7 +134,4 @@ class DeepCompressionDecoder(BaseDecoder):
             TensorNCHW with (batch_size, output_channels, H, W)
 
         """
-        for blocks in self.ascent:
-            for block in blocks:
-                x = block(x)
-        return self.unpatch(x)
+        return self.model(x)
