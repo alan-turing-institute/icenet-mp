@@ -11,7 +11,7 @@ from typing import Any
 
 from torch import nn
 
-from icenet_mp.models.common.dcae_blocks import ResBlock
+from icenet_mp.models.common import ResBlock
 from icenet_mp.types import TensorNCHW
 
 from .base_encoder import BaseEncoder
