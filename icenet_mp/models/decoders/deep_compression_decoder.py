@@ -15,7 +15,6 @@ from torch import nn
 from icenet_mp.models.common.dcae_blocks import (
     ResBlock,
     Unpatchify2D,
-    make_conv2d,
 )
 from icenet_mp.types import TensorNCHW
 
@@ -92,10 +91,9 @@ class DeepCompressionDecoder(BaseDecoder):
             if i + 1 == len(hid_blocks):
                 # Deepest level: project from latent channels
                 blocks.append(
-                    make_conv2d(
+                    nn.Conv2d(
                         in_channels,
                         hid_channels[i],
-                        identity_init=identity_init,
                         **conv_kwargs,
                     )
                 )
@@ -119,10 +117,9 @@ class DeepCompressionDecoder(BaseDecoder):
                     # Upsample via project then unpatchify
                     blocks.append(
                         nn.Sequential(
-                            make_conv2d(
+                            nn.Conv2d(
                                 hid_channels[i],
                                 hid_channels[i - 1] * math.prod(stride),
-                                identity_init=identity_init,
                                 **conv_kwargs,
                             ),
                             Unpatchify2D(stride),
@@ -133,10 +130,9 @@ class DeepCompressionDecoder(BaseDecoder):
                     blocks.append(
                         nn.Sequential(
                             nn.Upsample(scale_factor=stride, mode="nearest"),
-                            make_conv2d(
+                            nn.Conv2d(
                                 hid_channels[i],
                                 hid_channels[i - 1],
-                                identity_init=identity_init,
                                 **conv_kwargs,
                             ),
                         )
@@ -144,7 +140,7 @@ class DeepCompressionDecoder(BaseDecoder):
             else:
                 # Shallowest level: project to (possibly pre-unpatchify) output channels
                 blocks.append(
-                    make_conv2d(
+                    nn.Conv2d(
                         hid_channels[i],
                         math.prod(patch_size) * out_channels,
                         **conv_kwargs,

@@ -15,7 +15,6 @@ from torch import nn
 from icenet_mp.models.common.dcae_blocks import (
     Patchify2D,
     ResBlock,
-    make_conv2d,
 )
 from icenet_mp.types import TensorNCHW
 
@@ -55,7 +54,6 @@ class DeepCompressionEncoder(BaseEncoder):
         periodic: bool = False,
         dropout: float | None = None,
         checkpointing: bool = False,
-        identity_init: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionEncoder."""
@@ -91,7 +89,7 @@ class DeepCompressionEncoder(BaseEncoder):
             if i == 0:
                 # First level: project from (possibly patchified) input channels
                 blocks.append(
-                    make_conv2d(
+                    nn.Conv2d(
                         math.prod(patch_size) * in_channels,
                         hid_channels[i],
                         **conv_kwargs,
@@ -102,10 +100,9 @@ class DeepCompressionEncoder(BaseEncoder):
                 blocks.append(
                     nn.Sequential(
                         Patchify2D(stride),
-                        make_conv2d(
+                        nn.Conv2d(
                             hid_channels[i - 1] * math.prod(stride),
                             hid_channels[i],
-                            identity_init=identity_init,
                             **conv_kwargs,
                         ),
                     )
@@ -113,10 +110,9 @@ class DeepCompressionEncoder(BaseEncoder):
             else:
                 # Downsample via strided convolution
                 blocks.append(
-                    make_conv2d(
+                    nn.Conv2d(
                         hid_channels[i - 1],
                         hid_channels[i],
-                        identity_init=identity_init,
                         stride=stride,
                         **conv_kwargs,
                     )
@@ -139,10 +135,9 @@ class DeepCompressionEncoder(BaseEncoder):
             if i + 1 == len(hid_blocks):
                 # Final level: project to latent channels
                 blocks.append(
-                    make_conv2d(
+                    nn.Conv2d(
                         hid_channels[i],
                         latent_channels,
-                        identity_init=identity_init,
                         **conv_kwargs,
                     )
                 )

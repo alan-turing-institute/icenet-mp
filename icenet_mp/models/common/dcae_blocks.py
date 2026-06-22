@@ -11,7 +11,6 @@ __all__ = [
     "ResBlock",
     "SelfAttention2D",
     "Unpatchify2D",
-    "make_conv2d",
 ]
 
 
@@ -20,24 +19,6 @@ from typing import Any
 import torch
 from torch import Tensor, nn
 from torch.utils.checkpoint import checkpoint
-
-
-def make_conv2d(
-    in_channels: int,
-    out_channels: int,
-    *,
-    identity_init: bool = False,
-    **kwargs: Any,
-) -> nn.Conv2d:
-    """Create a Conv2d layer with optional pseudo-identity initialisation."""
-    conv = nn.Conv2d(in_channels, out_channels, **kwargs)
-    if identity_init:
-        kh, kw = conv.weight.shape[2], conv.weight.shape[3]
-        eye = torch.zeros_like(conv.weight.data)
-        for i in range(out_channels):
-            eye[i, i % in_channels, kh // 2, kw // 2] = 1.0
-        conv.weight.data.mul_(1e-2).add_(eye)
-    return conv
 
 
 class Patchify2D(nn.Module):

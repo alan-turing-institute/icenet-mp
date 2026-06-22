@@ -8,7 +8,6 @@ from .dcae_blocks import (
     ResBlock,
     SelfAttention2D,
     Unpatchify2D,
-    make_conv2d,
 )
 from .mask import Mask
 from .normalised_fold import NormalisedFold
@@ -39,5 +38,4 @@ __all__ = [
     "TimeEmbed",
     "TransformerEncoderBlock",
     "Unpatchify2D",
-    "make_conv2d",
 ]
