@@ -4,32 +4,7 @@ IceNet-MP is a multimodal pipeline for predicting sea ice.
 
 ## Setting up your environment
 
-### Tools
-
-You will need to install the following tools if you want to develop this project:
-
-- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
-
-On an HPC system, this will install to `~/.local/bin`, so make sure that your home directory has enough free space.
-
-### Installing IceNet-MP
-
-:warning: Isambard-AI uses ARM processors, and there is currently no `aarch64` wheel for `cf-units`.
-Before installing on Isambard-AI you will need to set the following environment variables:
-
-```bash
-export UDUNITS2_XML_PATH=/projects/u5gf/seaice/udunits/share/udunits/udunits2.xml
-export UDUNITS2_INCDIR=/projects/u5gf/seaice/udunits/include/
-export UDUNITS2_LIBDIR=/projects/u5gf/seaice/udunits/lib/
-```
-
-You can then install the project as follows (for DAWN / Baskerville, you can ignore the previous step):
-
-```bash
-git clone git@github.com:alan-turing-institute/icenet-mp.git
-cd icenet_mp
-uv sync --managed-python
-```
+See the [Installation](https://alan-turing-institute.github.io/icenet-mp/user-guide/installation/) page in the docs for full installation instructions, including HPC-specific prerequisites.
 
 ### Creating your own configuration file
 

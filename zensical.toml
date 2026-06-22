@@ -8,7 +8,10 @@ site_dir = "docs/_build"
 # Structure
 nav = [
     { "Home" = "index.md" },
-    { "User Guide" = "user-guide/index.md" },
+    { "User Guide" = [
+        { "Overview" = "user-guide/index.md" },
+        { "Installation" = "user-guide/installation.md" },
+    ] },
     { "API Reference" = [
         { "Overview" = "api/index.md" },
         { "Callbacks" = "api/callbacks.md" },
