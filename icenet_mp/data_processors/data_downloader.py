@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 from anemoi.datasets import open_dataset
+from anemoi.datasets.commands.cleanup import Cleanup
 from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
@@ -14,6 +15,7 @@ from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
+    AnemoiCleanupArgs,
     AnemoiDatasetStatus,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
@@ -171,6 +173,11 @@ class DataDownloader:
 
         # Create active grid cell and land masks if appropriate
         self.generate_masks(overwrite=overwrite)
+
+        # Cleanup any temporary artifacts created during the download and finalise process
+        if self.check_status().is_finalised:
+            Cleanup().run(AnemoiCleanupArgs(path=str(self.path_dataset)))
+            logger.info("Cleaned up temporary artifacts for dataset %s.", self.name)
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for the SSMIS dataset."""
