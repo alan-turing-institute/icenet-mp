@@ -1,6 +1,10 @@
+import logging
 import os
 import sys
 import warnings
+
+logging.getLogger("anemoi").setLevel(logging.WARNING)
+logging.getLogger("argopy").setLevel(logging.WARNING)
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 if "torch" in sys.modules:
