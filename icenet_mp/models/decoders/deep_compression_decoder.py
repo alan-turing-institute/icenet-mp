@@ -11,7 +11,7 @@ from typing import Any
 
 from torch import nn
 
-from icenet_mp.models.common import ResBlock
+from icenet_mp.models.common import ResBlock, WeightedUpsample
 from icenet_mp.types import TensorNCHW
 
 from .base_decoder import BaseDecoder
@@ -95,15 +95,12 @@ class DeepCompressionDecoder(BaseDecoder):
 
             if idx > 0:
                 if pixel_shuffle:
-                    # Subsequent layers: upsample via convolve then unpatchify
-                    layers.extend(
-                        (
-                            nn.Conv2d(
-                                hid_channels[idx],
-                                hid_channels[idx - 1] * stride**2,
-                                **conv_kwargs,
-                            ),
-                            nn.PixelShuffle(stride),
+                    # Subsequent layers: upsample via ICNR-initialised pixel shuffle
+                    layers.append(
+                        WeightedUpsample(
+                            hid_channels[idx],
+                            out_channels=hid_channels[idx - 1],
+                            upsample_factor=stride,
                         )
                     )
                 else:
@@ -116,15 +113,17 @@ class DeepCompressionDecoder(BaseDecoder):
                             ),
                         )
                     )
-            else:
-                # Shallowest layer: convolve then (optionally unpatchify)
+            # Shallowest layer: convolve then (optionally unpatchify)
+            elif patch_size > 1:
                 layers.append(
-                    nn.Conv2d(
-                        hid_channels[idx], patch_size**2 * out_channels, **conv_kwargs
+                    WeightedUpsample(
+                        hid_channels[idx],
+                        out_channels=out_channels,
+                        upsample_factor=patch_size,
                     )
                 )
-                if patch_size > 1:
-                    layers.append(nn.PixelShuffle(patch_size))
+            else:
+                layers.append(nn.Conv2d(hid_channels[idx], out_channels, **conv_kwargs))
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)

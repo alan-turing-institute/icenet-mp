@@ -13,6 +13,7 @@ from .self_attention import SelfAttention2D
 from .shift import Shift
 from .time_embed import TimeEmbed
 from .transformerblock import TransformerEncoderBlock
+from .weighted_upsample import WeightedUpsample
 
 __all__ = [
     "CommonConvBlock",
@@ -30,4 +31,5 @@ __all__ = [
     "Shift",
     "TimeEmbed",
     "TransformerEncoderBlock",
+    "WeightedUpsample",
 ]
