@@ -5,7 +5,7 @@ import warnings
 
 import typer
 
-from icenet_mp.plugins import register_plugins
+from icenet_mp.compatibility import configure_external_libraries
 
 from .datasets import datasets_cli
 from .evaluate import evaluation_cli
@@ -21,8 +21,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger("anemoi").setLevel(logging.ERROR)
 
-# Register all plugins
-register_plugins()
+# Configure external libraries
+configure_external_libraries()
 
 # Ignore warnings about known PyTorch issues
 warnings.filterwarnings(

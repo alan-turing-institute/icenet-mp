@@ -2,8 +2,7 @@ import logging
 
 from lightning.pytorch.accelerators import AcceleratorRegistry
 
-from .accelerator import XPUAccelerator
-from .patch_parameter_deepcopy import patch_parameter_deepcopy
+from .xpu_accelerator import XPUAccelerator
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +20,5 @@ def register_accelerators() -> None:
 
 __all__ = [
     "XPUAccelerator",
-    "patch_parameter_deepcopy",
     "register_accelerators",
 ]
