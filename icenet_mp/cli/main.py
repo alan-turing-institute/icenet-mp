@@ -17,8 +17,7 @@ logging.basicConfig(
     level=logging.INFO,
     force=True,
 )
-logger = logging.getLogger(__name__)
-logging.getLogger("anemoi").setLevel(logging.ERROR)
+log = logging.getLogger(__name__)
 
 # Configure external libraries
 configure_external_libraries()
@@ -48,7 +47,7 @@ def main() -> None:
                 "This *must* be set before starting the Python interpreter. "
                 "It will be slower than running natively on MPS."
             )
-            logger.error(msg)  # noqa: TRY400
+            log.error(msg)  # noqa: TRY400
             typer.Exit(1)
 
 
