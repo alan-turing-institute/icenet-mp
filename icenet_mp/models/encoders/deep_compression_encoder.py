@@ -6,16 +6,12 @@ Reference:
 """
 
 import logging
-import math
 from collections.abc import Sequence
 from typing import Any
 
 from torch import nn
 
-from icenet_mp.models.common.dcae_blocks import (
-    Patchify2D,
-    ResBlock,
-)
+from icenet_mp.models.common.dcae_blocks import ResBlock
 from icenet_mp.types import TensorNCHW
 
 from .base_encoder import BaseEncoder
@@ -44,8 +40,8 @@ class DeepCompressionEncoder(BaseEncoder):
         hid_channels: Sequence[int] = (64, 128, 256),
         hid_blocks: Sequence[int] = (3, 3, 3),
         kernel_size: int | tuple[int, int] = 3,
-        stride: int | tuple[int, int] = 2,
-        patch_size: int | tuple[int, int] = 1,
+        stride: int = 2,
+        patch_size: int = 1,
         pixel_shuffle: bool = True,
         norm: str = "group",
         groups: int = 16,
@@ -66,11 +62,6 @@ class DeepCompressionEncoder(BaseEncoder):
 
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
-        if isinstance(stride, int):
-            stride = (stride, stride)
-        if isinstance(patch_size, int):
-            patch_size = (patch_size, patch_size)
-
         conv_kwargs = {
             "kernel_size": kernel_size,
             "padding": (kernel_size[0] // 2, kernel_size[1] // 2),
@@ -78,7 +69,7 @@ class DeepCompressionEncoder(BaseEncoder):
         }
 
         self.patch: nn.Module = (
-            Patchify2D(patch_size) if math.prod(patch_size) > 1 else nn.Identity()
+            nn.PixelUnshuffle(patch_size) if patch_size > 1 else nn.Identity()
         )
 
         self.descent = nn.ModuleList()
@@ -90,7 +81,7 @@ class DeepCompressionEncoder(BaseEncoder):
                 # First level: project from (possibly patchified) input channels
                 blocks.append(
                     nn.Conv2d(
-                        math.prod(patch_size) * in_channels,
+                        patch_size**2 * in_channels,
                         hid_channels[i],
                         **conv_kwargs,
                     )
@@ -99,9 +90,9 @@ class DeepCompressionEncoder(BaseEncoder):
                 # Downsample via patchify then project
                 blocks.append(
                     nn.Sequential(
-                        Patchify2D(stride),
+                        nn.PixelUnshuffle(stride),
                         nn.Conv2d(
-                            hid_channels[i - 1] * math.prod(stride),
+                            hid_channels[i - 1] * stride**2,
                             hid_channels[i],
                             **conv_kwargs,
                         ),

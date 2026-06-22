@@ -4,10 +4,8 @@ from .conv_block_upsample import ConvBlockUpsample
 from .conv_norm_act_upsample import ConvNormActUpsample
 from .dcae_blocks import (
     LayerNorm2D,
-    Patchify2D,
     ResBlock,
     SelfAttention2D,
-    Unpatchify2D,
 )
 from .mask import Mask
 from .normalised_fold import NormalisedFold
@@ -28,7 +26,6 @@ __all__ = [
     "LayerNorm2D",
     "NormalisedFold",
     "PatchEmbedding",
-    "Patchify2D",
     "Permute",
     "ResBlock",
     "ResizingInterpolation",
@@ -37,5 +34,4 @@ __all__ = [
     "Shift",
     "TimeEmbed",
     "TransformerEncoderBlock",
-    "Unpatchify2D",
 ]

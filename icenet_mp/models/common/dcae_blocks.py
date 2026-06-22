@@ -5,60 +5,11 @@ Reference:
     (Chen et al., 2024)
 """
 
-__all__ = [
-    "LayerNorm2D",
-    "Patchify2D",
-    "ResBlock",
-    "SelfAttention2D",
-    "Unpatchify2D",
-]
-
-
 from typing import Any
 
 import torch
 from torch import Tensor, nn
 from torch.utils.checkpoint import checkpoint
-
-
-class Patchify2D(nn.Module):
-    """Rearrange ``(B, C, H*sh, W*sw) → (B, C*sh*sw, H, W)``.
-
-    Folds spatial patches into the channel dimension (pixel-unshuffle).
-    """
-
-    def __init__(self, stride: tuple[int, int]) -> None:
-        """Initialise a Patchify2D."""
-        super().__init__()
-        self.sh, self.sw = stride
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Fold spatial patches into channels."""
-        b, c, h_full, w_full = x.shape
-        h, w = h_full // self.sh, w_full // self.sw
-        x = x.view(b, c, h, self.sh, w, self.sw)
-        x = x.permute(0, 1, 3, 5, 2, 4).contiguous()
-        return x.reshape(b, c * self.sh * self.sw, h, w)
-
-
-class Unpatchify2D(nn.Module):
-    """Rearrange ``(B, C*sh*sw, H, W) → (B, C, H*sh, W*sw)``.
-
-    Expands the channel dimension back into spatial patches (pixel-shuffle).
-    """
-
-    def __init__(self, stride: tuple[int, int]) -> None:
-        """Initialise an Unpatchify2D."""
-        super().__init__()
-        self.sh, self.sw = stride
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Expand channels back into spatial patches."""
-        b, c_total, h, w = x.shape
-        c = c_total // (self.sh * self.sw)
-        x = x.view(b, c, self.sh, self.sw, h, w)
-        x = x.permute(0, 1, 4, 2, 5, 3).contiguous()
-        return x.reshape(b, c, h * self.sh, w * self.sw)
 
 
 class LayerNorm2D(nn.Module):

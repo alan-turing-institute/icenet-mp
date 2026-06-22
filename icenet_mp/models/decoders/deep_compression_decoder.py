@@ -6,16 +6,12 @@ Reference:
 """
 
 import logging
-import math
 from collections.abc import Sequence
 from typing import Any
 
 from torch import nn
 
-from icenet_mp.models.common.dcae_blocks import (
-    ResBlock,
-    Unpatchify2D,
-)
+from icenet_mp.models.common.dcae_blocks import ResBlock
 from icenet_mp.types import TensorNCHW
 
 from .base_decoder import BaseDecoder
@@ -43,8 +39,8 @@ class DeepCompressionDecoder(BaseDecoder):
         hid_channels: Sequence[int] = (64, 128, 256),
         hid_blocks: Sequence[int] = (3, 3, 3),
         kernel_size: int | tuple[int, int] = 3,
-        stride: int | tuple[int, int] = 2,
-        patch_size: int | tuple[int, int] = 1,
+        stride: int = 2,
+        patch_size: int = 1,
         pixel_shuffle: bool = True,
         norm: str = "group",
         groups: int = 16,
@@ -53,7 +49,6 @@ class DeepCompressionDecoder(BaseDecoder):
         periodic: bool = False,
         dropout: float | None = None,
         checkpointing: bool = False,
-        identity_init: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionDecoder."""
@@ -67,10 +62,6 @@ class DeepCompressionDecoder(BaseDecoder):
 
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size)
-        if isinstance(stride, int):
-            stride = (stride, stride)
-        if isinstance(patch_size, int):
-            patch_size = (patch_size, patch_size)
 
         conv_kwargs = {
             "kernel_size": kernel_size,
@@ -79,7 +70,7 @@ class DeepCompressionDecoder(BaseDecoder):
         }
 
         self.unpatch: nn.Module = (
-            Unpatchify2D(patch_size) if math.prod(patch_size) > 1 else nn.Identity()
+            nn.PixelShuffle(patch_size) if patch_size > 1 else nn.Identity()
         )
 
         self.ascent = nn.ModuleList()
@@ -119,10 +110,10 @@ class DeepCompressionDecoder(BaseDecoder):
                         nn.Sequential(
                             nn.Conv2d(
                                 hid_channels[i],
-                                hid_channels[i - 1] * math.prod(stride),
+                                hid_channels[i - 1] * stride**2,
                                 **conv_kwargs,
                             ),
-                            Unpatchify2D(stride),
+                            nn.PixelShuffle(stride),
                         )
                     )
                 else:
@@ -142,7 +133,7 @@ class DeepCompressionDecoder(BaseDecoder):
                 blocks.append(
                     nn.Conv2d(
                         hid_channels[i],
-                        math.prod(patch_size) * out_channels,
+                        patch_size**2 * out_channels,
                         **conv_kwargs,
                     )
                 )
