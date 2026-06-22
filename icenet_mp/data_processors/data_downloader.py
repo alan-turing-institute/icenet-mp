@@ -169,15 +169,15 @@ class DataDownloader:
             )
             logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
 
-        # create active grid cell and land masks for the SSMIS dataset
+        # Create active grid cell and land masks if appropriate
         self.generate_masks(overwrite=overwrite)
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for the SSMIS dataset."""
-        # if there is an SSMIS dataset, create the masks
+        # Create the masks if this is an SSMIS dataset
         if "ssmis" not in self.name:
-            logger.info("Not SSMIS dataset, skipping mask creation.")
             return
+        logger.info("Generating land and active grid cell masks for SSMIS dataset.")
 
         self.path_masks.mkdir(parents=True, exist_ok=True)
         land_mask_path = self.path_masks / "land_mask.npy"
