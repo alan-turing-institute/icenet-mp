@@ -39,7 +39,7 @@ class DeepCompressionEncoder(BaseEncoder):
         latent_channels: int,
         hid_channels: Sequence[int] = (64, 128, 256),
         hid_blocks: Sequence[int] = (3, 3, 3),
-        kernel_size: int | tuple[int, int] = 3,
+        kernel_size: int = 3,
         stride: int = 2,
         patch_size: int = 1,
         pixel_shuffle: bool = True,
@@ -60,11 +60,9 @@ class DeepCompressionEncoder(BaseEncoder):
             raise ValueError(msg)
         in_channels = self.data_space_in.channels
 
-        if isinstance(kernel_size, int):
-            kernel_size = (kernel_size, kernel_size)
         conv_kwargs = {
             "kernel_size": kernel_size,
-            "padding": (kernel_size[0] // 2, kernel_size[1] // 2),
+            "padding": kernel_size // 2,
             "padding_mode": "circular" if periodic else "zeros",
         }
 
@@ -77,7 +75,6 @@ class DeepCompressionEncoder(BaseEncoder):
             in_channels,
             latent_channels,
         )
-
 
         for idx, num_blocks in enumerate(hid_blocks):
             if idx == 0:
@@ -93,14 +90,16 @@ class DeepCompressionEncoder(BaseEncoder):
                 )
             elif pixel_shuffle:
                 # Subsequent layers: downsample via patchify then convolve
-                layers.extend((
-                    nn.PixelUnshuffle(stride),
-                    nn.Conv2d(
-                        hid_channels[idx - 1] * stride**2,
-                        hid_channels[idx],
-                        **conv_kwargs,
-                    ),
-                ))
+                layers.extend(
+                    (
+                        nn.PixelUnshuffle(stride),
+                        nn.Conv2d(
+                            hid_channels[idx - 1] * stride**2,
+                            hid_channels[idx],
+                            **conv_kwargs,
+                        ),
+                    )
+                )
             else:
                 # Subsequent layers: downsample via strided convolution
                 layers.append(

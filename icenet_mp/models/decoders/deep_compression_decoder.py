@@ -38,7 +38,7 @@ class DeepCompressionDecoder(BaseDecoder):
         *,
         hid_channels: Sequence[int] = (64, 128, 256),
         hid_blocks: Sequence[int] = (3, 3, 3),
-        kernel_size: int | tuple[int, int] = 3,
+        kernel_size: int = 3,
         stride: int = 2,
         patch_size: int = 1,
         pixel_shuffle: bool = True,
@@ -60,12 +60,9 @@ class DeepCompressionDecoder(BaseDecoder):
         in_channels = self.data_space_in.channels
         out_channels = self.data_space_out.channels
 
-        if isinstance(kernel_size, int):
-            kernel_size = (kernel_size, kernel_size)
-
         conv_kwargs = {
             "kernel_size": kernel_size,
-            "padding": (kernel_size[0] // 2, kernel_size[1] // 2),
+            "padding": kernel_size // 2,
             "padding_mode": "circular" if periodic else "zeros",
         }
 
@@ -103,21 +100,33 @@ class DeepCompressionDecoder(BaseDecoder):
             if idx > 0:
                 if pixel_shuffle:
                     # Subsequent layers: upsample via convolve then unpatchify
-                    layers.extend((
-                        nn.Conv2d(hid_channels[idx], hid_channels[idx - 1] * stride**2, **conv_kwargs),
-                        nn.PixelShuffle(stride),
-                    ))
+                    layers.extend(
+                        (
+                            nn.Conv2d(
+                                hid_channels[idx],
+                                hid_channels[idx - 1] * stride**2,
+                                **conv_kwargs,
+                            ),
+                            nn.PixelShuffle(stride),
+                        )
+                    )
                 else:
                     # Subsequent layers: upsample via interpolation then convolve
                     layers.append(
                         nn.Sequential(
                             nn.Upsample(scale_factor=stride, mode="nearest"),
-                            nn.Conv2d(hid_channels[idx], hid_channels[idx - 1], **conv_kwargs),
+                            nn.Conv2d(
+                                hid_channels[idx], hid_channels[idx - 1], **conv_kwargs
+                            ),
                         )
                     )
             else:
                 # Shallowest layer: convolve then (optionally unpatchify)
-                layers.append(nn.Conv2d(hid_channels[idx], patch_size**2 * out_channels, **conv_kwargs))
+                layers.append(
+                    nn.Conv2d(
+                        hid_channels[idx], patch_size**2 * out_channels, **conv_kwargs
+                    )
+                )
                 if patch_size > 1:
                     layers.append(nn.PixelShuffle(patch_size))
 
