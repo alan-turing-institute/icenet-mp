@@ -9,7 +9,6 @@ from typing import Any
 
 import torch
 from torch import Tensor, nn
-from torch.utils.checkpoint import checkpoint
 
 
 class LayerNorm2D(nn.Module):
@@ -50,7 +49,7 @@ class ResBlock(nn.Module):
     of the ``kernel_size`` passed via ``**conv_kwargs``.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         channels: int,
         *,
@@ -59,12 +58,10 @@ class ResBlock(nn.Module):
         attention_heads: int | None = None,
         ffn_factor: int = 1,
         dropout: float | None = None,
-        checkpointing: bool = False,
         **conv_kwargs: Any,
     ) -> None:
         """Initialise a ResBlock."""
         super().__init__()
-        self.checkpointing = checkpointing
 
         if norm == "layer":
             self.norm = LayerNorm2D()
@@ -93,13 +90,8 @@ class ResBlock(nn.Module):
         )
         self.ffn[-1].weight.data.mul_(1e-2)
 
-    def _forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         y = self.norm(x)
         if self.attn is not None:
             y = y + self.attn(y)
         return x + self.ffn(y)
-
-    def forward(self, x: Tensor) -> Tensor:
-        if self.checkpointing:
-            return checkpoint(self._forward, x, use_reentrant=False)
-        return self._forward(x)

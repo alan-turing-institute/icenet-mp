@@ -48,7 +48,6 @@ class DeepCompressionDecoder(BaseDecoder):
         ffn_factor: int = 1,
         periodic: bool = False,
         dropout: float | None = None,
-        checkpointing: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionDecoder."""
@@ -91,7 +90,6 @@ class DeepCompressionDecoder(BaseDecoder):
                     attention_heads=attention_heads.get(idx),
                     ffn_factor=ffn_factor,
                     dropout=dropout,
-                    checkpointing=checkpointing,
                     **conv_kwargs,
                 )
                 for _ in range(hid_blocks[idx])

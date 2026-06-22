@@ -49,7 +49,6 @@ class DeepCompressionEncoder(BaseEncoder):
         ffn_factor: int = 1,
         periodic: bool = False,
         dropout: float | None = None,
-        checkpointing: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionEncoder."""
@@ -120,7 +119,6 @@ class DeepCompressionEncoder(BaseEncoder):
                     attention_heads=attention_heads.get(idx),
                     ffn_factor=ffn_factor,
                     dropout=dropout,
-                    checkpointing=checkpointing,
                     **conv_kwargs,
                 )
                 for _ in range(num_blocks)
