@@ -1,7 +1,6 @@
 """Main entrypoint for the CLI application."""
 
 import logging
-import warnings
 
 import typer
 
@@ -23,12 +22,6 @@ logging.getLogger("anemoi").setLevel(logging.ERROR)
 
 # Configure external libraries
 configure_external_libraries()
-
-# Ignore warnings about known PyTorch issues
-warnings.filterwarnings(
-    "ignore",
-    message=".*Using padding='same' with even kernel lengths and odd dilation.*",
-)
 
 # Create the typer app
 app = typer.Typer(

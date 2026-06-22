@@ -1,4 +1,5 @@
 from logging import getLogger
+import warnings
 
 from icenet_mp.compatibility.lightning import register_accelerators
 from icenet_mp.compatibility.torch import patch_parameter_deepcopy
@@ -17,3 +18,8 @@ def configure_external_libraries() -> None:
     register_animation_backends()
     register_filters()
     register_sources()
+    # Ignore warnings about known PyTorch issues
+    warnings.filterwarnings(
+        "ignore",
+        message=".*Using padding='same' with even kernel lengths and odd dilation.*",
+    )
