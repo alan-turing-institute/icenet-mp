@@ -10,55 +10,7 @@ See the [Configuration](https://alan-turing-institute.github.io/icenet-mp/user-g
 
 ## Running IceNet-MP commands
 
-:information_source: Note that if you are running the below commands locally, specify the base path in your local config, then add the argument `--config-name <your local YAML config>`.
-
-### Create
-
-You will need a [CDS account](https://cds.climate.copernicus.eu/how-to-api) to download data with `anemoi` (e.g. the ERA5 data).
-
-Run `uv run imp datasets create` to download datasets.
-
-We make use of the fact that Anemoi datasets keep track of which groups of dates have been loaded to ensure that an interrupted download can be resumed simply by rerunning the `datasets create` command.
-
-### Inspect
-
-Run `uv run imp datasets inspect` to inspect datasets (i.e. to get dataset properties and statistical summaries of the variables).
-
-### Train
-
-You will need a [Weights & Biases account](https://docs.wandb.ai/models/quickstart) to run a training run.
-[Generate an API key](https://docs.wandb.ai/models/quickstart) then run the following to allow automatic authentication.
-
-```
-export WANDB_API_KEY=<your_api_key>
-wandb login
-```
-
-Run `uv run imp train` to train using the datasets specified in the config.
-
-:information_source: This will save checkpoints to `${BASE_DIR}/training/wandb/run-${DATE}$-${RANDOM_STRING}/checkpoints/${CHECKPOINT_NAME}$.ckpt`. Where the `BASE_DIR` is the base path to the data defined in your config file.
-
-:warning: If you are running on macOS, you may need to prepend your `uv` run command with `PYTORCH_ENABLE_MPS_FALLBACK=1`. For example:
-
-```bash
-PYTORCH_ENABLE_MPS_FALLBACK=1 uv run imp train
-```
-
-### Evaluate
-
-Run `uv run imp evaluate --checkpoint PATH_TO_A_CHECKPOINT` to evaluate using a checkpoint from a training run.
-
-### Visualisations
-
-You can plot static images or animations of the raw data by adding the following option to your local config:
-```
-evaluate:
-  callbacks:
-    plotting:
-      make_input_plots: true
-```
-
-Settings (output directories, styling, animation parameters) are read from `config.evaluate.callbacks.raw_inputs` in your YAML config files. Command-line options can override config values if needed.
+See the [Commands](https://alan-turing-institute.github.io/icenet-mp/user-guide/commands/) page in the docs for details on `datasets create`, `datasets inspect`, `train`, and `evaluate`.
 
 ## Adding a new model
 
