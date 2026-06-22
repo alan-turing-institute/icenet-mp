@@ -105,8 +105,8 @@ class DeepCompressionDecoder(BaseDecoder):
                     )
                 else:
                     # Subsequent layers: upsample via interpolation then convolve
-                    layers.append(
-                        nn.Sequential(
+                    layers.extend(
+                        (
                             nn.Upsample(scale_factor=stride, mode="nearest"),
                             nn.Conv2d(
                                 hid_channels[idx], hid_channels[idx - 1], **conv_kwargs
@@ -115,13 +115,21 @@ class DeepCompressionDecoder(BaseDecoder):
                     )
             # Shallowest layer: convolve then (optionally unpatchify)
             elif patch_size > 1:
-                layers.append(
-                    WeightedUpsample(
-                        hid_channels[idx],
-                        out_channels=out_channels,
-                        upsample_factor=patch_size,
+                if pixel_shuffle:
+                    layers.append(
+                        WeightedUpsample(
+                            hid_channels[idx],
+                            out_channels=out_channels,
+                            upsample_factor=patch_size,
+                        )
                     )
-                )
+                else:
+                    layers.extend(
+                        (
+                            nn.Upsample(scale_factor=patch_size, mode="nearest"),
+                            nn.Conv2d(hid_channels[idx], out_channels, **conv_kwargs),
+                        )
+                    )
             else:
                 layers.append(nn.Conv2d(hid_channels[idx], out_channels, **conv_kwargs))
 
