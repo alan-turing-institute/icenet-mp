@@ -2,7 +2,7 @@ import logging
 
 from lightning.pytorch.accelerators import AcceleratorRegistry
 
-from .accelerator import XPUAccelerator
+from .xpu_accelerator import XPUAccelerator
 
 logger = logging.getLogger(__name__)
 

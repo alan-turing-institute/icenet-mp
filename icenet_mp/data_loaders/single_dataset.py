@@ -1,17 +1,20 @@
+import logging
 from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
 from typing import ClassVar, TypeVar, cast
 
 import numpy as np
-from anemoi.datasets.data import open_dataset
-from anemoi.datasets.data.dataset import Dataset as AnemoiDataset
+from anemoi.datasets import open_dataset
+from anemoi.datasets.usage.dataset import Dataset as AnemoiDataset
 from torch.utils.data import Dataset
 
 from icenet_mp.types import ArrayCHW, ArrayTCHW, DataSpace, Hemisphere
 from icenet_mp.utils import normalise_date
 
 ArrayType = TypeVar("ArrayType", ArrayCHW, ArrayTCHW)
+
+logger = logging.getLogger(__name__)
 
 
 class SingleDataset(Dataset):
@@ -35,9 +38,7 @@ class SingleDataset(Dataset):
         We reshape this to CHW before returning.
         """
         super().__init__()
-        self._date_ranges = sorted(
-            date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
-        )
+        self._date_ranges = self.normalise_date_ranges(date_ranges)
         self.hemisphere: Hemisphere = (
             "north"
             if any("north" in str(input_file).lower() for input_file in input_files)
@@ -71,6 +72,72 @@ class SingleDataset(Dataset):
                 if idx_global is not None:
                     idx2anemoi[idx_global] = (idx_ds, idx_date)
         return idx2anemoi
+
+    @staticmethod
+    def normalise_date_ranges(
+        date_ranges: Sequence[dict[str, str | None]],
+    ) -> list[dict[str, str | None]]:
+        """Sort the ranges, then merge overlapping or touching ones into single spans.
+
+        Ranges that overlap/touch must merge into one Anemoi subset, or data fetching step comes back
+        short and fails to reshape. Two ranges merge when the later one starts on/before the day
+        after the earlier one finishes; the merged span is the union of all ranges.
+
+        A "None" bound is open, an open-ended previous range always overlap with the later ranges, an
+        open-started later range always overlap with previous ranges.
+
+        Each merge is logged so a user notices that their config ranges were altered and verifies.
+        """
+        ranges = sorted(
+            date_ranges, key=lambda dr: "" if dr["start"] is None else dr["start"]
+        )
+        if len(ranges) <= 1:
+            return [dict(date_range) for date_range in ranges]
+
+        #  Assume data always has a daily frequency; for future updates: read from source metadata
+        frequency = np.timedelta64(1, "D")
+
+        def _ranges_overlap_or_touch(
+            prev: dict[str, str | None], nxt: dict[str, str | None]
+        ) -> bool:
+            """Whether nxt overlaps or is consecutive with prev, so they should merge.
+
+            Ranges are sorted by start. They merge when nxt starts on or before the
+            day after prev ends. An open end on prev (None = after any date) covers
+            everything later, and an open start on nxt (None = before any date) sits
+            inside prev, so in either case they always merge.
+            """
+            if prev["end"] is None or nxt["start"] is None:
+                return True
+            return bool(
+                np.datetime64(nxt["start"]) <= np.datetime64(prev["end"]) + frequency
+            )
+
+        def _later_end(a: str | None, b: str | None) -> str | None:
+            """Return the later of two end dates; None (open) is after any date."""
+            if a is None or b is None:
+                return None
+            return a if np.datetime64(a) >= np.datetime64(b) else b
+
+        merged: list[dict[str, str | None]] = []
+        for date_range in ranges:
+            if merged and _ranges_overlap_or_touch(merged[-1], date_range):
+                prev = merged.pop()
+                fused: dict[str, str | None] = {
+                    "start": prev["start"],
+                    "end": _later_end(prev["end"], date_range["end"]),
+                }
+                logger.warning(
+                    "Merged overlapping or touching date ranges %s and %s into %s. "
+                    "Please check config file range setting if unintended",
+                    prev,
+                    date_range,
+                    fused,
+                )
+                merged.append(fused)
+            else:
+                merged.append(dict(date_range))
+        return merged
 
     @cached_property
     def dataslices(self) -> list[AnemoiDataset]:

@@ -1,20 +1,20 @@
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-import typer
+from anemoi.datasets import open_dataset
 from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
 from anemoi.datasets.commands.load import Load
-from anemoi.datasets.data import open_dataset
-from anemoi.datasets.data.dataset import Dataset as AnemoiDataset
+from anemoi.datasets.create.recipe import Recipe
 from omegaconf import DictConfig, OmegaConf
-from zarr.core import Array as ZarrArray
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
+    AnemoiDatasetStatus,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
     AnemoiInspectArgs,
@@ -40,8 +40,53 @@ class DataDownloader:
         self.path_preprocessor = _data_path / "preprocessing"
         self.path_masks = self.path_preprocessor / "masks" / name
         # Note that Anemoi 'forcings' need to be escaped with `\${}` to avoid being resolved here
-        self.config: DictConfig = OmegaConf.to_object(config["data"]["datasets"][name])  # type: ignore[assignment]
-        self.preprocessor = cls_preprocessor(self.config)
+        anemoi_config: dict[str, Any] = OmegaConf.to_object(
+            config["data"]["datasets"][name]
+        )  # type: ignore[assignment]
+        self.recipe = Recipe(**anemoi_config)
+        self.preprocessor = cls_preprocessor(anemoi_config)
+
+    def check_status(self) -> AnemoiDatasetStatus:
+        """Return the status of the dataset."""
+        try:
+            ds_info = InspectZarr()._info(str(self.path_dataset))
+            copy_in_progress = ds_info.copy_in_progress
+            try:
+                statistics_ready = ds_info.statistics_ready
+            except KeyError:
+                statistics_ready = False
+            if copy_in_progress:
+                # If a copy is in progress then the download is incomplete
+                download_complete = False
+            elif ds_info.dataset is None:
+                # ... if there is no dataset object then the download is incomplete
+                download_complete = False
+            elif (build_flags := ds_info.build_flags) is not None:
+                # If build flags are present and all true then the download is complete
+                download_complete = len(build_flags) > 0 and bool(all(build_flags))
+            elif statistics_ready or (ds_info.statistics_started is not None):
+                # If statistics generation has started then the download is complete
+                download_complete = True
+            else:
+                msg = (
+                    f"Unable to determine readiness status for dataset {self.name} at "
+                    f"{self.path_dataset}. Please check manually."
+                )
+                raise RuntimeError(msg)
+        except (
+            AttributeError,
+            FileNotFoundError,
+            KeyError,
+            PathNotFoundError,
+            ValueError,
+        ) as exc:
+            msg = f"Unable to get status for {self.name} at {self.path_dataset}"
+            raise RuntimeError(msg) from exc
+        return AnemoiDatasetStatus(
+            copy_in_progress=copy_in_progress,
+            download_complete=download_complete,
+            is_finalised=download_complete and statistics_ready,
+        )
 
     def create(self, *, overwrite: bool = False) -> None:
         """Ensure that a single Anemoi dataset exists."""
@@ -54,44 +99,38 @@ class DataDownloader:
             )
             shutil.rmtree(self.path_dataset, ignore_errors=True)
 
-        # Otherwise we check whether a valid dataset exists
+        # Otherwise check whether a valid dataset exists
         elif self.path_dataset.exists():
-            download_in_progress, download_complete, statistics_ready = self.status()
-            # The dataset is being downloaded
-            if download_in_progress:
-                logger.warning(
-                    "Dataset %s at %s is currently being downloaded by another process.",
-                    self.name,
-                    self.path_dataset,
-                )
-                return
-            # If the download is complete then check whether the dataset is valid
-            if download_complete:
-                # If the statistics are not ready we should finalise
-                if not statistics_ready:
-                    self.finalise(overwrite=overwrite)
-
-                # Inspect the dataset for validity
-                try:
-                    self.inspect()
+            try:
+                status = self.check_status()
+            except RuntimeError as exc:
+                msg = f"Status of dataset {self.name} at {self.path_dataset} could not be determined. Please check manually."
+                raise RuntimeError(msg) from exc
+            else:
+                if status.copy_in_progress:
+                    # If the dataset is being written to, we exit without error
+                    logger.warning(
+                        "Dataset %s at %s is currently being downloaded by another process.",
+                        self.name,
+                        self.path_dataset,
+                    )
+                    return
+                if status.download_complete:
+                    self.finalise(overwrite=overwrite, status=status)
+                    try:
+                        self.inspect()
+                    except RuntimeError as exc:
+                        msg = f"Dataset {self.name} at {self.path_dataset} could not be inspected. Please check manually."
+                        raise RuntimeError(msg) from exc
+                    # At this point we have a valid dataset so we exit without error
                     logger.info(
                         "Dataset %s at %s has been downloaded and seems to be valid.",
                         self.name,
                         self.path_dataset,
                     )
-                except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
-                    # If the dataset is invalid we flag this to the user and exit
-                    logger.error(  # noqa: TRY400
-                        "Dataset %s at %s seems to be invalid. Please check manually.",
-                        self.name,
-                        self.path_dataset,
-                    )
-                    raise typer.Exit(1) from exc
-                else:
-                    # If the dataset is valid we return here
                     return
 
-        # Download the dataset
+        # At this point there is no dataset at the requested path so we download to it
         self.download(overwrite=overwrite)
 
     def download(self, *, overwrite: bool) -> None:
@@ -102,33 +141,98 @@ class DataDownloader:
         self.initialise()
         # Load in parts
         self.load_in_chunks()
-        # Finalise if the status indicates the dataset is complete
-        download_in_progress, download_complete, statistics_ready = self.status()
-        if download_complete and (not download_in_progress) and (not statistics_ready):
-            self.finalise(overwrite=overwrite)
+        # Attempt to finalise, creating masks if necessary
+        status = self.check_status()
+        if status.copy_in_progress:
+            logger.warning(
+                "Dataset %s at %s is still being copied by another process, skipping finalise.",
+                self.name,
+                self.path_dataset,
+            )
+        elif status.download_complete:
+            self.finalise(overwrite=overwrite, status=status)
         else:
             logger.warning(
                 "Dataset %s at %s is not fully loaded, skipping finalise.",
                 self.name,
                 self.path_dataset,
             )
-            if not download_complete:
-                logger.info("Not all files have been downloaded.")
-            if download_in_progress:
-                logger.info("Dataset is still being downloaded by another process.")
 
-    def finalise(self, *, overwrite: bool) -> None:
+    def finalise(self, *, overwrite: bool, status: AnemoiDatasetStatus) -> None:
         """Finalise the segmented Anemoi dataset."""
-        Finalise().run(
-            AnemoiFinaliseArgs(
-                path=str(self.path_dataset),
-                config=self.config,
+        if not status.is_finalised:
+            Finalise().run(
+                AnemoiFinaliseArgs(
+                    path=str(self.path_dataset),
+                    recipe=self.recipe,
+                )
             )
-        )
-        logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
+            logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
 
         # create active grid cell and land masks for the SSMIS dataset
-        self.create_masks(overwrite=overwrite)
+        self.generate_masks(overwrite=overwrite)
+
+    def generate_masks(self, *, overwrite: bool) -> None:
+        """Generate land and active grid cell masks for the SSMIS dataset."""
+        # if there is an SSMIS dataset, create the masks
+        if "ssmis" not in self.name:
+            logger.info("Not SSMIS dataset, skipping mask creation.")
+            return
+
+        self.path_masks.mkdir(parents=True, exist_ok=True)
+        land_mask_path = self.path_masks / "land_mask.npy"
+        active_mask_path = self.path_masks / "active_mask.npy"
+
+        if land_mask_path.exists() and active_mask_path.exists() and not overwrite:
+            logger.info("Both masks already exist, skipping creation.")
+            return
+
+        # Unpack status flags into a binary array, skipping any missing dates
+        ds_sf = open_dataset(self.path_dataset, select="status_flag")
+        missing_indices: set[int] = (
+            set(m) if (m := getattr(ds_sf, "missing", None)) is not None else set()
+        )
+        if missing_indices:
+            logger.warning(
+                "Skipping %d missing dates when generating masks.", len(missing_indices)
+            )
+        available_indices = [i for i in range(len(ds_sf)) if i not in missing_indices]
+        if not available_indices:
+            msg = f"No available timesteps in status_flag for dataset {self.name}."
+            raise RuntimeError(msg)
+        status_flag = np.asarray(ds_sf, dtype=np.uint8)[available_indices]
+        binary = np.unpackbits(status_flag, axis=-1).reshape(*status_flag.shape, 8)
+
+        # land mask: land = 0, sea = 1
+        if land_mask_path.exists() and not overwrite:
+            logger.info("Land mask already exists, skipping creation.")
+            land_mask = np.load(land_mask_path)
+        else:
+            land_mask = np.squeeze(binary[..., [7]]).sum(axis=0)
+            # convert to binary mask
+            land_mask = 1 - (land_mask > 0).astype(np.uint8)
+            # reshape to 2D grid
+            land_mask = land_mask.reshape(ds_sf.field_shape[-2:])
+            # save the land mask for later use
+            np.save(land_mask_path, land_mask)
+            logger.info("Land mask created and saved.")
+
+        # active mask: active grid cells = 1, inactive = 0
+        if active_mask_path.exists() and not overwrite:
+            logger.info("Active mask already exists, skipping creation.")
+        else:
+            # Identify grid cells that are inactive for all time steps
+            inactive_count = np.squeeze(binary[..., [0]]).sum(axis=0)
+            inactive_mask = inactive_count >= len(available_indices)
+            # convert to binary mask, and set to 1 for active grid cells
+            active_mask = 1 - (inactive_mask > 0).astype(np.uint8)
+            # reshape to 2D grid
+            active_mask = active_mask.reshape(ds_sf.field_shape[-2:])
+            # intersect land mask with active mask to set all active grid cells to 1
+            active_mask = active_mask * land_mask
+            # save the active mask for later use
+            np.save(active_mask_path, active_mask)
+            logger.info("Active mask created and saved.")
 
     def initialise(self) -> None:
         """Initialise an Anemoi dataset."""
@@ -141,133 +245,61 @@ class DataDownloader:
             Init().run(
                 AnemoiInitArgs(
                     path=str(self.path_dataset),
-                    config=self.config,
+                    recipe=self.recipe,
                 )
             )
             logger.info("Initialised dataset %s at %s.", self.name, self.path_dataset)
-        except (AttributeError, FileNotFoundError, PathNotFoundError):
-            logger.exception(
-                "Failed to initialise dataset %s at %s.",
-                self.name,
-                self.path_dataset,
-            )
-            raise
+        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+            msg = f"Failed to initialise dataset {self.name} at {self.path_dataset}."
+            raise RuntimeError(msg) from exc
 
     def inspect(
         self,
         *,
-        detailed: bool = True,
-        size: bool = True,
-        statistics: bool = False,
+        verbose: bool = False,
     ) -> None:
         """Inspect an Anemoi dataset."""
-        logger.info("Inspecting dataset %s at %s.", self.name, self.path_dataset)
-        if self.path_dataset.exists():
-            try:
+        if not self.path_dataset.exists():
+            msg = f"Dataset {self.name} not found at {self.path_dataset}"
+            raise RuntimeError(msg)
+        try:
+            if verbose:
                 InspectZarr().run(
                     AnemoiInspectArgs(
                         path=str(self.path_dataset),
-                        detailed=detailed,
-                        progress=(not detailed),
-                        statistics=statistics,
-                        size=size,
+                        detailed=True,
+                        progress=False,
+                        statistics=False,  # recalculate statistics on-the-fly
+                        size=True,
                     )
                 )
-            except (AttributeError, FileNotFoundError, PathNotFoundError):
-                logger.error(  # noqa: TRY400
-                    "Failed to load dataset %s at %s.",
-                    self.name,
-                    self.path_dataset,
+            else:
+                ds_info = InspectZarr()._info(str(self.path_dataset))
+                logger.info("  Path    : %s", ds_info.path)
+                if (flags := ds_info.build_flags) is not None:
+                    done = sum(flags)
+                    total = len(flags)
+                    completion_fraction = done / total if total else 0.0
+                    chunk_info = f"{sum(flags)}/{len(flags)}"
+                else:
+                    completion_fraction = 1
+                    chunk_info = "all"
+                logger.info(
+                    "  Progress: %.0f%% (%s chunks downloaded).",
+                    100 * completion_fraction,
+                    chunk_info,
                 )
-        else:
-            logger.error("Dataset %s not found at %s.", self.name, self.path_dataset)
+        except (ValueError, KeyError):
+            logger.warning("Further dataset information unavailable.")
+        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
+            msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
+            raise RuntimeError(msg) from exc
 
     def load_in_chunks(self) -> None:
         """Download a single Anemoi dataset in chunks, skipping those already present."""
         Load().run(
             AnemoiLoadArgs(
                 path=str(self.path_dataset),
-                config=self.config,
+                recipe=self.recipe,
             )
         )
-
-    def status(self) -> tuple[bool, bool, bool]:
-        """Return a tuple indicating whether the dataset exists and whether it is complete."""
-        try:
-            ds_info = InspectZarr()._info(str(self.path_dataset))
-            download_in_progress = ds_info.copy_in_progress
-            if isinstance(dataset := ds_info.dataset, AnemoiDataset) and isinstance(
-                array := ds_info.data, ZarrArray
-            ):
-                n_dates_expected = len(dataset.dates) - len(dataset.missing)
-                n_dates_in_zarr = array.nchunks_initialized
-                download_complete = n_dates_expected == n_dates_in_zarr
-            else:
-                download_complete = False
-            statistics_ready = ds_info.statistics_ready
-        except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
-            logger.error(  # noqa: TRY400
-                "Unable to get status for %s at %s.",
-                self.name,
-                self.path_dataset,
-            )
-            raise typer.Exit(1) from exc
-        return (download_in_progress, download_complete, statistics_ready)
-
-    def create_masks(self, *, overwrite: bool) -> None:
-        """Download the land and active grid cell masks for the SSMIS dataset."""
-        # if there is an SSMIS dataset, create the masks
-        if "ssmis" not in self.name:
-            logger.info("Not SSMIS dataset, skipping mask creation.")
-            return
-
-        self.path_masks.mkdir(parents=True, exist_ok=True)
-
-        ds_sf = open_dataset(self.path_dataset, select="status_flag")
-        shape = ds_sf.shape
-        dates = ds_sf.dates
-
-        status_flag = np.array(ds_sf).astype(np.uint8).reshape(*shape)
-        binary = np.unpackbits(status_flag, axis=-1).reshape(*shape, 8)
-
-        # land mask with land = 0 and sea = 1
-        # create unless it already exists and overwrite is False
-        if (self.path_masks / "land_mask.npy").exists() and not overwrite:
-            logger.info("Land mask already exists, skipping creation.")
-            land_mask = np.load(self.path_masks / "land_mask.npy")
-        else:
-            if overwrite and (self.path_masks / "land_mask.npy").exists():
-                (self.path_masks / "land_mask.npy").unlink()
-            land_mask = np.squeeze(binary[..., [7]]).sum(axis=0)
-            land_mask = 1 - (land_mask > 0).astype(np.uint8)  # convert to binary mask
-            land_mask = land_mask.reshape(ds_sf.field_shape[-2:])  # reshape to 2D grid
-            np.save(
-                self.path_masks / "land_mask.npy", land_mask
-            )  # save the land mask for later use
-            logger.info("Land mask created and saved.")
-
-        # active mask with active grid cells = 1 and inactive grid cells = 0
-        # create unless it already exists and overwrite is False
-        if (self.path_masks / "active_mask.npy").exists() and not overwrite:
-            logger.info("Active mask already exists, skipping creation.")
-        else:
-            if overwrite and (self.path_masks / "active_mask.npy").exists():
-                (self.path_masks / "active_mask.npy").unlink()
-            inactive_mask = (
-                np.squeeze(binary[..., [0]]).sum(axis=0) >= dates.shape[0]
-            )  # Identify grid cells that are inactive for all time steps
-            active_mask = 1 - (inactive_mask > 0).astype(
-                np.uint8
-            )  # convert to binary mask, and set to 1 for active grid cells
-            active_mask = active_mask.reshape(
-                ds_sf.field_shape[-2:]
-            )  # reshape to 2D grid
-            active_mask = (
-                active_mask * land_mask
-            )  # intersect land mask with active mask to set all active grid cells to 1
-            np.save(
-                self.path_masks / "active_mask.npy", active_mask
-            )  # save the active mask for later use
-            logger.info("Active mask created and saved.")
-
-        return

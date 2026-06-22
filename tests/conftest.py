@@ -4,8 +4,14 @@ from typing import Any
 
 import numpy as np
 import pytest
+import torch
 import zarr
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
+    """Restrict PyTorch to a single thread to avoid OpenMP issues under pytest."""
+    torch.set_num_threads(1)
 
 
 def build_zarr(
@@ -172,6 +178,7 @@ def cfg_model_service() -> DictConfig:
             "evaluate": {"callbacks": {}},
             "hemisphere": "north",
             "loggers": {},
+            "loss": {"_target_": "torch.nn.HuberLoss", "delta": 0.5},
             "model": {
                 "_target_": "MockModel",
                 "name": "mock-model",
@@ -453,3 +460,9 @@ def mock_dataset_non_normalized_times(
         mock_data_path / "anemoi" / "mock_dataset_non_normalized_times.zarr",
         mock_data_non_normalized_times,
     )
+
+
+@pytest.fixture
+def cfg_loss() -> DictConfig:
+    """Test configuration for a loss function."""
+    return OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})

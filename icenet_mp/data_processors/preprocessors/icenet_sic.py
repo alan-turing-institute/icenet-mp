@@ -1,13 +1,14 @@
 import logging
 import os
 import shutil
+from collections.abc import MutableMapping
 from ftplib import FTP, error_perm
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from icenet.data.sic.mask import Masks
 from icenet.data.sic.osisaf import SICDownloader
-from omegaconf import DictConfig
 
 from .ipreprocessor import IPreprocessor
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class IceNetSICPreprocessor(IPreprocessor):
-    def __init__(self, config: DictConfig) -> None:
+    def __init__(self, config: MutableMapping[str, Any]) -> None:
         """Initialise the IceNetSIC preprocessor."""
         super().__init__(config)
         self.date_range = pd.date_range(

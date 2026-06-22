@@ -15,6 +15,7 @@ class TestEncodeProcessDecode:
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
+        cfg_loss: DictConfig,
         test_n_forecast_steps: int,
         test_n_history_steps: int,
     ) -> None:
@@ -30,6 +31,7 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            loss=cfg_loss,
         )
 
         assert model.name == "encode-null-decode"
@@ -50,6 +52,7 @@ class TestEncodeProcessDecode:
         cfg_processor: DictConfig,
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
+        cfg_loss: DictConfig,
         test_batch_size: int,
         test_n_forecast_steps: int,
         test_n_history_steps: int,
@@ -66,6 +69,7 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            loss=cfg_loss,
         )
         result: torch.Tensor = model(
             {

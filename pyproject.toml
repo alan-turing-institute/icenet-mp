@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.8.3,<0.9.0"]
+requires = ["uv_build>=0.11.18,<0.12.0"]
 build-backend = "uv_build"
 
 [project]
@@ -20,9 +20,9 @@ authors = [
 ]
 requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with the tensorflow requirement from icenet
 dependencies = [
-    "anemoi-datasets>=0.5.27", # to get the fix from https://github.com/ecmwf/anemoi-datasets/pull/372
-    "anemoi-transform>=0.1.16",
-    "anemoi-utils>=0.4.42",
+    "anemoi-datasets>=0.5.37",
+    "anemoi-transform>=0.4.0",
+    "anemoi-utils>=0.5.3",
     "argopy>=1.4.0",
     "cachetools>=6.1.0",
     "cdsapi>=0.7.6",
@@ -32,7 +32,7 @@ dependencies = [
     "icenet==0.2.7", # newer versions require netCDF4<1.6.1 which does not work on macOS 15
     "imageio-ffmpeg>=0.6.0",
     "jaxtyping>=0.3.2",
-    "lightning>=2.5.1,!=2.6.2,!=2.6.3", # 2.6.2 and 2.6.3 are compromised https://www.aikido.dev/blog/pytorch-lightning-pypi-compromise-mini-shai-hulud
+    "lightning>=2.6.0,!=2.6.2,!=2.6.3", # 2.6.2 and 2.6.3 are compromised https://www.aikido.dev/blog/pytorch-lightning-pypi-compromise-mini-shai-hulud
     "matplotlib>=3.10.3",
     "netcdf4>=1.7.0",
     "pillow>=11.3.0",
@@ -45,7 +45,7 @@ dependencies = [
     "typer>=0.16.0",
     "wandb>=0.27.0",
     "xarray>=2025.3.0",
-    "zarr<3.0.0", # v3 is not compatible with anemoi
+    "zarr>=2.18", # anemoi-datasets==0.5.37 still depends on zarr<=3
 ]
 
 [dependency-groups]
@@ -56,13 +56,14 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=7.1.0",
     "pytest-xdist>=3.8.0",
-    "types-cachetools>=6.1.0",
+    "types-cachetools>=7.0.0.20260518",
     "types-pyyaml>=6.0.12.20260518",
 ]
 notebooks = [
     "cmocean>=4.0.3",
     "download-toolbox>=0.0.6",
     "jupyter>=1.1.1",
+    "s2sphere>=0.2.5",
 ]
 
 [project.scripts]

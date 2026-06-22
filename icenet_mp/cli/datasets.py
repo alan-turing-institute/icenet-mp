@@ -26,8 +26,12 @@ def create(
     """Create all datasets."""
     factory = DataDownloaderFactory(config)
     for downloader in factory.downloaders:
-        logger.info("Working on %s.", downloader.name)
-        downloader.create(overwrite=overwrite)
+        logger.info("Creating dataset %s.", downloader.name)
+        try:
+            downloader.create(overwrite=overwrite)
+        except RuntimeError as exc:
+            logger.error("Failed to create %s: %s", downloader.name, exc)  # noqa: TRY400
+            raise typer.Exit(1) from exc
 
 
 @datasets_cli.command("inspect")
@@ -35,15 +39,18 @@ def create(
 def inspect(
     config: DictConfig,
     *,
-    statistics: Annotated[
-        bool, typer.Option(help="Specify whether to show dataset statistics")
+    verbose: Annotated[
+        bool, typer.Option(help="Show detailed dataset information")
     ] = False,
 ) -> None:
     """Inspect all datasets."""
     factory = DataDownloaderFactory(config)
     for downloader in factory.downloaders:
-        logger.info("Working on %s.", downloader.name)
-        downloader.inspect(statistics=statistics)
+        logger.info("Inspecting dataset %s.", downloader.name)
+        try:
+            downloader.inspect(verbose=verbose)
+        except RuntimeError:
+            logger.error("Inspecting dataset %s failed, skipping.", downloader.name)  # noqa: TRY400
 
 
 @datasets_cli.command("masks")
@@ -58,8 +65,8 @@ def masks(
     """Create land / active grid cell masks."""
     factory = DataDownloaderFactory(config)
     for downloader in factory.downloaders:
-        logger.info("Working on %s.", downloader.name)
-        downloader.create_masks(overwrite=overwrite)
+        logger.info("Generating masks for dataset %s.", downloader.name)
+        downloader.generate_masks(overwrite=overwrite)
 
 
 if __name__ == "__main__":
