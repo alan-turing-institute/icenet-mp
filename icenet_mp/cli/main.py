@@ -1,11 +1,10 @@
 """Main entrypoint for the CLI application."""
 
 import logging
-import warnings
 
 import typer
 
-from icenet_mp.plugins import register_plugins
+from icenet_mp.compatibility import configure_external_libraries
 
 from .datasets import datasets_cli
 from .evaluate import evaluation_cli
@@ -18,17 +17,10 @@ logging.basicConfig(
     level=logging.INFO,
     force=True,
 )
-logger = logging.getLogger(__name__)
-logging.getLogger("anemoi").setLevel(logging.ERROR)
+log = logging.getLogger(__name__)
 
-# Register all plugins
-register_plugins()
-
-# Ignore warnings about known PyTorch issues
-warnings.filterwarnings(
-    "ignore",
-    message=".*Using padding='same' with even kernel lengths and odd dilation.*",
-)
+# Configure external libraries
+configure_external_libraries()
 
 # Create the typer app
 app = typer.Typer(
@@ -55,7 +47,7 @@ def main() -> None:
                 "This *must* be set before starting the Python interpreter. "
                 "It will be slower than running natively on MPS."
             )
-            logger.error(msg)  # noqa: TRY400
+            log.error(msg)  # noqa: TRY400
             typer.Exit(1)
 
 
