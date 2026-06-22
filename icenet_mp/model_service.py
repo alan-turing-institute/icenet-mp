@@ -5,7 +5,6 @@ from typing import cast
 
 import hydra
 import torch
-import torch.nn.functional as F  # noqa: N812
 from lightning import Callback, Trainer, seed_everything
 from lightning.fabric.utilities import suggested_max_num_workers
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -13,35 +12,13 @@ from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
 from icenet_mp.callbacks import UnconditionalCheckpoint
+from icenet_mp.compatibility.torch import patch_interpolate_antialias
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models.base_model import BaseModel
 from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
 log = logging.getLogger(__name__)
-
-
-class _DeterministicInterpolate:
-    """Monkey-patch F.interpolate to strip antialias=True for deterministic CUDA backward.
-
-    upsample_bilinear2d_aa has no deterministic CUDA backward pass, so we strip
-    the antialias argument globally to ensure deterministic behaviour.
-    """
-
-    _applied = False  # class-level flag
-
-    def __init__(self) -> None:
-        if _DeterministicInterpolate._applied:
-            return
-        self._original = F.interpolate
-        F.interpolate = self  # type: ignore[assignment]
-        _DeterministicInterpolate._applied = True
-
-    def __call__(
-        self, tensor: torch.Tensor, *args: object, **kwargs: object
-    ) -> torch.Tensor:
-        kwargs.pop("antialias", None)
-        return self._original(tensor, *args, **kwargs)  # type: ignore[arg-type]
 
 
 class ModelService:
@@ -59,12 +36,30 @@ class ModelService:
             os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
             seed_everything(seed, workers=True)
 
+        # If we are in fully deterministic mode, enable deterministic algorithms and
+        # patch any known issues with them. We use warn_only=True to avoid segfaults on
+        # unsupported operations.
         if fully_deterministic:
             torch.use_deterministic_algorithms(True, warn_only=True)  # noqa: FBT003
+            patch_interpolate_antialias()
             log.warning(
-                "WARNING: Fully deterministic mode enabled. This may impact performance and disable certain features like anti-aliasing. Ensure this is intended."
+                "Fully deterministic mode enabled and anti-aliasing disabled. This may "
+                "produce different results compared to non-deterministic mode and may "
+                "also impact performance. Ensure this is intended before proceeding."
             )
-            _DeterministicInterpolate()
+
+        # Apply any patches necessary for MPS compatibility if appropriate.
+        configured_accelerator = (
+            config.get("train", {}).get("trainer", {}).get("accelerator", "auto")
+        )
+        if (
+            configured_accelerator in ("mps", "auto")
+            and torch.backends.mps.is_available()
+        ):
+            patch_interpolate_antialias()
+            log.warning(
+                "Anti-aliasing disabled to avoid known segmentation faults on MPS."
+            )
 
         self.data_module_: CommonDataModule | None = None
         self.model_: BaseModel | None = None

@@ -25,4 +25,4 @@ def patch_parameter_deepcopy() -> None:
         )
 
     _deepcopy.is_patched = True  # type: ignore[attr-defined]
-    nn.Parameter.__deepcopy__ = _deepcopy  # type: ignore[method-assign]
+    nn.Parameter.__deepcopy__ = _deepcopy  # type: ignore[assignment]
