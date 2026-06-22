@@ -1,0 +1,107 @@
+# Configuration
+
+## Your local config file
+
+Create a file in `icenet_mp/config` named `<chosen-name>.local.yaml`.
+Local config files should inherit from `base.yaml` and override only what you need:
+
+```yaml
+defaults:
+  - base
+  - _self_
+
+base_path: /local/path/to/my/data
+```
+
+Run any command with your config using:
+
+```bash
+uv run imp <command> --config-name <your local config>.yaml
+```
+
+This uses the default model setup (rescaling encoder, small UNet, rescaling decoder), which is sufficient for quick tests but not for larger training runs.
+
+### Overriding model parameters
+
+To switch to a different named model config or override specific parameters:
+
+```yaml
+defaults:
+  - base
+  - override /model: cnn_unet_cnn
+  - _self_
+
+model:
+  processor:
+    start_out_channels: 37
+
+base_path: /local/path/to/my/data
+```
+
+You can also override individual options at the command line without a config file:
+
+```bash
+uv run imp <command> ++base_path=/local/path/to/my/data
+```
+
+!!! warning
+    `base_persistence.yaml` overrides the options in `base.yaml` needed to run the `Persistence` model.
+
+## HPC systems
+
+For shared HPC systems (Baskerville, DAWN, or Isambard-AI), use the appropriate base config, which sets the pre-downloaded data path and the right GPU accelerator:
+
+```yaml
+defaults:
+  - base_baskerville  # or base_dawn or base_isambardai
+  - override /data: full  # to use the full dataset instead of the sample
+  - _self_
+```
+
+## Datasets
+
+### Selecting a dataset
+
+The default dataset group is controlled by the `data` key, which defaults to `sample` in `base.yaml` (i.e. `config/data/sample.yaml`).
+
+To understand how dataset properties are encoded in dataset names, see `config/data/datasets/naming_convention.txt`.
+
+To define a custom set of datasets, create `config/data/my_datasets.local.yaml`:
+
+```yaml
+defaults:
+  - datasets:
+    - samp_sicsouth_osisaf_25p0km_2017_2019_24h_v2
+    - samp_weathersouth_era5_0p5_2017_2019_24h_v2
+  - split: sample_dataset
+  - _self_
+```
+
+Then reference it from your main config:
+
+```yaml
+defaults:
+  - <the base config file you are using>
+  - override /data: my_datasets.local
+  - _self_
+```
+
+And run with:
+
+```bash
+uv run imp train --config-name my_datasets.local
+```
+
+### Generating Argo float missing dates
+
+Some dates have no Argo float data. To generate a list of missing dates for a dataset:
+
+1. Add `ignore_missing_dates: true` to the relevant dataset file.
+2. Delete any previously downloaded version of the dataset.
+3. Run:
+
+```bash
+uv run imp datasets create --config-name <config that requires this dataset>
+```
+
+This downloads the full dataset, skipping exceptions from missing dates, and prints the missing dates at the end of each data group.
