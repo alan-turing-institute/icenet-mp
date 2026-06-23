@@ -408,18 +408,42 @@ class ModelService:
             processor=self.config["model"]["processor"],
             decoder_fitter=decoder_model,
         )
-        trainer = self.build_trainer(job_type="pretrain", job_stage="processor")
-        log.info(
-            "Starting processor training for %d epochs using %d threads across %d %s device(s).",
-            trainer.max_epochs,
-            torch.get_num_threads(),
-            trainer.num_devices,
-            get_device_name(trainer.accelerator.name()),
-        )
-        trainer.fit(
-            model=processor_model,
-            datamodule=self.data_module,
-        )
+        if checkpoint_dir is not None and (
+            matches := sorted(checkpoint_dir.glob("processor.epoch=*-step=*.ckpt"))
+        ):
+            existing_checkpoint_path = matches[-1]
+            log.info(
+                "Using existing checkpoint %s instead of training processor.",
+                existing_checkpoint_path,
+            )
+            ckpt = torch.load(
+                existing_checkpoint_path, map_location="cpu", weights_only=False
+            )
+            processor_model.load_state_dict(ckpt["state_dict"])
+        else:
+            trainer = self.build_trainer(job_type="pretrain", job_stage="processor")
+            log.info(
+                "Starting processor training for %d epochs using %d threads across %d %s device(s).",
+                trainer.max_epochs,
+                torch.get_num_threads(),
+                trainer.num_devices,
+                get_device_name(trainer.accelerator.name()),
+            )
+            trainer.fit(
+                model=processor_model,
+                datamodule=self.data_module,
+            )
+            # Save final checkpoint at a predictable path named after the processor
+            processor_checkpoint_path = (
+                self.build_run_directory(trainer)
+                / "checkpoints"
+                / f"processor.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+            )
+            trainer.save_checkpoint(processor_checkpoint_path)
+            log.info(
+                "Saved processor checkpoint to %s.",
+                processor_checkpoint_path,
+            )
 
     def train(self) -> None:
         """Train a model."""
