@@ -294,9 +294,23 @@ class ModelService:
             raise TypeError(msg)
 
         log.info("Preparing to train the encoders...")
+        encoder_checkpoint_paths = self.train_encoders(checkpoint_dir=checkpoint_dir)
+
+        log.info("Preparing to train the decoder...")
+        decoder_model = self.train_decoder(
+            encoder_checkpoint_paths, checkpoint_dir=checkpoint_dir
+        )
+
+        log.info("Preparing to train the processor...")
+        self.train_processor(decoder_model, checkpoint_dir=checkpoint_dir)
+
         OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
 
-        # Stage 1: train each encoder separately with a corresponding decoder
+    def train_encoders(self, *, checkpoint_dir: Path | None = None) -> list[Path]:
+        """Train each encoder separately with a corresponding decoder."""
+        if not isinstance(self.model, EncodeProcessDecode):
+            msg = "train_encoders is only supported for EncodeProcessDecode models."
+            raise TypeError(msg)
         encoder_checkpoint_paths = []
         for encoder in self.model.encoders:
             if checkpoint_dir is not None and (
@@ -348,8 +362,15 @@ class ModelService:
                 encoder_checkpoint_path,
             )
 
-        # Stage 2: train a decoder on the combined latent space of all encoders
-        log.info("Preparing to train the decoder...")
+        return encoder_checkpoint_paths
+
+    def train_decoder(
+        self,
+        encoder_checkpoint_paths: list[Path],
+        *,
+        checkpoint_dir: Path | None = None,
+    ) -> DecoderFitter:
+        """Train a decoder on the combined latent space of all encoders."""
         target_variables = (
             self.data_module.target_variables
             or self.data_module.variable_names[self.data_module.target_group_name]
@@ -401,9 +422,12 @@ class ModelService:
                 "Saved decoder checkpoint to %s.",
                 decoder_checkpoint_path,
             )
+        return decoder_model
 
-        # Stage 3: train a processor on the latent space
-        log.info("Preparing to train the processor...")
+    def train_processor(
+        self, decoder_model: DecoderFitter, *, checkpoint_dir: Path | None = None
+    ) -> ProcessorFitter:
+        """Train a processor on the latent space."""
         processor_model = ProcessorFitter.from_template(
             processor=self.config["model"]["processor"],
             decoder_fitter=decoder_model,
@@ -444,6 +468,7 @@ class ModelService:
                 "Saved processor checkpoint to %s.",
                 processor_checkpoint_path,
             )
+        return processor_model
 
     def train(self) -> None:
         """Train a model."""
