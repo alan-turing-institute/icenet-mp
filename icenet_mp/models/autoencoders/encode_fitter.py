@@ -77,6 +77,7 @@ class EncodeFitter(BaseModel):
             optimizer=copy.deepcopy(template.optimizer_cfg),
             output_space=template.output_space.to_dict(),
             scheduler=copy.deepcopy(template.scheduler_cfg),
+            loss=copy.deepcopy(template.loss_cfg),
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

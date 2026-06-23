@@ -74,9 +74,10 @@ class BaseModel(LightningModule, ABC):
         self.input_spaces = [DataSpace.from_dict(space) for space in input_spaces]
         self.output_space = DataSpace.from_dict(output_space)
 
-        # Store the optimizer and scheduler configs
+        # Store the optimizer, scheduler and loss configs
         self.optimizer_cfg = optimizer
         self.scheduler_cfg = scheduler
+        self.loss_cfg = loss
 
         # Metrics
         _common_metrics: dict[str, Metric | MetricCollection] = {

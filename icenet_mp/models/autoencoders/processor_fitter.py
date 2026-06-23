@@ -83,6 +83,7 @@ class ProcessorFitter(BaseModel):
             optimizer=copy.deepcopy(decoder_fitter.optimizer_cfg),
             output_space=decoder_fitter.output_space.to_dict(),
             scheduler=copy.deepcopy(decoder_fitter.scheduler_cfg),
+            loss=copy.deepcopy(decoder_fitter.loss_cfg),
         )
 
     def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

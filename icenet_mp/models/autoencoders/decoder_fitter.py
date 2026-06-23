@@ -81,6 +81,7 @@ class DecoderFitter(BaseModel):
             optimizer=copy.deepcopy(encoders[0].optimizer_cfg),
             output_space=encoders[0].output_space.to_dict(),
             scheduler=copy.deepcopy(encoders[0].scheduler_cfg),
+            loss=copy.deepcopy(encoders[0].loss_cfg),
         )
 
     @classmethod
