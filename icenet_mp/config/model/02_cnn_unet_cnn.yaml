@@ -3,19 +3,23 @@ _target_: icenet_mp.models.EncodeProcessDecode
 name: cnn-unet-cnn
 
 encoders:
-  latent_space: [108, 108]
+  latent_space: [144, 144]
   era5:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
+    scale_factor: 3
   float-argo:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
+    scale_factor: 3
   sic-icenet:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
+    scale_factor: 3
   sic-ssmis:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
+    scale_factor: 3
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
@@ -23,4 +27,5 @@ processor:
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
   bounded: false
-  n_layers: 2
+  n_layers: 1
+  scale_factor: 3
