@@ -293,25 +293,27 @@ class ModelService:
             msg = "Pretraining is only supported for EncodeProcessDecode models."
             raise TypeError(msg)
 
+        OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
+
         log.info("Preparing to train the encoders...")
-        encoder_checkpoint_paths = self.train_encoders(checkpoint_dir=checkpoint_dir)
+        encoder_fitters = self.train_encoders(checkpoint_dir=checkpoint_dir)
 
         log.info("Preparing to train the decoder...")
         decoder_model = self.train_decoder(
-            encoder_checkpoint_paths, checkpoint_dir=checkpoint_dir
+            encoder_fitters, checkpoint_dir=checkpoint_dir
         )
 
         log.info("Preparing to train the processor...")
         self.train_processor(decoder_model, checkpoint_dir=checkpoint_dir)
 
-        OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
-
-    def train_encoders(self, *, checkpoint_dir: Path | None = None) -> list[Path]:
+    def train_encoders(
+        self, *, checkpoint_dir: Path | None = None
+    ) -> list[EncodeFitter]:
         """Train each encoder separately with a corresponding decoder."""
         if not isinstance(self.model, EncodeProcessDecode):
             msg = "train_encoders is only supported for EncodeProcessDecode models."
             raise TypeError(msg)
-        encoder_checkpoint_paths = []
+        encoder_fitters = []
         for encoder in self.model.encoders:
             if checkpoint_dir is not None and (
                 matches := sorted(
@@ -324,7 +326,14 @@ class ModelService:
                     existing_checkpoint_path,
                     encoder.name,
                 )
-                encoder_checkpoint_paths.append(existing_checkpoint_path)
+                encoder_fitters.append(
+                    EncodeFitter.load_from_checkpoint(
+                        existing_checkpoint_path,
+                        weights_only=False,
+                        latitudes_fn=lambda: self.data_module.latitudes,
+                        longitudes_fn=lambda: self.data_module.longitudes,
+                    )
+                )
                 continue
 
             encoder_fitter = EncodeFitter.from_template(
@@ -355,18 +364,18 @@ class ModelService:
                 / f"encoder-{encoder.name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
             )
             trainer.save_checkpoint(encoder_checkpoint_path)
-            encoder_checkpoint_paths.append(encoder_checkpoint_path)
             log.info(
                 "Saved encoder '%s' checkpoint to %s.",
                 encoder.name,
                 encoder_checkpoint_path,
             )
+            encoder_fitters.append(encoder_fitter)
 
-        return encoder_checkpoint_paths
+        return encoder_fitters
 
     def train_decoder(
         self,
-        encoder_checkpoint_paths: list[Path],
+        encoder_fitters: list[EncodeFitter],
         *,
         checkpoint_dir: Path | None = None,
     ) -> DecoderFitter:
@@ -376,13 +385,11 @@ class ModelService:
             or self.data_module.variable_names[self.data_module.target_group_name]
         )
         target_variable_indices = [target_variables.index(v) for v in target_variables]
-        decoder_model = DecoderFitter.from_checkpoints(
+        decoder_model = DecoderFitter.from_template(
             decoder=self.config["model"]["decoder"],
-            encoder_checkpoint_paths=encoder_checkpoint_paths,
+            encoders=encoder_fitters,
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
-            latitudes_fn=lambda: self.data_module.latitudes,
-            longitudes_fn=lambda: self.data_module.longitudes,
         )
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
