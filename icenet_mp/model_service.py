@@ -301,7 +301,7 @@ class ModelService:
         for encoder in self.model.encoders:
             if checkpoint_dir is not None and (
                 matches := sorted(
-                    checkpoint_dir.glob(f"{encoder.name}.epoch=*-step=*.ckpt")
+                    checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
                 )
             ):
                 existing_checkpoint_path = matches[-1]  # take the latest match
@@ -338,7 +338,7 @@ class ModelService:
             encoder_checkpoint_path = (
                 self.build_run_directory(trainer)
                 / "checkpoints"
-                / f"{encoder.name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+                / f"encoder-{encoder.name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
             )
             trainer.save_checkpoint(encoder_checkpoint_path)
             encoder_checkpoint_paths.append(encoder_checkpoint_path)
@@ -363,20 +363,44 @@ class ModelService:
             latitudes_fn=lambda: self.data_module.latitudes,
             longitudes_fn=lambda: self.data_module.longitudes,
         )
-        # Log training details
-        trainer = self.build_trainer(job_type="pretrain", job_stage="decoder")
-        log.info(
-            "Starting decoder training for %d epochs using %d threads across %d %s device(s).",
-            trainer.max_epochs,
-            torch.get_num_threads(),
-            trainer.num_devices,
-            get_device_name(trainer.accelerator.name()),
-        )
-        # Train the model
-        trainer.fit(
-            model=decoder_model,
-            datamodule=self.data_module,
-        )
+        if checkpoint_dir is not None and (
+            matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
+        ):
+            existing_checkpoint_path = matches[-1]
+            log.info(
+                "Using existing checkpoint %s instead of training decoder.",
+                existing_checkpoint_path,
+            )
+            ckpt = torch.load(
+                existing_checkpoint_path, map_location="cpu", weights_only=False
+            )
+            decoder_model.load_state_dict(ckpt["state_dict"])
+        else:
+            # Log training details
+            trainer = self.build_trainer(job_type="pretrain", job_stage="decoder")
+            log.info(
+                "Starting decoder training for %d epochs using %d threads across %d %s device(s).",
+                trainer.max_epochs,
+                torch.get_num_threads(),
+                trainer.num_devices,
+                get_device_name(trainer.accelerator.name()),
+            )
+            # Train the model
+            trainer.fit(
+                model=decoder_model,
+                datamodule=self.data_module,
+            )
+            # Save final checkpoint at a predictable path named after the decoder
+            decoder_checkpoint_path = (
+                self.build_run_directory(trainer)
+                / "checkpoints"
+                / f"decoder.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+            )
+            trainer.save_checkpoint(decoder_checkpoint_path)
+            log.info(
+                "Saved decoder checkpoint to %s.",
+                decoder_checkpoint_path,
+            )
 
         # Stage 3: train a processor on the latent space
         log.info("Preparing to train the processor...")
