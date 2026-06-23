@@ -309,7 +309,7 @@ class ModelService:
     def train_encoders(
         self, *, checkpoint_dir: Path | None = None
     ) -> list[EncodeFitter]:
-        """Train each encoder separately with a corresponding decoder."""
+        """Train each encoder separately with a disposable decoder."""
         if not isinstance(self.model, EncodeProcessDecode):
             msg = "train_encoders is only supported for EncodeProcessDecode models."
             raise TypeError(msg)
@@ -322,9 +322,9 @@ class ModelService:
             ):
                 existing_checkpoint_path = matches[-1]  # take the latest match
                 log.info(
-                    "Using existing checkpoint %s instead of training encoder %s.",
-                    existing_checkpoint_path,
+                    "Skipping training for encoder '%s'. Loaded checkpoint from %s.",
                     encoder.name,
+                    existing_checkpoint_path,
                 )
                 encoder_fitters.append(
                     EncodeFitter.load_from_checkpoint(
@@ -348,7 +348,7 @@ class ModelService:
                 job_type="pretrain", job_stage=f"encoder-{encoder.name}"
             )
             log.info(
-                "Starting encoder %s training for %d epochs using %d threads across %d %s device(s).",
+                "Starting encoder '%s' training for %d epochs using %d threads across %d %s device(s).",
                 encoder.name,
                 trainer.max_epochs,
                 torch.get_num_threads(),
@@ -379,7 +379,7 @@ class ModelService:
         *,
         checkpoint_dir: Path | None = None,
     ) -> DecoderFitter:
-        """Train a decoder on the combined latent space of all encoders."""
+        """Train a decoder on the combined latent space of all frozen encoders."""
         target_variables = (
             self.data_module.target_variables
             or self.data_module.variable_names[self.data_module.target_group_name]
@@ -388,96 +388,88 @@ class ModelService:
             self.data_module.variable_names[self.data_module.target_group_name].index(v)
             for v in target_variables
         ]
+        if checkpoint_dir is not None and (
+            matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
+        ):
+            existing_checkpoint_path = matches[-1]
+            log.info(
+                "Skipping training for decoder. Loaded checkpoint from %s.",
+                existing_checkpoint_path,
+            )
+            return DecoderFitter.load_from_checkpoint(
+                existing_checkpoint_path,
+                map_location="cpu",
+                weights_only=False,
+                decoder=self.config["model"]["decoder"],
+                encoders=encoder_fitters,
+                target_dataset_name=self.data_module.target_group_name,
+                target_variable_indices=target_variable_indices,
+            )
+
         decoder_model = DecoderFitter.from_template(
             decoder=self.config["model"]["decoder"],
             encoders=encoder_fitters,
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
         )
-        if checkpoint_dir is not None and (
-            matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
-        ):
-            existing_checkpoint_path = matches[-1]
-            log.info(
-                "Using existing checkpoint %s instead of training decoder.",
-                existing_checkpoint_path,
-            )
-            ckpt = torch.load(
-                existing_checkpoint_path, map_location="cpu", weights_only=False
-            )
-            decoder_model.load_state_dict(ckpt["state_dict"])
-        else:
-            # Log training details
-            trainer = self.build_trainer(job_type="pretrain", job_stage="decoder")
-            log.info(
-                "Starting decoder training for %d epochs using %d threads across %d %s device(s).",
-                trainer.max_epochs,
-                torch.get_num_threads(),
-                trainer.num_devices,
-                get_device_name(trainer.accelerator.name()),
-            )
-            # Train the model
-            trainer.fit(
-                model=decoder_model,
-                datamodule=self.data_module,
-            )
-            # Save final checkpoint at a predictable path named after the decoder
-            decoder_checkpoint_path = (
-                self.build_run_directory(trainer)
-                / "checkpoints"
-                / f"decoder.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
-            )
-            trainer.save_checkpoint(decoder_checkpoint_path)
-            log.info(
-                "Saved decoder checkpoint to %s.",
-                decoder_checkpoint_path,
-            )
+        trainer = self.build_trainer(job_type="pretrain", job_stage="decoder")
+        log.info(
+            "Starting decoder training for %d epochs using %d threads across %d %s device(s).",
+            trainer.max_epochs,
+            torch.get_num_threads(),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
+        )
+        trainer.fit(model=decoder_model, datamodule=self.data_module)
+        decoder_checkpoint_path = (
+            self.build_run_directory(trainer)
+            / "checkpoints"
+            / f"decoder.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+        )
+        trainer.save_checkpoint(decoder_checkpoint_path)
+        log.info("Saved decoder checkpoint to %s.", decoder_checkpoint_path)
         return decoder_model
 
     def train_processor(
         self, decoder_model: DecoderFitter, *, checkpoint_dir: Path | None = None
     ) -> ProcessorFitter:
-        """Train a processor on the latent space."""
-        processor_model = ProcessorFitter.from_template(
-            processor=self.config["model"]["processor"],
-            decoder_fitter=decoder_model,
-        )
+        """Train a processor on the latent space using frozen encoders and decoder."""
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("processor.epoch=*-step=*.ckpt"))
         ):
             existing_checkpoint_path = matches[-1]
             log.info(
-                "Using existing checkpoint %s instead of training processor.",
+                "Skipping training for processor. Loaded checkpoint from %s.",
                 existing_checkpoint_path,
             )
-            ckpt = torch.load(
-                existing_checkpoint_path, map_location="cpu", weights_only=False
+            return ProcessorFitter.load_from_checkpoint(
+                existing_checkpoint_path,
+                map_location="cpu",
+                weights_only=False,
+                processor=self.config["model"]["processor"],
+                decoder_fitter=decoder_model,
             )
-            processor_model.load_state_dict(ckpt["state_dict"])
-        else:
-            trainer = self.build_trainer(job_type="pretrain", job_stage="processor")
-            log.info(
-                "Starting processor training for %d epochs using %d threads across %d %s device(s).",
-                trainer.max_epochs,
-                torch.get_num_threads(),
-                trainer.num_devices,
-                get_device_name(trainer.accelerator.name()),
-            )
-            trainer.fit(
-                model=processor_model,
-                datamodule=self.data_module,
-            )
-            # Save final checkpoint at a predictable path named after the processor
-            processor_checkpoint_path = (
-                self.build_run_directory(trainer)
-                / "checkpoints"
-                / f"processor.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
-            )
-            trainer.save_checkpoint(processor_checkpoint_path)
-            log.info(
-                "Saved processor checkpoint to %s.",
-                processor_checkpoint_path,
-            )
+
+        processor_model = ProcessorFitter.from_template(
+            processor=self.config["model"]["processor"],
+            decoder_fitter=decoder_model,
+        )
+        trainer = self.build_trainer(job_type="pretrain", job_stage="processor")
+        log.info(
+            "Starting processor training for %d epochs using %d threads across %d %s device(s).",
+            trainer.max_epochs,
+            torch.get_num_threads(),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
+        )
+        trainer.fit(model=processor_model, datamodule=self.data_module)
+        processor_checkpoint_path = (
+            self.build_run_directory(trainer)
+            / "checkpoints"
+            / f"processor.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+        )
+        trainer.save_checkpoint(processor_checkpoint_path)
+        log.info("Saved processor checkpoint to %s.", processor_checkpoint_path)
         return processor_model
 
     def train(self) -> None:
