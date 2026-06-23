@@ -30,5 +30,5 @@ class Persistence(BaseModel):
         - find the input with the same name as the output space
         - take the last time step and repeat it n_forecast_steps times
         """
-        target_nchw = inputs[self.output_space.name][:, 0, :, :, :]
+        target_nchw = inputs[self.output_space.name][:, -1, :, :, :]
         return torch.stack([target_nchw for _ in range(self.n_forecast_steps)], dim=1)
