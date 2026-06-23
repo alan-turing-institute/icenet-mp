@@ -1,6 +1,6 @@
 import logging
 import os
-from pathlib import Path, PosixPath
+from pathlib import Path
 from typing import cast
 
 import hydra
@@ -11,9 +11,8 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
-from icenet_mp.callbacks import UnconditionalCheckpoint
-from icenet_mp.compatibility.torch import patch_interpolate_antialias
 from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
+from icenet_mp.compatibility.torch import patch_interpolate_antialias
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.autoencoders import DecoderFitter, EncodeFitter, ProcessorFitter
@@ -128,13 +127,14 @@ class ModelService:
         model_cls: type[BaseModel] = hydra.utils.get_class(
             builder.config["model"]["_target_"]
         )
-        with torch.serialization.safe_globals([DictConfig, PosixPath]):
-            log.info("Loading a trained %s model...", builder.config["model"]["name"])
-            builder.model_ = model_cls.load_from_checkpoint(
-                checkpoint_path,
-                latitudes_fn=lambda: builder.data_module.latitudes,
-                longitudes_fn=lambda: builder.data_module.longitudes,
-            )
+        log.info("Loading a trained %s model...", builder.config["model"]["name"])
+        builder.model_ = model_cls.load_from_checkpoint(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=False,
+            latitudes_fn=lambda: builder.data_module.latitudes,
+            longitudes_fn=lambda: builder.data_module.longitudes,
+        )
 
         return builder
 
