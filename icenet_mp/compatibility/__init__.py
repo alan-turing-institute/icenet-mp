@@ -12,7 +12,7 @@ log = getLogger(__name__)
 
 def configure_external_libraries() -> None:
     """Configure any external libraries used by the application."""
-    log.info("Configuring external libraries...")
+    log.debug("Configuring external libraries...")
     patch_parameter_deepcopy()
     register_accelerators()
     register_animation_backends()
