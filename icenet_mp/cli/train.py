@@ -39,7 +39,7 @@ def pretrain(
 def train(config: DictConfig) -> None:
     """Train a model."""
     model = ModelService.from_config(config)
-    model.train()
+    model.fit()
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from typing import cast
 
 import hydra
 import torch
-from lightning import Callback, Trainer, seed_everything
+from lightning import Callback, LightningModule, Trainer, seed_everything
 from lightning.fabric.utilities import suggested_max_num_workers
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
@@ -287,13 +287,52 @@ class ModelService:
             datamodule=self.data_module,
         )
 
+    def fit(
+        self,
+        *,
+        model: LightningModule | None = None,
+        job_type: str = "train",
+        job_stage: str | None = None,
+    ) -> Trainer:
+        """Build a trainer and run trainer.fit() for the given job type and stage.
+
+        Args:
+            model: Model to train. Defaults to ``self.model`` if not provided.
+            job_type: Config section used to configure the trainer and callbacks
+                (e.g. ``"train"``, ``"pretrain"``, ``"finetune"``).
+            job_stage: Optional label passed to ``PlottingCallback.prefix`` and used
+                in log messages. Defaults to ``job_type`` when not set.
+
+        Returns:
+            The trainer after fitting, so callers can save checkpoints or inspect
+            training state (e.g. ``trainer.current_epoch``, ``trainer.global_step``).
+
+        """
+        label = job_stage or job_type
+        log.info("Configuring model for %s.", label)
+        trainer = self.build_trainer(job_type=job_type, job_stage=job_stage)
+        log.info(
+            "Starting %s for %d epochs using %d threads across %d %s device(s).",
+            label,
+            trainer.max_epochs,
+            torch.get_num_threads(),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
+        )
+        trainer.fit(model=model or self.model, datamodule=self.data_module)
+        return trainer
+
     def pretrain(self, *, checkpoint_dir: Path | None = None) -> None:
         """Pretrain an autoencoder model."""
         if not isinstance(self.model, EncodeProcessDecode):
             msg = "Pretraining is only supported for EncodeProcessDecode models."
             raise TypeError(msg)
 
-        OmegaConf.update(self.config_, "pretrain", self.config["train"], force_add=True)
+        # Ensure the pretraining configuration is present
+        if "pretrain" not in self.config_:
+            OmegaConf.update(
+                self.config_, "pretrain", self.config["train"], force_add=True
+            )
 
         log.info("Preparing to train the encoders...")
         encoder_fitters = self.train_encoders(checkpoint_dir=checkpoint_dir)
@@ -304,7 +343,29 @@ class ModelService:
         )
 
         log.info("Preparing to train the processor...")
-        self.train_processor(decoder_model, checkpoint_dir=checkpoint_dir)
+        processor_model = self.train_processor(
+            decoder_model, checkpoint_dir=checkpoint_dir
+        )
+
+        log.info("Preparing to finetune...")
+        pretrained_encoders = {e.name: e for e in processor_model.encoders}
+        for encoder in self.model.encoders:
+            encoder.load_state_dict(pretrained_encoders[encoder.name].state_dict())
+            log.info("Loaded pretrained weights for encoder '%s'.", encoder.name)
+        self.model.processor.load_state_dict(processor_model.processor.state_dict())
+        log.info("Loaded pretrained weights for processor.")
+        self.model.decoder.load_state_dict(processor_model.decoder.state_dict())
+        log.info("Loaded pretrained weights for decoder.")
+
+        finetune_cfg = OmegaConf.merge(
+            self.config["train"], self.config["train"].get("finetune", {})
+        )
+        OmegaConf.update(self.config_, "finetune", finetune_cfg, force_add=True)
+        self.fit(job_type="finetune", job_stage="finetune")
+
+    def train(self) -> None:
+        """Train a model."""
+        self.fit(job_type="train")
 
     def train_encoders(
         self, *, checkpoint_dir: Path | None = None
@@ -343,20 +404,11 @@ class ModelService:
                 encoder=self.config["model"]["encoders"][encoder.name],
                 template=self.model,
             )
-            # Log training details
-            trainer = self.build_trainer(
-                job_type="pretrain", job_stage=f"encoder-{encoder.name}"
+            trainer = self.fit(
+                model=encoder_fitter,
+                job_type="pretrain",
+                job_stage=f"encoder-{encoder.name}",
             )
-            log.info(
-                "Starting encoder '%s' training for %d epochs using %d threads across %d %s device(s).",
-                encoder.name,
-                trainer.max_epochs,
-                torch.get_num_threads(),
-                trainer.num_devices,
-                get_device_name(trainer.accelerator.name()),
-            )
-            # Train the model
-            trainer.fit(model=encoder_fitter, datamodule=self.data_module)
             # Save final checkpoint at a predictable path named after the encoder
             encoder_checkpoint_path = (
                 self.build_run_directory(trainer)
@@ -412,15 +464,9 @@ class ModelService:
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
         )
-        trainer = self.build_trainer(job_type="pretrain", job_stage="decoder")
-        log.info(
-            "Starting decoder training for %d epochs using %d threads across %d %s device(s).",
-            trainer.max_epochs,
-            torch.get_num_threads(),
-            trainer.num_devices,
-            get_device_name(trainer.accelerator.name()),
+        trainer = self.fit(
+            model=decoder_model, job_type="pretrain", job_stage="decoder"
         )
-        trainer.fit(model=decoder_model, datamodule=self.data_module)
         decoder_checkpoint_path = (
             self.build_run_directory(trainer)
             / "checkpoints"
@@ -454,15 +500,9 @@ class ModelService:
             processor=self.config["model"]["processor"],
             decoder_fitter=decoder_model,
         )
-        trainer = self.build_trainer(job_type="pretrain", job_stage="processor")
-        log.info(
-            "Starting processor training for %d epochs using %d threads across %d %s device(s).",
-            trainer.max_epochs,
-            torch.get_num_threads(),
-            trainer.num_devices,
-            get_device_name(trainer.accelerator.name()),
+        trainer = self.fit(
+            model=processor_model, job_type="pretrain", job_stage="processor"
         )
-        trainer.fit(model=processor_model, datamodule=self.data_module)
         processor_checkpoint_path = (
             self.build_run_directory(trainer)
             / "checkpoints"
@@ -471,24 +511,3 @@ class ModelService:
         trainer.save_checkpoint(processor_checkpoint_path)
         log.info("Saved processor checkpoint to %s.", processor_checkpoint_path)
         return processor_model
-
-    def train(self) -> None:
-        """Train a model."""
-        # Configure the trainer with training callbacks and loggers
-        log.info("Configuring model for training.")
-        trainer = self.build_trainer(job_type="train")
-
-        # Log training details
-        log.info(
-            "Starting training for %d epochs using %d threads across %d %s device(s).",
-            trainer.max_epochs,
-            torch.get_num_threads(),
-            trainer.num_devices,
-            get_device_name(trainer.accelerator.name()),
-        )
-
-        # Train the model
-        trainer.fit(
-            model=self.model,
-            datamodule=self.data_module,
-        )

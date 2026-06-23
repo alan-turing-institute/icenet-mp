@@ -5,6 +5,7 @@ defaults:
     - learning_rate
     - metric_summary
     - plotting
+  - finetune: default
   - optimizer: default
   - scheduler: default
   - trainer: default
