@@ -14,7 +14,7 @@
 | icenet\_mp/cli/\_\_init\_\_.py                                  |        2 |        0 |    100% |           |
 | icenet\_mp/cli/datasets.py                                      |       38 |       20 |     47% |27-34, 47-53, 66-69, 73 |
 | icenet\_mp/cli/evaluate.py                                      |       18 |        5 |     72% | 39-44, 48 |
-| icenet\_mp/cli/hydra.py                                         |       29 |        3 |     90% |     39-41 |
+| icenet\_mp/cli/hydra.py                                         |       29 |        0 |    100% |           |
 | icenet\_mp/cli/main.py                                          |       23 |        8 |     65% | 39-51, 55 |
 | icenet\_mp/cli/train.py                                         |       14 |        3 |     79% | 20-21, 25 |
 | icenet\_mp/compatibility/\_\_init\_\_.py                        |       17 |        0 |    100% |           |
@@ -119,7 +119,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |134-136, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      117 |       17 |     85% |107-108, 110-113, 144-149, 186-188, 196-197, 340, 366-367, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **4254** | **1146** | **73%** |           |
+| **TOTAL**                                                       | **4254** | **1143** | **73%** |           |
 
 
 ## Setup coverage badge
