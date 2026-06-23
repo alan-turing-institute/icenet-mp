@@ -384,7 +384,10 @@ class ModelService:
             self.data_module.target_variables
             or self.data_module.variable_names[self.data_module.target_group_name]
         )
-        target_variable_indices = [target_variables.index(v) for v in target_variables]
+        target_variable_indices = [
+            self.data_module.variable_names[self.data_module.target_group_name].index(v)
+            for v in target_variables
+        ]
         decoder_model = DecoderFitter.from_template(
             decoder=self.config["model"]["decoder"],
             encoders=encoder_fitters,
