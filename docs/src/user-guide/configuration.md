@@ -53,8 +53,8 @@ For shared HPC systems (Baskerville, DAWN, or Isambard-AI), use the appropriate 
 
 ```yaml
 defaults:
-  - base_baskerville  # or base_dawn or base_isambardai
-  - override /data: full  # to use the full dataset instead of the sample
+  - base_isambardai             # or base_dawn or base_isambardai
+  - override /data: full_north  # to use the full northern-hemisphere dataset instead of the sample
   - _self_
 ```
 
