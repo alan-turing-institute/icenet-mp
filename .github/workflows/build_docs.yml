@@ -34,7 +34,7 @@ jobs:
           python-version: "3.11"
 
       - name: Generate reference config
-        run: uv run --group docs python docs/generate_config.py
+        run: uv run --group docs python docs/scripts/generate_config.py
 
       - name: Build docs
         run: uv run --group docs zensical build

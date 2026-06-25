@@ -2,7 +2,7 @@
 
 Run from the project root:
 
-    uv run --group docs python docs/generate_config.py
+    uv run --group docs python docs/scripts/generate_config.py
 """
 
 from pathlib import Path
@@ -10,7 +10,7 @@ from pathlib import Path
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
-DOCS_DIR = Path(__file__).parent
+DOCS_DIR = Path(__file__).parent.parent
 CONFIG_DIR = str(DOCS_DIR.parent / "icenet_mp" / "config")
 OUTPUT_PATH = DOCS_DIR / "src" / "api" / "config.md"
 
@@ -41,11 +41,12 @@ uv run imp <command> --config-name my_config  # where my_config inherits base an
 
 
 def main() -> None:
+    """Compose the base Hydra config and write the API docs page."""
     with initialize_config_dir(config_dir=CONFIG_DIR, version_base=None):
         cfg = compose(config_name="base")
 
     OUTPUT_PATH.write_text(f"{HEADER}```yaml\n{OmegaConf.to_yaml(cfg)}```\n")
-    print(f"Written to {OUTPUT_PATH.relative_to(DOCS_DIR.parent)}")
+    print(f"Wrote reference config to {OUTPUT_PATH.relative_to(DOCS_DIR.parent)}")
 
 
 if __name__ == "__main__":
