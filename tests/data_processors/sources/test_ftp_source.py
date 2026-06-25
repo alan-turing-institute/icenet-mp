@@ -1,6 +1,7 @@
 """Tests for the FTP data source."""
 
 from datetime import datetime, timedelta
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,13 +15,13 @@ from icenet_mp.data_processors.sources import FTPSource, register_sources
 class TestFTPSource:
     """Test suite for FTPSource class."""
 
-    mock_context = MagicMock()
-    date_range = StartEndDates(
+    mock_context: ClassVar[MagicMock] = MagicMock()
+    date_range: ClassVar[StartEndDates] = StartEndDates(
         start=datetime(2020, 1, 1),
         end=datetime(2020, 1, 3),
         frequency=timedelta(days=1),
     )
-    dates = GroupOfDates(list(date_range), provider=date_range)
+    dates: ClassVar[GroupOfDates] = GroupOfDates(list(date_range), provider=date_range)
 
     def test_ftp_source_registration(self) -> None:
         """Test that FTPSource is properly registered."""

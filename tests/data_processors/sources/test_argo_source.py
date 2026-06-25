@@ -1,6 +1,7 @@
 """Tests for the Argo data source."""
 
 from datetime import datetime, timedelta
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -16,13 +17,13 @@ from icenet_mp.data_processors.sources.argo import _fetch_argo_dataframe_with_re
 class TestArgoSource:
     """Test suite for ArgoSource class."""
 
-    mock_context = MagicMock()
-    date_range = StartEndDates(
+    mock_context: ClassVar[MagicMock] = MagicMock()
+    date_range: ClassVar[StartEndDates] = StartEndDates(
         start=datetime(2020, 1, 1),
         end=datetime(2020, 1, 3),
         frequency=timedelta(days=1),
     )
-    dates = GroupOfDates(list(date_range), provider=date_range)
+    dates: ClassVar[GroupOfDates] = GroupOfDates(list(date_range), provider=date_range)
 
     def test_argo_source_registration(self) -> None:
         """Test that ArgoSource is properly registered."""

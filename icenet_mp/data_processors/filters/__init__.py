@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 def register_filters() -> None:
     """Register all filters with anemoi-transform."""
     filters = {
-        "nan_to_num": NanToNumFilter,
+        "nan-to-num": NanToNumFilter,
         "reproject": ReprojectFilter,
-        "set_geography": SetGeographyFilter,
+        "set-geography": SetGeographyFilter,
     }
     for filter_name, filter_class in filters.items():
         if filter_name not in filter_registry.registered:

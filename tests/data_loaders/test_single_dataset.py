@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -184,6 +185,26 @@ class TestSingleDataset:
         )
         with pytest.raises(ValueError, match="cannot reshape array"):
             dataset.get_tchw_slice(dates_as_np[0], 3, check=False)
+
+    def test_touching_ranges_merge_into_one_dataslice(
+        self,
+        mock_dataset: Path,
+        dates_as_str: tuple[str, ...],
+        dates_as_np: tuple[np.datetime64, ...],
+    ) -> None:
+        # a small test of merging touching ranges, described in issue #279.
+        dataset = SingleDataset(
+            name="mock_dataset",
+            input_files=[mock_dataset],
+            date_ranges=[
+                {"start": dates_as_str[0], "end": dates_as_str[1]},
+                {"start": dates_as_str[2], "end": dates_as_str[4]},
+            ],
+        )
+        assert len(dataset.dataslices) == 1
+        assert len(dataset) == 5
+        result = dataset.get_tchw_slice(dates_as_np[0], 3, check=False)
+        assert result.shape == (3, 3, 2, 2)
 
     def test_get_tchw_with_missing_dates(
         self,
@@ -412,3 +433,116 @@ class TestSingleDataset:
             )
             subset = dataset.subset(variables=["ice_conc"])
             assert subset._normalise is flag
+
+    def test_normalise_date_ranges_adjacent_merge(self) -> None:
+        """Consecutive ranges (next starts the day after) merge into one span."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2020-01-01", "end": "2020-06-30"},
+                {"start": "2020-07-01", "end": "2020-12-31"},
+            ]
+        ) == [{"start": "2020-01-01", "end": "2020-12-31"}]
+
+    def test_normalise_date_ranges_shared_boundary_merge(self) -> None:
+        """Ranges meeting on the same day merge (treated as consecutive)."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2020-01-01", "end": "2020-07-01"},
+                {"start": "2020-07-01", "end": "2020-12-31"},
+            ]
+        ) == [{"start": "2020-01-01", "end": "2020-12-31"}]
+
+    def test_normalise_date_ranges_gap_not_merged(self) -> None:
+        """A missing day between ranges leaves them as separate spans."""
+        ranges: list[dict[str, str | None]] = [
+            {"start": "2020-01-01", "end": "2020-06-30"},
+            {"start": "2020-07-02", "end": "2020-12-31"},
+        ]
+        assert SingleDataset.normalise_date_ranges(ranges) == ranges
+
+    def test_normalise_date_ranges_overlap_merge(self) -> None:
+        """A range fully containing another merges to the outer span (no truncation)."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2020-01-01", "end": "2020-12-31"},
+                {"start": "2020-03-01", "end": "2020-06-30"},
+            ]
+        ) == [{"start": "2020-01-01", "end": "2020-12-31"}]
+
+    def test_normalise_date_ranges_partial_overlap_merge(self) -> None:
+        """Partially overlapping ranges merge to earliest start and latest end."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2025-01-01", "end": "2025-03-31"},
+                {"start": "2025-02-01", "end": "2025-05-31"},
+            ]
+        ) == [{"start": "2025-01-01", "end": "2025-05-31"}]
+
+    def test_normalise_date_ranges_end_none_merge(self) -> None:
+        """An open end (None = after any date) overlaps a later range, so they merge."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2020-01-01", "end": None},
+                {"start": "2020-06-01", "end": "2020-09-30"},
+            ]
+        ) == [{"start": "2020-01-01", "end": None}]
+
+    def test_normalise_date_ranges_end_none_inside_other_merge(self) -> None:
+        """An open-ended range starting inside another keeps the earliest start, open end."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": "2020-06-01", "end": None},
+                {"start": "2020-01-01", "end": "2020-09-30"},
+            ]
+        ) == [{"start": "2020-01-01", "end": None}]
+
+    def test_normalise_date_ranges_start_none_merge(self) -> None:
+        """Two open starts (None = before any date) overlap, so they merge."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": None, "end": "2020-03-31"},
+                {"start": None, "end": "2020-06-30"},
+            ]
+        ) == [{"start": None, "end": "2020-06-30"}]
+
+    def test_normalise_date_ranges_open_outer_ends_merge(self) -> None:
+        """Open-beginning + open-ending halves that meet merge to the whole range."""
+        assert SingleDataset.normalise_date_ranges(
+            [
+                {"start": None, "end": "2020-06-30"},
+                {"start": "2020-07-01", "end": None},
+            ]
+        ) == [{"start": None, "end": None}]
+
+    def test_normalise_date_ranges_warns_on_merge(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A merge emits exactly one warning so the user notices ranges were altered."""
+        with caplog.at_level(logging.WARNING):
+            result = SingleDataset.normalise_date_ranges(
+                [
+                    {"start": "2020-01-01", "end": "2020-06-30"},
+                    {"start": "2020-07-01", "end": "2020-12-31"},
+                ]
+            )
+        assert result == [{"start": "2020-01-01", "end": "2020-12-31"}]
+        merge_warnings = [
+            record
+            for record in caplog.records
+            if record.levelno == logging.WARNING
+            and "Merged overlapping or touching date ranges" in record.getMessage()
+        ]
+        assert len(merge_warnings) == 1
+
+    def test_normalise_date_ranges_single_and_empty_passthrough(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Empty or single-range input is returned unchanged with no merge warning."""
+        with caplog.at_level(logging.WARNING):
+            assert SingleDataset.normalise_date_ranges([]) == []
+            assert SingleDataset.normalise_date_ranges(
+                [{"start": "2020-01-01", "end": "2020-06-30"}]
+            ) == [{"start": "2020-01-01", "end": "2020-06-30"}]
+        assert not [
+            record for record in caplog.records if record.levelno == logging.WARNING
+        ]
