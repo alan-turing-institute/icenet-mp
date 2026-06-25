@@ -87,12 +87,12 @@ defaults:
 And run with:
 
 ```bash
-uv run imp train --config-name my_datasets.local
+uv run imp train --config-name my_local_config
 ```
 
 ### Generating Argo float missing dates
 
-Some dates have no Argo float data. To generate a list of missing dates for a dataset:
+Some dates have no Argo float data. When specifying a new Argo float dataset for the first time it is necessary to generate a list of missing dates for a dataset. This can be done as follows:
 
 1. Add `ignore_missing_dates: true` to the relevant dataset file.
 2. Delete any previously downloaded version of the dataset.

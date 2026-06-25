@@ -6,6 +6,7 @@
 ## `datasets create`
 
 You will need a [CDS account](https://cds.climate.copernicus.eu/how-to-api) to download ERA5 data with `anemoi`.
+By default, a sample dataset will be downloaded which should be small enough to fit on your personal computer. The full datasets are available on Isambard.
 
 ```bash
 uv run imp datasets create
@@ -25,7 +26,7 @@ With the `--verbose` option it will also print statistical summaries of the vari
 ## `train`
 
 You will need a [Weights & Biases account](https://docs.wandb.ai/models/quickstart).
-Generate an API key then authenticate:
+Generate an API key, then authenticate:
 
 ```bash
 export WANDB_API_KEY=<your_api_key>
