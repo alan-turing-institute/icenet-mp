@@ -62,4 +62,5 @@ evaluate:
       make_input_plots: true
 ```
 
-Output directories, styling, and animation parameters are controlled by `config.evaluate.callbacks.raw_inputs`. Any of these can be overridden at the command line.
+Output directories, styling, and animation parameters can be altered by changing `config.evaluate.callbacks.plotting.plot_spec`.
+Any of these can be overridden at the command line.
