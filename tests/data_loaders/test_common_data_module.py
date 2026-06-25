@@ -1,9 +1,20 @@
+from pathlib import Path
+
 from omegaconf import DictConfig
 
 from icenet_mp.data_loaders.common_data_module import CommonDataModule
 
 
 class TestCommonDataModule:
+    def test_active_mask_path_derived_from_target_dataset(
+        self, cfg_common_data_module: DictConfig
+    ) -> None:
+        """The mask path is built from the root and the SIC target dataset's name."""
+        dm = CommonDataModule(cfg_common_data_module)
+        assert dm.active_mask_path == Path(
+            "/mock/base/path/data/preprocessing/masks/mock/active_mask.npy"
+        )
+
     def test_null_preserved_as_none(self, cfg_common_data_module: DictConfig) -> None:
         """Python None (YAML null) must not be stringified to 'None'."""
         dm = CommonDataModule(cfg_common_data_module)

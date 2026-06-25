@@ -1,9 +1,6 @@
-from pathlib import Path
 from typing import Any
 
-import numpy as np
-from torch import from_numpy, nn, ones
-from torch.nn.functional import sigmoid
+from torch import nn
 
 from icenet_mp.models.common import ResizingInterpolation
 from icenet_mp.types import TensorNCHW
@@ -21,25 +18,9 @@ class NaiveLinearDecoder(BaseDecoder):
         TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
     """
 
-    def __init__(
-        self, mask_path: str | None = None, *, bounded: bool = False, **kwargs: Any
-    ) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """Initialise a NaiveLinearDecoder."""
         super().__init__(**kwargs)
-
-        # specify whether the output is bounded between 0 and 1
-        self.bounded = bounded
-
-        # load in the mask and save it as a tensor
-        if mask_path is not None:
-            mask_np = np.load(Path(mask_path))
-            self.register_buffer("mask", from_numpy(mask_np).float(), persistent=False)
-        else:
-            self.register_buffer(
-                "mask",
-                ones(self.data_space_out.shape[2:]),
-                persistent=False,
-            )
 
         # List of layers
         layers: list[nn.Module] = []
@@ -67,10 +48,4 @@ class NaiveLinearDecoder(BaseDecoder):
 
         """
         output = self.model(x)
-
-        # set all masked cells to zero
-        output = output * self.mask.to(dtype=output.dtype)
-
-        if self.bounded:
-            return sigmoid(output)
-        return output
+        return self.finalise(output)

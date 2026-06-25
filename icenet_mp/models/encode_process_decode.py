@@ -21,10 +21,15 @@ class EncodeProcessDecode(BaseModel):
         encoders: DictConfig,
         processor: DictConfig,
         decoder: DictConfig,
+        active_mask_path: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
         super().__init__(**kwargs)
+
+        # Resolved at model-build from the data module (ref model_service);
+        # decoder loads it only when use_mask is True.
+        self.active_mask_path = active_mask_path
 
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
@@ -77,6 +82,7 @@ class EncodeProcessDecode(BaseModel):
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
             n_forecast_steps=self.n_forecast_steps,
+            active_mask_path=self.active_mask_path,
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

@@ -9,6 +9,7 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from icenet_mp.types import ArrayTCHW, DataloaderArgs, DataSpace, Hemisphere
+from icenet_mp.utils import mask_dir
 
 from .combined_dataset import CombinedDataset
 from .single_dataset import SingleDataset
@@ -118,6 +119,18 @@ class CommonDataModule(LightningDataModule):
     def longitudes(self) -> dict[str, list[float]]:
         """Return the longitudes of the dataset."""
         return {name: ds.longitudes for name, ds in self.datasets.items()}
+
+    @cached_property
+    def active_mask_path(self) -> Path:
+        """Path to the active mask for the dataset.
+
+        Derived from the `base_path` (root) and the SIC target dataset (mask filename),
+        so the path always traces the data path. Note: the file exists only for
+        datasets whose masks have been generated (eg, currently the SSMIS datasets
+        sitting on the isambard shard workspace).
+        """
+        target_name = self.dataset_groups[self.target_group_name][0].stem
+        return mask_dir(self.base_path, target_name) / "active_mask.npy"
 
     @cached_property
     def output_space(self) -> DataSpace:

@@ -86,6 +86,7 @@ class ModelService:
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
             output_space=builder.data_module.output_space.to_dict(),
+            active_mask_path=str(builder.data_module.active_mask_path),
             optimizer=config["train"]["optimizer"],
             scheduler=config["train"]["scheduler"],
             loss=config["loss"],
@@ -136,6 +137,7 @@ class ModelService:
                 checkpoint_path,
                 latitudes_fn=lambda: builder.data_module.latitudes,
                 longitudes_fn=lambda: builder.data_module.longitudes,
+                active_mask_path=str(builder.data_module.active_mask_path),
             )
 
         return builder
