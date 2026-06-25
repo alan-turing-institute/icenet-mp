@@ -15,3 +15,4 @@ Select a module from the navigation to view its full API.
 | [models](models.md) | Neural network architectures |
 | [types](types.md) | Shared type aliases and protocols |
 | [visualisations](visualisations.md) | Plotting and animation utilities |
+| [config](config.md) | Full default configuration reference |

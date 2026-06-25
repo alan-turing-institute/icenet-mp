@@ -29,6 +29,7 @@ nav = [
         { "Models" = "api/models.md" },
         { "Types" = "api/types.md" },
         { "Visualisations" = "api/visualisations.md" },
+        { "Configuration YAML" = "api/config.md" },
     ] },
 ]
 

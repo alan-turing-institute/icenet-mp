@@ -8,6 +8,7 @@ __pycache__
 *local.yaml
 dist
 docs/_build
+docs/src/api/config.md
 outputs
 wandb
 notebooks/data
