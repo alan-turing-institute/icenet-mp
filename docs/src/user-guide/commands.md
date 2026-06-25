@@ -1,7 +1,7 @@
 # Commands
 
 !!! note
-    When running locally, set `base_path` in your local config and pass `--config-name <your local YAML config>` to each command.
+    When running locally, set `base_path` in your local config and pass `--config-name NAME_OF_LOCAL_CONFIG` to each command.
 
 ## `datasets create`
 
@@ -19,11 +19,13 @@ Anemoi tracks which date groups have been downloaded, so an interrupted download
 uv run imp datasets inspect
 ```
 
-Prints dataset properties and statistical summaries of the variables.
+Prints basic properties of each dataset.
+With the `--verbose` option it will also print statistical summaries of the variables.
 
 ## `train`
 
-You will need a [Weights & Biases account](https://docs.wandb.ai/models/quickstart). Generate an API key then authenticate:
+You will need a [Weights & Biases account](https://docs.wandb.ai/models/quickstart).
+Generate an API key then authenticate:
 
 ```bash
 export WANDB_API_KEY=<your_api_key>

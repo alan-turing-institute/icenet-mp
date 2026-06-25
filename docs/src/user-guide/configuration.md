@@ -16,7 +16,7 @@ base_path: /local/path/to/my/data
 Run any command with your config using:
 
 ```bash
-uv run imp <command> --config-name <your local config>.yaml
+uv run imp <command> --config-name <your local config>.local
 ```
 
 This uses the default model setup (rescaling encoder, small UNet, rescaling decoder), which is sufficient for quick tests but not for larger training runs.
@@ -33,7 +33,7 @@ defaults:
 
 model:
   processor:
-    start_out_channels: 37
+    start_out_channels: 32
 
 base_path: /local/path/to/my/data
 ```
@@ -45,7 +45,7 @@ uv run imp <command> ++base_path=/local/path/to/my/data
 ```
 
 !!! warning
-    `base_persistence.yaml` overrides the options in `base.yaml` needed to run the `Persistence` model.
+    `base_persistence.yaml` overrides the options in `base.yaml` needed to run the `persistence` model.
 
 ## HPC systems
 
@@ -63,9 +63,7 @@ defaults:
 ### Selecting a dataset
 
 The default dataset group is controlled by the `data` key, which defaults to `sample` in `base.yaml` (i.e. `config/data/sample.yaml`).
-
 To understand how dataset properties are encoded in dataset names, see `config/data/datasets/naming_convention.txt`.
-
 To define a custom set of datasets, create `config/data/my_datasets.local.yaml`:
 
 ```yaml
