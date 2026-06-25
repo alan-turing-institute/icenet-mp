@@ -131,6 +131,7 @@ known-third-party = ["wandb"]
 [tool.ruff.lint.per-file-ignores]
 "docs/scripts/*.py" = [
     "INP001", # allow implicit namespace for docs scripts
+    "T201",   # allow print statements in docs scripts
 ]
 "tests/**/*.py" = [
     "DTZ001", # allow unlocalised datetimes in tests
