@@ -7,8 +7,9 @@ import torch
 from omegaconf import DictConfig
 
 from icenet_mp.models import BaseModel
-from icenet_mp.models.autoencoders.encode_fitter import EncodeFitter
 from icenet_mp.types import DataSpace, ModelStepOutput, TensorNTCHW
+
+from .encoder_stage import EncoderStage
 
 if TYPE_CHECKING:
     from icenet_mp.models.decoders import BaseDecoder
@@ -16,19 +17,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DecoderFitter(BaseModel):
+class DecoderStage(BaseModel):
     def __init__(
         self,
         decoder: DictConfig,
-        encoders: list[EncodeFitter],
+        encoders: list[EncoderStage],
         target_dataset_name: str,
         target_variable_indices: list[int],
         **kwargs: Any,
     ) -> None:
-        """Initialise a DecoderFitter with multiple frozen encoders and a trainable decoder."""
+        """Initialise a DecoderStage with multiple frozen encoders and a trainable decoder."""
         super().__init__(**kwargs)
 
-        # Copy encoders from EncodeFitters, freeze their parameters and register them
+        # Copy encoders from EncoderStages, freeze their parameters and register them
         self.encoder_names = [encoder.dataset_name for encoder in encoders]
         self.encoders = [copy.deepcopy(encoder.encoder) for encoder in encoders]
         for encoder in self.encoders:
@@ -61,11 +62,11 @@ class DecoderFitter(BaseModel):
         cls,
         *,
         decoder: DictConfig,
-        encoders: list[EncodeFitter],
+        encoders: list[EncoderStage],
         target_dataset_name: str,
         target_variable_indices: list[int],
-    ) -> "DecoderFitter":
-        """Create a DecoderFitter from a list of trained EncodeFitters."""
+    ) -> "DecoderStage":
+        """Create a DecoderStage from a list of trained EncoderStages."""
         return cls(
             decoder=decoder,
             encoders=encoders,
@@ -75,7 +76,7 @@ class DecoderFitter(BaseModel):
             input_spaces=[s.to_dict() for s in encoders[0].input_spaces],
             n_forecast_steps=encoders[0].n_forecast_steps,
             n_history_steps=encoders[0].n_history_steps,
-            name=encoders[0].name.replace("encode_fitter", "decoder_fitter"),
+            name=encoders[0].name.replace("encoder_model", "decoder_model"),
             optimizer=copy.deepcopy(encoders[0].optimizer_cfg),
             output_space=encoders[0].output_space.to_dict(),
             scheduler=copy.deepcopy(encoders[0].scheduler_cfg),

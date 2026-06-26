@@ -33,10 +33,10 @@ def train(
     in_stages: Annotated[
         bool,
         typer.Option(
-            "--in-stages",
+            "--in-stages/--full",
             help=(
-                "Train a composable model in stages (encoders, then decoder, "
-                "then processor, then finetune). Default is end-to-end training."
+                "Train an EncodeProcessDecode model in stages (encoders, then decoder, "
+                "then processor, then finetune). Default is full end-to-end training."
             ),
         ),
     ] = False,

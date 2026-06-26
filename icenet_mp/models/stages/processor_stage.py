@@ -7,8 +7,9 @@ import torch
 from omegaconf import DictConfig
 
 from icenet_mp.models import BaseModel
-from icenet_mp.models.autoencoders.decoder_fitter import DecoderFitter
 from icenet_mp.types import ModelStepOutput, TensorNTCHW
+
+from .decoder_stage import DecoderStage
 
 if TYPE_CHECKING:
     from icenet_mp.models.encoders import BaseEncoder
@@ -17,19 +18,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ProcessorFitter(BaseModel):
+class ProcessorStage(BaseModel):
     def __init__(
         self,
         processor: DictConfig,
-        decoder_fitter: DecoderFitter,
+        decoder_model: DecoderStage,
         **kwargs: Any,
     ) -> None:
-        """Initialise a ProcessorFitter with frozen encoders, a frozen decoder, and a trainable processor."""
+        """Initialise a ProcessorStage with frozen encoders, a frozen decoder, and a trainable processor."""
         super().__init__(**kwargs)
 
-        # Copy encoders from DecoderFitter, freeze their parameters and register them
-        self.encoder_names = decoder_fitter.encoder_names
-        self.encoders = [copy.deepcopy(encoder) for encoder in decoder_fitter.encoders]
+        # Copy encoders from DecoderStage, freeze their parameters and register them
+        self.encoder_names = decoder_model.encoder_names
+        self.encoders = [copy.deepcopy(encoder) for encoder in decoder_model.encoders]
         for encoder in self.encoders:
             for param in encoder.parameters():
                 param.requires_grad = False
@@ -37,22 +38,22 @@ class ProcessorFitter(BaseModel):
 
         # Identify which encoder to use to encode the target if needed
         try:
-            target_encoder_idx = self.encoder_names.index(decoder_fitter.target_name)
+            target_encoder_idx = self.encoder_names.index(decoder_model.target_name)
         except ValueError:
             msg = (
-                f"Target dataset '{decoder_fitter.target_name}' has no corresponding "
-                f"encoder in {self.encoder_names}. ProcessorFitter requires an "
+                f"Target dataset '{decoder_model.target_name}' has no corresponding "
+                f"encoder in {self.encoder_names}. ProcessorStage requires an "
                 "appropriate encoder for the target dataset to support latent-space "
                 "losses."
             )
             raise ValueError(msg) from None
         self.target_encoder: BaseEncoder = self.encoders[target_encoder_idx]
 
-        # Copy combined latent space from DecoderFitter
-        combined_latent_space = decoder_fitter.decoder.data_space_in
+        # Copy combined latent space from DecoderStage
+        combined_latent_space = decoder_model.decoder.data_space_in
 
-        # Copy decoder from DecoderFitter and freeze it
-        self.decoder = copy.deepcopy(decoder_fitter.decoder)
+        # Copy decoder from DecoderStage and freeze it
+        self.decoder = copy.deepcopy(decoder_model.decoder)
         for param in self.decoder.parameters():
             param.requires_grad = False
 
@@ -69,21 +70,21 @@ class ProcessorFitter(BaseModel):
         cls,
         *,
         processor: DictConfig,
-        decoder_fitter: DecoderFitter,
-    ) -> "ProcessorFitter":
-        """Create a ProcessorFitter from a trained DecoderFitter."""
+        decoder_model: DecoderStage,
+    ) -> "ProcessorStage":
+        """Create a ProcessorStage from a trained DecoderStage."""
         return cls(
             processor=processor,
-            decoder_fitter=decoder_fitter,
-            hemisphere=decoder_fitter.hemisphere,
-            input_spaces=[s.to_dict() for s in decoder_fitter.input_spaces],
-            n_forecast_steps=decoder_fitter.n_forecast_steps,
-            n_history_steps=decoder_fitter.n_history_steps,
-            name=decoder_fitter.name.replace("decoder_fitter", "processor_fitter"),
-            optimizer=copy.deepcopy(decoder_fitter.optimizer_cfg),
-            output_space=decoder_fitter.output_space.to_dict(),
-            scheduler=copy.deepcopy(decoder_fitter.scheduler_cfg),
-            loss=copy.deepcopy(decoder_fitter.loss_cfg),
+            decoder_model=decoder_model,
+            hemisphere=decoder_model.hemisphere,
+            input_spaces=[s.to_dict() for s in decoder_model.input_spaces],
+            n_forecast_steps=decoder_model.n_forecast_steps,
+            n_history_steps=decoder_model.n_history_steps,
+            name=decoder_model.name.replace("decoder_model", "processor_model"),
+            optimizer=copy.deepcopy(decoder_model.optimizer_cfg),
+            output_space=decoder_model.output_space.to_dict(),
+            scheduler=copy.deepcopy(decoder_model.scheduler_cfg),
+            loss=copy.deepcopy(decoder_model.loss_cfg),
         )
 
     def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

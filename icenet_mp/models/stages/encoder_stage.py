@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class EncodeFitter(BaseModel):
+class EncoderStage(BaseModel):
     def __init__(
         self,
         channel_names: list[str],
@@ -25,7 +25,7 @@ class EncodeFitter(BaseModel):
         latent_space: tuple[int, int],
         **kwargs: Any,
     ) -> None:
-        """Initialise an EncodeFitter with a trainable encoder and a disposable decoder."""
+        """Initialise an EncoderStage with a trainable encoder and a disposable decoder."""
         super().__init__(**kwargs)
 
         # Store channel names
@@ -61,8 +61,8 @@ class EncodeFitter(BaseModel):
         decoder: DictConfig,
         encoder: DictConfig,
         template: EncodeProcessDecode,
-    ) -> "EncodeFitter":
-        """Create an EncodeFitter from an existing EncodeProcessDecode template."""
+    ) -> "EncoderStage":
+        """Create an EncoderStage from an existing EncodeProcessDecode template."""
         return cls(
             channel_names=channel_names,
             dataset=dataset,
@@ -73,7 +73,7 @@ class EncodeFitter(BaseModel):
             latent_space=template.encoders[0].data_space_out.shape,
             n_forecast_steps=template.n_forecast_steps,
             n_history_steps=template.n_history_steps,
-            name=f"{template.name}_encoder_fitter",
+            name=f"{template.name}_encoder_model",
             optimizer=copy.deepcopy(template.optimizer_cfg),
             output_space=template.output_space.to_dict(),
             scheduler=copy.deepcopy(template.scheduler_cfg),
