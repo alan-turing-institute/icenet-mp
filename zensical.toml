@@ -15,8 +15,10 @@ nav = [
         { "Commands" = "user-guide/commands.md" },
     ] },
     { "How-to" = [
+        { "Overview" = "how-to/index.md" },
         { "Add a model" = "how-to/add-a-model.md" },
-        { "Train in stages" = "how-to/train-in-stages.md" },
+        { "Train a model" = "how-to/train.md" },
+        { "Run multistage training" = "how-to/train-multistage.md" },
     ] },
     { "API Reference" = [
         { "Overview" = "api/index.md" },
