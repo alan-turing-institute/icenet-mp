@@ -299,7 +299,7 @@ class ModelService:
         Args:
             model: Model to train. Defaults to ``self.model`` if not provided.
             job_type: Config section used to configure the trainer and callbacks
-                (e.g. ``"train"``, ``"pretrain"``, ``"finetune"``).
+                (e.g. "train" or "train_staged").
             job_stage: Optional label passed to ``PlottingCallback.prefix`` and used
                 in log messages. Defaults to ``job_type`` when not set.
 
@@ -322,110 +322,50 @@ class ModelService:
         trainer.fit(model=model or self.model, datamodule=self.data_module)
         return trainer
 
-    def pretrain(self, *, checkpoint_dir: Path | None = None) -> None:
-        """Pretrain an autoencoder model."""
+    def train(
+        self, *, checkpoint_dir: Path | None = None, in_stages: bool = False
+    ) -> None:
+        """Train a model."""
+        if in_stages:
+            self.train_staged(checkpoint_dir=checkpoint_dir)
+        else:
+            self.fit(job_type="train")
+
+    def train_staged(self, *, checkpoint_dir: Path | None = None) -> None:
+        """Train a composable model in stages."""
         if not isinstance(self.model, EncodeProcessDecode):
-            msg = "Pretraining is only supported for EncodeProcessDecode models."
+            msg = "Staged training is only supported for EncodeProcessDecode models."
             raise TypeError(msg)
 
-        # Ensure the pretraining configuration is present
-        if "pretrain" not in self.config_:
-            OmegaConf.update(
-                self.config_, "pretrain", self.config["train"], force_add=True
-            )
+        # Merge the training configuration with any staged overrides
+        train_staged_cfg = OmegaConf.merge(
+            self.config["train"], self.config["train"].get("staged", {})
+        )
+        OmegaConf.update(self.config_, "train_staged", train_staged_cfg, force_add=True)
 
         log.info("Preparing to train the encoders...")
-        encoder_fitters = self.train_encoders(checkpoint_dir=checkpoint_dir)
+        encoder_fitters = self.train_staged_encoders(checkpoint_dir=checkpoint_dir)
 
         log.info("Preparing to train the decoder...")
-        decoder_model = self.train_decoder(
+        decoder_model = self.train_staged_decoder(
             encoder_fitters, checkpoint_dir=checkpoint_dir
         )
 
         log.info("Preparing to train the processor...")
-        processor_model = self.train_processor(
+        processor_model = self.train_staged_processor(
             decoder_model, checkpoint_dir=checkpoint_dir
         )
 
-        log.info("Preparing to finetune...")
-        pretrained_encoders = {e.name: e for e in processor_model.encoders}
-        for encoder in self.model.encoders:
-            encoder.load_state_dict(pretrained_encoders[encoder.name].state_dict())
-            log.info("Loaded pretrained weights for encoder '%s'.", encoder.name)
-        self.model.processor.load_state_dict(processor_model.processor.state_dict())
-        log.info("Loaded pretrained weights for processor.")
-        self.model.decoder.load_state_dict(processor_model.decoder.state_dict())
-        log.info("Loaded pretrained weights for decoder.")
-
+        # Merge the training configuration with any finetuning overrides
         finetune_cfg = OmegaConf.merge(
             self.config["train"], self.config["train"].get("finetune", {})
         )
-        OmegaConf.update(self.config_, "finetune", finetune_cfg, force_add=True)
-        self.fit(job_type="finetune", job_stage="finetune")
+        OmegaConf.update(self.config_, "train_staged", finetune_cfg, force_add=True)
 
-    def train(self) -> None:
-        """Train a model."""
-        self.fit(job_type="train")
+        log.info("Preparing to finetune...")
+        self.train_staged_finetune(self.model, processor_model=processor_model)
 
-    def train_encoders(
-        self, *, checkpoint_dir: Path | None = None
-    ) -> list[EncodeFitter]:
-        """Train each encoder separately with a disposable decoder."""
-        if not isinstance(self.model, EncodeProcessDecode):
-            msg = "train_encoders is only supported for EncodeProcessDecode models."
-            raise TypeError(msg)
-        encoder_fitters = []
-        for encoder in self.model.encoders:
-            if checkpoint_dir is not None and (
-                matches := sorted(
-                    checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
-                )
-            ):
-                existing_checkpoint_path = matches[-1]  # take the latest match
-                log.info(
-                    "Skipping training for encoder '%s'. Loaded checkpoint from %s.",
-                    encoder.name,
-                    existing_checkpoint_path,
-                )
-                encoder_fitters.append(
-                    EncodeFitter.load_from_checkpoint(
-                        existing_checkpoint_path,
-                        weights_only=False,
-                        latitudes_fn=lambda: self.data_module.latitudes,
-                        longitudes_fn=lambda: self.data_module.longitudes,
-                    )
-                )
-                continue
-
-            encoder_fitter = EncodeFitter.from_template(
-                channel_names=self.data_module.variable_names[encoder.name],
-                dataset=encoder.name,
-                decoder=self.config["model"]["decoder"],
-                encoder=self.config["model"]["encoders"][encoder.name],
-                template=self.model,
-            )
-            trainer = self.fit(
-                model=encoder_fitter,
-                job_type="pretrain",
-                job_stage=f"encoder-{encoder.name}",
-            )
-            # Save final checkpoint at a predictable path named after the encoder
-            encoder_checkpoint_path = (
-                self.build_run_directory(trainer)
-                / "checkpoints"
-                / f"encoder-{encoder.name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
-            )
-            trainer.save_checkpoint(encoder_checkpoint_path)
-            log.info(
-                "Saved encoder '%s' checkpoint to %s.",
-                encoder.name,
-                encoder_checkpoint_path,
-            )
-            encoder_fitters.append(encoder_fitter)
-
-        return encoder_fitters
-
-    def train_decoder(
+    def train_staged_decoder(
         self,
         encoder_fitters: list[EncodeFitter],
         *,
@@ -465,7 +405,7 @@ class ModelService:
             target_variable_indices=target_variable_indices,
         )
         trainer = self.fit(
-            model=decoder_model, job_type="pretrain", job_stage="decoder"
+            model=decoder_model, job_type="train_staged", job_stage="decoder"
         )
         decoder_checkpoint_path = (
             self.build_run_directory(trainer)
@@ -476,7 +416,82 @@ class ModelService:
         log.info("Saved decoder checkpoint to %s.", decoder_checkpoint_path)
         return decoder_model
 
-    def train_processor(
+    def train_staged_encoders(
+        self, *, checkpoint_dir: Path | None = None
+    ) -> list[EncodeFitter]:
+        """Train each encoder separately with a disposable decoder."""
+        if not isinstance(self.model, EncodeProcessDecode):
+            msg = "train_staged_encoders is only supported for EncodeProcessDecode models."
+            raise TypeError(msg)
+        encoder_fitters = []
+        for encoder in self.model.encoders:
+            if checkpoint_dir is not None and (
+                matches := sorted(
+                    checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
+                )
+            ):
+                existing_checkpoint_path = matches[-1]  # take the latest match
+                log.info(
+                    "Skipping training for encoder '%s'. Loaded checkpoint from %s.",
+                    encoder.name,
+                    existing_checkpoint_path,
+                )
+                encoder_fitters.append(
+                    EncodeFitter.load_from_checkpoint(
+                        existing_checkpoint_path,
+                        weights_only=False,
+                        latitudes_fn=lambda: self.data_module.latitudes,
+                        longitudes_fn=lambda: self.data_module.longitudes,
+                    )
+                )
+                continue
+
+            encoder_fitter = EncodeFitter.from_template(
+                channel_names=self.data_module.variable_names[encoder.name],
+                dataset=encoder.name,
+                decoder=self.config["model"]["decoder"],
+                encoder=self.config["model"]["encoders"][encoder.name],
+                template=self.model,
+            )
+            trainer = self.fit(
+                model=encoder_fitter,
+                job_type="train_staged",
+                job_stage=f"encoder-{encoder.name}",
+            )
+            # Save final checkpoint at a predictable path named after the encoder
+            encoder_checkpoint_path = (
+                self.build_run_directory(trainer)
+                / "checkpoints"
+                / f"encoder-{encoder.name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+            )
+            trainer.save_checkpoint(encoder_checkpoint_path)
+            log.info(
+                "Saved encoder '%s' checkpoint to %s.",
+                encoder.name,
+                encoder_checkpoint_path,
+            )
+            encoder_fitters.append(encoder_fitter)
+
+        return encoder_fitters
+
+    def train_staged_finetune(
+        self,
+        model: EncodeProcessDecode,
+        processor_model: ProcessorFitter,
+    ) -> None:
+        log.info("Preparing to finetune...")
+        frozen_encoders = {e.name: e for e in processor_model.encoders}
+        for encoder in model.encoders:
+            encoder.load_state_dict(frozen_encoders[encoder.name].state_dict())
+            log.info("Loaded pretrained weights for encoder '%s'.", encoder.name)
+        model.processor.load_state_dict(processor_model.processor.state_dict())
+        log.info("Loaded pretrained weights for processor.")
+        model.decoder.load_state_dict(processor_model.decoder.state_dict())
+        log.info("Loaded pretrained weights for decoder.")
+        # Perform the finetuning fit
+        self.fit(job_type="train_staged", job_stage="finetune")
+
+    def train_staged_processor(
         self, decoder_model: DecoderFitter, *, checkpoint_dir: Path | None = None
     ) -> ProcessorFitter:
         """Train a processor on the latent space using frozen encoders and decoder."""
@@ -501,7 +516,7 @@ class ModelService:
             decoder_fitter=decoder_model,
         )
         trainer = self.fit(
-            model=processor_model, job_type="pretrain", job_stage="processor"
+            model=processor_model, job_type="train_staged", job_stage="processor"
         )
         processor_checkpoint_path = (
             self.build_run_directory(trainer)
