@@ -129,7 +129,7 @@ class ModelService:
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
         builder.model_ = model_cls.load_from_checkpoint(
             checkpoint_path,
-            map_location="cpu",
+            map_location="cpu",  # portability: will be moved to the correct device later
             weights_only=False,
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
@@ -425,7 +425,7 @@ class ModelService:
             )
             return DecoderStage.load_from_checkpoint(
                 checkpoint_path,
-                map_location="cpu",
+                map_location="cpu",  # portability: will be moved to the correct device later
                 weights_only=False,
                 decoder=self.config["model"]["decoder"],
                 encoders=encoder_models,
@@ -468,6 +468,7 @@ class ModelService:
                 encoder_models.append(
                     EncoderStage.load_from_checkpoint(
                         checkpoint_path,
+                        map_location="cpu",  # portability: will be moved to the correct device later
                         weights_only=False,
                         latitudes_fn=lambda: self.data_module.latitudes,
                         longitudes_fn=lambda: self.data_module.longitudes,
@@ -525,7 +526,7 @@ class ModelService:
             )
             return ProcessorStage.load_from_checkpoint(
                 checkpoint_path,
-                map_location="cpu",
+                map_location="cpu",  # portability: will be moved to the correct device later
                 weights_only=False,
                 processor=self.config["model"]["processor"],
                 decoder_model=decoder_model,
