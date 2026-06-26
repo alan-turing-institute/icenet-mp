@@ -7,7 +7,7 @@ from icenet_mp.models.processors import (
     UNetProcessor,
     VitProcessor,
 )
-from icenet_mp.types import DataSpace, ModelStepOutput
+from icenet_mp.types import DataSpace, ProcessorOutput
 
 
 @pytest.mark.parametrize("test_batch_size", [1, 2])
@@ -71,7 +71,7 @@ class TestNullProcessor:
                 *latent_space.shape,
             )
         )
-        assert isinstance(result, ModelStepOutput)
+        assert isinstance(result, ProcessorOutput)
         assert result.prediction.shape == (
             test_batch_size,
             test_n_forecast_steps,
@@ -151,7 +151,7 @@ class TestUNetProcessor:
                 processor.rollout(x)
         else:
             result = processor.rollout(x)
-            assert isinstance(result, ModelStepOutput)
+            assert isinstance(result, ProcessorOutput)
             assert result.prediction.shape == (
                 test_batch_size,
                 test_n_forecast_steps,
@@ -204,7 +204,7 @@ class TestVitProcessor:
                 *latent_space.shape,
             )
         )
-        assert isinstance(result, ModelStepOutput)
+        assert isinstance(result, ProcessorOutput)
         assert result.prediction.shape == (
             test_batch_size,
             test_n_forecast_steps,
