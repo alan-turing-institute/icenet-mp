@@ -1,6 +1,6 @@
-from torch import Tensor, nn, stack
+from torch import nn, stack
 
-from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
+from icenet_mp.types import DataSpace, ModelStepOutput, TensorNCHW, TensorNTCHW
 
 
 class BaseProcessor(nn.Module):
@@ -26,24 +26,6 @@ class BaseProcessor(nn.Module):
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
 
-    def custom_loss(self, x: TensorNTCHW, y: TensorNTCHW) -> Tensor | None:  # noqa: ARG002
-        """Compute a custom training loss in latent space.
-
-        Processors, like diffusion models, that compute loss internally should override
-        this method.
-
-        Args:
-            x: Combined latent history TensorNTCHW with (batch_size, n_history_steps,
-               n_latent_channels_total, latent_height, latent_width)
-            y: Encoded target TensorNTCHW with (batch_size, n_forecast_steps,
-               n_latent_channels_total, latent_height, latent_width)
-
-        Returns:
-            A loss Tensor, or None to use loss computed on the decoded output.
-
-        """
-        return None
-
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: process in NCHW latent space for a single timestep.
 
@@ -57,23 +39,26 @@ class BaseProcessor(nn.Module):
         msg = "If you are using the default forward method, you must implement rollout."
         raise NotImplementedError(msg)
 
-    def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> TensorNTCHW:  # noqa: ARG002
+    def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ModelStepOutput:
         """Process in latent space across multiple timesteps.
 
         The default implementation simply calls `self.forward` on each time slice until
         a sufficient number of forecast steps have been produced. These are then stacked
         together to produce the final output.
 
-        If you want to handle the NTCHW tensors directly, or to use the target tensor for
-        model training simply override this method in your child class.
+        Override this method to handle the NTCHW tensors directly or to compute a custom
+        loss using the target tensor `y` (e.g. for diffusion models).
 
         Args:
-            x: Input TensorNTCHW with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-            y: during training: Target TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
-               otherwise:       None
+            x: Encoded input TensorNTCHW with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+            y: during training: Encoded target TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+                otherwise: None
 
         Returns:
-            Predicted TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+            ModelStepOutput with:
+              prediction: TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+              target: the target tensor (if provided)
+              loss: custom loss computed by the processor (if implemented)
 
         """
         # Cut the NTCHW input into NCHW slices
@@ -87,5 +72,4 @@ class BaseProcessor(nn.Module):
             outputs.append(self(nchw_slices.pop(0)))
             nchw_slices.append(outputs[-1])
 
-        # Stack the outputs up as a new time dimension
-        return stack(outputs, dim=1)
+        return ModelStepOutput(prediction=stack(outputs, dim=1), target=y, loss=None)

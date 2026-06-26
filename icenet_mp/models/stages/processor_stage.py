@@ -103,10 +103,7 @@ class ProcessorStage(BaseModel):
         - decode with frozen decoder.rollout() -> output space NTCHW
         """
         combined_latent: TensorNTCHW = self.encode_inputs(inputs)
-        latent_output: TensorNTCHW = self.processor.rollout(
-            combined_latent, inputs.get("target")
-        )
-        return self.decoder.rollout(latent_output)
+        return self.decoder.rollout(self.processor.rollout(combined_latent).prediction)
 
     def training_step(
         self,
@@ -133,21 +130,19 @@ class ProcessorStage(BaseModel):
         """
         target = batch["target"].clone().detach()
         combined_latent = self.encode_inputs(batch)
-
-        # See whether the process implements a custom loss
         target_latent = self.target_encoder.rollout(target)
-        loss = self.processor.custom_loss(combined_latent, target_latent)
 
-        if loss is not None:
+        processor_output = self.processor.rollout(combined_latent, target_latent)
+
+        if processor_output.loss is not None:
             # Custom loss path: processor owns the training signal.
             # Decode under no_grad for metrics/callbacks only.
+            loss = processor_output.loss
             with torch.no_grad():
-                prediction = self.decoder.rollout(
-                    self.processor.rollout(combined_latent)
-                )
+                prediction = self.decoder.rollout(processor_output.prediction)
         else:
             # Standard path: compare decoded output to target.
-            prediction = self.decoder.rollout(self.processor.rollout(combined_latent))
+            prediction = self.decoder.rollout(processor_output.prediction)
             loss = self.loss(prediction, target)
 
         # Log metrics; computation will be done at epoch end

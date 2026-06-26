@@ -7,7 +7,7 @@ from icenet_mp.models.processors import (
     UNetProcessor,
     VitProcessor,
 )
-from icenet_mp.types import DataSpace
+from icenet_mp.types import DataSpace, ModelStepOutput
 
 
 @pytest.mark.parametrize("test_batch_size", [1, 2])
@@ -63,7 +63,7 @@ class TestNullProcessor:
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
         )
-        result: torch.Tensor = processor.rollout(
+        result = processor.rollout(
             torch.randn(
                 test_batch_size,
                 test_n_history_steps,
@@ -71,12 +71,14 @@ class TestNullProcessor:
                 *latent_space.shape,
             )
         )
-        assert result.shape == (
+        assert isinstance(result, ModelStepOutput)
+        assert result.prediction.shape == (
             test_batch_size,
             test_n_forecast_steps,
             latent_space.channels,
             *latent_space.shape,
         )
+        assert result.loss is None
 
 
 @pytest.mark.parametrize("test_batch_size", [1, 2])
@@ -148,8 +150,9 @@ class TestUNetProcessor:
             with pytest.raises(ValueError, match=msg):
                 processor.rollout(x)
         else:
-            result: torch.Tensor = processor.rollout(x)
-            assert result.shape == (
+            result = processor.rollout(x)
+            assert isinstance(result, ModelStepOutput)
+            assert result.prediction.shape == (
                 test_batch_size,
                 test_n_forecast_steps,
                 latent_space.channels,
@@ -201,7 +204,8 @@ class TestVitProcessor:
                 *latent_space.shape,
             )
         )
-        assert result.shape == (
+        assert isinstance(result, ModelStepOutput)
+        assert result.prediction.shape == (
             test_batch_size,
             test_n_forecast_steps,
             latent_space.channels,

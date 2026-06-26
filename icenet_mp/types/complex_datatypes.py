@@ -49,16 +49,16 @@ class ModelStepOutput(Mapping[str, Tensor]):
     """Output of a model step."""
 
     prediction: TensorNTCHW
-    target: TensorNTCHW
-    loss: Tensor
+    target: TensorNTCHW | None = None
+    loss: Tensor | None = None
 
     def __getitem__(self, key: str) -> Tensor:
         """Get a tensor by key."""
         if key == "prediction":
             return self.prediction
-        if key == "target":
+        if key == "target" and self.target is not None:
             return self.target
-        if key == "loss":
+        if key == "loss" and self.loss is not None:
             return self.loss
         msg = f"Key {key} not found in ModelStepOutput"
         raise KeyError(msg)
@@ -66,12 +66,14 @@ class ModelStepOutput(Mapping[str, Tensor]):
     def __iter__(self) -> Iterator[str]:
         """Iterate over the keys of ModelStepOutput."""
         yield "prediction"
-        yield "target"
-        yield "loss"
+        if self.target is not None:
+            yield "target"
+        if self.loss is not None:
+            yield "loss"
 
     def __len__(self) -> int:
         """Return ModelStepOutput length."""
-        return 3
+        return 1 + (self.target is not None) + (self.loss is not None)
 
     def copy(self) -> dict[str, Tensor]:
         """Return a plain dict copy, required by Lightning's manual optimization loop."""

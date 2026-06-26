@@ -89,10 +89,9 @@ class EncodeProcessDecode(BaseModel):
 
         # Process in latent space:
         # combined input tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        # target tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width) or None
         latent_output: TensorNTCHW = self.processor.rollout(
-            latent_input_combined, inputs.get("target")
-        )
+            latent_input_combined
+        ).prediction
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output)
