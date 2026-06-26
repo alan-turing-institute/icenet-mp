@@ -10,6 +10,8 @@ encoders:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
   sic-icenet:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
+  sic-ssmis:
+    _target_: icenet_mp.models.encoders.PiecewiseEncoder
 
 processor:
   _target_: icenet_mp.models.processors.NullProcessor
