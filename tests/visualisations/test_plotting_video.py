@@ -222,7 +222,7 @@ class TestPlotVideoInputs:
 
         assert len(results) == len(variables)
         for name in variables:
-            key = f"{name}-{test_dates_short[0].strftime('%Y-%m-%d')}"
+            key = f"{test_dates_short[0].strftime('%Y-%m-%d')}-{name}"
             assert key in results
             video_buffer = results[key]
             assert isinstance(video_buffer, io.BytesIO)

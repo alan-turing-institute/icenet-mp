@@ -177,7 +177,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_land_mask(
@@ -196,7 +196,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_custom_styles(
@@ -216,7 +216,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_multiple_channels(
@@ -234,7 +234,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == len(multi_channel_hw)
         for expected_name in multi_channel_hw:
-            expected_key = f"{expected_name}-{TEST_DATE.strftime('%Y-%m-%d')}"
+            expected_key = f"{TEST_DATE.strftime('%Y-%m-%d')}-{expected_name}"
             assert expected_key in results
             pil_images = results[expected_key]
             assert isinstance(pil_images[0], ImageFile)
@@ -264,7 +264,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:q_10-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:q_10"
         assert isinstance(pil_images[0], ImageFile)
 
     @pytest.mark.parametrize("colourbar_location", ["vertical", "horizontal"])
@@ -317,7 +317,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"{var_name}-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-{var_name}"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_wrong_dimension(
