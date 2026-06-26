@@ -30,11 +30,8 @@ class ModelService:
         """Initialize the model service."""
         self.config_ = config
 
-        random_config = config.get("random", {})
-        seed = random_config.get("seed", None)
-        fully_deterministic = random_config.get("fully_deterministic", False)
-
-        if seed is not None:
+        # If a random seed was specified in the configuration, set it for reproducibility.
+        if (seed := config.get("random", {}).get("seed", None)) is not None:
             seed = int(seed)
             os.environ["PYTHONHASHSEED"] = str(seed)
             os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
@@ -43,7 +40,10 @@ class ModelService:
         # If we are in fully deterministic mode, enable deterministic algorithms and
         # patch any known issues with them. We use warn_only=True to avoid segfaults on
         # unsupported operations.
-        if fully_deterministic:
+        self.fully_deterministic = config.get("random", {}).get(
+            "fully_deterministic", False
+        )
+        if self.fully_deterministic:
             torch.use_deterministic_algorithms(True, warn_only=True)  # noqa: FBT003
             patch_interpolate_antialias()
             log.warning(
@@ -283,21 +283,18 @@ class ModelService:
             hydra.utils.instantiate(
                 config["trainer"],
                 callbacks=extra_callbacks,
-                deterministic=self.config.get("random", {}).get(
-                    "fully_deterministic", False
-                ),
+                deterministic=self.fully_deterministic,
                 logger=extra_loggers,
             ),
         )
-        # Check warn_only survived Lightning's deterministic setup
-        log.debug(
-            "deterministic_algorithms_enabled: %s",
-            torch.are_deterministic_algorithms_enabled(),
-        )
-        log.debug(
-            "warn_only_enabled: %s",
-            torch.is_deterministic_algorithms_warn_only_enabled(),
-        )
+
+        # Check that fully_deterministic is set correctly
+        if self.fully_deterministic != torch.are_deterministic_algorithms_enabled():
+            log.warning(
+                "fully_deterministic is set to %s but torch.are_deterministic_algorithms_enabled() is %s.",
+                self.fully_deterministic,
+                torch.are_deterministic_algorithms_enabled(),
+            )
 
         # Assign workers for data loading
         self.data_module.assign_workers(
