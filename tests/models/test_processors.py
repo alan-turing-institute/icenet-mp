@@ -1,3 +1,5 @@
+import re
+
 import pytest
 import torch
 
@@ -146,8 +148,8 @@ class TestUNetProcessor:
 
         # We will either catch an error or see a successful run
         if height % 16 or width % 16:
-            msg = f"Latent space height and width must be divisible by 16 with a factor more than 1, got {height} and {width}."
-            with pytest.raises(ValueError, match=msg):
+            msg = f"Latent space height ({height}) and width ({width}) must each be divisible by 16 with a factor more than 1."
+            with pytest.raises(ValueError, match=re.escape(msg)):
                 processor.rollout(x)
         else:
             result = processor.rollout(x)
