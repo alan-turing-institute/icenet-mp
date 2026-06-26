@@ -44,13 +44,14 @@ uv run imp train --multistage --checkpoint-dir ${BASE_DIR}/training/wandb/run-<d
 
 ## Per-stage config overrides
 
-Each stage inherits the top-level `train` config. To override settings for a specific stage, add a `stages` block:
+Each stage inherits the top-level `train` config.
+To override settings for a specific stage, add a block under the `multistage` key:
 
 ```yaml
 train:
   trainer:
     max_epochs: 20
-  stages:
+  multistage:
     encoders:
       trainer:
         max_epochs: 10      # shorter run for encoder pretraining

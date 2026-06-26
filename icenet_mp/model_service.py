@@ -15,7 +15,7 @@ from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
 from icenet_mp.compatibility.torch import patch_interpolate_antialias
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
-from icenet_mp.models.stages import DecoderStage, EncoderStage, ProcessorStage
+from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
 from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
@@ -203,7 +203,7 @@ class ModelService:
             "DictConfig",
             OmegaConf.merge(
                 self.config["train"],
-                self.config["train"].get("stages", {}).get(stage_name, {}),
+                self.config["train"].get("multistage", {}).get(stage_name, {}),
             ),
         )
 
@@ -245,7 +245,7 @@ class ModelService:
             config: Job-specific config section (e.g. ``self.config["train"]``).
             project: W&B project name (one of "train" or "evaluate").
             job_stage: Optional label passed to ``PlottingCallback.prefix`` and used
-                in log messages. Also sets the W&B ``job_type`` to ``"multi-stage"``
+                in log messages. Also sets the W&B ``job_type`` to ``"multistage"``
                 when provided, or ``"single-stage"`` otherwise.
 
         """
@@ -262,7 +262,7 @@ class ModelService:
         extra_loggers = [
             hydra.utils.instantiate(
                 logger_config,
-                job_type="multi-stage" if job_stage else "single-stage",
+                job_type="multistage" if job_stage else "single-stage",
                 project=project,
             )
             for logger_config in self.config.get("loggers", {}).values()
