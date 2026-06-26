@@ -33,8 +33,17 @@ export WANDB_API_KEY=<your_api_key>
 wandb login
 ```
 
+Trains the model end-to-end:
+
 ```bash
 uv run imp train
+```
+
+For `EncodeProcessDecode` models, pass `--in-stages` to train each component separately before finetuning.
+See [Train in stages](../how-to/train-in-stages.md) for a full walkthrough.
+
+```bash
+uv run imp train --in-stages
 ```
 
 Checkpoints are saved to `${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints/<name>.ckpt`, where `BASE_DIR` is the base path defined in your config.

@@ -16,6 +16,7 @@ nav = [
     ] },
     { "How-to" = [
         { "Add a model" = "how-to/add-a-model.md" },
+        { "Train in stages" = "how-to/train-in-stages.md" },
     ] },
     { "API Reference" = [
         { "Overview" = "api/index.md" },
