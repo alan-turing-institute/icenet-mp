@@ -40,7 +40,6 @@ class ActivationSaver(Callback):
        single `batch_{idx:05d}.pt` file.
 
     Args:
-        model: The model to hook. Typically an `EncodeProcessDecode` instance.
         layer_paths: Dotted module paths resolvable via `model.get_submodule`
             (equivalently, keys of `model.named_modules()`).
         output_dir: Directory for per-batch `.pt` files and a `metadata.json`.
