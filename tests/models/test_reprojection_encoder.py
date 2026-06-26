@@ -23,7 +23,6 @@ class TestReprojectionEncoder:
             ReprojectionEncoder(
                 data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=(4, 4)),
                 latent_space=(2, 2),
-                n_history_steps=1,
                 project_to=OUTPUT_NAME,
             )
 
@@ -33,7 +32,6 @@ class TestReprojectionEncoder:
             ReprojectionEncoder(
                 data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=(2, 2)),
                 latent_space=(2, 2),
-                n_history_steps=1,
                 project_to=OUTPUT_NAME,
                 latitudes_fn=lambda: {OUTPUT_NAME: lats_out},
                 longitudes_fn=lambda: {OUTPUT_NAME: lons_out},
@@ -45,7 +43,6 @@ class TestReprojectionEncoder:
             ReprojectionEncoder(
                 data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=(2, 2)),
                 latent_space=(2, 2),
-                n_history_steps=1,
                 project_to=OUTPUT_NAME,
                 latitudes_fn=lambda: {INPUT_NAME: lats_in},
                 longitudes_fn=lambda: {INPUT_NAME: lons_in},
@@ -57,7 +54,6 @@ class TestReprojectionEncoder:
             ReprojectionEncoder(
                 data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=(4, 4)),
                 latent_space=(2, 2),
-                n_history_steps=1,
                 project_to=OUTPUT_NAME,
                 latitudes_fn=lambda: {INPUT_NAME: [0.0, 1.0], OUTPUT_NAME: lats_out},
                 longitudes_fn=lambda: {INPUT_NAME: [0.0, 1.0], OUTPUT_NAME: lons_out},
@@ -69,7 +65,6 @@ class TestReprojectionEncoder:
             ReprojectionEncoder(
                 data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=(2, 2)),
                 latent_space=(3, 3),
-                n_history_steps=1,
                 project_to=OUTPUT_NAME,
                 latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: [0.0, 1.0]},
                 longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: [0.0, 1.0]},
@@ -85,7 +80,6 @@ class TestReprojectionEncoder:
         encoder = ReprojectionEncoder(
             data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=input_shape),
             latent_space=latent_shape,
-            n_history_steps=1,
             project_to=OUTPUT_NAME,
             latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
             longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
@@ -102,7 +96,6 @@ class TestReprojectionEncoder:
         encoder = ReprojectionEncoder(
             data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=input_shape),
             latent_space=latent_shape,
-            n_history_steps=1,
             project_to=OUTPUT_NAME,
             latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
             longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
@@ -120,7 +113,6 @@ class TestReprojectionEncoder:
         encoder = ReprojectionEncoder(
             data_space_in=DataSpace(name=INPUT_NAME, channels=2, shape=shape),
             latent_space=shape,
-            n_history_steps=1,
             project_to=OUTPUT_NAME,
             latitudes_fn=lambda: {INPUT_NAME: lats, OUTPUT_NAME: lats},
             longitudes_fn=lambda: {INPUT_NAME: lons, OUTPUT_NAME: lons},
@@ -151,7 +143,6 @@ class TestReprojectionEncoder:
                 name=INPUT_NAME, channels=channels, shape=input_shape
             ),
             latent_space=test_latent_hw,
-            n_history_steps=test_n_history_steps,
             project_to=OUTPUT_NAME,
             latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
             longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
@@ -174,7 +165,6 @@ class TestReprojectionEncoder:
         encoder = ReprojectionEncoder(
             data_space_in=DataSpace(name=INPUT_NAME, channels=channels, shape=shape),
             latent_space=shape,
-            n_history_steps=1,
             project_to=OUTPUT_NAME,
             latitudes_fn=lambda: {INPUT_NAME: lats, OUTPUT_NAME: lats},
             longitudes_fn=lambda: {INPUT_NAME: lons, OUTPUT_NAME: lons},
@@ -197,7 +187,6 @@ class TestReprojectionEncoder:
                 name=INPUT_NAME, channels=channels, shape=input_shape
             ),
             latent_space=latent_shape,
-            n_history_steps=1,
             project_to=OUTPUT_NAME,
             latitudes_fn=lambda: {INPUT_NAME: lats_in, OUTPUT_NAME: lats_out},
             longitudes_fn=lambda: {INPUT_NAME: lons_in, OUTPUT_NAME: lons_out},
