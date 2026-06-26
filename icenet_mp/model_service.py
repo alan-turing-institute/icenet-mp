@@ -180,6 +180,9 @@ class ModelService:
 
         """
         log.info("Configuring model for %s.", job_stage or "training")
+        current_model = model or self.model
+        current_model.optimizer_cfg = config["optimizer"]
+        current_model.scheduler_cfg = config["scheduler"]
         trainer = self.build_trainer(
             config=config, job_stage=job_stage, project="train"
         )
@@ -191,7 +194,7 @@ class ModelService:
             trainer.num_devices,
             get_device_name(trainer.accelerator.name()),
         )
-        trainer.fit(model=model or self.model, datamodule=self.data_module)
+        trainer.fit(model=current_model, datamodule=self.data_module)
         return trainer
 
     def _merged_config(self, stage_name: str) -> DictConfig:
