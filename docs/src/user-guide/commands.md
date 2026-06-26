@@ -39,11 +39,11 @@ Trains the model end-to-end:
 uv run imp train
 ```
 
-For `EncodeProcessDecode` models, pass `--in-stages` to train each component separately before finetuning.
-See [Train in stages](../how-to/train-in-stages.md) for a full walkthrough.
+For `EncodeProcessDecode` models, pass `--multistage` to train each component separately before finetuning.
+See [Train in stages](../how-to/train-multistage.md) for a full walkthrough.
 
 ```bash
-uv run imp train --in-stages
+uv run imp train --multistage
 ```
 
 Checkpoints are saved to `${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints/<name>.ckpt`, where `BASE_DIR` is the base path defined in your config.

@@ -30,13 +30,13 @@ def train(
         ),
     ] = None,
     *,
-    in_stages: Annotated[
+    multistage: Annotated[
         bool,
         typer.Option(
-            "--in-stages/--full",
+            "--multistage",
             help=(
                 "Train an EncodeProcessDecode model in stages (encoders, then decoder, "
-                "then processor, then finetune). Default is full end-to-end training."
+                "then processor, then finetune). Default is single-stage training."
             ),
         ),
     ] = False,
@@ -45,7 +45,7 @@ def train(
     model = ModelService.from_config(config)
     model.train(
         checkpoint_dir=Path(checkpoint_dir).resolve() if checkpoint_dir else None,
-        in_stages=in_stages,
+        multistage=multistage,
     )
 
 

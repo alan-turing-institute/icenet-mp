@@ -67,7 +67,7 @@ class ModelService:
 
     @classmethod
     def from_config(cls, config: DictConfig) -> "ModelService":
-        """Build a new ModelService by loading a model from a configuration file."""
+        """Build a new ModelService by instantiating a model from a configuration."""
         # Load the model configuration
         builder = cls(config)
 
@@ -90,7 +90,6 @@ class ModelService:
             _convert_="object",
         )
 
-        # Return the builder
         return builder
 
     @classmethod
@@ -140,7 +139,7 @@ class ModelService:
 
     @property
     def config(self) -> DictConfig:
-        """Get the model configuration."""
+        """Get the full configuration."""
         if not self.config_:
             msg = "Model config has not been initialised."
             raise AttributeError(msg)
@@ -161,6 +160,60 @@ class ModelService:
             raise AttributeError(msg)
         return self.model_
 
+    def _fit(
+        self,
+        *,
+        model: LightningModule | None = None,
+        config: DictConfig,
+        job_stage: str | None = None,
+    ) -> Trainer:
+        """Build a trainer and run trainer.fit() for the given config and stage.
+
+        Args:
+            model: Model to train. Defaults to ``self.model`` if not provided.
+            config: Job-specific config section (e.g. ``self.config["train"]``).
+            job_stage: Label passed to ``PlottingCallback.prefix`` and used in log messages.
+
+        Returns:
+            The trainer after fitting, so callers can save checkpoints or inspect
+            training state (e.g. ``trainer.current_epoch``, ``trainer.global_step``).
+
+        """
+        log.info("Configuring model for %s.", job_stage or "training")
+        trainer = self.build_trainer(
+            config=config, job_stage=job_stage, project="train"
+        )
+        log.info(
+            "Starting %s for %d epochs using %d threads across %d %s device(s).",
+            f"training {job_stage}" if job_stage else "training",
+            trainer.max_epochs,
+            torch.get_num_threads(),
+            trainer.num_devices,
+            get_device_name(trainer.accelerator.name()),
+        )
+        trainer.fit(model=model or self.model, datamodule=self.data_module)
+        return trainer
+
+    def _merged_config(self, stage_name: str) -> DictConfig:
+        """Return train config merged with stage-specific overrides."""
+        return cast(
+            "DictConfig",
+            OmegaConf.merge(
+                self.config["train"],
+                self.config["train"].get("stages", {}).get(stage_name, {}),
+            ),
+        )
+
+    def _save_checkpoint(self, trainer: Trainer, stage_name: str) -> None:
+        """Save a stage checkpoint at a predictable path."""
+        checkpoint_path = (
+            self.build_run_directory(trainer)
+            / "checkpoints"
+            / f"{stage_name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+        )
+        trainer.save_checkpoint(checkpoint_path)
+        log.info("Saved %s checkpoint to %s.", stage_name, checkpoint_path)
+
     def build_run_directory(self, trainer: Trainer) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
         # Get the run directory from Wandb if it exists
@@ -179,12 +232,22 @@ class ModelService:
     def build_trainer(
         self,
         *,
-        job_type: str,
+        config: DictConfig,
+        project: str,
         job_stage: str | None = None,
     ) -> Trainer:
-        """Configure the trainer with callbacks and loggers."""
+        """Configure the trainer with callbacks and loggers.
+
+        Args:
+            config: Job-specific config section (e.g. ``self.config["train"]``).
+            project: W&B project name (one of "train" or "evaluate").
+            job_stage: Optional label passed to ``PlottingCallback.prefix`` and used
+                in log messages. Also sets the W&B ``job_type`` to ``"multi-stage"``
+                when provided, or ``"single-stage"`` otherwise.
+
+        """
         # Setup callbacks first
-        callback_configs = self.config.get(job_type, {}).get("callbacks", {}).values()
+        callback_configs = config.get("callbacks", {}).values()
         extra_callbacks = [
             hydra.utils.instantiate(callback_config)
             for callback_config in callback_configs
@@ -194,10 +257,13 @@ class ModelService:
 
         # Setup lightning loggers
         extra_loggers = [
-            hydra.utils.instantiate(logger_config, job_type=job_type, project=job_type)
+            hydra.utils.instantiate(
+                logger_config,
+                job_type="multi-stage" if job_stage else "single-stage",
+                project=project,
+            )
             for logger_config in self.config.get("loggers", {}).values()
         ]
-
         if not extra_loggers:
             log.warning("No loggers have been set for the trainer.")
 
@@ -206,7 +272,7 @@ class ModelService:
         trainer = cast(
             "Trainer",
             hydra.utils.instantiate(
-                self.config.get(job_type, {})["trainer"],
+                config["trainer"],
                 callbacks=extra_callbacks,
                 deterministic=self.config.get("random", {}).get(
                     "fully_deterministic", False
@@ -252,7 +318,7 @@ class ModelService:
             # Set plotting stage
             if isinstance(callback, PlottingCallback):
                 log.debug(
-                    "Setting job stage for %s to %s.",
+                    "Setting plotting prefix for %s to %s.",
                     callback.__class__.__name__,
                     job_stage,
                 )
@@ -272,7 +338,7 @@ class ModelService:
         """Evaluate a trained model."""
         # Configure the trainer with evaluation callbacks and loggers
         log.info("Configuring model for evaluation.")
-        trainer = self.build_trainer(job_type="evaluate")
+        trainer = self.build_trainer(config=self.config["evaluate"], project="evaluate")
         # Log evaluation details
         log.info(
             "Starting evaluation using %d threads across %d %s device(s).",
@@ -287,108 +353,54 @@ class ModelService:
             datamodule=self.data_module,
         )
 
-    def fit(
-        self,
-        *,
-        model: LightningModule | None = None,
-        job_type: str = "train",
-        job_stage: str | None = None,
-    ) -> Trainer:
-        """Build a trainer and run trainer.fit() for the given job type and stage.
-
-        Args:
-            model: Model to train. Defaults to ``self.model`` if not provided.
-            job_type: Config section used to configure the trainer and callbacks
-                (e.g. "train" or "train_in_stages").
-            job_stage: Optional label passed to ``PlottingCallback.prefix`` and used
-                in log messages. Defaults to ``job_type`` when not set.
-
-        Returns:
-            The trainer after fitting, so callers can save checkpoints or inspect
-            training state (e.g. ``trainer.current_epoch``, ``trainer.global_step``).
-
-        """
-        label = job_stage or job_type
-        log.info("Configuring model for %s.", label)
-        trainer = self.build_trainer(job_type=job_type, job_stage=job_stage)
-        log.info(
-            "Starting %s for %d epochs using %d threads across %d %s device(s).",
-            label,
-            trainer.max_epochs,
-            torch.get_num_threads(),
-            trainer.num_devices,
-            get_device_name(trainer.accelerator.name()),
-        )
-        trainer.fit(model=model or self.model, datamodule=self.data_module)
-        return trainer
-
     def train(
-        self, *, checkpoint_dir: Path | None = None, in_stages: bool = False
+        self, *, checkpoint_dir: Path | None = None, multistage: bool = False
     ) -> None:
         """Train a model."""
-        if in_stages:
-            self.train_in_stages(checkpoint_dir=checkpoint_dir)
+        if multistage:
+            self.train_multistage(checkpoint_dir=checkpoint_dir)
         else:
-            self.fit(job_type="train")
+            self._fit(config=self.config["train"])
 
-    def train_in_stages(self, *, checkpoint_dir: Path | None = None) -> None:
-        """Train an EncodeProcessDecode model in stages."""
+    def train_multistage(self, *, checkpoint_dir: Path | None = None) -> None:
+        """Train an EncodeProcessDecode model in multiple stages: encoders → decoder → processor → finetuning."""
         if not isinstance(self.model, EncodeProcessDecode):
-            msg = "Staged training is only supported for EncodeProcessDecode models."
+            msg = (
+                "Multistage training is only supported for EncodeProcessDecode models."
+            )
             raise TypeError(msg)
 
-        # Generate a merged encoder training configuration then fit
         log.info("Preparing to train the encoders...")
-        train_in_stages_cfg = OmegaConf.merge(
-            self.config["train"],
-            self.config["train"].get("stages", {}).get("encoders", {}),
+        trained_encoders = self.train_stage_encoders(
+            config=self._merged_config("encoders"),
+            checkpoint_dir=checkpoint_dir,
         )
-        OmegaConf.update(
-            self.config_, "train_in_stages", train_in_stages_cfg, force_add=True
-        )
-        trained_encoders = self.train_stage_encoders(checkpoint_dir=checkpoint_dir)
 
-        # Generate a merged decoder training configuration then fit
         log.info("Preparing to train the decoder...")
-        train_in_stages_cfg = OmegaConf.merge(
-            self.config["train"],
-            self.config["train"].get("stages", {}).get("decoder", {}),
-        )
-        OmegaConf.update(
-            self.config_, "train_in_stages", train_in_stages_cfg, force_add=True
-        )
         trained_decoder = self.train_stage_decoder(
-            trained_encoders, checkpoint_dir=checkpoint_dir
+            trained_encoders,
+            config=self._merged_config("decoder"),
+            checkpoint_dir=checkpoint_dir,
         )
 
-        # Generate a merged processor training configuration then fit
         log.info("Preparing to train the processor...")
-        train_in_stages_cfg = OmegaConf.merge(
-            self.config["train"],
-            self.config["train"].get("stages", {}).get("processor", {}),
-        )
-        OmegaConf.update(
-            self.config_, "train_in_stages", train_in_stages_cfg, force_add=True
-        )
         processor_model = self.train_stage_processor(
-            trained_decoder, checkpoint_dir=checkpoint_dir
+            trained_decoder,
+            config=self._merged_config("processor"),
+            checkpoint_dir=checkpoint_dir,
         )
 
-        # Generate a merged finetuning training configuration then fit
         log.info("Preparing to finetune...")
-        train_in_stages_cfg = OmegaConf.merge(
-            self.config["train"],
-            self.config["train"].get("stages", {}).get("finetuning", {}),
+        self.train_stage_finetune(
+            processor_model=processor_model,
+            config=self._merged_config("finetuning"),
         )
-        OmegaConf.update(
-            self.config_, "train_in_stages", train_in_stages_cfg, force_add=True
-        )
-        self.train_stage_finetune(self.model, processor_model=processor_model)
 
     def train_stage_decoder(
         self,
         encoder_models: list[EncoderStage],
         *,
+        config: DictConfig,
         checkpoint_dir: Path | None = None,
     ) -> DecoderStage:
         """Train a decoder on the combined latent space of all frozen encoders."""
@@ -403,13 +415,13 @@ class ModelService:
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
         ):
-            existing_checkpoint_path = matches[-1]
+            checkpoint_path = matches[-1]
             log.info(
                 "Skipping training for decoder. Loaded checkpoint from %s.",
-                existing_checkpoint_path,
+                checkpoint_path,
             )
             return DecoderStage.load_from_checkpoint(
-                existing_checkpoint_path,
+                checkpoint_path,
                 map_location="cpu",
                 weights_only=False,
                 decoder=self.config["model"]["decoder"],
@@ -424,20 +436,12 @@ class ModelService:
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
         )
-        trainer = self.fit(
-            model=decoder_model, job_type="train_in_stages", job_stage="decoder"
-        )
-        decoder_checkpoint_path = (
-            self.build_run_directory(trainer)
-            / "checkpoints"
-            / f"decoder.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
-        )
-        trainer.save_checkpoint(decoder_checkpoint_path)
-        log.info("Saved decoder checkpoint to %s.", decoder_checkpoint_path)
+        trainer = self._fit(model=decoder_model, config=config, job_stage="decoder")
+        self._save_checkpoint(trainer, "decoder")
         return decoder_model
 
     def train_stage_encoders(
-        self, *, checkpoint_dir: Path | None = None
+        self, *, config: DictConfig, checkpoint_dir: Path | None = None
     ) -> list[EncoderStage]:
         """Train each encoder separately with a disposable decoder."""
         if not isinstance(self.model, EncodeProcessDecode):
@@ -452,15 +456,15 @@ class ModelService:
                     checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
                 )
             ):
-                existing_checkpoint_path = matches[-1]  # take the latest match
+                checkpoint_path = matches[-1]
                 log.info(
                     "Skipping training for encoder '%s'. Loaded checkpoint from %s.",
                     encoder.name,
-                    existing_checkpoint_path,
+                    checkpoint_path,
                 )
                 encoder_models.append(
                     EncoderStage.load_from_checkpoint(
-                        existing_checkpoint_path,
+                        checkpoint_path,
                         weights_only=False,
                         latitudes_fn=lambda: self.data_module.latitudes,
                         longitudes_fn=lambda: self.data_module.longitudes,
@@ -475,58 +479,49 @@ class ModelService:
                 encoder=self.config["model"]["encoders"][encoder.name],
                 template=self.model,
             )
-            trainer = self.fit(
+            trainer = self._fit(
                 model=encoder_model,
-                job_type="train_in_stages",
+                config=config,
                 job_stage=f"encoder-{encoder.name}",
             )
-            # Save final checkpoint at a predictable path named after the encoder
-            encoder_checkpoint_path = (
-                self.build_run_directory(trainer)
-                / "checkpoints"
-                / f"encoder-{encoder.name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
-            )
-            trainer.save_checkpoint(encoder_checkpoint_path)
-            log.info(
-                "Saved encoder '%s' checkpoint to %s.",
-                encoder.name,
-                encoder_checkpoint_path,
-            )
+            self._save_checkpoint(trainer, f"encoder-{encoder.name}")
             encoder_models.append(encoder_model)
 
         return encoder_models
 
     def train_stage_finetune(
-        self,
-        model: EncodeProcessDecode,
-        processor_model: ProcessorStage,
+        self, *, config: DictConfig, processor_model: ProcessorStage
     ) -> None:
-        log.info("Preparing to finetune...")
-        frozen_encoders = {e.name: e for e in processor_model.encoders}
+        """Load pretrained weights from all stages into the full model and finetune end-to-end."""
+        model = cast("EncodeProcessDecode", self.model)
+        pretrained_encoders = {e.name: e for e in processor_model.encoders}
         for encoder in model.encoders:
-            encoder.load_state_dict(frozen_encoders[encoder.name].state_dict())
+            encoder.load_state_dict(pretrained_encoders[encoder.name].state_dict())
             log.info("Loaded pretrained weights for encoder '%s'.", encoder.name)
         model.processor.load_state_dict(processor_model.processor.state_dict())
         log.info("Loaded pretrained weights for processor.")
         model.decoder.load_state_dict(processor_model.decoder.state_dict())
         log.info("Loaded pretrained weights for decoder.")
-        # Perform the finetuning fit
-        self.fit(job_type="train_in_stages", job_stage="finetune")
+        self._fit(config=config, job_stage="finetuning")
 
     def train_stage_processor(
-        self, decoder_model: DecoderStage, *, checkpoint_dir: Path | None = None
+        self,
+        decoder_model: DecoderStage,
+        *,
+        config: DictConfig,
+        checkpoint_dir: Path | None = None,
     ) -> ProcessorStage:
         """Train a processor on the latent space using frozen encoders and decoder."""
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("processor.epoch=*-step=*.ckpt"))
         ):
-            existing_checkpoint_path = matches[-1]
+            checkpoint_path = matches[-1]
             log.info(
                 "Skipping training for processor. Loaded checkpoint from %s.",
-                existing_checkpoint_path,
+                checkpoint_path,
             )
             return ProcessorStage.load_from_checkpoint(
-                existing_checkpoint_path,
+                checkpoint_path,
                 map_location="cpu",
                 weights_only=False,
                 processor=self.config["model"]["processor"],
@@ -537,14 +532,6 @@ class ModelService:
             processor=self.config["model"]["processor"],
             decoder_model=decoder_model,
         )
-        trainer = self.fit(
-            model=processor_model, job_type="train_in_stages", job_stage="processor"
-        )
-        processor_checkpoint_path = (
-            self.build_run_directory(trainer)
-            / "checkpoints"
-            / f"processor.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
-        )
-        trainer.save_checkpoint(processor_checkpoint_path)
-        log.info("Saved processor checkpoint to %s.", processor_checkpoint_path)
+        trainer = self._fit(model=processor_model, config=config, job_stage="processor")
+        self._save_checkpoint(trainer, "processor")
         return processor_model
