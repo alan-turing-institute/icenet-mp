@@ -14,7 +14,7 @@ The base class exposes two entry points, and you only need to implement one:
 | Method | Signature | When to override |
 |--------|-----------|-----------------|
 | `forward` | `(x: TensorNCHW) -> TensorNCHW` | Stateless single-timestep transforms |
-| `rollout` | `(x: TensorNTCHW, y: TensorNTCHW \| None) -> ModelStepOutput` | Any model that needs access to the full temporal history, or that behaves differently during training vs. inference |
+| `rollout` | `(x: TensorNTCHW, y: TensorNTCHW \| None) -> ProcessorOutput` | Any model that needs access to the full temporal history, or that behaves differently during training vs. inference |
 
 The default `rollout` implementation calls `forward` once per forecast step, passing each prediction back as the next input.
 If your architecture works on one timestep at a time and uses the same logic during training and inference, only overriding `forward` is sufficient.
@@ -54,30 +54,28 @@ The `rollout` signature allows the processor to handle both training and inferen
 - if `y` is `None` then this is **inference**
 
 ```python
-from torch import Tensor
 from icenet_mp.models.processors import BaseProcessor
-from icenet_mp.types import ModelStepOutput, TensorNTCHW
+from icenet_mp.types import ProcessorOutput, TensorNTCHW
 
 
 class MyDiffusionProcessor(BaseProcessor):
 
     def rollout(
         self, x: TensorNTCHW, y: TensorNTCHW | None = None
-    ) -> ModelStepOutput:
+    ) -> ProcessorOutput:
         # x: (N, T_history, C, H, W) - encoded inputs
         # y: (N, T_forecast, C, H, W) - encoded targets
         if y is not None:
-            # --- Training path ---
+            # Training path: compute a custom loss and return it alongside the prediction.
             prediction, loss = self._training(x, y)
-            return ModelStepOutput(prediction=prediction, target=y, loss=loss)
+            return ProcessorOutput(prediction=prediction, loss=loss)
         else:
-            # --- Inference path ---
-            prediction = self._inference(x)
-            return ModelStepOutput(prediction=prediction, target=None, loss=None)
+            # Inference path: no loss needed.
+            return ProcessorOutput(prediction=self._inference(x))
 ```
 
-Returning a valid `loss` tensor tells `ProcessorStage` to skip its own loss computation and use yours instead.
-The decoded prediction is still computed and logged, but gradients flow through your custom loss.
+Setting `loss` on the returned `ProcessorOutput` tells `ProcessorStage` to skip its own loss computation and use yours instead.
+The decoded prediction is still computed and logged for metrics, but gradients flow through your custom loss.
 
 ## Register the processor in config
 

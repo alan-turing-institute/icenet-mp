@@ -1,6 +1,6 @@
 from torch import nn, stack
 
-from icenet_mp.types import DataSpace, ModelStepOutput, TensorNCHW, TensorNTCHW
+from icenet_mp.types import DataSpace, ProcessorOutput, TensorNCHW, TensorNTCHW
 
 
 class BaseProcessor(nn.Module):
@@ -39,7 +39,7 @@ class BaseProcessor(nn.Module):
         msg = "If you are using the default forward method, you must implement rollout."
         raise NotImplementedError(msg)
 
-    def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ModelStepOutput:
+    def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ProcessorOutput:  # noqa: ARG002
         """Process in latent space across multiple timesteps.
 
         The default implementation simply calls `self.forward` on each time slice until
@@ -47,7 +47,9 @@ class BaseProcessor(nn.Module):
         together to produce the final output.
 
         Override this method to handle the NTCHW tensors directly or to compute a custom
-        loss using the target tensor `y` (e.g. for diffusion models).
+        loss using the target tensor `y` (e.g. for diffusion models). Set `loss` on the
+        returned `ProcessorOutput` to supply a custom training loss; the caller will use
+        it directly and skip its own loss computation.
 
         Args:
             x: Encoded input TensorNTCHW with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
@@ -55,10 +57,9 @@ class BaseProcessor(nn.Module):
                 otherwise: None
 
         Returns:
-            ModelStepOutput with:
-              prediction: TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
-              target: the target tensor (if provided)
-              loss: custom loss computed by the processor (if implemented)
+            ProcessorOutput with:
+                prediction: TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+                loss: an optional processor-specific loss
 
         """
         # Cut the NTCHW input into NCHW slices
@@ -72,4 +73,4 @@ class BaseProcessor(nn.Module):
             outputs.append(self(nchw_slices.pop(0)))
             nchw_slices.append(outputs[-1])
 
-        return ModelStepOutput(prediction=stack(outputs, dim=1), target=y, loss=None)
+        return ProcessorOutput(prediction=stack(outputs, dim=1))

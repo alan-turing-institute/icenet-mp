@@ -1,4 +1,4 @@
-from .complex_datatypes import DataSpace, ModelStepOutput
+from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
 from .enums import BetaSchedule, RangeRestriction, TensorDimensions
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
@@ -10,7 +10,7 @@ from .simple_datatypes import (
     DataloaderArgs,
     DiffColourmapSpec,
     Metadata,
-    PlotSpec,
+    ProcessorOutput,
 )
 from .typedefs import (
     ArrayCHW,
@@ -48,6 +48,7 @@ __all__ = [
     "Metadata",
     "ModelStepOutput",
     "PlotSpec",
+    "ProcessorOutput",
     "RangeRestriction",
     "SupportsMetadata",
     "TensorDimensions",
