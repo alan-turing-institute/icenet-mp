@@ -1,247 +1,57 @@
 # IceNet Multimodal Pipeline
 
-IceNet-MP is a multimodal pipeline for predicting sea ice.
+[![Tests](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/test_code.yaml/badge.svg)](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/test_code.yaml)
+[![Docs](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/build_docs.yml/badge.svg)](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/build_docs.yml)
+[![Code style](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/code_style.yaml/badge.svg)](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/code_style.yaml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
-## Setting up your environment
+IceNet-MP fuses satellite observations, Argo float sensor data, and ERA5 reanalysis fields to produce short-term sea ice concentration forecasts. It uses an encode-process-decode architecture that projects each input dataset into a shared latent space, allowing new data sources to be added without changing the core model.
 
-### Tools
-
-You will need to install the following tools if you want to develop this project:
-
-- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
-
-On an HPC system, this will install to `~/.local/bin`, so make sure that your home directory has enough free space.
-
-### Installing IceNet-MP
-
-:warning: Isambard-AI uses ARM processors, and there is currently no `aarch64` wheel for `cf-units`.
-Before installing on Isambard-AI you will need to set the following environment variables:
-
-```bash
-export UDUNITS2_XML_PATH=/projects/u5gf/seaice/udunits/share/udunits/udunits2.xml
-export UDUNITS2_INCDIR=/projects/u5gf/seaice/udunits/include/
-export UDUNITS2_LIBDIR=/projects/u5gf/seaice/udunits/lib/
-```
-
-You can then install the project as follows (for DAWN / Baskerville, you can ignore the previous step):
+## Quick start
 
 ```bash
 git clone git@github.com:alan-turing-institute/icenet-mp.git
-cd icenet_mp
+cd icenet-mp
 uv sync --managed-python
 ```
 
-### Creating your own configuration file
-
-Create a file in the folder `icenet_mp/config` that is called `<your chosen name here>.local.yaml`.
-You will typically want this to inherit from `base.yaml`, and then you can apply your own changes on top.
-For example, the following config will override the `base_path` option in `base.yaml`:
+Create a local config in `icenet_mp/config/` (see [Configuration](https://alan-turing-institute.github.io/icenet-mp/user-guide/configuration/) for details):
 
 ```yaml
+# icenet_mp/config/my.local.yaml
 defaults:
   - base
   - _self_
 
-base_path: /local/path/to/my/data
+base_path: /path/to/my/data
 ```
 
-You can then run this with, e.g.:
+Then download datasets and train:
 
 ```bash
-uv run imp <command> --config-name <your local config>.yaml
+uv run imp datasets create --config-name my.local
+uv run imp train --config-name my.local
 ```
 
-This will run using the default model setup (rescaling encoder, small UNet, rescaling decoder) that is sufficient for quick tests, but not appropriate for larger training runs.
-
-You can also use this config to override other options in the `base.yaml` file, as shown below:
-
-```yaml
-defaults:
-  - base
-  - override /model: cnn_unet_cnn # Use this format if you want to use a different config
-  - _self_
-
-# Override specific model parameters
-model:
-  processor:
-    start_out_channels: 37 # Use this format to override specific model parameters in the named configs
-
-base_path: /local/path/to/my/data
-```
-
-Alternatively, you can apply overrides to specific options at the command line like this:
+Evaluate a checkpoint:
 
 ```bash
-uv run imp <command> ++base_path=/local/path/to/my/data
+uv run imp evaluate --checkpoint /path/to/checkpoint.ckpt --config-name my.local
 ```
 
-:warning: Note that `base_persistence.yaml` overrides the specific options in `base.yaml` needed to run the `Persistence` model.
+## Documentation
 
-### HPC-specific configurations
-
-For running on a shared HPC systems (Baskerville, DAWN or Isambard-AI), you will want to use the pre-downloaded data and the right GPU accelerator.
-This is handled for you by including the appropriate config file:
-
-```yaml
-defaults:
-  - base_baskerville OR base_dawn OR base_isambardai
-  - override /data: full # if you want to run over the full dataset instead of the sample dataset
-  - _self_
-```
-
-### Generating Argo float missing dates
-
-Some dates do not have any Argo float data.
-In order to generate a list of missing dates for a particular Argo float dataset, you can do the following:
-
-Add `ignore_missing_dates: true` to the relevant dataset file.
-Delete any previously downloaded version of the dataset.
-
-```
-uv run imp datasets create --config-name <a config file that requires this dataset>
-```
-
-This will then attempt to download the full dataset, ignoring any exceptions that would usually be raised by missing dates.
-It will also print a list of missing dates at the end of each data group.
-
-### Running with different datasets
-
-The default set of datasets to run over is defined by the `data` key which is set to `sample` in `base.yaml`.
-This means that the default set of datasets are the ones defined in `config/data/sample.yaml`.
-To understand how dataset properties are encoded in its name, read `config/data/datasets/naming_convention.txt`.
-To define a custom set of datasets, for example for comparison testing, you can do the following.
-
-- create a custom dataset list in `config/data/my_datasets.local.yaml` that might look like this:
-
-```
-defaults:
-  - datasets:
-    - samp_sicsouth_osisaf_25p0km_2017_2019_24h_v2
-    - samp_weathersouth_era5_0p5_2017_2019_24h_v2
-  - split: sample_dataset
-  - _self_
-```
-
-- in this example we have excluded the Argo float data and used ERA5 on the native 0.5 degree grid, instead of the reprojected datasets
-- now create a custom main config file, for example `config/my_datasets.local.yaml` that might look like this:
-
-```
-defaults:
-  - <the base config file you are using>
-  - override /data: my_datasets.local
-  - _self_
-```
-
-- now run with `uv run imp train --config-name my_datasets.local`
-
-## Running IceNet-MP commands
-
-:information_source: Note that if you are running the below commands locally, specify the base path in your local config, then add the argument `--config-name <your local YAML config>`.
-
-### Create
-
-You will need a [CDS account](https://cds.climate.copernicus.eu/how-to-api) to download data with `anemoi` (e.g. the ERA5 data).
-
-Run `uv run imp datasets create` to download datasets.
-
-We make use of the fact that Anemoi datasets keep track of which groups of dates have been loaded to ensure that an interrupted download can be resumed simply by rerunning the `datasets create` command.
-
-### Inspect
-
-Run `uv run imp datasets inspect` to inspect datasets (i.e. to get dataset properties and statistical summaries of the variables).
-
-### Train
-
-You will need a [Weights & Biases account](https://docs.wandb.ai/models/quickstart) to run a training run.
-[Generate an API key](https://docs.wandb.ai/models/quickstart) then run the following to allow automatic authentication.
-
-```
-export WANDB_API_KEY=<your_api_key>
-wandb login
-```
-
-Run `uv run imp train` to train using the datasets specified in the config.
-
-:information_source: This will save checkpoints to `${BASE_DIR}/training/wandb/run-${DATE}$-${RANDOM_STRING}/checkpoints/${CHECKPOINT_NAME}$.ckpt`. Where the `BASE_DIR` is the base path to the data defined in your config file.
-
-:warning: If you are running on macOS, you may need to prepend your `uv` run command with `PYTORCH_ENABLE_MPS_FALLBACK=1`. For example:
-
-```bash
-PYTORCH_ENABLE_MPS_FALLBACK=1 uv run imp train
-```
-
-### Evaluate
-
-Run `uv run imp evaluate --checkpoint PATH_TO_A_CHECKPOINT` to evaluate using a checkpoint from a training run.
-
-### Visualisations
-
-You can plot static images or animations of the raw data by adding the following option to your local config:
-```
-evaluate:
-  callbacks:
-    plotting:
-      make_input_plots: true
-```
-
-Settings (output directories, styling, animation parameters) are read from `config.evaluate.callbacks.raw_inputs` in your YAML config files. Command-line options can override config values if needed.
-
-## Adding a new model
-
-### Background
-
-An IceNet-MP model needs to be able to run over multiple different datasets with different dimensions.
-These are structured in `NTCHW` format, where:
-- `N` is the batch size,
-- `T` is the number of history (forecast) steps for inputs (outputs)
-- `C` is the number of channels or variables
-- `H` is a height dimension
-- `W` is a width dimension
-
-`N` and `T` will be the same for all inputs, but `C`, `H` and `W` might vary.
-
-Taking as an example, a batch size (`N=2`), 3 history steps and 4 forecast steps, we will have `k` inputs of shape `(2, 3, C_k, H_k, W_k)` and one output of shape `(2, 4, C_out, H_out, W_out)`.
-
-### Standalone models
-
-A standalone model will need to accept a `dict[str, TensorNTCHW]` which maps dataset names to an `NTCHW` Tensor of values.
-The model might want to use one or more of these for training, and will need to produce an output with shape `N, T, C_out, H_out, W_out`.
-
-As can be seen in the example below, a separate instance of the model is likely to be needed for each output to be predicted.
-
-![image](docs/assets/pipeline-standalone.png)
-
-Pros:
-- all input variables are available without transformation
-
-Cons:
-- hard to add new inputs
-- hard to add new outputs
-
-### Processor models
-
-A processor model is part of a larger encode-process-decode step.
-Start by defining a latent space as `(C_latent, H_latent, W_latent)` - in the example below, this has been set to `(10, 64, 64)`.
-The encode-process-decode model automatically creates one encoder for each input and one decoder for each output.
-The dataset-specific encoder takes the input data and converts it to shape `(N, T, C_latent, H_latent, W_latent)`.
-The `k` encoded datasets can then be combined in latent space to give a single dataset of shape `(N, T, k * C_latent, H_latent, W_latent)`.
-
-This is then passed to the processor, which must accept input of shape `(N, T, k * C_latent, H_latent, W_latent)` and produce output of the same shape.
-
-This output is then passed to one or more output-specific decoders which take input of shape `(N, T, k * C_latent, H_latent, W_latent)` and produce output of shape `(N, T, C_out, H_out, W_out)`.
-
-![image](docs/assets/pipeline-encode-process-decode.png)
-
-Pros:
-- easy to add new inputs
-- easy to add new outputs
-
-Cons:
-- input variables have been transformed into latent space
+- [Installation](https://alan-turing-institute.github.io/icenet-mp/user-guide/installation/) — prerequisites, `uv` setup, HPC-specific steps
+- [Configuration](https://alan-turing-institute.github.io/icenet-mp/user-guide/configuration/) — local config files, model overrides, custom datasets
+- [Commands](https://alan-turing-institute.github.io/icenet-mp/user-guide/commands/) — `datasets create`, `datasets inspect`, `train`, `evaluate`
+- [Add a model](https://alan-turing-institute.github.io/icenet-mp/how-to/add-a-model/) — tensor format, standalone vs. processor model architectures
 
 ## Jupyter notebooks
 
-There are various demonstrator Jupyter notebooks in the `notebooks` folder.
-You can run these with `uv run --group notebooks jupyter notebook`.
+The `notebooks/` folder contains demonstrator notebooks. Run them with:
 
-A good one to start with is `notebooks/demo_pipeline.ipynb` which gives a more detailed overview of the pipeline.
+```bash
+uv run --group notebooks jupyter notebook
+```
+
+Start with `notebooks/demo_pipeline.ipynb` for a worked example of the full pipeline.
