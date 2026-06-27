@@ -3,29 +3,30 @@ _target_: icenet_mp.models.EncodeProcessDecode
 name: cnn-vit-cnn
 
 encoders:
-  latent_space: [108, 108]
+  latent_space: [216, 216]
   era5:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
   float-argo:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
   sic-icenet:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
   sic-ssmis:
     _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 2
+    n_layers: 1
 
 processor:
   _target_: icenet_mp.models.processors.VitProcessor
-  depth: 6       # number of transformer blocks
-  dropout: 0.1   # dropout rate
-  emb_dim: 256   # embedding dimension
-  mlp_dim: 1024  # dimension of the MLP in the transformer block
-  patch_size: 6  # 108 / 6 = 18 patches per dimension
+  depth: 6        # number of transformer blocks
+  dropout: 0.1    # dropout rate
+  emb_dim: 256    # embedding dimension
+  heads: 8        # number of attention heads
+  mlp_dim: 1024   # dimension of the MLP in the transformer block
+  patch_size: 24  # 216 / 24 = 9 patches per dimension (81 in total)
 
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
   bounded: true
-  n_layers: 2
+  n_layers: 1
