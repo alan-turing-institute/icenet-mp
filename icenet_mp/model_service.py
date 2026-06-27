@@ -12,7 +12,10 @@ from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
 from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
-from icenet_mp.compatibility.torch import patch_interpolate_antialias
+from icenet_mp.compatibility.torch import (
+    patch_interpolate_antialias,
+    patch_open_file_limit,
+)
 from icenet_mp.data_loaders import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
@@ -49,7 +52,7 @@ class ModelService:
                 "also impact performance. Ensure this is intended before proceeding."
             )
 
-        # Apply any patches necessary for MPS compatibility if appropriate.
+        # Apply any necessary compatibility patches
         configured_accelerator = (
             config.get("train", {}).get("trainer", {}).get("accelerator", "auto")
         )
@@ -61,6 +64,7 @@ class ModelService:
             log.warning(
                 "Anti-aliasing disabled to avoid known segmentation faults on MPS."
             )
+        patch_open_file_limit()
 
         self.data_module_: CommonDataModule | None = None
         self.model_: BaseModel | None = None
@@ -366,7 +370,23 @@ class ModelService:
             self._fit(config=self.config["train"])
 
     def train_multistage(self, *, checkpoint_dir: Path | None = None) -> None:
-        """Train an EncodeProcessDecode model in multiple stages: encoders → decoder → processor → finetuning."""
+        """Train an EncodeProcessDecode model in multiple stages.
+
+        1. encoders
+        2. decoder
+        3. processor
+        4. finetuning.
+
+        Args:
+            checkpoint_dir: Optional directory to load checkpoints from. If provided,
+                training will skip any stages for which a checkpoint exists in this
+                directory. Checkpoints are expected to be named in the format
+                ``<stage>.epoch=<epoch>-step=<step>.ckpt``.
+
+        Raises:
+            TypeError: If the model is not an instance of ``EncodeProcessDecode``.
+
+        """
         if not isinstance(self.model, EncodeProcessDecode):
             msg = (
                 "Multistage training is only supported for EncodeProcessDecode models."

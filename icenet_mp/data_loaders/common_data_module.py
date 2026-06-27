@@ -80,7 +80,7 @@ class CommonDataModule(LightningDataModule):
             drop_last=False,
             num_workers=0,
             persistent_workers=False,
-            prefetch_factor=1,
+            prefetch_factor=None,  # must be None when num_workers=0
             sampler=None,
             worker_init_fn=None,
         )
@@ -136,6 +136,7 @@ class CommonDataModule(LightningDataModule):
         logger.info("Assigning %d workers for data loading.", n_workers)
         self._common_dataloader_kwargs["num_workers"] = n_workers
         self._common_dataloader_kwargs["persistent_workers"] = n_workers > 0
+        self._common_dataloader_kwargs["prefetch_factor"] = 1 if n_workers > 0 else None
 
     def predict_dataloader(
         self,

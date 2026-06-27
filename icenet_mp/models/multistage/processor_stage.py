@@ -117,7 +117,7 @@ class ProcessorStage(BaseModel):
         decoded prediction is still computed (under no_grad) so that metrics and callbacks
         remain meaningful.
 
-        Otherwise, the standard encode→process→decode path is used and the loss is
+        Otherwise, the standard encode-process-decode path is used and the loss is
         computed by comparing the decoded prediction to the target.
 
         Args:
