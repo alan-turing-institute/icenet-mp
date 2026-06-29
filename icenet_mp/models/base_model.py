@@ -157,6 +157,14 @@ class BaseModel(LightningModule, ABC):
         """Calculate the loss given a prediction and target."""
         return self._loss_fn(prediction, target)
 
+    def process_batch(self, batch: dict[str, TensorNTCHW]) -> dict[str, TensorNTCHW]:
+        """Process a batch before the forward pass and loss computation.
+
+        Subclasses can override this to extract or transform inputs before the standard
+        training/validation steps. The returned dict must include a ``"target"`` key.
+        """
+        return batch
+
     def test_step(
         self,
         batch: dict[str, TensorNTCHW],
@@ -177,6 +185,7 @@ class BaseModel(LightningModule, ABC):
             A ModelStepOutput containing the prediction, target and loss for the batch.
 
         """
+        batch = self.process_batch(batch)
         target = batch.pop("target")
         prediction = self(batch)
         loss = self.loss(prediction, target)
@@ -214,6 +223,7 @@ class BaseModel(LightningModule, ABC):
             A ModelStepOutput containing the prediction, target and loss for the batch.
 
         """
+        batch = self.process_batch(batch)
         target = batch["target"].clone().detach()
         prediction = self(batch)
         loss = self.loss(prediction, target)
@@ -254,6 +264,7 @@ class BaseModel(LightningModule, ABC):
             A ModelStepOutput containing the prediction, target and loss for the batch.
 
         """
+        batch = self.process_batch(batch)
         target = batch["target"].clone().detach()
         prediction = self(batch)
         loss = self.loss(prediction, target)

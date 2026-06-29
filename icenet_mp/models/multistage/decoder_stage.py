@@ -7,7 +7,7 @@ import torch
 from omegaconf import DictConfig
 
 from icenet_mp.models import BaseModel
-from icenet_mp.types import DataSpace, ModelStepOutput, TensorNTCHW
+from icenet_mp.types import DataSpace, TensorNTCHW
 
 from .encoder_stage import EncoderStage
 
@@ -103,7 +103,11 @@ class DecoderStage(BaseModel):
         self,
         batch: dict[str, TensorNTCHW],
     ) -> dict[str, TensorNTCHW]:
-        """Extract the first time step for each input dataset and for the target."""
+        """Extract only the first time step of each relevant batch element.
+
+        This is because we want the decoder to learn an NCHW -> NCHW mapping and to
+        ensure that each input date is only used once per epoch.
+        """
         return {
             name: batch[name][:, 0, :, :, :].unsqueeze(1) for name in self.encoder_names
         } | {
@@ -111,61 +115,3 @@ class DecoderStage(BaseModel):
                 :, 0, self.target_indices, :, :
             ].unsqueeze(1)
         }
-
-    def training_step(
-        self,
-        batch: dict[str, TensorNTCHW],
-        _batch_idx: int,
-    ) -> ModelStepOutput:
-        """Run the training step.
-
-        Args:
-            batch: Dictionary mapping dataset name to its contents. There is one entry
-                   for each input dataset and one for the target. Each of these is a
-                   TensorNTCHW with (batch_size, n_history_steps, C, H, W).
-
-        Returns:
-            A Tensor containing the loss for the batch.
-
-        """
-        inputs = self.process_batch(batch)
-        prediction: TensorNTCHW = self(inputs)
-        loss = self.loss(prediction, inputs["target"])
-        self.log(
-            "train_loss",
-            loss,
-            sync_dist=True,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-        )
-        return ModelStepOutput(prediction, inputs["target"], loss)
-
-    def validation_step(
-        self,
-        batch: dict[str, TensorNTCHW],
-        _batch_idx: int,
-    ) -> ModelStepOutput:
-        """Run the validation step.
-
-        Args:
-            batch: Dictionary mapping dataset name to its contents. There is one entry
-                   for each input dataset and one for the target. Each of these is a
-                   TensorNTCHW with (batch_size, n_history_steps, C, H, W).
-
-        Returns:
-            A Tensor containing the loss for the batch.
-
-        """
-        inputs = self.process_batch(batch)
-        prediction: TensorNTCHW = self(inputs)
-        loss = self.loss(prediction, inputs["target"])
-        self.log(
-            "validation_loss",
-            loss,
-            sync_dist=True,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-        )
-        return ModelStepOutput(prediction, inputs["target"], loss)
