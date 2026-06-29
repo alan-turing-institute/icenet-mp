@@ -526,7 +526,8 @@ class ModelService:
         log.info("Loaded pretrained weights for processor.")
         model.decoder.load_state_dict(processor_model.decoder.state_dict())
         log.info("Loaded pretrained weights for decoder.")
-        self._fit(config=config, job_stage="finetuning")
+        trainer = self._fit(config=config, job_stage="finetuning")
+        self._save_checkpoint(trainer, "finetuning")
 
     def train_stage_processor(
         self,
