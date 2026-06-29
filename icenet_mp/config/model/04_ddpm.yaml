@@ -2,6 +2,6 @@ _target_: icenet_mp.models.ddpm.DDPM
 
 # Run DDPM model with default settings
 name: ddpm
-dropout_rate: 0.05      # reduce interference in denoising step
-start_out_channels: 64  # increase model size
-timesteps: 250          # speed up training
+dropout_rate: 0.05
+start_out_channels: 128
+timesteps: 500
