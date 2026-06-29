@@ -80,7 +80,7 @@ class ProcessorStage(BaseModel):
             input_spaces=[s.to_dict() for s in decoder_model.input_spaces],
             n_forecast_steps=decoder_model.n_forecast_steps,
             n_history_steps=decoder_model.n_history_steps,
-            name=decoder_model.name.replace("decoder_model", "processor_model"),
+            name=f"processor_{decoder_model.n_history_steps}_to_{decoder_model.n_forecast_steps}",
             optimizer=copy.deepcopy(decoder_model.optimizer_cfg),
             output_space=decoder_model.output_space.to_dict(),
             scheduler=copy.deepcopy(decoder_model.scheduler_cfg),

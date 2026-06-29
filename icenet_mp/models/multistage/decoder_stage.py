@@ -76,7 +76,7 @@ class DecoderStage(BaseModel):
             input_spaces=[s.to_dict() for s in encoders[0].input_spaces],
             n_forecast_steps=encoders[0].n_forecast_steps,
             n_history_steps=encoders[0].n_history_steps,
-            name=encoders[0].name.replace("encoder_model", "decoder_model"),
+            name=f"{target_dataset_name}_decoder".replace("-", "_"),
             optimizer=copy.deepcopy(encoders[0].optimizer_cfg),
             output_space=encoders[0].output_space.to_dict(),
             scheduler=copy.deepcopy(encoders[0].scheduler_cfg),

@@ -73,7 +73,7 @@ class EncoderStage(BaseModel):
             latent_space=template.encoders[0].data_space_out.shape,
             n_forecast_steps=template.n_forecast_steps,
             n_history_steps=template.n_history_steps,
-            name=f"{template.name}_encoder_model",
+            name=f"{dataset}_encoder".replace("-", "_"),
             optimizer=copy.deepcopy(template.optimizer_cfg),
             output_space=template.output_space.to_dict(),
             scheduler=copy.deepcopy(template.scheduler_cfg),
