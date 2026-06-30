@@ -47,5 +47,4 @@ class NaiveLinearDecoder(BaseDecoder):
             TensorNCHW with (batch_size, output_channels, output_height, output_width)
 
         """
-        output = self.model(x)
-        return self.finalise(output)
+        return self.model(x)

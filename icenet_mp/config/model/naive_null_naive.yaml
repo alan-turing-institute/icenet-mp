@@ -18,4 +18,4 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
-  bounded: false # Whether to bound the output between 0 and 1
+  restrict_range: none # How to bound output into [0,1]: none/sigmoid/clamp/tanh

@@ -2,9 +2,9 @@ from pathlib import Path
 
 import numpy as np
 from torch import Tensor, from_numpy, nn
-from torch.nn.functional import sigmoid
 
-from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
+from icenet_mp.models.common import RestrictRange
+from icenet_mp.types import DataSpace, RangeRestriction, TensorNCHW, TensorNTCHW
 
 
 class BaseDecoder(nn.Module):
@@ -29,7 +29,7 @@ class BaseDecoder(nn.Module):
         active_mask_path: str | None = None,
         land_mask_path: str | None = None,
         mask_type: str | None = None,
-        bounded: bool = False,
+        restrict_range: str = "none",
     ) -> None:
         """Initialise a BaseDecoder."""
         super().__init__()
@@ -38,8 +38,10 @@ class BaseDecoder(nn.Module):
         self.n_forecast_steps = n_forecast_steps
         self.name = data_space_out.name
 
-        # Whether to bound the output between 0 and 1
-        self.bounded = bounded
+        # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
+        self.restrict = RestrictRange(
+            RangeRestriction(restrict_range), min_val=0, max_val=1
+        )
 
         # Load the active mask only when requested. When off, finalise() skips
         # the multiply entirely. Path is derived from the dataset (ref CommonDataModule.active_mask_path)
@@ -78,12 +80,14 @@ class BaseDecoder(nn.Module):
     def finalise(self, x: TensorNCHW) -> TensorNCHW:
         """Apply shared output steps: bound if requested, then zero masked cells.
 
-        Masking is applied AFTER bounding so masked cells are exactly 0 regardless of
-        `bounded` (applying it before would leak sigmoid(0)=0.5 into masked cells).
-        Every concrete decoder should call this at the end of its `forward`.
+        Masking is applied AFTER the range restriction so masked cells are exactly 0
+        regardless of bounding (applying it before would leak e.g. sigmoid(0)=0.5 into
+        masked cells). Called once by `rollout` after the per-frame `forward`, so every
+        decoder gets it automatically without having to call it themselves.
+
+        RangeRestriction choices are: none/sigmoid/shifted_tanh/clamp
         """
-        if self.bounded:
-            x = sigmoid(x)
+        x = self.restrict(x)
         if self.use_mask:
             x = x * self.mask.to(dtype=x.dtype)
         return x
@@ -93,9 +97,10 @@ class BaseDecoder(nn.Module):
 
         The default implementation simply calls `self.forward` on each time slice
         simultaneously by reshaping the input to combine the batch and time dimensions,
-        before reshaping back.
+        before reshaping back. The shared last-gating steps are applied
+        in rollout via finalise(), so concrete decoders only implement forward().
 
-        Note that this also increases the effective batch size for any batch
+        Note that this (rollout method) also increases the effective batch size for any batch
         normalisation layers in the encoder.
 
         Args:
@@ -105,6 +110,5 @@ class BaseDecoder(nn.Module):
             TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
 
         """
-        return self(x.reshape(-1, *self.data_space_in.chw)).reshape(
-            -1, self.n_forecast_steps, *self.data_space_out.chw
-        )
+        output = self.finalise(self(x.reshape(-1, *self.data_space_in.chw)))
+        return output.reshape(-1, self.n_forecast_steps, *self.data_space_out.chw)

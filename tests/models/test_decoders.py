@@ -114,13 +114,13 @@ class TestDecoderBounded:
                 data_space_out=output_space,
                 n_forecast_steps=test_n_forecast_steps,
                 n_layers=1,
-                bounded=True,
+                restrict_range="sigmoid",
             ),
             "NaiveLinearDecoder": NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
                 n_forecast_steps=test_n_forecast_steps,
-                bounded=True,
+                restrict_range="sigmoid",
             ),
             "PiecewiseDecoder": PiecewiseDecoder(
                 data_space_in=latent_space,
@@ -212,7 +212,7 @@ class TestDecoderMask:
             data_space_out=output_space,
             n_forecast_steps=1,
             mask_type="active",
-            bounded=True,
+            restrict_range="sigmoid",
             active_mask_path=str(mask_path),
         )
         out = decoder.rollout(

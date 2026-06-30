@@ -6,10 +6,9 @@ from icenet_mp.models.common import (
     CommonConvBlock,
     NormalisedFold,
     Permute,
-    RestrictRange,
     Shift,
 )
-from icenet_mp.types import RangeRestriction, TensorNCHW
+from icenet_mp.types import TensorNCHW
 
 from .base_decoder import BaseDecoder
 
@@ -38,7 +37,7 @@ class PiecewiseDecoder(BaseDecoder):
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseDecoder."""
-        super().__init__(**kwargs)
+        super().__init__(restrict_range=restrict_range, **kwargs)
 
         # Calculate the number of patches required
         # We set the stride to be half the patch size to ensure overlap, which will
@@ -107,10 +106,6 @@ class PiecewiseDecoder(BaseDecoder):
         # multiple pixels into a single output pixel.
         layers.append(Shift(scale=True, offset=True))
 
-        # Specify how/whether the output is bounded between 0 and 1
-        if (method := RangeRestriction(restrict_range)) != RangeRestriction.NONE:
-            layers.append(RestrictRange(method, min_val=0, max_val=1))
-
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)
 
@@ -124,5 +119,4 @@ class PiecewiseDecoder(BaseDecoder):
             TensorNCHW with (batch_size, output_channels, output_height, output_width)
 
         """
-        output = self.model(x)
-        return self.finalise(output)
+        return self.model(x)

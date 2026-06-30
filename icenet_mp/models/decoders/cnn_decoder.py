@@ -123,5 +123,4 @@ class CNNDecoder(BaseDecoder):
             TensorNCHW with (batch_size, latent_channels, latent_height, latent_width)
 
         """
-        output = self.model(x)
-        return self.finalise(output)
+        return self.model(x)
