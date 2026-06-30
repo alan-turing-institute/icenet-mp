@@ -133,6 +133,15 @@ class CommonDataModule(LightningDataModule):
         return mask_dir(self.base_path, target_name) / "active_mask.npy"
 
     @cached_property
+    def land_mask_path(self) -> Path:
+        """Path to the land mask for the dataset.
+
+        Differs only by the file name, same directory as active mask.
+        """
+        target_name = self.dataset_groups[self.target_group_name][0].stem
+        return mask_dir(self.base_path, target_name) / "land_mask.npy"
+
+    @cached_property
     def output_space(self) -> DataSpace:
         """Return the data space of the desired output."""
         return (
