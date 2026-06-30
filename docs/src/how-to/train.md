@@ -62,6 +62,21 @@ base_path: /path/to/your/data
 
 See [Configuration](../user-guide/configuration.md) for how to switch datasets or override model parameters.
 
+### Reusing a config from a previous W&B run
+
+To reproduce or extend a prior run, download its saved config from the W&B run page under **Files > `model_config.yaml`** and place it at `icenet_mp/config/<your-name>.local.yaml`.
+Make sure that the `defaults` block points at the appropriate base config for your machine:
+
+```yaml
+defaults:
+  - base_isambardai   # or base_baskerville, base_dawn, base.local etc.
+  - _self_
+
+# ... rest of the downloaded config ...
+```
+
+If you are running locally, ensure that `base_path` is set as well.
+
 ## 3. Run training
 
 ```bash
