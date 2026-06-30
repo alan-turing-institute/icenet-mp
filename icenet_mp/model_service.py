@@ -315,7 +315,9 @@ class ModelService:
             model_config_path.parent.mkdir(parents=True, exist_ok=True)
             OmegaConf.save(self.config, model_config_path)
             if wandb_run := get_wandb_run(trainer):
-                wandb_run.save(model_config_path, base_path=model_config_path.parent)
+                wandb_run.save(
+                    model_config_path, base_path=model_config_path.parent, policy="now"
+                )
 
         # Additional configuration for callbacks
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
