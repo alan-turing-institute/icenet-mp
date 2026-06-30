@@ -134,16 +134,16 @@ class ProcessorStage(BaseModel):
 
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
-        if processor_output.loss is not None:
+        if processor_output.loss is None:
+            # Standard path: compare decoded output to target.
+            prediction = self.decoder.rollout(processor_output.prediction)
+            loss = self.loss(prediction, target)
+        else:
             # Custom loss path: processor owns the training signal.
             # Decode under no_grad for metrics/callbacks only.
             loss = processor_output.loss
             with torch.no_grad():
                 prediction = self.decoder.rollout(processor_output.prediction)
-        else:
-            # Standard path: compare decoded output to target.
-            prediction = self.decoder.rollout(processor_output.prediction)
-            loss = self.loss(prediction, target)
 
         # Log metrics; computation will be done at epoch end
         self.log(

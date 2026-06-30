@@ -75,7 +75,9 @@ class MyDiffusionProcessor(BaseProcessor):
 ```
 
 Setting `loss` on the returned `ProcessorOutput` tells `ProcessorStage` to skip its own loss computation and use yours instead.
-The decoded prediction is still computed and logged for metrics, but gradients flow through your custom loss.
+When `loss` is `None` (the default), `ProcessorStage` decodes the prediction normally and computes its own loss against the target.
+When `loss` is not `None`, the `ProcessorStage` uses that value directly for the backward pass, and decodes the prediction under `torch.no_grad()`.
+This allows the decoder to still produce output for metrics and callbacks without this contributing to gradient accumulation.
 
 ## Register the processor in config
 
