@@ -46,6 +46,9 @@ class BaseDecoder(nn.Module):
         # Load the active mask only when requested. When off, finalise() skips
         # the multiply entirely. Path is derived from the dataset (ref CommonDataModule.active_mask_path)
         # Require the file to exist when mask_type is defined, fail loudly if not.
+        if mask_type not in (None, "none", "active", "land"):
+            msg = f"Unknown mask_type {mask_type!r}; expected one of none/active/land."
+            raise ValueError(msg)
         self.mask_type = mask_type
         self.use_mask = mask_type in ("active", "land")
 

@@ -185,6 +185,52 @@ class TestDecoderMask:
                 active_mask_path=str(tmp_path / "does_not_exist.npy"),
             )
 
+    def test_land_mask_loads_and_zeros_masked_cells(self, tmp_path) -> None:  # noqa: ANN001
+        latent_space, output_space = self._spaces()
+        # Land = 0 (top half), sea = 1 (bottom half).
+        mask = np.ones(output_space.shape, dtype=np.uint8)
+        mask[:8, :] = 0
+        mask_path = tmp_path / "land_mask.npy"
+        np.save(mask_path, mask)
+
+        decoder = NaiveLinearDecoder(
+            data_space_in=latent_space,
+            data_space_out=output_space,
+            n_forecast_steps=1,
+            mask_type="land",
+            land_mask_path=str(mask_path),
+        )
+
+        assert decoder.mask.shape == output_space.shape
+        out = decoder.rollout(
+            torch.randn(2, 1, latent_space.channels, *latent_space.shape)
+        )
+        # Land cells exactly zero; sea cells (incl. confident-no-ice) left free.
+        assert torch.all(out[..., :8, :] == 0).item()
+
+    def test_mask_type_none_creates_no_buffer(self) -> None:
+        """An explicit mask_type='none' behaves like no mask: no buffer, no multiply."""
+        latent_space, output_space = self._spaces()
+        decoder = NaiveLinearDecoder(
+            data_space_in=latent_space,
+            data_space_out=output_space,
+            n_forecast_steps=1,
+            mask_type="none",
+        )
+        assert decoder.use_mask is False
+        assert not hasattr(decoder, "mask")
+
+    def test_unknown_mask_type_raises(self) -> None:
+        """A typo'd mask_type fails loudly rather than silently disabling masking."""
+        latent_space, output_space = self._spaces()
+        with pytest.raises(ValueError, match="Unknown mask_type"):
+            NaiveLinearDecoder(
+                data_space_in=latent_space,
+                data_space_out=output_space,
+                n_forecast_steps=1,
+                mask_type="activ",
+            )
+
     def test_mask_off_creates_no_buffer_and_skips_multiply(self) -> None:
         latent_space, output_space = self._spaces()
         decoder = NaiveLinearDecoder(
