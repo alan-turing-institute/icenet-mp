@@ -21,6 +21,7 @@ class MockCommonDataModule:
         self.n_history_steps = 3
         self.output_space = DataSpace(1, "output", (10, 10))
         self.active_mask_path = Path("nonexistent") / "active_mask.npy"
+        self.land_mask_path = Path("nonexistent") / "land_mask.npy"
 
 
 class MockModel:
@@ -31,8 +32,15 @@ class MockModel:
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         active_mask_path: str | None = None,
+        land_mask_path: str | None = None,
     ) -> "MockModel":
-        del checkpoint_path, latitudes_fn, longitudes_fn, active_mask_path
+        del (
+            checkpoint_path,
+            latitudes_fn,
+            longitudes_fn,
+            active_mask_path,
+            land_mask_path,
+        )
         return cls()
 
 

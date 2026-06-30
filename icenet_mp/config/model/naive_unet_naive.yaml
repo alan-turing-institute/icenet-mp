@@ -20,4 +20,4 @@ processor:
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
   bounded: false # Whether to bound the output between 0 and 1
-  use_mask: false # Whether to apply the active mask (path derived from the SIC dataset)
+  mask_type: none # Output mask: active (active+land) | land (land only) | none

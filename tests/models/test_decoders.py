@@ -163,7 +163,7 @@ class TestDecoderMask:
             data_space_in=latent_space,
             data_space_out=output_space,
             n_forecast_steps=1,
-            use_mask=True,
+            mask_type="active",
             active_mask_path=str(mask_path),
         )
 
@@ -176,12 +176,12 @@ class TestDecoderMask:
 
     def test_use_mask_without_file_raises(self, tmp_path) -> None:  # noqa: ANN001
         latent_space, output_space = self._spaces()
-        with pytest.raises(FileNotFoundError, match="use_mask is enabled"):
+        with pytest.raises(FileNotFoundError, match="mask is requested"):
             NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
                 n_forecast_steps=1,
-                use_mask=True,
+                mask_type="active",
                 active_mask_path=str(tmp_path / "does_not_exist.npy"),
             )
 
@@ -211,7 +211,7 @@ class TestDecoderMask:
             data_space_in=latent_space,
             data_space_out=output_space,
             n_forecast_steps=1,
-            use_mask=True,
+            mask_type="active",
             bounded=True,
             active_mask_path=str(mask_path),
         )
@@ -334,7 +334,7 @@ class TestDecoderMaskOnRealMask:
             data_space_in=latent_space,
             data_space_out=output_space,
             n_forecast_steps=1,
-            use_mask=True,
+            mask_type="active",
             active_mask_path=str(_REAL_MASKS[0]),
         )
 

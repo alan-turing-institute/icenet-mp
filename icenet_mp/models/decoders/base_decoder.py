@@ -20,14 +20,15 @@ class BaseDecoder(nn.Module):
     # buffer in __init__, annotated here to make the type explicitly
     mask: Tensor
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         data_space_in: DataSpace,
         data_space_out: DataSpace,
         n_forecast_steps: int,
         active_mask_path: str | None = None,
-        use_mask: bool = False,
+        land_mask_path: str | None = None,
+        mask_type: str | None = None,
         bounded: bool = False,
     ) -> None:
         """Initialise a BaseDecoder."""
@@ -42,17 +43,23 @@ class BaseDecoder(nn.Module):
 
         # Load the active mask only when requested. When off, finalise() skips
         # the multiply entirely. Path is derived from the dataset (ref CommonDataModule.active_mask_path)
-        # Only require the file to exist when use_mask is True, fail loudly if not.
-        self.use_mask = use_mask
-        if use_mask:
-            if active_mask_path is None or not Path(active_mask_path).exists():
+        # Require the file to exist when mask_type is defined, fail loudly if not.
+        self.mask_type = mask_type
+        self.use_mask = mask_type in ("active", "land")
+
+        if self.use_mask:
+            mask_path = active_mask_path if mask_type == "active" else land_mask_path
+            if mask_path is None or not Path(mask_path).exists():
                 msg = (
-                    f"use_mask is enabled but no active mask was found at "
-                    f"{active_mask_path}. Masks are generated per dataset during "
+                    f"{mask_type} mask is requested but no mask was found at "
+                    f"{mask_path}. Masks are generated per dataset during "
                     f"`datasets create` (currently for SSMIS datasets)."
                 )
                 raise FileNotFoundError(msg)
-            mask = from_numpy(np.load(Path(active_mask_path))).float()
+            mask = from_numpy(np.load(Path(mask_path))).float()
+            if tuple(mask.shape) != self.data_space_out.shape:
+                msg = f"{mask_type} mask shape does not match decoder output"
+                raise ValueError(msg)
             self.register_buffer("mask", mask, persistent=False)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
