@@ -121,25 +121,48 @@ class CommonDataModule(LightningDataModule):
         return {name: ds.longitudes for name, ds in self.datasets.items()}
 
     @cached_property
-    def active_mask_path(self) -> Path:
-        """Path to the active mask for the dataset.
+    def _target_mask_dir(self) -> Path:
+        """Mask directory for the prediction target (SIC) group.
 
-        Derived from the `base_path` (root) and the SIC target dataset (mask filename),
-        so the path always traces the data path. Note: the file exists only for
-        datasets whose masks have been generated (eg, currently the SSMIS datasets
-        sitting on the isambard shard workspace).
+        A target group usually holds a single SIC dataset, but if it holds several,
+        pick the first whose masks have actually been generated, falling back to the
+        first dataset when none are available. Combining masks across datasets is not
+        currently supported (deferred to a future issue or PR).
         """
-        target_name = self.dataset_groups[self.target_group_name][0].stem
-        return mask_dir(self.base_path, target_name) / "active_mask.npy"
+        paths = self.dataset_groups[self.target_group_name]
+        available = [
+            path
+            for path in paths
+            if (mask_dir(self.base_path, path.stem) / "active_mask.npy").exists()
+        ]
+        chosen = (available or paths)[0].stem
+        if len(paths) > 1:
+            logger.warning(
+                "Target group %r has %d datasets; using %r for masks "
+                "(combining masks across datasets is not supported).",
+                self.target_group_name,
+                len(paths),
+                chosen,
+            )
+        return mask_dir(self.base_path, chosen)
+
+    @cached_property
+    def active_mask_path(self) -> Path:
+        """Path to the active mask for the target dataset.
+
+        Derived from `base_path` and the SIC target dataset (see `_target_mask_dir`),
+        so the path always traces the data path. The file exists only for datasets
+        whose masks have been generated (eg, currently the SSMIS datasets).
+        """
+        return self._target_mask_dir / "active_mask.npy"
 
     @cached_property
     def land_mask_path(self) -> Path:
-        """Path to the land mask for the dataset.
+        """Path to the land mask for the target dataset.
 
-        Differs only by the file name, same directory as active mask.
+        Differs only by the file name, same directory as the active mask.
         """
-        target_name = self.dataset_groups[self.target_group_name][0].stem
-        return mask_dir(self.base_path, target_name) / "land_mask.npy"
+        return self._target_mask_dir / "land_mask.npy"
 
     @cached_property
     def output_space(self) -> DataSpace:
