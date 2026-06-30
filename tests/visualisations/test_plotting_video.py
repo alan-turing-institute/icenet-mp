@@ -66,7 +66,7 @@ class TestPlotVideoPrediction:
             ground_truth,
             prediction,
             dates=dates,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=spec,
         )
 
@@ -92,7 +92,7 @@ class TestPlotVideoSingleInput:
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
         )
 
@@ -134,7 +134,7 @@ class TestPlotVideoSingleInput:
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
         )
 
@@ -164,7 +164,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 wrong_dim_array,
                 dates=test_dates_short,
-                land_mask=LandMask(None, "north"),
+                land_mask=LandMask(None),
                 plot_spec=base_plot_spec,
             )
 
@@ -183,7 +183,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 era5_temperature_thw,
                 dates=wrong_dates,
-                land_mask=LandMask(None, "north"),
+                land_mask=LandMask(None),
                 plot_spec=base_plot_spec,
             )
 
@@ -213,7 +213,7 @@ class TestPlotVideoInputs:
 
         results = plot_video_inputs(
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             variables=variables,
         )
@@ -237,7 +237,7 @@ class TestPlotVideoInputs:
         # Create videos
         video_results = plot_video_inputs(
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             variables=multi_channel_thw,
         )

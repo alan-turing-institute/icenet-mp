@@ -187,7 +187,7 @@ def test_dates_short() -> list[date]:
 @pytest.fixture
 def mock_land_mask() -> LandMask:
     """Create a simple circular land mask for testing [H, W]."""
-    land_mask = LandMask(None, "north")
+    land_mask = LandMask(None)
     dist = make_central_distance_grid(TEST_HEIGHT, TEST_WIDTH)
     radius = min(TEST_HEIGHT, TEST_WIDTH) * 0.25
     land_mask.add_mask((dist < radius).astype(bool))

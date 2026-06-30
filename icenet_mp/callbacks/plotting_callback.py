@@ -13,6 +13,7 @@ from icenet_mp.models import BaseModel
 from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
 from icenet_mp.utils import datetime_from_npdatetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
+from icenet_mp.visualisations.land_mask import LandMask
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,6 @@ class PlottingCallback(Callback):
         make_static_plots: bool = True,
         make_video_plots: bool = True,
         plot_spec: PlotSpec | None = None,
-        base_path: str | None = None,
     ) -> None:
         """Create plots during evaluation or training validation.
 
@@ -41,7 +41,6 @@ class PlottingCallback(Callback):
             make_static_plots: Whether to create static plots.
             make_video_plots: Whether to create video plots.
             plot_spec: Plotting specification to use (contains difference settings, timestep selection, etc.).
-            base_path: Base path for finding land masks.
 
         """
         super().__init__()
@@ -52,7 +51,7 @@ class PlottingCallback(Callback):
         self.make_video_plots = make_video_plots
 
         # Plotter instance
-        self.plotter = Plotter(base_path, DEFAULT_SIC_SPEC + plot_spec)
+        self.plotter = Plotter(DEFAULT_SIC_SPEC + plot_spec)
         self.plotter_metadata: Metadata | None = None
 
         # Cache the most recent batch
@@ -122,6 +121,11 @@ class PlottingCallback(Callback):
             logger.warning(msg)
             return
         self.plotter.set_hemisphere(pl_module.hemisphere)
+
+        # Load land mask for plotting based on dataset
+        datamodule = getattr(trainer, "datamodule", None)
+        land_mask_path = getattr(datamodule, "land_mask_path", None)
+        self.plotter.land_mask = LandMask(land_mask_path)
 
         # Get loggers that support image and video logging
         image_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_image")]

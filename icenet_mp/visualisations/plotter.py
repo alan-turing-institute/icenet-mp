@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from pathlib import Path
 
 import numpy as np
 from omegaconf import DictConfig
@@ -25,10 +24,10 @@ logger = logging.getLogger(__name__)
 
 
 class Plotter:
-    def __init__(self, base_path: str | None, plot_spec: PlotSpec) -> None:
+    def __init__(self, plot_spec: PlotSpec) -> None:
         """A helper class to create and log plots."""
-        self.base_path = Path(base_path) if base_path else None
         self.plot_spec = plot_spec
+        self.land_mask = LandMask(None)
 
     def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
         """Get metadata for the plotter based on the model test output."""
@@ -154,7 +153,9 @@ class Plotter:
         except (IndexError, ValueError, MemoryError, OSError):
             logger.exception("Video plotting failed")
 
-    def set_hemisphere(self, hemisphere: Hemisphere) -> None:
+    def set_hemisphere(
+        self,
+        hemisphere: Hemisphere,
+    ) -> None:
         """Set the hemisphere and update the plot spec accordingly."""
         self.plot_spec.hemisphere = hemisphere
-        self.land_mask = LandMask(self.base_path, hemisphere)
