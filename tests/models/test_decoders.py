@@ -384,18 +384,31 @@ class TestDecoderMaskOnRealMask:
             active_mask_path=str(_REAL_MASKS[0]),
         )
 
-        always_zero = torch.ones(tuple(mask_np.shape), dtype=torch.bool)
-        for seed in range(5):
+        inactive = torch.from_numpy(mask_np == 0)
+        # The decoder loaded exactly the on-disk mask.
+        assert torch.equal(decoder.mask.bool(), torch.from_numpy(mask_np != 0))
+
+        # Always_zero starts all-True and can only shrink as samples fire active cells,
+        # converging down to inactive. An active cell that is 0 by chance in the first
+        # few draws is cleared by a later one; an active cell that is structurally always
+        # 0 never clears. So draw until it converges (50 repetition is used here), and
+        # fail if it never does. This should better differentiate a rare coincidence (clears fast)
+        # from a genuine bug (persists no matter how many draws).
+        always_zero = torch.ones_like(inactive)
+        for seed in range(50):
             torch.manual_seed(seed)
             out = decoder.rollout(
                 torch.randn(2, 1, latent_space.channels, *latent_space.shape)
             )
             # out is (N, n_forecast, C=1, H, W); reduce all but the spatial dims
             always_zero &= (out == 0).all(dim=(0, 1, 2))
+            if torch.equal(always_zero, inactive):
+                break
 
-        inactive = torch.from_numpy(mask_np == 0)
-        # Exactly the inactive cells are zeroed - no active cell is structurally killed.
-        assert torch.equal(always_zero, inactive)
-        # And the mask is non-trivial (genuinely some active and some inactive cells).
+        assert torch.equal(always_zero, inactive), (
+            "Note: we can safely assume an active cell stays zero across all 50 draws is a real over-zeroing bug, "
+            "not the extremely rare coincidence."
+        )
+        # only use none trivial mask for the test (genuinely some active and some inactive cells).
         assert inactive.any().item()
         assert (~inactive).any().item()
