@@ -39,7 +39,7 @@ class ConvBlockUpsample(nn.Module):
             n_subblocks: the number of ConvNormAct blocks to stack (default 2).
             norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
             out_channels: the number of output channels (if None, scale input channels down by scale_factor).
-            scale_factor: the factor by which to downsample the spatial dimensions (default is 2).
+            scale_factor: the factor by which to upsample the spatial dimensions (default is 2).
             upsample_mode: the method to use for upsampling ("bilinear" or "shuffle").
 
         """
