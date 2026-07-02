@@ -131,8 +131,16 @@ class ProcessorStage(BaseModel):
         """
         target = batch["target"].clone().detach()
         combined_latent = self.encode_inputs(batch)
-        target_latent = self.target_encoder.rollout(target)
 
+        # Attempt to encode the target to latent space and pass it to the processor
+        expected_chw = self.target_encoder.data_space_in.chw
+        if tuple(target.shape[2:]) != expected_chw:
+            msg = (
+                f"Target CHW {tuple(target.shape[2:])} does not match "
+                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
+            )
+            raise ValueError(msg)
+        target_latent = self.target_encoder.rollout(target)
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
         if processor_output.loss is None:
