@@ -17,12 +17,14 @@ class BaseProcessor(nn.Module):
         self,
         *,
         data_space: DataSpace,
+        data_space_target: DataSpace | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
     ) -> None:
         """Initialise a BaseProcessor."""
         super().__init__()
         self.data_space = data_space
+        self.data_space_target = data_space_target or data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
 
@@ -53,7 +55,8 @@ class BaseProcessor(nn.Module):
 
         Args:
             x: Encoded input TensorNTCHW with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-            y: during training: Encoded target TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+            y: during training: Encoded target TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_target, latent_height, latent_width)
+                where n_latent_channels_target = self.data_space_target.channels (<= n_latent_channels_total);
                 otherwise: None
 
         Returns:
