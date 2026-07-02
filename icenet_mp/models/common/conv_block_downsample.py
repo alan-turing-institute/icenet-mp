@@ -38,6 +38,10 @@ class ConvBlockDownsample(nn.Module):
         """
         super().__init__()
 
+        if n_subblocks < 1:
+            msg = f"n_subblocks must be at least 1, got {n_subblocks}."
+            raise ValueError(msg)
+
         out_channels = in_channels * 2 if out_channels is None else out_channels
         self.model = nn.Sequential(
             # Size reducing convolution/normalisation/activation that changes channels
