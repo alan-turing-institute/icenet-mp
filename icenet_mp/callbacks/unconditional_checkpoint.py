@@ -41,8 +41,10 @@ class UnconditionalCheckpoint(Callback):
             "epoch": torch.tensor(trainer.current_epoch),
             "step": torch.tensor(trainer.global_step),
         }
-        filepath = self.impl.format_checkpoint_name(monitor_candidates)
-        if not Path(filepath).is_absolute():
-            dirpath = self.impl.dirpath or trainer.log_dir
+        filepath = Path(self.impl.format_checkpoint_name(monitor_candidates))
+        if (
+            not filepath.is_absolute()
+            and (dirpath := self.dirpath or trainer.log_dir) is not None
+        ):
             filepath = Path(dirpath) / filepath
         trainer.save_checkpoint(filepath)
