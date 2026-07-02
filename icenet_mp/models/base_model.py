@@ -89,11 +89,6 @@ class BaseModel(LightningModule, ABC):
         self.train_metrics = MetricCollection(deepcopy(_common_metrics))
         self.validation_metrics = MetricCollection(deepcopy(_common_metrics))
 
-        loss_fn = hydra.utils.instantiate(loss)
-        if not isinstance(loss_fn, torch.nn.Module):
-            msg = "Configured loss must instantiate to a torch.nn.Module; check that `loss` has a valid `_target_`."
-            raise TypeError(msg)
-        self._loss_fn = loss_fn
         # Save all non-ignored arguments to __init__ as hyperparameters
         # This will also save the parameters of whichever child class is used
         # Note that W&B will log all hyperparameters
@@ -149,9 +144,26 @@ class BaseModel(LightningModule, ABC):
 
         """
 
+    @property
+    def loss_cfg(self) -> DictConfig:
+        """Get the loss configuration."""
+        return self._loss_cfg
+
+    @loss_cfg.setter
+    def loss_cfg(self, cfg: DictConfig) -> None:
+        """Set the loss configuration and instantiate the loss function."""
+        self.loss_fn = hydra.utils.instantiate(cfg)
+        if not isinstance(self.loss_fn, torch.nn.Module):
+            msg = (
+                f"Loss `_target_` {cfg.get('_target_', '(missing)')!r} created a "
+                f"{type(self.loss_fn).__name__}, expected a torch.nn.Module."
+            )
+            raise TypeError(msg)
+        self._loss_cfg = cfg
+
     def loss(self, prediction: TensorNTCHW, target: TensorNTCHW) -> torch.Tensor:
         """Calculate the loss given a prediction and target."""
-        return self._loss_fn(prediction, target)
+        return self.loss_fn(prediction, target)
 
     def process_batch(self, batch: dict[str, TensorNTCHW]) -> dict[str, TensorNTCHW]:
         """Process a batch before the forward pass and loss computation.

@@ -5,7 +5,7 @@ from typing import cast
 
 import hydra
 import torch
-from lightning import Callback, LightningModule, Trainer, seed_everything
+from lightning import Callback, Trainer, seed_everything
 from lightning.fabric.utilities import suggested_max_num_workers
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
@@ -167,7 +167,7 @@ class ModelService:
     def _fit(
         self,
         *,
-        model: LightningModule | None = None,
+        model: BaseModel | None = None,
         config: DictConfig,
         job_stage: str | None = None,
     ) -> Trainer:
@@ -187,6 +187,8 @@ class ModelService:
         current_model = model or self.model
         current_model.optimizer_cfg = config["optimizer"]
         current_model.scheduler_cfg = config["scheduler"]
+        if "loss" in config:
+            current_model.loss_cfg = config["loss"]
         trainer = self.build_trainer(
             config=config, job_stage=job_stage, project="train"
         )
