@@ -1,5 +1,4 @@
 import logging
-import resource
 
 import torch
 
@@ -16,6 +15,9 @@ def patch_open_file_limit() -> None:
     large enough number (MIN_OPEN_FILE_LIMIT) circumvents this issue.
     """
     try:
+        # Deferred import to avoid issues on Windows
+        import resource  # noqa: PLC0415
+
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         if soft < MIN_OPEN_FILE_LIMIT:
             new_soft = (
@@ -25,6 +27,6 @@ def patch_open_file_limit() -> None:
             )
             resource.setrlimit(resource.RLIMIT_NOFILE, (new_soft, hard))
             log.debug("Raised open-file limit from %d to %d", soft, new_soft)
-    except (ValueError, OSError) as exc:
+    except (ImportError, OSError, ValueError) as exc:
         log.warning("Could not raise open-file limit: %s", exc)
     torch.multiprocessing.set_sharing_strategy("file_system")
