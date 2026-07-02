@@ -41,7 +41,7 @@ class PlottingCallback(Callback):
             frequency: A dictionary specifying how often to make plots, with keys:
                 batch (plot every N batches)
                 epoch (plot every N epochs)
-                number (plot N sample batches evenly spaced across the dataset)
+                number (plot N sample batches evenly spaced across the epoch)
             make_input_plots: Whether to plot the raw inputs.
             make_static_plots: Whether to create static plots.
             make_video_plots: Whether to create video plots.
