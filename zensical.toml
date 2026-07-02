@@ -19,7 +19,8 @@ nav = [
         { "Add a model" = "how-to/add-a-model.md" },
         { "Add a processor" = "how-to/add-a-processor.md" },
         { "Train a model" = "how-to/train.md" },
-        { "Run multistage training" = "how-to/train-multistage.md" },
+        { "Train a model in multiple stages" = "how-to/train-multistage.md" },
+        { "Evaluate a model" = "how-to/evaluate.md" },
     ] },
     { "API Reference" = [
         { "Overview" = "api/index.md" },
