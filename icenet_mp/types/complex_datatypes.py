@@ -153,7 +153,7 @@ class PlotSpec:
     )
 
     def __add__(
-        self, other: "PlotSpec | DictConfig | dict [str, Any] | None"
+        self, other: "PlotSpec | DictConfig | dict[str, Any] | None"
     ) -> "PlotSpec":
         """Combine two PlotSpec instances or a PlotSpec with a dictionary."""
         if other is None:
