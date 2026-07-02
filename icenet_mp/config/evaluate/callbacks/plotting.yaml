@@ -1,7 +1,7 @@
 plotting:
   _target_: icenet_mp.callbacks.PlottingCallback
   frequency:
-    batch: 5  # plot every 5 evaluation batches
+    number: 3 # plot exactly 3 sample batches equally space in the date range
   make_input_plots: true
   make_static_plots: true
   make_video_plots: true
