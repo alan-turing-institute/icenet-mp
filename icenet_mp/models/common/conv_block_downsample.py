@@ -15,7 +15,7 @@ class ConvBlockDownsample(nn.Module):
     Reverse of ConvBlockUpsample.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         in_channels: int,
         *,
