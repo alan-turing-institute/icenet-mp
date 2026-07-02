@@ -45,6 +45,10 @@ class ConvBlockUpsample(nn.Module):
 
         out_channels = in_channels // 2 if out_channels is None else out_channels
 
+        if n_subblocks < 1:
+            msg = f"n_subblocks must be at least 1, got {n_subblocks}."
+            raise ValueError(msg)
+
         if upsample_mode not in ("bilinear", "shuffle"):
             msg = f"Unsupported upsample_mode: {upsample_mode}"
             raise ValueError(msg)
