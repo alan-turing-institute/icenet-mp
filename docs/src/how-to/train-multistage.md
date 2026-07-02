@@ -70,3 +70,4 @@ train:
 
 Any key valid under `train` can be overridden per stage: `optimizer`, `scheduler`, `trainer`, and `callbacks`.
 Keys not present in a stage block fall back to the top-level `train` values.
+For example, the `lr` for the `encoders`, `decoder` and `processor` stages would be the default `5e-3` if not overridden elsewhere.
