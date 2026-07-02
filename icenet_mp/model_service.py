@@ -239,7 +239,7 @@ class ModelService:
             / f"run-{get_timestamp()}-{generate_id()}"
         )
 
-    def build_trainer(
+    def build_trainer(  # noqa: C901
         self,
         *,
         config: DictConfig,
@@ -292,9 +292,19 @@ class ModelService:
         # Check that fully_deterministic is set correctly
         if self.fully_deterministic != torch.are_deterministic_algorithms_enabled():
             log.warning(
-                "fully_deterministic is set to %s but torch.are_deterministic_algorithms_enabled() is %s.",
-                self.fully_deterministic,
-                torch.are_deterministic_algorithms_enabled(),
+                "Fully deterministic mode is %s but torch deterministic algorithms are %s.",
+                "enabled" if self.fully_deterministic else "disabled",
+                "enabled"
+                if torch.are_deterministic_algorithms_enabled()
+                else "disabled",
+            )
+        if (
+            self.fully_deterministic
+            and not torch.is_deterministic_algorithms_warn_only_enabled()
+        ):
+            log.warning(
+                "Fully deterministic mode is enabled but torch warn_only is disabled. "
+                "Unsupported operations may cause segmentation faults."
             )
 
         # Assign workers for data loading
