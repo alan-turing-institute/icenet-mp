@@ -32,7 +32,7 @@ uv run imp evaluate --config-name <your-name>.local --checkpoint PATH_TO_CHECKPO
 
 ### Enabling visualisations
 
-By default, visualisations are enabled (see `evaluate/callbacks/plotting.yaml`). To disable them, set `make_static_plots` and `make_video_plots` to `false` in your local config:
+By default, all visualisations are enabled (see `icenet_mp/config/evaluate/callbacks/plotting.yaml`). To disable forecast plots, set `make_static_plots` and `make_video_plots` to `false` in your local config:
 
 ```yaml
 evaluate:
@@ -42,16 +42,14 @@ evaluate:
       make_video_plots: false
 ```
 
-To enable plots of the raw input data alongside the forecasts, add:
+Plots of the raw input data are also enabled by default. To disable them, set:
 
 ```yaml
 evaluate:
   callbacks:
     plotting:
-      make_input_plots: true
+      make_input_plots: false
 ```
-
-Output directories, styling, and animation parameters are set under `evaluate.callbacks.plotting.plot_spec` and can be overridden at the command line.
 
 ## 4. Check results in W&B
 
@@ -63,4 +61,4 @@ Once evaluation completes, the run appears in the `turing-seaice` W&B project at
 | `output_video` | Animated forecast output. |
 | `input_static` | Static images of the raw input data (if `make_input_plots: true`). |
 | `input_video` | Animated raw input data (if `make_input_plots: true`). |
-| `Custom Charts` | Per-forecast-day metrics, allowing skill to be assessed at longer lead times |
+| `Custom Charts` | Per-forecast-day metrics, allowing skill to be assessed at longer lead times. |
