@@ -61,7 +61,7 @@ class ConvBlockUpsample(nn.Module):
             # Size increasing upsample/normalisation/activation that maintains channels
             {
                 "bilinear": nn.Upsample(
-                    scale_factor=2, mode="bilinear", align_corners=False
+                    scale_factor=scale_factor, mode="bilinear", align_corners=False
                 ),
                 "shuffle": WeightedUpsample(in_channels, upsample_factor=scale_factor),
             }[upsample_mode],
