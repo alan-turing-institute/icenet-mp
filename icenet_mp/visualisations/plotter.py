@@ -92,6 +92,11 @@ class Plotter:
                 prediction: ArrayHW = (
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
+                variable_name = (
+                    channel_names[idx_channel]
+                    if idx_channel < len(channel_names)
+                    else f"channel_{idx_channel}"
+                )
                 # Plot and log output static images
                 images = plot_static_prediction(
                     ground_truth,
@@ -99,7 +104,7 @@ class Plotter:
                     date=dates[idx_date],
                     land_mask=self.land_mask,
                     plot_spec=self.plot_spec,
-                    variable_name=channel_names[idx_channel],
+                    variable_name=variable_name,
                 )
                 for image_name, image_list in images.items():
                     for image_logger in image_loggers:
@@ -163,13 +168,18 @@ class Plotter:
                 prediction: ArrayTHW = (
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
+                variable_name = (
+                    channel_names[idx_channel]
+                    if idx_channel < len(channel_names)
+                    else f"channel_{idx_channel}"
+                )
                 video_data = plot_video_prediction(
                     ground_truth,
                     prediction,
                     dates=dates,
                     land_mask=self.land_mask,
                     plot_spec=self.plot_spec,
-                    variable_name=channel_names[idx_channel],
+                    variable_name=variable_name,
                 )
                 for video_logger in video_loggers:
                     for video_name, video_buffer in video_data.items():
