@@ -80,7 +80,7 @@ class PlottingCallback(Callback):
             self.cached_dataloader_idx_ = dataloader_idx
 
     def is_sample_batch(self, batch_idx: int, total_batches: float) -> bool:
-        """Return True if batch_idx is one of frequency_samples equally-spaced targets."""
+        """Return True if batch_idx is one of frequency_number equally-spaced targets."""
         if (
             self.frequency_number <= 0
             or not isinstance(total_batches, int)
