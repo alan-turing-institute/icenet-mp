@@ -47,7 +47,7 @@ class CNNDecoder(BaseDecoder):
         # Calculate the factor by which the scale changes after n_layers
         layer_factor = scale_factor**n_layers
 
-        # Ensure number of channels is divisible by the power of two implied by n_layers
+        # Ensure number of channels is divisible by the factor implied by n_layers
         if self.data_space_in.channels % layer_factor:
             msg = (
                 f"The number of input channels {self.data_space_in.channels} must be divisible by {layer_factor}. "
