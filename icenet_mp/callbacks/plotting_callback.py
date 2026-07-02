@@ -1,4 +1,5 @@
 import logging
+import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -79,15 +80,15 @@ class PlottingCallback(Callback):
             self.cached_batch_idx_ = batch_idx
             self.cached_dataloader_idx_ = dataloader_idx
 
-    def is_sample_batch(self, batch_idx: int, total_batches: float) -> bool:
+    def is_sample_batch(self, batch_idx: int, total_batches: int | float) -> bool:  # noqa: PYI041
         """Return True if batch_idx is one of frequency_number equally-spaced targets."""
         if (
             self.frequency_number <= 0
-            or not isinstance(total_batches, int)
+            or not math.isfinite(total_batches)
             or total_batches <= 0
         ):
             return False
-        n = min(self.frequency_number, total_batches)
+        n = int(min(self.frequency_number, total_batches))
         if n == 1:
             return batch_idx == total_batches - 1
         targets = {round(i * (total_batches - 1) / (n - 1)) for i in range(n)}
