@@ -29,4 +29,7 @@ def patch_open_file_limit() -> None:
             log.debug("Raised open-file limit from %d to %d", soft, new_soft)
     except (ImportError, OSError, ValueError) as exc:
         log.warning("Could not raise open-file limit: %s", exc)
-    torch.multiprocessing.set_sharing_strategy("file_system")
+    try:
+        torch.multiprocessing.set_sharing_strategy("file_system")
+    except (RuntimeError, ValueError) as exc:
+        log.warning("Could not set torch sharing strategy: %s", exc)

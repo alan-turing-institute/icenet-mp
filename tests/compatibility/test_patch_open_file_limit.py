@@ -1,5 +1,3 @@
-import resource
-
 import pytest
 import torch
 
@@ -7,6 +5,8 @@ from icenet_mp.compatibility.torch.patch_open_file_limit import (
     MIN_OPEN_FILE_LIMIT,
     patch_open_file_limit,
 )
+
+resource = pytest.importorskip("resource")
 
 
 class TestPatchOpenFileLimit:
