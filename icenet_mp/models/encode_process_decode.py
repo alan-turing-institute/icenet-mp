@@ -49,12 +49,20 @@ class EncodeProcessDecode(BaseModel):
             module_name = f"encoder_{input_space.name}".lower().replace("-", "_")
             self.add_module(module_name, module)
 
+        # Confirm that all encoders have the same output shape
+        latent_shapes = {encoder.data_space_out.shape for encoder in self.encoders}
+        if len(latent_shapes) != 1:
+            msg = (
+                f"Expected all encoders to have the same output shape, but found "
+                f"{len(latent_shapes)} different shapes: {latent_shapes}"
+            )
+            raise ValueError(msg)
+
         # Add a processor
-        # Note that all encoders have the same output shape
         combined_latent_space = DataSpace(
             name="combined_latent_space",
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
-            shape=self.encoders[0].data_space_out.shape,
+            shape=latent_shapes.pop(),
         )
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
