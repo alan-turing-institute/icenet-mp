@@ -112,10 +112,10 @@ class ProcessorStage(BaseModel):
     ) -> ModelStepOutput:
         """Run the training step.
 
-        If the processor implements compute_loss, both inputs and target are encoded into
-        latent space and the processor's custom loss is used for backpropagation. The
-        decoded prediction is still computed (under no_grad) so that metrics and callbacks
-        remain meaningful.
+        If the processor returns a loss in its `ProcessorOutput` (rather than `None`),
+        this is used for backpropagation. We use `no_grad` to compute the decoded
+        prediction, which allows us to calculate metrics and log outputs, but the
+        usefulness of these will depend on what `ProcessorOutput.prediction` contains.
 
         Otherwise, the standard encode-process-decode path is used and the loss is
         computed by comparing the decoded prediction to the target.
