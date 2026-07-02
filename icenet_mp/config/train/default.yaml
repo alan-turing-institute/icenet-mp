@@ -1,6 +1,5 @@
 defaults:
   - callbacks:
-    - device_stats
     - ema_weight_averaging
     - learning_rate
     - metric_summary
