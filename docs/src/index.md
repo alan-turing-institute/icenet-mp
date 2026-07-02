@@ -5,8 +5,8 @@ It performs multi-modal data fusion across satellite, sensor and post-processed 
 
 ## Getting started
 
-- [User Guide](user-guide/index.md) — installation, configuration, and the `imp` CLI
-- [API Reference](api/index.md) — every public module, class, and function
+- [User Guide](user-guide/index.md) - installation, configuration, and the `imp` CLI
+- [API Reference](api/index.md) - every public module, class, and function
 
 ## Quick install
 

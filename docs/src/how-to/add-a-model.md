@@ -1,4 +1,4 @@
-# Add a new model
+# Add a model
 
 ## Tensor format
 
@@ -14,7 +14,7 @@ All IceNet-MP models operate on tensors in `NTCHW` format:
 
 `N` and `T` are the same across all inputs, but `C`, `H`, and `W` may differ per dataset.
 
-For example, with batch size `N=2`, 3 history steps, and 4 forecast steps, each of the `k` inputs each have shape `(2, 3, C_k, H_k, W_k)` and the output has shape `(2, 4, C_out, H_out, W_out)`.
+For example, with 3 history steps, and 4 forecast steps, each of the `k` inputs each have shape `(N, 3, C_k, H_k, W_k)` and the output has shape `(N, 4, C_out, H_out, W_out)`.
 
 ## Standalone models
 
@@ -36,7 +36,7 @@ You define a latent space `(H_latent, W_latent)` and the framework automatically
 1. Each dataset-specific **encoder** maps input `(N, T_history, C_k, H_k, W_k)` to `(N, T_history, C_k_latent, H_latent, W_latent)`.
 2. The `k` encoded tensors are concatenated to `(N, T_history, C_latent, H_latent, W_latent)`.
 3. The **processor** maps `(N, T_history, C_latent, H_latent, W_latent)` to `(N, T_forecast, C_latent, H_latent, W_latent)`.
-4. Each output-specific **decoder** maps the processor output → `(N, T_forecast, C_out, H_out, W_out)`.
+4. Each output-specific **decoder** maps the processor output, `(N, T_forecast, C_latent, H_latent, W_latent)`, to `(N, T_forecast, C_out, H_out, W_out)`.
 
 ![Encode-process-decode pipeline diagram](../assets/pipeline-encode-process-decode.png)
 

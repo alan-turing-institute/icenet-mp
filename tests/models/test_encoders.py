@@ -33,17 +33,14 @@ class TestEncoders:
             "CNNEncoder": CNNEncoder(
                 data_space_in=input_space,
                 latent_space=test_latent_hw,
-                n_history_steps=test_n_history_steps,
             ),
             "NaiveLinearEncoder": NaiveLinearEncoder(
                 data_space_in=input_space,
                 latent_space=test_latent_hw,
-                n_history_steps=test_n_history_steps,
             ),
             "PiecewiseEncoder": PiecewiseEncoder(
                 data_space_in=input_space,
                 latent_space=test_latent_hw,
-                n_history_steps=test_n_history_steps,
             ),
         }[test_encoder_cls]
         result: torch.Tensor = encoder.rollout(
@@ -77,7 +74,6 @@ class TestPiecewiseEncoder:
             data_space_in=input_space,
             latent_space=test_latent_hw,
             n_conv_blocks=0,
-            n_history_steps=1,
         )
 
         # Encode an input of ones
@@ -117,7 +113,6 @@ class TestPiecewiseEncoder:
             data_space_in=input_space,
             latent_space=patch_shape,
             n_conv_blocks=0,
-            n_history_steps=1,
         )
         latent_ntchw = encoder.rollout(input_ntchw)
 

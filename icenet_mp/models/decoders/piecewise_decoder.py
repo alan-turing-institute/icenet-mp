@@ -22,10 +22,10 @@ class PiecewiseDecoder(BaseDecoder):
     - Combine patches into output of size output_height x output_width
 
     Latent space:
-        TensorNTCHW with (batch_size, n_forecast_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
 
     Output space:
-        TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
+        TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
     def __init__(
@@ -35,6 +35,7 @@ class PiecewiseDecoder(BaseDecoder):
         conv_kernel_size: int = 3,
         n_conv_blocks: int = 3,
         restrict_range: str = "clamp",
+        use_hann_window: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseDecoder."""
@@ -100,6 +101,7 @@ class PiecewiseDecoder(BaseDecoder):
                 kernel_size=self.data_space_in.shape,
                 stride=strides,
                 padding=strides,
+                use_hann_window=use_hann_window,
             )
         )
 

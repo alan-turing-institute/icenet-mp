@@ -36,18 +36,15 @@ class TestDecoders:
             "CNNDecoder": CNNDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 n_layers=1,
             ),
             "NaiveLinearDecoder": NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
             ),
             "PiecewiseDecoder": PiecewiseDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
             ),
         }[test_decoder_cls]
         result: torch.Tensor = decoder.rollout(
@@ -72,7 +69,6 @@ class TestCNNDecoder:
     def test_latent_shape_errors(
         self, test_latent_chw: tuple[int, int, int], test_n_layers: int
     ) -> None:
-        test_n_forecast_steps = 1
         latent_space = DataSpace(
             name="latent", channels=test_latent_chw[0], shape=test_latent_chw[1:]
         )
@@ -84,7 +80,6 @@ class TestCNNDecoder:
             CNNDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 n_layers=test_n_layers,
             )
 
@@ -103,20 +98,17 @@ class TestDecoderBounded:
             "CNNDecoder": CNNDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 n_layers=1,
                 bounded=True,
             ),
             "NaiveLinearDecoder": NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 bounded=True,
             ),
             "PiecewiseDecoder": PiecewiseDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 restrict_range="tanh",
             ),
         }[test_decoder_cls]
@@ -164,7 +156,6 @@ class TestPiecewiseDecoder:
             data_space_in=input_space,
             data_space_out=output_space,
             n_conv_blocks=0,
-            n_forecast_steps=1,
             restrict_range="none",
         )
 
@@ -201,7 +192,6 @@ class TestPiecewiseDecoder:
             data_space_in=input_space,
             data_space_out=output_space,
             n_conv_blocks=0,
-            n_forecast_steps=1,
             restrict_range="clamp",
         )
         x = torch.full(

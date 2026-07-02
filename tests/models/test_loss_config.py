@@ -75,7 +75,7 @@ class TestLossConfig:
             scheduler=DictConfig({}),
             loss=LOSS_CONFIGS[loss_name],
         )
-        assert isinstance(model._loss_fn, LOSS_TYPES[loss_name])
+        assert isinstance(model.loss_fn, LOSS_TYPES[loss_name])
 
     # 3. Initialising with a loss function that doesn't exist fails
     def test_nonexistent_loss_raises(

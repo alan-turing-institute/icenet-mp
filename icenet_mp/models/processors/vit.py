@@ -78,7 +78,7 @@ class VitProcessor(BaseProcessor):
             TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
 
         """
-        batch, _, height, _ = x.shape
+        batch, _, height, width = x.shape
 
         x = self.patch_embed(x)  # (B, N, D)
         x = x + self.pos_embed
@@ -88,7 +88,15 @@ class VitProcessor(BaseProcessor):
         x = self.norm(x)  # (B, N, D)
         x = self.decoder(x)  # (B, N, out_channels**patch_size*patch_size)
 
-        h_patches = w_patches = height // self.patch_size
+        if height % self.patch_size or width % self.patch_size:
+            msg = (
+                f"Latent space height ({height}) and width ({width}) must each be "
+                f"divisible by patch size ({self.patch_size})."
+            )
+            raise ValueError(msg)
+
+        h_patches = height // self.patch_size
+        w_patches = width // self.patch_size
         x = x.reshape(
             batch,
             h_patches,

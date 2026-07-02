@@ -10,12 +10,11 @@ from anemoi.datasets.create.source import Source
 from anemoi.datasets.create.sources import source_registry
 from anemoi.datasets.create.sources.xarray import load_one
 from anemoi.datasets.dates.groups import GroupOfDates
-from argopy import DataFetcher
-from argopy.errors import NoData
 from earthkit.data import FieldList
 from haversine import Unit, haversine_vector
 from pandas import DataFrame
 
+from icenet_mp.data_processors.sources import lazy_argopy as argopy
 from icenet_mp.geotools import grid_factory
 
 logger = logging.getLogger(__name__)
@@ -212,7 +211,7 @@ def _fetch_argo_dataframe_with_retry(
     # Download from ERDDAP with exponential backoff
     for attempt in range(1, max_attempts + 1):
         try:
-            return DataFetcher().region(region + time_window).to_dataframe()
+            return argopy.DataFetcher().region(region + time_window).to_dataframe()
         except (FileNotFoundError, TimeoutError) as exc:
             # Annoyingly, both 50x errors and 404 errors raise a FileNotFoundError and
             # the error message does not contain the HTTP status code so we need to
@@ -229,7 +228,7 @@ def _fetch_argo_dataframe_with_retry(
             backoff = initial_backoff_s * (2 ** (attempt - 1))
             logger.info("Retrying download in %.1fs.", backoff)
             time.sleep(backoff)
-        except NoData as exc:
+        except argopy.NoData as exc:
             msg = f"{data_target} is unavailable."
             logger.warning(msg)
             raise LookupError(msg) from exc
