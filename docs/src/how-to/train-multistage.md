@@ -54,16 +54,16 @@ train:
   multistage:
     encoders:
       trainer:
-        max_epochs: 10      # shorter run for encoder pretraining
+        max_epochs: 10
     decoder:
       trainer:
         max_epochs: 10
     processor:
       trainer:
         max_epochs: 10
-    finetuning:
+    finetune:
       optimizer:
-        lr: 1e-4            # lower learning rate for finetuning
+        lr: 1e-4
       trainer:
         max_epochs: 5
 ```

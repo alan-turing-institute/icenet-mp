@@ -375,7 +375,7 @@ class ModelService:
         1. encoders
         2. decoder
         3. processor
-        4. finetuning.
+        4. finetune
 
         Args:
             checkpoint_dir: Optional directory to load checkpoints from. If provided,
@@ -416,7 +416,7 @@ class ModelService:
         log.info("Preparing to finetune...")
         self.train_stage_finetune(
             processor_model=processor_model,
-            config=self._merged_config("finetuning"),
+            config=self._merged_config("finetune"),
         )
 
     def train_stage_decoder(
@@ -526,8 +526,8 @@ class ModelService:
         log.info("Loaded pretrained weights for processor.")
         model.decoder.load_state_dict(processor_model.decoder.state_dict())
         log.info("Loaded pretrained weights for decoder.")
-        trainer = self._fit(config=config, job_stage="finetuning")
-        self._save_checkpoint(trainer, "finetuning")
+        trainer = self._fit(config=config, job_stage="finetune")
+        self._save_checkpoint(trainer, "finetune")
 
     def train_stage_processor(
         self,
