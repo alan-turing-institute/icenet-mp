@@ -71,6 +71,8 @@ class EncoderStage(BaseModel):
             hemisphere=template.hemisphere,
             input_spaces=[s.to_dict() for s in template.input_spaces],
             latent_space=template.encoders[0].data_space_out.shape,
+            latitudes_fn=template.latitudes_fn,
+            longitudes_fn=template.longitudes_fn,
             n_forecast_steps=template.n_forecast_steps,
             n_history_steps=template.n_history_steps,
             name=f"{dataset}_encoder".replace("-", "_"),
