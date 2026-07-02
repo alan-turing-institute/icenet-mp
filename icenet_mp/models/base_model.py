@@ -1,4 +1,3 @@
-import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
@@ -113,10 +112,7 @@ class BaseModel(LightningModule, ABC):
         # Optimizer
         optimizer = hydra.utils.instantiate(
             self.optimizer_cfg,
-            params=filter(
-                lambda p: p.requires_grad,
-                itertools.chain(*[module.parameters() for module in self.children()]),
-            ),
+            params=filter(lambda p: p.requires_grad, self.parameters()),
         )
 
         # If no scheduler config is provided, return just the optimizer
