@@ -47,14 +47,20 @@ class DecoderStage(BaseModel):
             shape=self.encoders[0].data_space_out.shape,
         )
 
-        # Decode from combined latent space to the target dataset's input space
+        # Decode from combined latent space to the configured output space
         self.target_name = target_dataset_name
         self.target_indices = target_variable_indices
-        target_space = next(s for s in self.input_spaces if s.name == self.target_name)
+        if self.output_space.channels != len(target_variable_indices):
+            msg = (
+                f"output_space has {self.output_space.channels} channel(s) but "
+                f"target_variable_indices selects {len(target_variable_indices)}; "
+                f"check that predict.target.variables is set correctly."
+            )
+            raise ValueError(msg)
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
             data_space_in=combined_latent_space,
-            data_space_out=target_space,
+            data_space_out=self.output_space,
         )
 
     @classmethod
