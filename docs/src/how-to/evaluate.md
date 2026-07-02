@@ -53,7 +53,7 @@ evaluate:
 
 ## 4. Check results in W&B
 
-Once evaluation completes, the run appears in the `turing-seaice` W&B project at [wandb.ai](https://wandb.ai).
+Once evaluation completes, the run appears in the W&B project `evaluate` under the `turing-seaice` entity at [wandb.ai](https://wandb.ai).
 
 | Key | Contents |
 |-----|----------|

@@ -114,7 +114,7 @@ Pass this path to `evaluate` to assess the trained model.
 
 ## 4. Check results in W&B
 
-Once training starts, the run appears in the `turing-seaice` W&B project at [wandb.ai](https://wandb.ai).
+Once training starts, the run appears in the W&B project `train` under the `turing-seaice` entity at [wandb.ai](https://wandb.ai).
 
 ### What to look for
 
