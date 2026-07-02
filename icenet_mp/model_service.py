@@ -221,7 +221,8 @@ class ModelService:
             / f"{stage_name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
         )
         trainer.save_checkpoint(checkpoint_path)
-        log.info("Saved %s checkpoint to %s.", stage_name, checkpoint_path)
+        if trainer.is_global_zero:
+            log.info("Saved %s checkpoint to %s.", stage_name, checkpoint_path)
 
     def build_run_directory(self, trainer: Trainer) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
