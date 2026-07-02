@@ -4,7 +4,7 @@ defaults:
   - evaluate: default
   - loggers:
     - wandb
-  - model: 00_naive_unet_naive
+  - model: 01_naive_unet_naive
   - predict: sic-icenet-2d
   - random: default
   - train: default
