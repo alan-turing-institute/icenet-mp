@@ -48,7 +48,7 @@ class Plotter:
         """Extract and log static raw input plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
-            log_path = f"{prefix}/input_static" if prefix else "output_static"
+            log_path = f"{prefix}/input_static" if prefix else "input_static"
             for input_ds in inputs:
                 # Get static data for this timestep
                 variables = {
