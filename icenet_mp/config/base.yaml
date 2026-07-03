@@ -4,11 +4,10 @@ defaults:
   - evaluate: default
   - loggers:
     - wandb
+  - loss: huber
   - model: quick_test
   - predict: sic-icenet-2d
   - random: default
   - train: default
-  - loss: huber
+  - platform: dev
   - _self_
-
-base_path: ../base

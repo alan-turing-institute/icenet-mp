@@ -1,5 +1,0 @@
-defaults:
-  - base
-  - _self_
-
-base_path: /projects/public/u6iz/shared/base/

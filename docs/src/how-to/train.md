@@ -20,12 +20,10 @@ wandb login
 
 ### Using pre-downloaded data (HPC)
 
-If you are working on Baskerville, DAWN, or Isambard-AI, the datasets are already available on shared storage. Use the appropriate base config and skip ahead to [step 2](#2-create-a-local-config):
+If you are working on Baskerville, DAWN, or Isambard-AI, the datasets are already available on shared storage. Add the matching `platform` override and skip ahead to [step 2](#2-create-a-local-config):
 
-```yaml
-defaults:
-  - base_isambardai   # or base_baskerville or base_dawn
-  - _self_
+```bash
+uv run imp train --config-name <your-name>.local platform=isambardai  # or baskerville or dawn
 ```
 
 ### Downloading data locally
@@ -36,17 +34,17 @@ See the [`datasets create` command reference](../user-guide/commands.md#datasets
 
 Create a file at `icenet_mp/config/<your-name>.local.yaml`. The base config you inherit from depends on where you are running.
 
-### On Isambard-AI
+### On Isambard-AI, Baskerville, or DAWN
 
-Inherit from `base_isambardai`, which already points to the shared data storage:
+Inherit from `base` as usual, and add the `platform` override at the command line ([step 3](#3-run-training)) rather than baking it into your local config — it already points to the shared data storage for that system:
 
 ```yaml
 defaults:
-  - base_isambardai
+  - base
   - _self_
 ```
 
-Use `base_baskerville` or `base_dawn` instead if you are on one of those systems.
+Use `platform=isambardai`, `platform=baskerville`, or `platform=dawn` depending on which system you are on.
 
 ### On a local machine
 
@@ -65,23 +63,15 @@ See [Configuration](../user-guide/configuration.md) for how to switch datasets o
 ### Reusing a config from a previous W&B run
 
 To reproduce or extend a prior run, download its saved config from the W&B run page under **Files > `model_config.yaml`** and place it at `icenet_mp/config/<your-name>.local.yaml`.
-Make sure that the `defaults` block points at the appropriate base config for your machine:
-
-```yaml
-defaults:
-  - base_isambardai   # or base_baskerville, base_dawn, base.local etc.
-  - _self_
-
-# ... rest of the downloaded config ...
-```
-
-If you are running locally, ensure that `base_path` is set as well.
+The downloaded config is fully resolved, so update its `base_path` key to point at the right location for your machine.
 
 ## 3. Run training
 
 ```bash
 uv run imp train --config-name <your-name>.local
 ```
+
+Add `platform=isambardai` (or `baskerville`/`dawn`) if you are on one of those shared HPC systems.
 
 ## Configuring training
 

@@ -1,6 +1,0 @@
-defaults:
-  - base
-  - override /train/trainer: xpu
-  - _self_
-
-base_path: /rds/project/rds-Ywd6zSg8gcc/base/
