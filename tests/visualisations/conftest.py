@@ -190,7 +190,7 @@ def mock_land_mask() -> LandMask:
     land_mask = LandMask(None)
     dist = make_central_distance_grid(TEST_HEIGHT, TEST_WIDTH)
     radius = min(TEST_HEIGHT, TEST_WIDTH) * 0.25
-    land_mask.add_mask((dist < radius).astype(bool))
+    land_mask.add_mask((dist >= radius).astype(bool))
     return land_mask
 
 
