@@ -18,4 +18,4 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.PiecewiseDecoder
-  restrict_range: sigmoid
+  restrict_range: clamp
