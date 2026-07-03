@@ -123,7 +123,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None),
+            land_mask=land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
