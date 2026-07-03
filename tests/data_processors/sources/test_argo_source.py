@@ -67,8 +67,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher",
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
                 mock_datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.load_one", mock_load_one)
 
@@ -109,7 +110,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher", datafetcher_cls
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
+                datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.time.sleep", MagicMock())
 
@@ -135,7 +138,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher", datafetcher_cls
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
+                datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.time.sleep", MagicMock())
 
@@ -160,8 +165,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher",
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
                 mock_datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.load_one", MagicMock())
 

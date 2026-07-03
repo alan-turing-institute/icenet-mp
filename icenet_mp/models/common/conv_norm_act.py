@@ -39,7 +39,7 @@ class ConvNormAct(nn.Module):
                 in_channels, out_channels, kernel_size, padding=padding, stride=stride
             ),
             normalisation_from_name(norm_type, out_channels),
-            ACTIVATION_FROM_NAME[activation](inplace=True),
+            ACTIVATION_FROM_NAME[activation](),
             nn.Dropout2d(dropout_rate) if dropout_rate > 0 else nn.Identity(),
         )
 

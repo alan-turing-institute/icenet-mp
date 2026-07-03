@@ -38,11 +38,16 @@ class Plotter:
         self.plot_spec.metadata_subtitle = format_metadata_subtitle(metadata)
 
     def log_static_inputs(
-        self, inputs: list[SingleDataset], dates: list[datetime], image_loggers: list
+        self,
+        inputs: list[SingleDataset],
+        dates: list[datetime],
+        image_loggers: list,
+        prefix: str | None = None,
     ) -> None:
         """Extract and log static raw input plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
+            log_path = f"{prefix}/input_static" if prefix else "input_static"
             for input_ds in inputs:
                 # Get static data for this timestep
                 variables = {
@@ -59,7 +64,7 @@ class Plotter:
                 for image_name, image_list in images.items():
                     for image_logger in image_loggers:
                         image_logger.log_image(
-                            key=f"input_static/{image_name}", images=image_list
+                            key=f"{log_path}/{image_name}", images=image_list
                         )
         except InvalidArrayError as exc:
             logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
@@ -67,40 +72,58 @@ class Plotter:
             logger.warning("Static plotting failed: %s", exc)
 
     def log_static_outputs(
-        self, outputs: ModelStepOutput, dates: list[datetime], image_loggers: list
+        self,
+        outputs: ModelStepOutput,
+        dates: list[datetime],
+        image_loggers: list,
+        channel_names: list[str],
+        prefix: str | None = None,
     ) -> None:
         """Create and log static output plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
-            # Use the first batch, first channel -> [H,W]
-            ground_truth: ArrayHW = (
-                outputs.target[0, idx_date, 0].detach().cpu().numpy()
-            )
-            prediction: ArrayHW = (
-                outputs.prediction[0, idx_date, 0].detach().cpu().numpy()
-            )
-            # Plot and log output static images
-            images = plot_static_prediction(
-                ground_truth,
-                prediction,
-                date=dates[idx_date],
-                land_mask=self.land_mask,
-                plot_spec=self.plot_spec,
-            )
-            for image_name, image_list in images.items():
-                for image_logger in image_loggers:
-                    image_logger.log_image(
-                        key=f"output_static/{image_name}", images=image_list
-                    )
+            log_path = f"{prefix}/output_static" if prefix else "output_static"
+            # Use all channels from the first batch -> [H,W]
+            for idx_channel in range(outputs.target.shape[2]):
+                ground_truth: ArrayHW = (
+                    outputs.target[0, idx_date, idx_channel].detach().cpu().numpy()
+                )
+                prediction: ArrayHW = (
+                    outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
+                )
+                variable_name = (
+                    channel_names[idx_channel]
+                    if idx_channel < len(channel_names)
+                    else f"channel_{idx_channel}"
+                )
+                # Plot and log output static images
+                images = plot_static_prediction(
+                    ground_truth,
+                    prediction,
+                    date=dates[idx_date],
+                    land_mask=self.land_mask,
+                    plot_spec=self.plot_spec,
+                    variable_name=variable_name,
+                )
+                for image_name, image_list in images.items():
+                    for image_logger in image_loggers:
+                        image_logger.log_image(
+                            key=f"{log_path}/{image_name}", images=image_list
+                        )
         except InvalidArrayError as err:
             logger.warning("Static plotting skipped due to invalid arrays: %s", err)
         except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Static plotting failed: %s", exc)
 
     def log_video_inputs(
-        self, inputs: list[SingleDataset], dates: list[datetime], video_loggers: list
+        self,
+        inputs: list[SingleDataset],
+        dates: list[datetime],
+        video_loggers: list,
+        prefix: str | None = None,
     ) -> None:
         """Extract and log raw input videos."""
+        log_path = f"{prefix}/input_video" if prefix else "input_video"
         for input_ds in inputs:
             # Create animations for all variables
             np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
@@ -120,34 +143,51 @@ class Plotter:
                 for video_name, video_buffer in videos.items():
                     video_buffer.seek(0)
                     video_logger.log_video(
-                        key=f"input_video/{video_name}",
+                        key=f"{log_path}/{video_name}",
                         videos=[video_buffer],
                         format=[self.plot_spec.video_format],
                     )
 
     def log_video_outputs(
-        self, outputs: ModelStepOutput, dates: list[datetime], video_loggers: list
+        self,
+        outputs: ModelStepOutput,
+        dates: list[datetime],
+        video_loggers: list,
+        channel_names: list[str],
+        prefix: str | None = None,
     ) -> None:
         """Create and log output videos."""
         try:
-            # Use the first batch, first channel -> [T,H,W]
-            ground_truth: ArrayTHW = outputs.target[0, :, 0].detach().cpu().numpy()
-            prediction: ArrayTHW = outputs.prediction[0, :, 0].detach().cpu().numpy()
-            video_data = plot_video_prediction(
-                ground_truth,
-                prediction,
-                dates=dates,
-                land_mask=self.land_mask,
-                plot_spec=self.plot_spec,
-            )
-            for video_logger in video_loggers:
-                for video_name, video_buffer in video_data.items():
-                    video_buffer.seek(0)
-                    video_logger.log_video(
-                        key=f"output_video/{video_name}",
-                        videos=[video_buffer],
-                        format=[self.plot_spec.video_format],
-                    )
+            log_path = f"{prefix}/output_video" if prefix else "output_video"
+            # Use all channels from the first batch -> [T, H,W]
+            for idx_channel in range(outputs.target.shape[2]):
+                ground_truth: ArrayTHW = (
+                    outputs.target[0, :, idx_channel].detach().cpu().numpy()
+                )
+                prediction: ArrayTHW = (
+                    outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
+                )
+                variable_name = (
+                    channel_names[idx_channel]
+                    if idx_channel < len(channel_names)
+                    else f"channel_{idx_channel}"
+                )
+                video_data = plot_video_prediction(
+                    ground_truth,
+                    prediction,
+                    dates=dates,
+                    land_mask=self.land_mask,
+                    plot_spec=self.plot_spec,
+                    variable_name=variable_name,
+                )
+                for video_logger in video_loggers:
+                    for video_name, video_buffer in video_data.items():
+                        video_buffer.seek(0)
+                        video_logger.log_video(
+                            key=f"{log_path}/{video_name}",
+                            videos=[video_buffer],
+                            format=[self.plot_spec.video_format],
+                        )
         except (InvalidArrayError, VideoRenderError) as err:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):

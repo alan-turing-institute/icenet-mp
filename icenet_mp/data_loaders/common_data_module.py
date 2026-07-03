@@ -1,5 +1,4 @@
 import logging
-import sys
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
@@ -80,10 +79,9 @@ class CommonDataModule(LightningDataModule):
             batch_sampler=None,
             batch_size=self.batch_size,
             drop_last=False,
-            multiprocessing_context=None if sys.platform == "win32" else "fork",
             num_workers=0,
             persistent_workers=False,
-            prefetch_factor=1,
+            prefetch_factor=None,  # must be None when num_workers=0
             sampler=None,
             worker_init_fn=None,
         )
@@ -173,11 +171,17 @@ class CommonDataModule(LightningDataModule):
             .space
         )
 
+    @cached_property
+    def variable_names(self) -> dict[str, list[str]]:
+        """Return the variable names for each input."""
+        return {ds.name: ds.variable_names for ds in self.datasets.values()}
+
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
         logger.info("Assigning %d workers for data loading.", n_workers)
         self._common_dataloader_kwargs["num_workers"] = n_workers
         self._common_dataloader_kwargs["persistent_workers"] = n_workers > 0
+        self._common_dataloader_kwargs["prefetch_factor"] = 1 if n_workers > 0 else None
 
     def predict_dataloader(
         self,

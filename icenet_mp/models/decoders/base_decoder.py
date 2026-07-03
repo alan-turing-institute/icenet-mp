@@ -11,22 +11,21 @@ class BaseDecoder(nn.Module):
     """Decoder that takes data in a latent space and translates it to a larger output space.
 
     Latent space:
-        TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
 
     Output space:
-        TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
+        TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
     # buffer in __init__, annotated here to make the type explicitly
     mask: Tensor
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
+        active_mask_path: str | None = None,
         data_space_in: DataSpace,
         data_space_out: DataSpace,
-        n_forecast_steps: int,
-        active_mask_path: str | None = None,
         land_mask_path: str | None = None,
         mask_type: str | None = None,
         restrict_range: str = "none",
@@ -35,7 +34,6 @@ class BaseDecoder(nn.Module):
         super().__init__()
         self.data_space_in = data_space_in
         self.data_space_out = data_space_out
-        self.n_forecast_steps = n_forecast_steps
         self.name = data_space_out.name
 
         # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
@@ -107,11 +105,15 @@ class BaseDecoder(nn.Module):
         normalisation layers in the encoder.
 
         Args:
-            x: TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+            x: TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
 
         Returns:
-            TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
+            TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
 
         """
+        # Although this should only be called with n_forecast_steps timeslices, we can
+        # make the decoder more generic by simply reading the number of timeslices from
+        # the input.
+        batch_size, n_timeslices = x.shape[0], x.shape[1]
         output = self.finalise(self(x.reshape(-1, *self.data_space_in.chw)))
-        return output.reshape(-1, self.n_forecast_steps, *self.data_space_out.chw)
+        return output.reshape(batch_size, n_timeslices, *self.data_space_out.chw)

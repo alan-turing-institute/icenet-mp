@@ -20,10 +20,10 @@ class CNNDecoder(BaseDecoder):
     - Convolve to number of output channels (if needed)
 
     Input space:
-        TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
+        TensorNTCHW with (batch_size, n_timeslices, input_channels, input_height, input_width)
 
     Latent space:
-        TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
     """
 
     def __init__(
@@ -32,6 +32,7 @@ class CNNDecoder(BaseDecoder):
         activation: str = "ReLU",
         kernel_size: int = 3,
         n_layers: int = 3,
+        n_subblocks: int = 2,
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNDecoder."""
@@ -80,7 +81,10 @@ class CNNDecoder(BaseDecoder):
         for _ in range(n_layers):
             layers.append(
                 ConvBlockUpsample(
-                    n_channels, activation=activation, kernel_size=kernel_size
+                    n_channels,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                    n_subblocks=n_subblocks,
                 )
             )
             logger.debug(
@@ -101,14 +105,16 @@ class CNNDecoder(BaseDecoder):
                 self.data_space_out.shape,
             )
 
-        # If necessary, convolve to the required number of output channels
-        if n_channels != self.data_space_out.channels:
-            layers.append(nn.Conv2d(n_channels, self.data_space_out.channels, 1))
-            logger.debug(
-                "- Channel convolution from %d to %d",
-                n_channels,
-                self.data_space_out.channels,
-            )
+        # Run a final convolution that will both ensure that we have the right number of
+        # output channels and also the the final operation is a layer that can produce
+        # values across the full output range (not just the range of the activation
+        # function in the last ConvBlockUpsample).
+        layers.append(nn.Conv2d(n_channels, self.data_space_out.channels, 1))
+        logger.debug(
+            "- Channel convolution from %d to %d",
+            n_channels,
+            self.data_space_out.channels,
+        )
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)

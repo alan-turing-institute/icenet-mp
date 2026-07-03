@@ -24,6 +24,7 @@ def callback() -> MetricSummaryCallback:
 def mock_trainer() -> MagicMock:
     """Create a mock Trainer."""
     trainer = MagicMock(spec=Trainer)
+    trainer.sanity_checking = False
     mock_logger = MagicMock()
     trainer.loggers = [mock_logger]
     return trainer
@@ -101,6 +102,7 @@ class TestOnTestEnd:
 
         # Create a trainer with WandbLogger
         trainer = MagicMock(spec=Trainer)
+        trainer.sanity_checking = False
         wandb_logger = MagicMock(spec=WandbLogger)
         trainer.loggers = [wandb_logger]
 

@@ -15,7 +15,9 @@ class LandMask:
             try:
                 self.add_mask(np.load(land_mask_path))
             except (OSError, ValueError) as exc:
-                logger.warning("Failed to load land mask from %s: %s", land_mask_path, exc)
+                logger.warning(
+                    "Failed to load land mask from %s: %s", land_mask_path, exc
+                )
 
     def add_mask(self, mask_array: np.ndarray) -> None:
         """Add a land mask to the cache, keyed by its shape."""

@@ -23,8 +23,12 @@ class MetricSummaryCallback(Callback):
         self, trainer: Trainer, metrics: MetricCollection, stage: str
     ) -> None:
         """Log per-epoch metrics to W&B."""
+        # Skip logging during sanity checking to avoid logging incomplete metrics
+        if trainer.sanity_checking:
+            return
+
+        # Compute the metric value (e.g., SIEError) across all batches
         for name, metric in metrics.items():
-            # Compute the metric value (e.g., SIEError) across all batches
             values: Tensor = metric.compute()
 
             # Log the mean value of the metric across all days
@@ -44,6 +48,10 @@ class MetricSummaryCallback(Callback):
         Note that these will be based on metrics accumulated during the final epoch, due
         to the reset behaviour in log_per_epoch_metrics.
         """
+        # Skip logging during sanity checking to avoid logging incomplete metrics
+        if trainer.sanity_checking:
+            return
+
         # Check that W&B is being used as a logger
         if not isinstance(run := get_wandb_run(trainer), wandb.Run):
             logger.warning(

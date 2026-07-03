@@ -43,7 +43,6 @@ class EncodeProcessDecode(BaseModel):
                     latent_space=encoders["latent_space"],
                     latitudes_fn=self.latitudes_fn,
                     longitudes_fn=self.longitudes_fn,
-                    n_history_steps=self.n_history_steps,
                 )
                 for input_space in self.input_spaces
             ]
@@ -51,25 +50,26 @@ class EncodeProcessDecode(BaseModel):
             msg = f"Error instantiating encoders: {exc}. Please ensure that encoders are specified for all input spaces: {self.input_spaces}"
             raise ValueError(msg) from exc
 
-        # Check that all encoders have the same output shape
-        encoder_output_shapes = {
-            encoder.data_space_out.shape for encoder in self.encoders
-        }
-        if len(encoder_output_shapes) != 1:
-            msg = f"Expected all encoders to have the same output shape, but found {len(encoder_output_shapes)} different shapes: {encoder_output_shapes}"
-            raise ValueError(msg)
-
         # We have to explicitly register each encoder as list[Module] will not be
         # automatically picked up by PyTorch
         for input_space, module in zip(self.input_spaces, self.encoders, strict=True):
             module_name = f"encoder_{input_space.name}".lower().replace("-", "_")
             self.add_module(module_name, module)
 
+        # Confirm that all encoders have the same output shape
+        latent_shapes = {encoder.data_space_out.shape for encoder in self.encoders}
+        if len(latent_shapes) != 1:
+            msg = (
+                f"Expected all encoders to have the same output shape, but found "
+                f"{len(latent_shapes)} different shapes: {latent_shapes}"
+            )
+            raise ValueError(msg)
+
         # Add a processor
         combined_latent_space = DataSpace(
             name="combined_latent_space",
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
-            shape=encoder_output_shapes.pop(),
+            shape=latent_shapes.pop(),
         )
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
@@ -81,10 +81,9 @@ class EncodeProcessDecode(BaseModel):
         # Add a decoder
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
+            active_mask_path=self.active_mask_path,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
-            n_forecast_steps=self.n_forecast_steps,
-            active_mask_path=self.active_mask_path,
             land_mask_path=self.land_mask_path,
         )
 
@@ -107,10 +106,9 @@ class EncodeProcessDecode(BaseModel):
 
         # Process in latent space:
         # combined input tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        # target tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width) or None
         latent_output: TensorNTCHW = self.processor.rollout(
-            latent_input_combined, inputs.get("target")
-        )
+            latent_input_combined
+        ).prediction
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output)

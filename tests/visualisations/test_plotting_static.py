@@ -36,15 +36,17 @@ class TestPlotStaticPrediction:
         ground_truth, prediction, date = sic_pair_2d
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True)
 
+        variable_name = "test-variable"
         result = plot_static_prediction(
             ground_truth,
             prediction,
             date=date,
             land_mask=LandMask(None),
             plot_spec=spec,
+            variable_name=variable_name,
         )
 
-        expected_key = f"sea-ice-concentration-{date.strftime('%Y-%m-%d')}"
+        expected_key = f"{date.strftime('%Y-%m-%d')}-{variable_name}"
         assert expected_key in result
         images = result[expected_key]
         assert len(images) == 1
@@ -86,14 +88,16 @@ class TestPlotStaticPrediction:
         )
 
         # Ensure plot_static_prediction runs without error and returns an image
+        variable_name = "test-variable"
         result = plot_static_prediction(
             ground_truth,
             prediction,
             date=date,
             land_mask=LandMask(None),
             plot_spec=spec,
+            variable_name=variable_name,
         )
-        images = result[f"sea-ice-concentration-{date.strftime('%Y-%m-%d')}"]
+        images = result[f"{date.strftime('%Y-%m-%d')}-{variable_name}"]
         assert len(images) == 1, "Expected 1 image"
         assert images[0].width > 0, "Image width should be greater than 0"
         assert images[0].height > 0, "Image height should be greater than 0"
@@ -114,14 +118,16 @@ class TestPlotStaticPrediction:
         land_mask.add_mask(mask)
 
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True)
+        variable_name = "test-variable"
         result = plot_static_prediction(
             ground_truth,
             prediction,
             date=date,
             land_mask=LandMask(None),
             plot_spec=spec,
+            variable_name=variable_name,
         )
-        expected_key = f"sea-ice-concentration-{date.strftime('%Y-%m-%d')}"
+        expected_key = f"{date.strftime('%Y-%m-%d')}-{variable_name}"
         assert expected_key in result
         images = result[expected_key]
         assert len(images) == 1
@@ -149,6 +155,7 @@ class TestPlotStaticPrediction:
                 date=date,
                 land_mask=land_mask,
                 plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="dummy",
             )
             assert "No land mask available for shape (48, 48)." in caplog.text
 
@@ -170,7 +177,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_land_mask(
@@ -189,7 +196,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_custom_styles(
@@ -209,7 +216,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_multiple_channels(
@@ -227,7 +234,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == len(multi_channel_hw)
         for expected_name in multi_channel_hw:
-            expected_key = f"{expected_name}-{TEST_DATE.strftime('%Y-%m-%d')}"
+            expected_key = f"{TEST_DATE.strftime('%Y-%m-%d')}-{expected_name}"
             assert expected_key in results
             pil_images = results[expected_key]
             assert isinstance(pil_images[0], ImageFile)
@@ -257,7 +264,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:q_10-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:q_10"
         assert isinstance(pil_images[0], ImageFile)
 
     @pytest.mark.parametrize("colourbar_location", ["vertical", "horizontal"])
@@ -310,7 +317,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"{var_name}-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-{var_name}"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_wrong_dimension(

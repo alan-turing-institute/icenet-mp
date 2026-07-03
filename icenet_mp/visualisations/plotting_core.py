@@ -180,26 +180,6 @@ def style_for_variable(  # noqa: C901, PLR0911
     return VariableStyle()
 
 
-def levels_from_spec(spec: PlotSpec) -> np.ndarray:
-    """Generate contour levels from a plotting specification.
-
-    Creates evenly-spaced contour levels based on the minimum and maximum values
-    specified in the PlotSpec. If vmin or vmax are not specified, defaults to
-    0.0 and 1.0.
-
-    Args:
-        spec: PlotSpec object containing vmin and vmax parameters.
-
-    Returns:
-        NumPy array of contour levels spanning from vmin to vmax with
-        n_contour_levels steps.
-
-    """
-    vmin = 0.0 if spec.vmin is None else spec.vmin
-    vmax = 1.0 if spec.vmax is None else spec.vmax
-    return np.linspace(vmin, vmax, spec.n_contour_levels)
-
-
 def create_normalisation(
     data: np.ndarray,
     *,

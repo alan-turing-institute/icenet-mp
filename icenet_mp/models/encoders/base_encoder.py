@@ -23,7 +23,6 @@ class BaseEncoder(nn.Module):
         latent_space: tuple[int, int],
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
-        n_history_steps: int,
     ) -> None:
         """Initialise a BaseEncoder."""
         super().__init__()
@@ -36,7 +35,6 @@ class BaseEncoder(nn.Module):
         self.latitudes_fn = latitudes_fn
         self.longitudes_fn = longitudes_fn
         self.name = data_space_in.name
-        self.n_history_steps = n_history_steps
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:
@@ -70,12 +68,16 @@ class BaseEncoder(nn.Module):
         normalisation layers in the encoder.
 
         Args:
-            x: TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
+            x: TensorNTCHW with (batch_size, n_timeslices, input_channels, input_height, input_width)
 
         Returns:
-            TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
+            TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
 
         """
+        # Although all inputs will have n_history_steps timeslices, we also want to be
+        # able to encode our target, with n_forecast_steps timeslices, during processor
+        # training. In order to cover both cases, we take n_timeslices from the input.
+        batch_size, n_timeslices = x.shape[0], x.shape[1]
         return self(x.reshape(-1, *self.data_space_in.chw)).reshape(
-            -1, self.n_history_steps, *self.data_space_out.chw
+            batch_size, n_timeslices, *self.data_space_out.chw
         )

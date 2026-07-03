@@ -25,11 +25,9 @@ class TimeEmbed(nn.Module):
         """
         super().__init__()
 
-        activation_layer = ACTIVATION_FROM_NAME[activation]
-
         self.model = nn.Sequential(
             nn.Linear(dim, dim * 4),
-            activation_layer(inplace=True),
+            ACTIVATION_FROM_NAME[activation](),
             nn.Linear(dim * 4, dim),
         )
 

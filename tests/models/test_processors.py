@@ -1,3 +1,5 @@
+import re
+
 import pytest
 import torch
 
@@ -7,7 +9,7 @@ from icenet_mp.models.processors import (
     UNetProcessor,
     VitProcessor,
 )
-from icenet_mp.types import DataSpace
+from icenet_mp.types import DataSpace, ProcessorOutput
 
 
 @pytest.mark.parametrize("test_batch_size", [1, 2])
@@ -63,7 +65,7 @@ class TestNullProcessor:
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
         )
-        result: torch.Tensor = processor.rollout(
+        result = processor.rollout(
             torch.randn(
                 test_batch_size,
                 test_n_history_steps,
@@ -71,12 +73,14 @@ class TestNullProcessor:
                 *latent_space.shape,
             )
         )
-        assert result.shape == (
+        assert isinstance(result, ProcessorOutput)
+        assert result.prediction.shape == (
             test_batch_size,
             test_n_forecast_steps,
             latent_space.channels,
             *latent_space.shape,
         )
+        assert result.loss is None
 
 
 @pytest.mark.parametrize("test_batch_size", [1, 2])
@@ -144,12 +148,13 @@ class TestUNetProcessor:
 
         # We will either catch an error or see a successful run
         if height % 16 or width % 16:
-            msg = f"Latent space height and width must be divisible by 16 with a factor more than 1, got {height} and {width}."
-            with pytest.raises(ValueError, match=msg):
+            msg = f"Latent space height ({height}) and width ({width}) must each be divisible by 16 with a factor more than 1."
+            with pytest.raises(ValueError, match=re.escape(msg)):
                 processor.rollout(x)
         else:
-            result: torch.Tensor = processor.rollout(x)
-            assert result.shape == (
+            result = processor.rollout(x)
+            assert isinstance(result, ProcessorOutput)
+            assert result.prediction.shape == (
                 test_batch_size,
                 test_n_forecast_steps,
                 latent_space.channels,
@@ -201,7 +206,8 @@ class TestVitProcessor:
                 *latent_space.shape,
             )
         )
-        assert result.shape == (
+        assert isinstance(result, ProcessorOutput)
+        assert result.prediction.shape == (
             test_batch_size,
             test_n_forecast_steps,
             latent_space.channels,

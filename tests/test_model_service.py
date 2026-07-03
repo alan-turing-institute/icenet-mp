@@ -29,17 +29,22 @@ class MockModel:
     def load_from_checkpoint(
         cls,
         checkpoint_path: str | Path,
-        latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
-        longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        *,
         active_mask_path: str | None = None,
         land_mask_path: str | None = None,
+        latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        map_location: str | None = None,
+        weights_only: bool = False,
     ) -> "MockModel":
         del (
+            active_mask_path,
             checkpoint_path,
             latitudes_fn,
             longitudes_fn,
-            active_mask_path,
             land_mask_path,
+            map_location,
+            weights_only,
         )
         return cls()
 

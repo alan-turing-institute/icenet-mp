@@ -45,18 +45,15 @@ class TestDecoders:
             "CNNDecoder": CNNDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 n_layers=1,
             ),
             "NaiveLinearDecoder": NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
             ),
             "PiecewiseDecoder": PiecewiseDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
             ),
         }[test_decoder_cls]
         result: torch.Tensor = decoder.rollout(
@@ -81,7 +78,6 @@ class TestCNNDecoder:
     def test_latent_shape_errors(
         self, test_latent_chw: tuple[int, int, int], test_n_layers: int
     ) -> None:
-        test_n_forecast_steps = 1
         latent_space = DataSpace(
             name="latent", channels=test_latent_chw[0], shape=test_latent_chw[1:]
         )
@@ -93,7 +89,6 @@ class TestCNNDecoder:
             CNNDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 n_layers=test_n_layers,
             )
 
@@ -112,20 +107,17 @@ class TestDecoderBounded:
             "CNNDecoder": CNNDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 n_layers=1,
                 restrict_range="sigmoid",
             ),
             "NaiveLinearDecoder": NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 restrict_range="sigmoid",
             ),
             "PiecewiseDecoder": PiecewiseDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=test_n_forecast_steps,
                 restrict_range="tanh",
             ),
         }[test_decoder_cls]
@@ -160,11 +152,10 @@ class TestDecoderMask:
         np.save(mask_path, mask)
 
         decoder = NaiveLinearDecoder(
+            active_mask_path=str(mask_path),
             data_space_in=latent_space,
             data_space_out=output_space,
-            n_forecast_steps=1,
             mask_type="active",
-            active_mask_path=str(mask_path),
         )
 
         assert decoder.mask.shape == output_space.shape
@@ -178,11 +169,10 @@ class TestDecoderMask:
         latent_space, output_space = self._spaces()
         with pytest.raises(FileNotFoundError, match="mask is requested"):
             NaiveLinearDecoder(
+                active_mask_path=str(tmp_path / "does_not_exist.npy"),
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=1,
                 mask_type="active",
-                active_mask_path=str(tmp_path / "does_not_exist.npy"),
             )
 
     def test_land_mask_loads_and_zeros_masked_cells(self, tmp_path) -> None:  # noqa: ANN001
@@ -196,9 +186,8 @@ class TestDecoderMask:
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
-            n_forecast_steps=1,
-            mask_type="land",
             land_mask_path=str(mask_path),
+            mask_type="land",
         )
 
         assert decoder.mask.shape == output_space.shape
@@ -214,7 +203,6 @@ class TestDecoderMask:
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
-            n_forecast_steps=1,
             mask_type="none",
         )
         assert decoder.use_mask is False
@@ -227,7 +215,6 @@ class TestDecoderMask:
             NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
-                n_forecast_steps=1,
                 mask_type="activ",
             )
 
@@ -236,7 +223,6 @@ class TestDecoderMask:
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
-            n_forecast_steps=1,
         )
         # No mask requested: no dummy buffer is created and finalise() skips the
         # multiply entirely (rather than doing an identity product with ones).
@@ -254,12 +240,11 @@ class TestDecoderMask:
         np.save(mask_path, mask)
 
         decoder = NaiveLinearDecoder(
+            active_mask_path=str(mask_path),
             data_space_in=latent_space,
             data_space_out=output_space,
-            n_forecast_steps=1,
             mask_type="active",
             restrict_range="sigmoid",
-            active_mask_path=str(mask_path),
         )
         out = decoder.rollout(
             torch.randn(2, 1, latent_space.channels, *latent_space.shape)
@@ -276,7 +261,6 @@ class TestDecoderMask:
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
-            n_forecast_steps=1,
         )
         x = torch.randn(2, output_space.channels, *output_space.shape)
         assert torch.equal(decoder.finalise(x), x)
@@ -313,7 +297,6 @@ class TestPiecewiseDecoder:
             data_space_in=input_space,
             data_space_out=output_space,
             n_conv_blocks=0,
-            n_forecast_steps=1,
             restrict_range="none",
         )
 
@@ -350,7 +333,6 @@ class TestPiecewiseDecoder:
             data_space_in=input_space,
             data_space_out=output_space,
             n_conv_blocks=0,
-            n_forecast_steps=1,
             restrict_range="clamp",
         )
         x = torch.full(
@@ -377,11 +359,11 @@ class TestDecoderMaskOnRealMask:
         output_space = DataSpace(name="sic", channels=1, shape=tuple(mask_np.shape))
         latent_space = DataSpace(name="latent", channels=8, shape=(108, 108))
         decoder = NaiveLinearDecoder(
+            active_mask_path=str(_REAL_MASKS[0]),
             data_space_in=latent_space,
             data_space_out=output_space,
             n_forecast_steps=1,
             mask_type="active",
-            active_mask_path=str(_REAL_MASKS[0]),
         )
 
         inactive = torch.from_numpy(mask_np == 0)

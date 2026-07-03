@@ -15,10 +15,10 @@ class PiecewiseEncoder(BaseEncoder):
     - n_conv_blocks of constant-size convolutional blocks
 
     Input space:
-        TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
+        TensorNTCHW with (batch_size, n_timeslices, input_channels, input_height, input_width)
 
     Latent space:
-        TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
     """
 
     def __init__(
