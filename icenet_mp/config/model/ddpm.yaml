@@ -1,7 +1,7 @@
 _target_: icenet_mp.models.ddpm.DDPM
 
-# Run DDPM model with default settings
 name: ddpm
+
 dropout_rate: 0.05
 start_out_channels: 128
 timesteps: 500

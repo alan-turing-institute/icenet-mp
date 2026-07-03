@@ -19,12 +19,12 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.VitProcessor
-  depth: 6        # number of transformer blocks
-  dropout: 0.1    # dropout rate
-  emb_dim: 256    # embedding dimension
-  heads: 8        # number of attention heads
-  mlp_dim: 1024   # dimension of the MLP in the transformer block
-  patch_size: 24  # 216 / 24 = 9 patches per dimension (81 in total)
+  depth: 6
+  dropout: 0.1
+  emb_dim: 256
+  heads: 8
+  mlp_dim: 1024
+  patch_size: 24
 
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder

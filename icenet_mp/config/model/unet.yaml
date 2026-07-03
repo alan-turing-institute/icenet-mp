@@ -1,6 +1,6 @@
 _target_: icenet_mp.models.EncodeProcessDecode
 
-name: naive-unet-naive
+name: unet
 
 encoders:
   latent_space: [432, 432]
