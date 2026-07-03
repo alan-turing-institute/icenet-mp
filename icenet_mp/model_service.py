@@ -333,7 +333,10 @@ class ModelService:
             # Set metadata for supported callbacks
             if isinstance(callback, SupportsMetadata):
                 log.debug("Setting metadata for %s.", callback.__class__.__name__)
-                callback.set_metadata(self.config, self.model.__class__.__name__)
+                model_name = self.config["model"].get(
+                    "name", self.model.__class__.__name__
+                )
+                callback.set_metadata(self.config, model_name)
             # Set plotting stage
             if isinstance(callback, PlottingCallback):
                 log.debug(
