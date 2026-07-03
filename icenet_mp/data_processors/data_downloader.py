@@ -96,9 +96,7 @@ class DataDownloader:
         return AnemoiDatasetStatus(
             copy_in_progress=copy_in_progress,
             download_complete=download_complete,
-            is_finalised=download_complete
-            and statistics_ready
-            and not self.artifacts(),
+            is_finalised=download_complete and statistics_ready,
         )
 
     def create(self, *, overwrite: bool = False) -> None:
