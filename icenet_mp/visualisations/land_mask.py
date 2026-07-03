@@ -12,7 +12,10 @@ class LandMask:
         self._cache: dict[tuple[int, int], np.ndarray] = {}
         self._ignored: set[tuple[int, int]] = set()
         if land_mask_path and land_mask_path.exists():
-            self.add_mask(np.load(land_mask_path))
+            try:
+                self.add_mask(np.load(land_mask_path))
+            except (OSError, ValueError) as exc:
+                logger.warning("Failed to load land mask from %s: %s", land_mask_path, exc)
 
     def add_mask(self, mask_array: np.ndarray) -> None:
         """Add a land mask to the cache, keyed by its shape."""
