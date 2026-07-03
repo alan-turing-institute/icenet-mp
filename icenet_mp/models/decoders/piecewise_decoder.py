@@ -37,7 +37,10 @@ class PiecewiseDecoder(BaseDecoder):
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseDecoder."""
-        super().__init__(restrict_range=restrict_range, **kwargs)
+**kwargs: Any,
+) -> None:
+"""Initialise a PiecewiseDecoder."""
+        super().__init__(**kwargs)
 
         # Calculate the number of patches required
         # We set the stride to be half the patch size to ensure overlap, which will
