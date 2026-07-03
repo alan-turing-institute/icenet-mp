@@ -3,5 +3,5 @@ _target_: icenet_mp.models.ddpm.DDPM
 name: ddpm
 
 dropout_rate: 0.05
-start_out_channels: 128
-timesteps: 500
+start_out_channels: 64
+timesteps: 150
