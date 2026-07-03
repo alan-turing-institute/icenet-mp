@@ -1,4 +1,5 @@
 import logging
+import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -38,7 +39,10 @@ class PlottingCallback(Callback):
 
         Args:
             base_path: Base path for finding land masks.
-            frequency: A dictionary specifying how often to make plots, with keys "batch" and/or "epoch".
+            frequency: A dictionary specifying how often to make plots, with keys:
+                batch (plot every N batches)
+                epoch (plot every N epochs)
+                number (plot N sample batches evenly spaced across the epoch)
             make_input_plots: Whether to plot the raw inputs.
             make_static_plots: Whether to create static plots.
             make_video_plots: Whether to create video plots.
@@ -49,6 +53,7 @@ class PlottingCallback(Callback):
         super().__init__()
         self.frequency_batch = int((frequency or {}).get("batch", -1))
         self.frequency_epoch = int((frequency or {}).get("epoch", -1))
+        self.frequency_number = int((frequency or {}).get("number", -1))
         self.make_input_plots = make_input_plots
         self.make_static_plots = make_static_plots
         self.make_video_plots = make_video_plots
@@ -74,6 +79,20 @@ class PlottingCallback(Callback):
             self.cached_outputs_ = ModelStepOutput(**outputs)
             self.cached_batch_idx_ = batch_idx
             self.cached_dataloader_idx_ = dataloader_idx
+
+    def is_sample_batch(self, batch_idx: int, total_batches: int | float) -> bool:  # noqa: PYI041
+        """Return True if batch_idx is one of frequency_number equally-spaced targets."""
+        if (
+            self.frequency_number <= 0
+            or not math.isfinite(total_batches)
+            or total_batches <= 0
+        ):
+            return False
+        n = int(min(self.frequency_number, total_batches))
+        if n == 1:
+            return batch_idx == total_batches - 1
+        targets = {round(i * (total_batches - 1) / (n - 1)) for i in range(n)}
+        return batch_idx in targets
 
     def load_dataset(
         self, dataloader: DataLoader | list[DataLoader] | None
@@ -172,13 +191,16 @@ class PlottingCallback(Callback):
         # Check whether this is a batch we want to plot based on the frequency settings
         is_per_epoch = trainer.is_last_batch
         is_per_batch = self.frequency_batch > 0 and not batch_idx % self.frequency_batch
+        is_sampled_batch = self.is_sample_batch(
+            batch_idx, trainer.num_test_batches[dataloader_idx]
+        )
 
         # Cache if this is a batch we want to plot
-        if is_per_epoch or is_per_batch:
+        if is_per_epoch or is_per_batch or is_sampled_batch:
             self.cache_batch(batch_idx, dataloader_idx, outputs)
 
         # If this is a selected batch then we will plot here
-        if is_per_batch:
+        if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
                 logger.warning("Could not load dataset, skipping plotting.")
@@ -218,13 +240,16 @@ class PlottingCallback(Callback):
         # Check whether this is a batch we want to plot based on the frequency settings
         is_per_epoch = trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch
         is_per_batch = self.frequency_batch > 0 and not batch_idx % self.frequency_batch
+        is_sampled_batch = self.is_sample_batch(
+            batch_idx, trainer.num_val_batches[dataloader_idx]
+        )
 
         # Cache if this is a batch we want to plot
-        if is_per_epoch or is_per_batch:
+        if is_per_epoch or is_per_batch or is_sampled_batch:
             self.cache_batch(batch_idx, dataloader_idx, outputs)
 
         # If this is a selected batch then we will plot here
-        if is_per_batch:
+        if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
                 logger.warning("Could not load dataset, skipping plotting.")
