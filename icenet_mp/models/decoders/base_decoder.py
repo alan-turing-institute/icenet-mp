@@ -88,7 +88,7 @@ class BaseDecoder(nn.Module):
         masked cells). Called once by `rollout` after the per-frame `forward`, so every
         decoder gets it automatically without having to call it themselves.
 
-        RangeRestriction choices are: none/sigmoid/shifted_tanh/clamp
+        RangeRestriction choices are: none/sigmoid/tanh/clamp
         """
         x = self.restrict(x)
         if self.use_mask:
