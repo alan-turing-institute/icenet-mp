@@ -9,7 +9,7 @@
 | icenet\_mp/callbacks/activation\_saver.py                       |       92 |       70 |     24% |62-72, 82-115, 123-126, 134, 142, 145-161, 172-179, 191-217, 230-244, 252-257 |
 | icenet\_mp/callbacks/ema\_weight\_averaging\_callback.py        |       13 |        8 |     38% |23-27, 33-39 |
 | icenet\_mp/callbacks/metric\_summary\_callback.py               |       70 |       24 |     66% |28, 53, 57-60, 90-91, 98, 106-107, 111-114, 122-123, 129-134, 143-150, 156 |
-| icenet\_mp/callbacks/plotting\_callback.py                      |      109 |       72 |     34% |73-76, 82-97, 107-158, 173-188, 193-202, 215-234, 241-250 |
+| icenet\_mp/callbacks/plotting\_callback.py                      |      121 |       81 |     33% |78-81, 85-95, 101-116, 126-177, 192-210, 215-224, 237-259, 266-275 |
 | icenet\_mp/callbacks/unconditional\_checkpoint.py               |       21 |       10 |     52% |17-19, 24, 29-30, 34-35, 39-40 |
 | icenet\_mp/cli/\_\_init\_\_.py                                  |        2 |        0 |    100% |           |
 | icenet\_mp/cli/datasets.py                                      |       38 |       20 |     47% |27-34, 47-53, 66-69, 73 |
@@ -125,7 +125,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 235-236 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 336, 362-363, 441-445 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **4532** | **1308** | **71%** |           |
+| **TOTAL**                                                       | **4544** | **1317** | **71%** |           |
 
 
 ## Setup coverage badge
