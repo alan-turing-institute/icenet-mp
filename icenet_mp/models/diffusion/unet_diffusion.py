@@ -18,6 +18,7 @@ from icenet_mp.models.common import (
     ConvNormActUpsample,
     TimeEmbed,
 )
+from icenet_mp.types import TensorNCHW
 
 
 class UNetDiffusion(nn.Module):
@@ -270,7 +271,7 @@ class UNetDiffusion(nn.Module):
 
         return embedding
 
-    def _add_time_embedding(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+    def _add_time_embedding(self, x: TensorNCHW, t: torch.Tensor) -> TensorNCHW:
         """Concatenates time embedding across spatial dimensions.
 
         Args:
@@ -281,7 +282,7 @@ class UNetDiffusion(nn.Module):
             torch.Tensor: Time-conditioned feature map [B, C+D, H, W].
 
         """
-        b, c, h, w = x.shape
+        _, _, h, w = x.shape
         t = t.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, h, w)
 
         return torch.cat([x, t], dim=1)

@@ -34,7 +34,7 @@ class TestBaseProcessor:
         )
         with pytest.raises(
             NotImplementedError,
-            match="If you are using the default forward method, you must implement rollout.",
+            match=r"If you are using the default forward method, you must implement rollout.",
         ):
             processor.rollout(
                 torch.randn(
@@ -105,7 +105,9 @@ class TestUNetProcessor:
 
         # Catch invalid filter size
         if test_kernel_size <= 0:
-            with pytest.raises(ValueError, match="Kernel size must be greater than 0."):
+            with pytest.raises(
+                ValueError, match=r"Kernel size must be greater than 0."
+            ):
                 UNetProcessor(
                     data_space=latent_space,
                     kernel_size=test_kernel_size,
@@ -118,7 +120,7 @@ class TestUNetProcessor:
         # Catch invalid start out channels
         if test_start_out_channels <= 0:
             with pytest.raises(
-                ValueError, match="Start out channels must be greater than 0."
+                ValueError, match=r"Start out channels must be greater than 0."
             ):
                 UNetProcessor(
                     data_space=latent_space,

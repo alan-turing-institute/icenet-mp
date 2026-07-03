@@ -66,9 +66,7 @@ class TestPatchOpenFileLimit:
             "getrlimit",
             lambda _: (MIN_OPEN_FILE_LIMIT, resource.RLIM_INFINITY),
         )
-        monkeypatch.setattr(
-            torch.multiprocessing, "set_sharing_strategy", lambda s: calls.append(s)
-        )
+        monkeypatch.setattr(torch.multiprocessing, "set_sharing_strategy", calls.append)
         patch_open_file_limit()
         assert calls == ["file_system"]
 
@@ -79,8 +77,6 @@ class TestPatchOpenFileLimit:
         monkeypatch.setattr(
             resource, "getrlimit", lambda _: (_ for _ in ()).throw(OSError)
         )
-        monkeypatch.setattr(
-            torch.multiprocessing, "set_sharing_strategy", lambda s: calls.append(s)
-        )
+        monkeypatch.setattr(torch.multiprocessing, "set_sharing_strategy", calls.append)
         patch_open_file_limit()
         assert calls == ["file_system"]
