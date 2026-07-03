@@ -6,11 +6,12 @@ from .conv_norm_act import ConvNormAct
 
 
 class ConvBlockDownsample(nn.Module):
-    """Convolutional block that halves spatial dimensions.
+    """Convolutional block that decreases spatial dimensions by scale_factor.
 
     ConvNormAct > ConvNormAct
 
-    If out_channels is not specified then this will double the number of input channels.
+    If out_channels is not specified then this will also scale the number of channels
+    up by scale_factor.
 
     Reverse of ConvBlockUpsample.
     """

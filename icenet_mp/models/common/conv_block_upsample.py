@@ -9,11 +9,12 @@ from .weighted_upsample import WeightedUpsample
 
 
 class ConvBlockUpsample(nn.Module):
-    """Convolutional block that doubles spatial dimensions.
+    """Convolutional block that increases spatial dimensions by scale_factor.
 
     (Upsample > Norm > Act) > ConvNormAct > ConvNormAct
 
-    If out_channels is not specified then this will halve the number of input channels.
+    If out_channels is not specified then this will also scale the number of channels
+    down by scale_factor.
 
     Reverse of ConvBlockDownsample, using upsampling to increase spatial dimensions.
     """
