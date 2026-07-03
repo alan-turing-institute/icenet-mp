@@ -61,7 +61,10 @@ class BaseDecoder(nn.Module):
                 raise FileNotFoundError(msg)
             mask = from_numpy(np.load(Path(mask_path))).float()
             if tuple(mask.shape) != self.data_space_out.shape:
-                msg = f"{mask_type} mask shape does not match decoder output"
+                msg = (
+                    f"{mask_type} mask shape {tuple(mask.shape)} does not match "
+                    f"decoder output shape {self.data_space_out.shape}."
+                )
                 raise ValueError(msg)
             self.register_buffer("mask", mask, persistent=False)
 
