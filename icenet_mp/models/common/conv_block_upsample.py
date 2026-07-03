@@ -46,6 +46,7 @@ class ConvBlockUpsample(nn.Module):
         """
         super().__init__()
 
+        # We use integer division here to ensure that out_channels is an integer.
         out_channels = (
             in_channels // scale_factor if out_channels is None else out_channels
         )
