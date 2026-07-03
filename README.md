@@ -89,7 +89,7 @@
 | icenet\_mp/models/decoders/piecewise\_decoder.py                |       24 |        0 |    100% |           |
 | icenet\_mp/models/diffusion/\_\_init\_\_.py                     |        3 |        0 |    100% |           |
 | icenet\_mp/models/diffusion/gaussian\_diffusion.py              |       54 |       43 |     20% |39-72, 91-96, 115-135, 151-154, 175-180, 199-220 |
-| icenet\_mp/models/diffusion/unet\_diffusion.py                  |       77 |       68 |     12% |56-178, 200-240, 256-271, 284-287 |
+| icenet\_mp/models/diffusion/unet\_diffusion.py                  |       78 |       68 |     13% |57-179, 201-241, 257-272, 285-288 |
 | icenet\_mp/models/encode\_process\_decode.py                    |       30 |        5 |     83% |42-44, 55-59 |
 | icenet\_mp/models/encoders/\_\_init\_\_.py                      |        6 |        0 |    100% |           |
 | icenet\_mp/models/encoders/base\_encoder.py                     |       24 |        2 |     92% |     57-58 |
@@ -125,7 +125,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 235-236 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 336, 362-363, 441-445 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **4544** | **1317** | **71%** |           |
+| **TOTAL**                                                       | **4545** | **1317** | **71%** |           |
 
 
 ## Setup coverage badge
