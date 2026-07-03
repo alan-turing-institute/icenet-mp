@@ -33,18 +33,19 @@ class UnconditionalCheckpoint(Callback):
     def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:  # noqa: ARG002
         """Called when training ends."""
         if self._on_train_end:
-            self.save_unconditionally(trainer)
+            self.save_unconditionally_from_rank_zero(trainer)
 
-    def save_unconditionally(self, trainer: Trainer) -> None:
+    def save_unconditionally_from_rank_zero(self, trainer: Trainer) -> None:
         """Save a checkpoint unconditionally."""
-        monitor_candidates = {
-            "epoch": torch.tensor(trainer.current_epoch),
-            "step": torch.tensor(trainer.global_step),
-        }
-        filepath = Path(self.impl.format_checkpoint_name(monitor_candidates))
-        if (
-            not filepath.is_absolute()
-            and (dirpath := self.dirpath or trainer.log_dir) is not None
-        ):
-            filepath = Path(dirpath) / filepath
-        trainer.save_checkpoint(filepath)
+        if trainer.is_global_zero:
+            monitor_candidates = {
+                "epoch": torch.tensor(trainer.current_epoch),
+                "step": torch.tensor(trainer.global_step),
+            }
+            filepath = Path(self.impl.format_checkpoint_name(monitor_candidates))
+            if (
+                not filepath.is_absolute()
+                and (dirpath := self.dirpath or trainer.log_dir) is not None
+            ):
+                filepath = Path(dirpath) / filepath
+            trainer.save_checkpoint(filepath)
