@@ -259,7 +259,7 @@ def build_metadata(
         cadence=cadence_str,
         n_points=training_points,
         n_history_steps=n_history_steps,
-        vars_by_source=vars_by_source if vars_by_source else None,
+        vars_by_source=vars_by_source or None,
     )
 
 
@@ -290,12 +290,12 @@ def format_metadata_subtitle(metadata: Metadata) -> str | None:  # noqa: C901, P
         s_clean = (
             metadata.start.split("T")[0]
             if metadata.start and "T" in metadata.start
-            else (metadata.start if metadata.start else "?")
+            else (metadata.start or "?")
         )
         e_clean = (
             metadata.end.split("T")[0]
             if metadata.end and "T" in metadata.end
-            else (metadata.end if metadata.end else "?")
+            else (metadata.end or "?")
         )
         cadence_display = format_cadence_display(metadata.cadence)
         dates_part = f"Training Dates: {s_clean} — {e_clean}"
@@ -332,7 +332,7 @@ def format_metadata_subtitle(metadata: Metadata) -> str | None:  # noqa: C901, P
 
 def _clean_date_str(date_str: str) -> str:
     """Return date-only portion of an ISO string (strip any time part)."""
-    return date_str.split("T")[0] if "T" in date_str else date_str
+    return date_str.split("T", maxsplit=1)[0] if "T" in date_str else date_str
 
 
 def _inclusive_days(start_str: str, end_str: str) -> int:

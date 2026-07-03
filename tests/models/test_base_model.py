@@ -30,7 +30,7 @@ class FakeDataModel(BaseModel):
 class TestBaseModel:
     def test_init_invalid_forecast_steps(self) -> None:
         with pytest.raises(
-            ValueError, match="Number of forecast steps must be greater than 0."
+            ValueError, match=r"Number of forecast steps must be greater than 0."
         ):
             FakeDataModel(
                 name="fake data",
@@ -44,7 +44,7 @@ class TestBaseModel:
 
     def test_init_invalid_history_steps(self) -> None:
         with pytest.raises(
-            ValueError, match="Number of history steps must be greater than 0."
+            ValueError, match=r"Number of history steps must be greater than 0."
         ):
             FakeDataModel(
                 name="fake data",

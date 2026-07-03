@@ -179,7 +179,7 @@ class TestPlotVideoSingleInput:
         wrong_dates = [TEST_DATE]  # Only 1 date for 2 timesteps
 
         with pytest.raises(
-            InvalidArrayError, match="Number of dates.*!= number of timesteps"
+            InvalidArrayError, match=r"Number of dates.*!= number of timesteps"
         ):
             plot_video_single_input(
                 "era5:2t",
