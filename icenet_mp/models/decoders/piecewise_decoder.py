@@ -7,7 +7,6 @@ from icenet_mp.models.common import (
     NormalisedFold,
     Permute,
     RestrictRange,
-    Shift,
 )
 from icenet_mp.types import RangeRestriction, TensorNCHW
 
@@ -104,10 +103,6 @@ class PiecewiseDecoder(BaseDecoder):
                 use_hann_window=use_hann_window,
             )
         )
-
-        # Apply a scale and offset shift to reduce the large values caused by folding
-        # multiple pixels into a single output pixel.
-        layers.append(Shift(scale=True, offset=True))
 
         # Specify how/whether the output is bounded between 0 and 1
         if (method := RangeRestriction(restrict_range)) != RangeRestriction.NONE:
