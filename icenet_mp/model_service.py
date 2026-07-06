@@ -402,6 +402,7 @@ class ModelService:
             config=self._merged_config("encoders"),
             checkpoint_dir=checkpoint_dir,
         )
+        target_encoder = trained_encoders.pop()  # the decoder must not use this
 
         log.info("Preparing to train the decoder...")
         trained_decoder = self.train_stage_decoder(
@@ -415,6 +416,7 @@ class ModelService:
             trained_decoder,
             config=self._merged_config("processor"),
             checkpoint_dir=checkpoint_dir,
+            target_encoder=target_encoder,
         )
 
         log.info("Preparing to finetune...")
@@ -536,6 +538,7 @@ class ModelService:
     def train_stage_processor(
         self,
         decoder_model: DecoderStage,
+        target_encoder: EncoderStage,
         *,
         config: DictConfig,
         checkpoint_dir: Path | None = None,
@@ -555,11 +558,13 @@ class ModelService:
                 weights_only=False,
                 processor=self.config["model"]["processor"],
                 decoder_model=decoder_model,
+                target_encoder=target_encoder,
             )
 
         processor_model = ProcessorStage.from_template(
             processor=self.config["model"]["processor"],
             decoder_model=decoder_model,
+            target_encoder=target_encoder,
         )
         trainer = self._fit(model=processor_model, config=config, job_stage="processor")
         self._save_checkpoint(trainer, "processor")

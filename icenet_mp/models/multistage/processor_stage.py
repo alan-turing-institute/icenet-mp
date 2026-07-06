@@ -10,9 +10,9 @@ from icenet_mp.models import BaseModel
 from icenet_mp.types import ModelStepOutput, TensorNTCHW
 
 from .decoder_stage import DecoderStage
+from .encoder_stage import EncoderStage
 
 if TYPE_CHECKING:
-    from icenet_mp.models.encoders import BaseEncoder
     from icenet_mp.models.processors import BaseProcessor
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ class ProcessorStage(BaseModel):
         self,
         processor: DictConfig,
         decoder_model: DecoderStage,
+        target_encoder: EncoderStage,
         **kwargs: Any,
     ) -> None:
         """Initialise a ProcessorStage with frozen encoders, a frozen decoder, and a trainable processor."""
@@ -36,18 +37,10 @@ class ProcessorStage(BaseModel):
                 param.requires_grad = False
             self.add_module(encoder.name, encoder)
 
-        # Identify which encoder to use to encode the target if needed
-        try:
-            target_encoder_idx = self.encoder_names.index(decoder_model.target_name)
-        except ValueError:
-            msg = (
-                f"Target dataset '{decoder_model.target_name}' has no corresponding "
-                f"encoder in {self.encoder_names}. ProcessorStage requires an "
-                "appropriate encoder for the target dataset to support latent-space "
-                "losses."
-            )
-            raise ValueError(msg) from None
-        self.target_encoder: BaseEncoder = self.encoders[target_encoder_idx]
+        # Load the target encoder and freeze it
+        self.target_encoder = target_encoder.encoder
+        for param in self.target_encoder.parameters():
+            param.requires_grad = False
 
         # Copy combined latent space from DecoderStage
         combined_latent_space = decoder_model.decoder.data_space_in
@@ -72,20 +65,22 @@ class ProcessorStage(BaseModel):
         *,
         processor: DictConfig,
         decoder_model: DecoderStage,
+        target_encoder: EncoderStage,
     ) -> "ProcessorStage":
         """Create a ProcessorStage from a trained DecoderStage."""
         return cls(
-            processor=processor,
             decoder_model=decoder_model,
             hemisphere=decoder_model.hemisphere,
             input_spaces=[s.to_dict() for s in decoder_model.input_spaces],
+            loss=copy.deepcopy(decoder_model.loss_cfg),
             n_forecast_steps=decoder_model.n_forecast_steps,
             n_history_steps=decoder_model.n_history_steps,
             name=f"processor_{decoder_model.n_history_steps}_to_{decoder_model.n_forecast_steps}",
             optimizer=copy.deepcopy(decoder_model.optimizer_cfg),
             output_space=decoder_model.output_space.to_dict(),
+            processor=processor,
             scheduler=copy.deepcopy(decoder_model.scheduler_cfg),
-            loss=copy.deepcopy(decoder_model.loss_cfg),
+            target_encoder=target_encoder,
         )
 
     def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
