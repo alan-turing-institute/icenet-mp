@@ -1,5 +1,7 @@
+from pathlib import Path
 from typing import Any, NoReturn
 
+import numpy as np
 import torch
 import torch.nn.functional as F  # noqa: N812
 
@@ -61,6 +63,9 @@ class DDPM(BaseModel):
         normalization: str = "groupnorm",
         time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
+        active_mask_path: str | None = None,
+        land_mask_path: str | None = None,
+        mask_type: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
@@ -74,12 +79,43 @@ class DDPM(BaseModel):
             normalization (str): Normalization layer type (e.g., "groupnorm").
             time_embed_dim (int): Dimensionality of the timestep embedding.
             dropout_rate (float): Dropout probability applied inside the UNet blocks.
+            active_mask_path (str | None): Path to the active mask (active+land). Used
+                when ``mask_type`` is ``"active"``.
+            land_mask_path (str | None): Path to the land mask. Used when ``mask_type``
+                is ``"land"``.
+            mask_type (str | None): Output mask to apply during sampling: "active"
+                (active+land), "land" (land only), or "none"/``None`` to disable.
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """
         super().__init__(**kwargs)
 
         self.osisaf_key = self.output_space.name
+
+        # Load the active/land mask only when requested, mirroring BaseDecoder so
+        # sampled output can be zeroed over inactive/land cells like other models.
+        if mask_type not in (None, "none", "active", "land"):
+            msg = f"Unknown mask_type {mask_type!r}; expected one of none/active/land."
+            raise ValueError(msg)
+        self.mask_type = mask_type
+        self.use_mask = mask_type in ("active", "land")
+        if self.use_mask:
+            mask_path = active_mask_path if mask_type == "active" else land_mask_path
+            if mask_path is None or not Path(mask_path).exists():
+                msg = (
+                    f"{mask_type} mask is requested but no mask was found at "
+                    f"{mask_path}. Masks are generated per dataset during "
+                    f"`datasets create` (currently for SSMIS datasets)."
+                )
+                raise FileNotFoundError(msg)
+            mask = torch.from_numpy(np.load(Path(mask_path))).float()
+            if tuple(mask.shape) != self.output_space.shape:
+                msg = (
+                    f"{mask_type} mask shape {tuple(mask.shape)} does not match "
+                    f"output shape {self.output_space.shape}."
+                )
+                raise ValueError(msg)
+            self.register_buffer("mask", mask, persistent=False)
 
         era5_space = next(
             space
@@ -186,7 +222,10 @@ class DDPM(BaseModel):
             )
             y = self.diffusion.p_sample(y, t_batch, pred_v)
 
-        return torch.clamp(y, 0, 1)
+        y = torch.clamp(y, 0, 1)
+        if self.use_mask:
+            y = y * self.mask.to(dtype=y.dtype)
+        return y
 
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.

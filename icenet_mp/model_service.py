@@ -459,6 +459,8 @@ class ModelService:
                 encoders=encoder_models,
                 target_dataset_name=self.data_module.target_group_name,
                 target_variable_indices=target_variable_indices,
+                active_mask_path=str(self.data_module.active_mask_path),
+                land_mask_path=str(self.data_module.land_mask_path),
             )
 
         decoder_model = DecoderStage.from_template(
@@ -466,6 +468,8 @@ class ModelService:
             encoders=encoder_models,
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
+            active_mask_path=str(self.data_module.active_mask_path),
+            land_mask_path=str(self.data_module.land_mask_path),
         )
         trainer = self._fit(model=decoder_model, config=config, job_stage="decoder")
         self._save_checkpoint(trainer, "decoder")
@@ -481,7 +485,8 @@ class ModelService:
             )
             raise TypeError(msg)
         encoder_models = []
-        for encoder in self.model.encoders:
+        encoders = self.model.encoders 
+        for encoder in encoders:
             if checkpoint_dir is not None and (
                 matches := sorted(
                     checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
