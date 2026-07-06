@@ -3,23 +3,19 @@ _target_: icenet_mp.models.EncodeProcessDecode
 name: piecewise-unet-piecewise
 
 encoders:
-  latent_space: [192, 192]
+  latent_space: [144, 144]
   era5:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
-    conv_kernel_size: 1
-    n_conv_blocks: 1
+    n_conv_blocks: 0
   float-argo:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
-    conv_kernel_size: 1
-    n_conv_blocks: 1
+    n_conv_blocks: 0
   sic-icenet:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
-    conv_kernel_size: 1
-    n_conv_blocks: 1
+    n_conv_blocks: 0
   sic-ssmis:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
-    conv_kernel_size: 1
-    n_conv_blocks: 1
+    n_conv_blocks: 0
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
@@ -27,7 +23,6 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.PiecewiseDecoder
-  conv_kernel_size: 1
   n_conv_blocks: 1
   restrict_range: sigmoid
   use_hann_window: true
