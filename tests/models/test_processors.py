@@ -45,6 +45,78 @@ class TestBaseProcessor:
             )
 
 
+class RecordingProcessor(BaseProcessor):
+    """A test double that records the input it receives on each forward call."""
+
+    def __init__(self, **kwargs) -> None:  # noqa: ANN003
+        """Initialise a RecordingProcessor."""
+        super().__init__(**kwargs)
+        self.calls: list[torch.Tensor] = []
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.calls.append(x)
+        return x[:, -self.data_space.channels :, :, :]
+
+
+class TestRolloutSlidingWindow:
+    """Regression tests for issue #272.
+
+    Every prediction should be conditioned on the full window of n_history_steps
+    timesteps, not a single timestep, and once n_forecast_steps > n_history_steps
+    the window should slide forward using the most recently produced timestep
+    rather than replaying stale original history.
+    """
+
+    def test_forward_receives_full_concatenated_window(self) -> None:
+        latent_space = DataSpace(name="latent", channels=2, shape=(4, 4))
+        n_history_steps, n_forecast_steps = 3, 5
+        processor = RecordingProcessor(
+            data_space=latent_space,
+            n_forecast_steps=n_forecast_steps,
+            n_history_steps=n_history_steps,
+        )
+        x = torch.randn(1, n_history_steps, latent_space.channels, *latent_space.shape)
+        processor.rollout(x)
+
+        assert len(processor.calls) == n_forecast_steps
+        for call in processor.calls:
+            # Every call must see the whole window, not a single timestep.
+            assert call.shape == (
+                1,
+                latent_space.channels * n_history_steps,
+                *latent_space.shape,
+            )
+
+        # The first call's window is exactly the original history, oldest to newest.
+        expected_first_window = torch.cat(
+            [x[:, idx_t, :, :, :] for idx_t in range(n_history_steps)], dim=1
+        )
+        torch.testing.assert_close(processor.calls[0], expected_first_window)
+
+    def test_null_processor_persistence_not_leapfrog(self) -> None:
+        """Check NullProcessor.rollout reduces to true persistence.
+
+        Before the fix, NullProcessor.rollout with n_forecast_steps > n_history_steps
+        replayed the original history in a fixed cycle (e.g. [h0, h1, h2, h0, h1, h2])
+        instead of repeating the most recent timestep. It should now reduce to true
+        persistence: every forecast timestep equals the last known history timestep.
+        """
+        latent_space = DataSpace(name="latent", channels=1, shape=(1, 1))
+        n_history_steps, n_forecast_steps = 3, 6
+        processor = NullProcessor(
+            data_space=latent_space,
+            n_forecast_steps=n_forecast_steps,
+            n_history_steps=n_history_steps,
+        )
+        history_values = [0.10, 0.15, 0.20]
+        x = torch.tensor(history_values).reshape(1, n_history_steps, 1, 1, 1)
+
+        result = processor.rollout(x)
+        forecast = result.prediction.reshape(-1).tolist()
+
+        assert forecast == pytest.approx([history_values[-1]] * n_forecast_steps)
+
+
 @pytest.mark.parametrize("test_batch_size", [1, 2])
 @pytest.mark.parametrize("test_latent_chw", [(128, 32, 32), (3, 100, 200)])
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2])

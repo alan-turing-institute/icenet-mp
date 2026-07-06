@@ -1,4 +1,4 @@
-from torch import nn, stack
+from torch import cat, nn, stack
 
 from icenet_mp.types import DataSpace, ProcessorOutput, TensorNCHW, TensorNTCHW
 
@@ -29,13 +29,16 @@ class BaseProcessor(nn.Module):
         self.n_history_steps = n_history_steps
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
-        """Forward step: process in NCHW latent space for a single timestep.
+        """Forward step: predict the next timestep from a window of history/forecast timesteps.
 
         Args:
-            x: TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
+            x: TensorNCHW with (batch_size, n_latent_channels_total * n_history_steps, latent_height, latent_width),
+               i.e. the current window of n_history_steps timesteps concatenated along channels,
+               ordered oldest to newest.
 
         Returns:
-            TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
+            TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width),
+            i.e. the single next predicted timestep.
 
         """
         msg = "If you are using the default forward method, you must implement rollout."
@@ -44,9 +47,16 @@ class BaseProcessor(nn.Module):
     def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ProcessorOutput:  # noqa: ARG002
         """Process in latent space across multiple timesteps.
 
-        The default implementation simply calls `self.forward` on each time slice until
-        a sufficient number of forecast steps have been produced. These are then stacked
-        together to produce the final output.
+        The default implementation slides a window of the n_history_steps most recent
+        timesteps along, concatenating them along the channel dimension and calling
+        `self.forward` once per forecast step to predict the next timestep, which is
+        then appended to the window (dropping the oldest timestep) so that every
+        prediction is conditioned on all of the currently-available history rather
+        than a single timestep. This matches issue #272: earlier versions called
+        `self.forward` on one history/forecast timestep at a time, which meant each
+        forecast day only ever saw a single timestep of context and, once
+        n_forecast_steps > n_history_steps, replayed stale original history timesteps
+        in a fixed cycle instead of the most recently produced information.
 
         Override this method to handle the NTCHW tensors directly or to compute a custom
         loss using the target tensor `y` (e.g. for diffusion models). Set `loss` on the
@@ -65,15 +75,17 @@ class BaseProcessor(nn.Module):
                 loss: an optional processor-specific loss
 
         """
-        # Cut the NTCHW input into NCHW slices
-        nchw_slices = [x[:, idx_t, :, :, :] for idx_t in range(self.n_history_steps)]
+        # The current window of n_history_steps timesteps, oldest to newest
+        window: list[TensorNCHW] = [
+            x[:, idx_t, :, :, :] for idx_t in range(self.n_history_steps)
+        ]
 
-        # Rollout the model over the input slices, producing an output for each one.
-        # Also append the predictions to the list of input slices, so that we can still
-        # predict when n_forecast_steps > n_history_steps.
+        # Slide the window forward, predicting one timestep at a time from the whole
+        # window and then dropping the oldest timestep to make room for the prediction.
         outputs: list[TensorNCHW] = []
         for _ in range(self.n_forecast_steps):
-            outputs.append(self(nchw_slices.pop(0)))
-            nchw_slices.append(outputs[-1])
+            next_step = self(cat(window, dim=1))
+            outputs.append(next_step)
+            window = [*window[1:], next_step]
 
         return ProcessorOutput(prediction=stack(outputs, dim=1))
