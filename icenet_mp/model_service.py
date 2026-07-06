@@ -183,7 +183,7 @@ class ModelService:
             training state (e.g. ``trainer.current_epoch``, ``trainer.global_step``).
 
         """
-        log.info("Configuring model for %s.", job_stage or "training")
+        log.info("Configuring fitting for %s.", job_stage or "training")
         current_model = model or self.model
         current_model.optimizer_cfg = config["optimizer"]
         current_model.scheduler_cfg = config["scheduler"]
@@ -413,6 +413,7 @@ class ModelService:
             config=self._merged_config("encoders"),
             checkpoint_dir=checkpoint_dir,
         )
+        target_encoder = trained_encoders.pop()  # the decoder must not use this
 
         log.info("Preparing to train the decoder...")
         trained_decoder = self.train_stage_decoder(
@@ -426,6 +427,7 @@ class ModelService:
             trained_decoder,
             config=self._merged_config("processor"),
             checkpoint_dir=checkpoint_dir,
+            target_encoder=target_encoder,
         )
 
         log.info("Preparing to finetune...")
@@ -442,13 +444,9 @@ class ModelService:
         checkpoint_dir: Path | None = None,
     ) -> DecoderStage:
         """Train a decoder on the combined latent space of all frozen encoders."""
-        target_variables = (
-            self.data_module.target_variables
-            or self.data_module.variable_names[self.data_module.target_group_name]
-        )
         target_variable_indices = [
             self.data_module.variable_names[self.data_module.target_group_name].index(v)
-            for v in target_variables
+            for v in self.data_module.target_variables
         ]
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
@@ -474,6 +472,11 @@ class ModelService:
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
         )
+        log.info(
+            "Training decoder: latent %s -> output %s",
+            decoder_model.decoder.data_space_in.chw,
+            decoder_model.decoder.data_space_out.chw,
+        )
         trainer = self._fit(model=decoder_model, config=config, job_stage="decoder")
         self._save_checkpoint(trainer, "decoder")
         return decoder_model
@@ -488,7 +491,18 @@ class ModelService:
             )
             raise TypeError(msg)
         encoder_models = []
-        for encoder in self.model.encoders:
+        for encoder in [*self.model.encoders, self.model.target_encoder]:
+            # The target encoder is named "target" but needs to load data from the real
+            # corresponding underlying dataset. However, we need to construct a custom
+            # DataSpace since we only want to consider the selected target variables,
+            # not the full dataset.
+            if encoder is self.model.target_encoder:
+                dataset_name = self.data_module.target_group_name
+                channel_names = self.data_module.target_variables
+            else:
+                dataset_name = encoder.name
+                channel_names = self.data_module.variable_names[dataset_name]
+
             if checkpoint_dir is not None and (
                 matches := sorted(
                     checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
@@ -512,11 +526,18 @@ class ModelService:
                 continue
 
             encoder_model = EncoderStage.from_template(
-                channel_names=self.data_module.variable_names[encoder.name],
+                channel_names=channel_names,
+                data_space_in=encoder.data_space_in,
                 dataset=encoder.name,
                 decoder=self.config["model"]["decoder"],
-                encoder=self.config["model"]["encoders"][encoder.name],
+                encoder=self.config["model"]["encoders"][dataset_name],
                 template=self.model,
+            )
+            log.info(
+                "Training encoder-%s: input %s -> latent %s",
+                encoder.name,
+                encoder_model.encoder.data_space_in.chw,
+                encoder_model.encoder.data_space_out.chw,
             )
             trainer = self._fit(
                 model=encoder_model,
@@ -547,6 +568,7 @@ class ModelService:
     def train_stage_processor(
         self,
         decoder_model: DecoderStage,
+        target_encoder: EncoderStage,
         *,
         config: DictConfig,
         checkpoint_dir: Path | None = None,
@@ -566,11 +588,20 @@ class ModelService:
                 weights_only=False,
                 processor=self.config["model"]["processor"],
                 decoder_model=decoder_model,
+                target_encoder=target_encoder,
             )
 
         processor_model = ProcessorStage.from_template(
             processor=self.config["model"]["processor"],
             decoder_model=decoder_model,
+            target_encoder=target_encoder,
+        )
+        log.info(
+            "Training processor: (%d, %d, %d, %d) -> (%d, %d, %d, %d)",
+            processor_model.processor.n_history_steps,
+            *processor_model.processor.data_space.chw,
+            processor_model.processor.n_forecast_steps,
+            *processor_model.processor.data_space.chw,
         )
         trainer = self._fit(model=processor_model, config=config, job_stage="processor")
         self._save_checkpoint(trainer, "processor")
