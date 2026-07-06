@@ -46,10 +46,8 @@ class CommonDataModule(LightningDataModule):
         if self.target_group_name not in self.dataset_groups:
             msg = f"Could not find prediction target {self.target_group_name}."
             raise ValueError(msg)
-
-        # Set target variables for prediction, defaulting to the entire target dataset.
-        self.target_variables: list[str] = config["predict"]["target"].get(
-            "variables", self.variable_names[self.target_group_name]
+        self._target_variables: list[str] = config["predict"]["target"].get(
+            "variables", []
         )
 
         # Set periods for train, validation, and test
@@ -127,6 +125,13 @@ class CommonDataModule(LightningDataModule):
             .subset(variables=self.target_variables)
             .space
         )
+
+    @cached_property
+    def target_variables(self) -> list[str]:
+        """Return the names of the variables to predict."""
+        if self._target_variables:
+            return self._target_variables
+        return self.variable_names[self.target_group_name]
 
     @cached_property
     def variable_names(self) -> dict[str, list[str]]:
