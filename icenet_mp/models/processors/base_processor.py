@@ -27,6 +27,13 @@ class BaseProcessor(nn.Module):
         self.data_space_target = data_space_target or data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
+        # We require that the latent spaces for the inputs and target must match
+        if self.data_space_target.shape != self.data_space.shape:
+            msg = (
+                f"Expected data_space_target.shape {self.data_space_target.shape} "
+                f"to match data_space.shape {self.data_space.shape}"
+            )
+            raise ValueError(msg)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: process in NCHW latent space for a single timestep.
