@@ -433,13 +433,9 @@ class ModelService:
         checkpoint_dir: Path | None = None,
     ) -> DecoderStage:
         """Train a decoder on the combined latent space of all frozen encoders."""
-        target_variables = (
-            self.data_module.target_variables
-            or self.data_module.variable_names[self.data_module.target_group_name]
-        )
         target_variable_indices = [
             self.data_module.variable_names[self.data_module.target_group_name].index(v)
-            for v in target_variables
+            for v in self.data_module.target_variables
         ]
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))

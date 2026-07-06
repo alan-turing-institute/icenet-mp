@@ -46,8 +46,10 @@ class CommonDataModule(LightningDataModule):
         if self.target_group_name not in self.dataset_groups:
             msg = f"Could not find prediction target {self.target_group_name}."
             raise ValueError(msg)
+
+        # Set target variables for prediction, defaulting to the entire target dataset.
         self.target_variables: list[str] = config["predict"]["target"].get(
-            "variables", []
+            "variables", self.variable_names[self.target_group_name]
         )
 
         # Set periods for train, validation, and test
