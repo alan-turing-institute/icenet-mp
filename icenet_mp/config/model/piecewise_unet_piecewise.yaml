@@ -6,15 +6,19 @@ encoders:
   latent_space: [192, 192]
   era5:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
+    conv_kernel_size: 1
     n_conv_blocks: 1
   float-argo:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
+    conv_kernel_size: 1
     n_conv_blocks: 1
   sic-icenet:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
+    conv_kernel_size: 1
     n_conv_blocks: 1
   sic-ssmis:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
+    conv_kernel_size: 1
     n_conv_blocks: 1
 
 processor:
@@ -23,6 +27,7 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.PiecewiseDecoder
+  conv_kernel_size: 1
   n_conv_blocks: 1
   restrict_range: sigmoid
   use_hann_window: true
