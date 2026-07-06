@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import hydra
 import torch
 from omegaconf import DictConfig
+from typing_extensions import override
 
 from icenet_mp.models import BaseModel
 from icenet_mp.types import ModelStepOutput, TensorNTCHW
@@ -29,7 +30,7 @@ class ProcessorStage(BaseModel):
         """Initialise a ProcessorStage with frozen encoders, a frozen decoder, and a trainable processor."""
         super().__init__(**kwargs)
 
-        # Copy encoders from DecoderStage, freeze their parameters and register them
+        # Copy encoders from DecoderStage, freeze their parameters and register them.
         self.encoder_names = decoder_model.encoder_names
         self.encoders = [copy.deepcopy(encoder) for encoder in decoder_model.encoders]
         for encoder in self.encoders:
@@ -100,6 +101,17 @@ class ProcessorStage(BaseModel):
         """
         combined_latent: TensorNTCHW = self.encode_inputs(inputs)
         return self.decoder.rollout(self.processor.rollout(combined_latent).prediction)
+
+    @override
+    def train(self, mode: bool = True) -> "ProcessorStage":
+        """Set training mode, but keep frozen modules in eval mode."""
+        super().train(mode)
+        if mode:
+            for encoder in self.encoders:
+                encoder.eval()
+            self.target_encoder.eval()
+            self.decoder.eval()
+        return self
 
     def training_step(
         self,
