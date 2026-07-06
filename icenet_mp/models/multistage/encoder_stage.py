@@ -6,7 +6,7 @@ import hydra
 from omegaconf import DictConfig
 
 from icenet_mp.models import BaseModel, EncodeProcessDecode
-from icenet_mp.types import TensorNTCHW
+from icenet_mp.types import DataSpace, TensorNTCHW
 
 if TYPE_CHECKING:
     from icenet_mp.models.decoders import BaseDecoder
@@ -19,7 +19,7 @@ class EncoderStage(BaseModel):
     def __init__(
         self,
         channel_names: list[str],
-        dataset: str,
+        data_space_in: DataSpace,
         encoder: DictConfig,
         decoder: DictConfig,
         latent_space: tuple[int, int],
@@ -31,10 +31,14 @@ class EncoderStage(BaseModel):
         # Store channel names
         self.channel_names = channel_names
 
-        # Encode from a single input space to a latent space
+        # Encode from a single input space to a latent space. For most datasets this
+        # space is one of the model's raw input spaces, found by name. The target
+        # dataset is a special case (a subset of variables from a dataset that may
+        # also be a raw input in its own right, read from the batch's "target" key
+        # rather than a dataset-named key), so its DataSpace is passed in directly.
         self.encoder: BaseEncoder = hydra.utils.instantiate(
             encoder,
-            data_space_in=next(s for s in self.input_spaces if s.name == dataset),
+            data_space_in=data_space_in,
             latent_space=latent_space,
             latitudes_fn=self.latitudes_fn,
             longitudes_fn=self.longitudes_fn,
@@ -57,6 +61,7 @@ class EncoderStage(BaseModel):
         cls,
         *,
         channel_names: list[str],
+        data_space_in: DataSpace,
         dataset: str,
         decoder: DictConfig,
         encoder: DictConfig,
@@ -65,7 +70,7 @@ class EncoderStage(BaseModel):
         """Create an EncoderStage from an existing EncodeProcessDecode template."""
         return cls(
             channel_names=channel_names,
-            dataset=dataset,
+            data_space_in=data_space_in,
             decoder=decoder,
             encoder=encoder,
             hemisphere=template.hemisphere,
