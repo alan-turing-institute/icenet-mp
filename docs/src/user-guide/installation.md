@@ -15,9 +15,9 @@ You will need [`uv`](https://docs.astral.sh/uv/getting-started/installation/) to
     The IceNet-MP dev team have compiled `udunits` on Isambard-AI and it can be used by setting the following environment variables:
 
     ```bash
-    export UDUNITS2_XML_PATH=/projects/u6iz/public/shared/udunits/share/udunits/udunits2.xml
-    export UDUNITS2_INCDIR=/projects/u6iz/public/shared/udunits/include/
-    export UDUNITS2_LIBDIR=/projects/u6iz/public/shared/udunits/lib/
+    export UDUNITS2_XML_PATH=/projects/public/u6iz/shared/udunits/share/udunits/udunits2.xml
+    export UDUNITS2_INCDIR=/projects/public/u6iz/shared/udunits/include/
+    export UDUNITS2_LIBDIR=/projects/public/u6iz/shared/udunits/lib/
     ```
 
     Alternatively, if you prefer to compile `udunits` yourself, you can do the following:
