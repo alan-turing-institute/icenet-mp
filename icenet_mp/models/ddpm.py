@@ -53,6 +53,8 @@ class DDPM(BaseModel):
         - Forecasted outputs per timestep and channel, flattened along the channel dimension
     """
 
+    mask: torch.Tensor
+
     def __init__(  # noqa: PLR0913
         self,
         timesteps: int = 1000,
