@@ -18,7 +18,7 @@ samp-weathernorth-era5-25p0km-2017-2019-24h-v3:
             class: ea
             expver: "0001"
             grid: "0.25 / 0.25"
-            area: "90/-180/20/180"  # northern hemisphere
+            area: "90/-180/15/180"  # northern hemisphere
             levtype: sfc
             param:
             - 2t # 2-metre air temperature
@@ -31,7 +31,7 @@ samp-weathernorth-era5-25p0km-2017-2019-24h-v3:
             class: ea
             expver: "0001"
             grid: "0.25 / 0.25"
-            area: "90/-180/20/180"  # northern hemisphere
+            area: "90/-180/15/180"  # northern hemisphere
             level:
             - 10 # hPa
             - 250 # hPa
