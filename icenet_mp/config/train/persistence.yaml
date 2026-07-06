@@ -1,7 +1,6 @@
 defaults:
   - default
   - override callbacks:
-    - device_stats
     - unconditional_checkpoint
   - _self_
 
