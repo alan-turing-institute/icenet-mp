@@ -27,7 +27,7 @@
 | icenet\_mp/config/\_\_init\_\_.py                               |        0 |        0 |    100% |           |
 | icenet\_mp/data\_loaders/\_\_init\_\_.py                        |        4 |        0 |    100% |           |
 | icenet\_mp/data\_loaders/combined\_dataset.py                   |       42 |        1 |     98% |        88 |
-| icenet\_mp/data\_loaders/common\_data\_module.py                |       82 |       29 |     65% |47-48, 91, 99-103, 108, 113, 118, 123, 132, 136-139, 145-161, 167-180, 186-202, 208-221 |
+| icenet\_mp/data\_loaders/common\_data\_module.py                |       87 |       32 |     63% |47-48, 91, 99-103, 108, 113, 118, 123, 132-134, 139, 143-146, 152-168, 174-187, 193-209, 215-228 |
 | icenet\_mp/data\_loaders/single\_dataset.py                     |      141 |        5 |     96% |179, 184, 208, 282-287 |
 | icenet\_mp/data\_processors/\_\_init\_\_.py                     |        2 |        0 |    100% |           |
 | icenet\_mp/data\_processors/data\_downloader.py                 |      158 |       96 |     39% |56-57, 94-134, 138-155, 178-235, 240-243, 252-254, 262-296 |
@@ -61,7 +61,7 @@
 | icenet\_mp/metrics/icenet\_accuracy.py                          |       24 |        3 |     88% |46, 51, 55 |
 | icenet\_mp/metrics/sie\_error.py                                |       17 |       10 |     41% |27-31, 51-55, 59 |
 | icenet\_mp/metrics/sie\_error\_abs.py                           |       26 |        2 |     92% |    70, 76 |
-| icenet\_mp/model\_service.py                                    |      211 |      131 |     38% |38-41, 47-49, 63-64, 108-109, 124-126, 148-149, 163-164, 186-204, 208, 218-224, 229-234, 259-346, 351-362, 371-374, 394-421, 434-468, 474-518, 524-534, 544-566 |
+| icenet\_mp/model\_service.py                                    |      219 |      139 |     37% |38-41, 47-49, 63-64, 108-109, 124-126, 148-149, 163-164, 186-204, 208, 218-224, 229-234, 259-346, 351-362, 371-374, 394-423, 436-471, 477-539, 545-555, 566-597 |
 | icenet\_mp/models/\_\_init\_\_.py                               |        5 |        0 |    100% |           |
 | icenet\_mp/models/base\_model.py                                |       90 |        5 |     94% |99, 103, 150, 157-161 |
 | icenet\_mp/models/common/\_\_init\_\_.py                        |       13 |        0 |    100% |           |
@@ -90,7 +90,7 @@
 | icenet\_mp/models/diffusion/\_\_init\_\_.py                     |        3 |        0 |    100% |           |
 | icenet\_mp/models/diffusion/gaussian\_diffusion.py              |       54 |       43 |     20% |39-72, 91-96, 115-135, 151-154, 175-180, 199-220 |
 | icenet\_mp/models/diffusion/unet\_diffusion.py                  |       78 |       68 |     13% |57-179, 201-241, 257-272, 285-288 |
-| icenet\_mp/models/encode\_process\_decode.py                    |       30 |        5 |     83% |42-44, 55-59 |
+| icenet\_mp/models/encode\_process\_decode.py                    |       35 |        8 |     77% |42-47, 63-69, 80-84 |
 | icenet\_mp/models/encoders/\_\_init\_\_.py                      |        6 |        0 |    100% |           |
 | icenet\_mp/models/encoders/base\_encoder.py                     |       24 |        2 |     92% |     57-58 |
 | icenet\_mp/models/encoders/cnn\_encoder.py                      |       25 |        0 |    100% |           |
@@ -98,12 +98,12 @@
 | icenet\_mp/models/encoders/piecewise\_encoder.py                |       17 |        0 |    100% |           |
 | icenet\_mp/models/encoders/reprojection\_encoder.py             |       33 |        0 |    100% |           |
 | icenet\_mp/models/multistage/\_\_init\_\_.py                    |        4 |        0 |    100% |           |
-| icenet\_mp/models/multistage/decoder\_stage.py                  |       36 |       20 |     44% |30-60, 76, 101-106, 117 |
-| icenet\_mp/models/multistage/encoder\_stage.py                  |       24 |        8 |     67% |29-44, 53, 66, 93, 101 |
-| icenet\_mp/models/multistage/processor\_stage.py                |       57 |       40 |     30% |29-61, 77, 93-96, 106-107, 132-168 |
+| icenet\_mp/models/multistage/decoder\_stage.py                  |       44 |       25 |     43% |31-61, 77, 102-107, 118, 129-133 |
+| icenet\_mp/models/multistage/encoder\_stage.py                  |       24 |        8 |     67% |29-48, 57, 71, 98, 106 |
+| icenet\_mp/models/multistage/processor\_stage.py                |       65 |       44 |     32% |31-55, 72, 89-92, 102-103, 108-114, 139-175 |
 | icenet\_mp/models/persistence.py                                |       16 |        0 |    100% |           |
 | icenet\_mp/models/processors/\_\_init\_\_.py                    |        5 |        0 |    100% |           |
-| icenet\_mp/models/processors/base\_processor.py                 |       19 |        0 |    100% |           |
+| icenet\_mp/models/processors/base\_processor.py                 |       22 |        2 |     91% |     32-36 |
 | icenet\_mp/models/processors/null.py                            |       10 |        0 |    100% |           |
 | icenet\_mp/models/processors/unet.py                            |       53 |        0 |    100% |           |
 | icenet\_mp/models/processors/vit.py                             |       40 |        2 |     95% |     92-96 |
@@ -125,7 +125,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 235-236 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 336, 362-363, 441-445 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **4545** | **1317** | **71%** |           |
+| **TOTAL**                                                       | **4582** | **1342** | **71%** |           |
 
 
 ## Setup coverage badge
