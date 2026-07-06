@@ -122,12 +122,22 @@ class DDPM(BaseModel):
             for space in self.input_spaces
             if (space["name"] if isinstance(space, dict) else space.name) == "era5"
         )
+        osisaf_space = next(
+            space
+            for space in self.input_spaces
+            if (space["name"] if isinstance(space, dict) else space.name)
+            == self.osisaf_key
+        )
 
         # Get channels from either dict or object
         if isinstance(era5_space, dict):
             self.era5_space = era5_space["channels"]
         else:
             self.era5_space = era5_space.channels
+        if isinstance(osisaf_space, dict):
+            self.osisaf_channels = osisaf_space["channels"]
+        else:
+            self.osisaf_channels = osisaf_space.channels
 
         # Get the base output channels from output_space
         if isinstance(self.output_space, dict):
@@ -153,7 +163,7 @@ class DDPM(BaseModel):
         )
 
         self.osisaf_encoder = SimpleEncoder2D(
-            in_channels=self.n_history_steps,
+            in_channels=self.n_history_steps * self.osisaf_channels,
             out_channels=self.cond_channels // 2,
         )
 
@@ -234,19 +244,19 @@ class DDPM(BaseModel):
 
         Args:
             batch: Dictionary with
-                'osisaf-south' [B, T, 1, H, W]
+                osisaf key (e.g. 'osisaf-south') [B, T, C, H, W]
                 'era5' [B, T, C, H2, W2]
 
         Returns:
             Conditioning tensor [B, cond_channels, H, W]
 
         """
-        osisaf = batch[self.osisaf_key]  # [B, T, 1, H, W]
+        osisaf = batch[self.osisaf_key]  # [B, T, C, H, W]
         era5 = batch["era5"]  # [B, T, C, H2, W2]
 
-        # Handle OSISAF
-        osisaf = osisaf.squeeze(2)  # [B, T, H, W]
-        H, W = osisaf.shape[-2:]  # noqa: N806
+        # Handle OSISAF: flatten time and channels together
+        B, T, C, H, W = osisaf.shape  # noqa: N806
+        osisaf = osisaf.reshape(B, T * C, H, W)
 
         # Handle ERA5
         # Permute to [B, C, T, H2, W2] for 3D operations
