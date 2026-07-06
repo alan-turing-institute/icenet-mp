@@ -43,6 +43,20 @@ class EncodeProcessDecode(BaseModel):
             msg = f"Error instantiating encoders: {exc}. Please ensure that encoders are specified for all input spaces: {self.input_spaces}"
             raise ValueError(msg) from exc
 
+        # Add an additional encoder that encodes the target dataset into latent space
+        # This will be used by any processors that need to compute latent space losses.
+        self.target_encoder: BaseEncoder = hydra.utils.instantiate(
+            encoders[self.output_space.name],
+            data_space_in=DataSpace(
+                name="target",
+                channels=self.output_space.channels,
+                shape=self.output_space.shape,
+            ),
+            latent_space=encoders["latent_space"],
+            latitudes_fn=self.latitudes_fn,
+            longitudes_fn=self.longitudes_fn,
+        )
+
         # We have to explicitly register each encoder as list[Module] will not be
         # automatically picked up by PyTorch
         for input_space, module in zip(self.input_spaces, self.encoders, strict=True):
