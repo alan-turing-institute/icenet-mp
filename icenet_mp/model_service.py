@@ -477,7 +477,7 @@ class ModelService:
             )
             raise TypeError(msg)
         encoder_models = []
-        for encoder in self.model.encoders:
+        for encoder in [*self.model.encoders, self.model.target_encoder]:
             if checkpoint_dir is not None and (
                 matches := sorted(
                     checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
