@@ -480,6 +480,15 @@ class ModelService:
             raise TypeError(msg)
         encoder_models = []
         for encoder in [*self.model.encoders, self.model.target_encoder]:
+            # The target encoder is named "target" but needs to load data from the real
+            # corresponding underlying dataset. We cannot simply name the target encoder
+            # after the underlying dataset because we want to train a separate encoder
+            # on this.
+            dataset_name = (
+                self.data_module.target_group_name
+                if encoder is self.model.target_encoder
+                else encoder.name
+            )
             if checkpoint_dir is not None and (
                 matches := sorted(
                     checkpoint_dir.glob(f"encoder-{encoder.name}.epoch=*-step=*.ckpt")
@@ -503,10 +512,10 @@ class ModelService:
                 continue
 
             encoder_model = EncoderStage.from_template(
-                channel_names=self.data_module.variable_names[encoder.name],
-                dataset=encoder.name,
+                channel_names=self.data_module.variable_names[dataset_name],
+                dataset=dataset_name,
                 decoder=self.config["model"]["decoder"],
-                encoder=self.config["model"]["encoders"][encoder.name],
+                encoder=self.config["model"]["encoders"][dataset_name],
                 template=self.model,
             )
             trainer = self._fit(
