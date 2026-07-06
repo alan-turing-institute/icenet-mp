@@ -132,6 +132,9 @@ def cfg_encoders() -> DictConfig:
             "test-input": {
                 "_target_": "icenet_mp.models.encoders.NaiveLinearEncoder",
             },
+            "target": {
+                "_target_": "icenet_mp.models.encoders.NaiveLinearEncoder",
+            },
         }
     )
 

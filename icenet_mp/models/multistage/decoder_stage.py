@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import hydra
 import torch
 from omegaconf import DictConfig
+from typing_extensions import override
 
 from icenet_mp.models import BaseModel
 from icenet_mp.types import DataSpace, TensorNTCHW
@@ -33,7 +34,7 @@ class DecoderStage(BaseModel):
         self.active_mask_path = active_mask_path
         self.land_mask_path = land_mask_path
 
-        # Copy encoders from EncoderStages, freeze their parameters and register them
+        # Copy encoders from EncoderStages, freeze their parameters and register them.
         self.encoder_names = [encoder.dataset_name for encoder in encoders]
         self.encoders = [copy.deepcopy(encoder.encoder) for encoder in encoders]
         for encoder in self.encoders:
@@ -131,3 +132,12 @@ class DecoderStage(BaseModel):
                 :, 0, self.target_indices, :, :
             ].unsqueeze(1)
         }
+
+    @override
+    def train(self, mode: bool = True) -> "DecoderStage":
+        """Set training mode, but keep the frozen encoders in eval mode."""
+        super().train(mode)
+        if mode:
+            for encoder in self.encoders:
+                encoder.eval()
+        return self
