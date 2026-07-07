@@ -157,6 +157,7 @@ class TestPiecewiseDecoder:
             data_space_out=output_space,
             n_conv_blocks=0,
             restrict_range="none",
+            use_final_normalisation=False,
         )
 
         # Generate a sequentially increasing input tensor

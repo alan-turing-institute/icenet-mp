@@ -35,6 +35,7 @@ class PiecewiseDecoder(BaseDecoder):
         n_conv_blocks: int = 3,
         restrict_range: str = "clamp",
         use_hann_window: bool = False,
+        use_final_normalisation: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseDecoder."""
@@ -103,6 +104,11 @@ class PiecewiseDecoder(BaseDecoder):
                 use_hann_window=use_hann_window,
             )
         )
+
+        # Normalise the folded output before bounding it. We set affine=False to avoid
+        # saturation that can cause the output to collapse to a constant prediction.
+        if use_final_normalisation:
+            layers.append(nn.BatchNorm2d(self.data_space_out.channels, affine=False))
 
         # Specify how/whether the output is bounded between 0 and 1
         if (method := RangeRestriction(restrict_range)) != RangeRestriction.NONE:
