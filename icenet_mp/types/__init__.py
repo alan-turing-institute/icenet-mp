@@ -1,5 +1,5 @@
 from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
-from .enums import BetaSchedule, RangeRestriction, TensorDimensions
+from .enums import BetaSchedule, MaskType, RangeRestriction, TensorDimensions
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
     AnemoiCleanupArgs,
@@ -47,6 +47,7 @@ __all__ = [
     "DiffMode",
     "DiffStrategy",
     "Hemisphere",
+    "MaskType",
     "Metadata",
     "ModelStepOutput",
     "PlotSpec",

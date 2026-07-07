@@ -21,6 +21,7 @@ class EncodeProcessDecode(BaseModel):
         encoders: DictConfig,
         processor: DictConfig,
         decoder: DictConfig,
+        mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
@@ -101,6 +102,7 @@ class EncodeProcessDecode(BaseModel):
             decoder,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
+            mask_dir=mask_dir,
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

@@ -20,6 +20,7 @@ class MockCommonDataModule:
         self.n_forecast_steps = 2
         self.n_history_steps = 3
         self.output_space = DataSpace(1, "output", (10, 10))
+        self.mask_directory = Path("nonexistent")
 
 
 class MockModel:
@@ -27,13 +28,21 @@ class MockModel:
     def load_from_checkpoint(
         cls,
         checkpoint_path: str | Path,
+        *,
+        mask_dir: str | None = None,
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
-        *,
         map_location: str | None = None,
         weights_only: bool = False,
     ) -> "MockModel":
-        del checkpoint_path, latitudes_fn, longitudes_fn, map_location, weights_only
+        del (
+            mask_dir,
+            checkpoint_path,
+            latitudes_fn,
+            longitudes_fn,
+            map_location,
+            weights_only,
+        )
         return cls()
 
 

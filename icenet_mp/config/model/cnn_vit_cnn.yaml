@@ -28,5 +28,6 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
-  bounded: true
   n_layers: 1
+  mask_type: active
+  restrict_range: sigmoid

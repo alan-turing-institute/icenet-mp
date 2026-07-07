@@ -6,9 +6,8 @@ from icenet_mp.models.common import (
     CommonConvBlock,
     NormalisedFold,
     Permute,
-    RestrictRange,
 )
-from icenet_mp.types import RangeRestriction, TensorNCHW
+from icenet_mp.types import TensorNCHW
 
 from .base_decoder import BaseDecoder
 
@@ -28,14 +27,13 @@ class PiecewiseDecoder(BaseDecoder):
         TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         conv_activation: str = "SiLU",
         conv_kernel_size: int = 3,
         conv_subblocks_initial: int = 3,
         conv_subblocks_final: int = 3,
-        restrict_range: str = "clamp",
         use_hann_window: bool = True,
         use_final_normalisation: bool = True,
         **kwargs: Any,
@@ -132,10 +130,6 @@ class PiecewiseDecoder(BaseDecoder):
         # saturation that can cause the output to collapse to a constant prediction.
         if use_final_normalisation:
             layers.append(nn.BatchNorm2d(self.data_space_out.channels, affine=False))
-
-        # Specify how/whether the output is bounded between 0 and 1
-        if (method := RangeRestriction(restrict_range)) != RangeRestriction.NONE:
-            layers.append(RestrictRange(method, min_val=0, max_val=1))
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)

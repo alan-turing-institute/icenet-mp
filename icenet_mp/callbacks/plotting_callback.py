@@ -1,7 +1,7 @@
 import logging
 import math
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
@@ -14,6 +14,10 @@ from icenet_mp.models import BaseModel
 from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
 from icenet_mp.utils import datetime_from_npdatetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
+from icenet_mp.visualisations.land_mask import LandMask
+
+if TYPE_CHECKING:  # per rule TC003
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +25,9 @@ logger = logging.getLogger(__name__)
 class PlottingCallback(Callback):
     """A callback to create plots during evaluation."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
-        base_path: str | None = None,
         frequency: dict[str, int] | None = None,
         make_input_plots: bool = False,
         make_static_plots: bool = True,
@@ -38,7 +41,6 @@ class PlottingCallback(Callback):
         difficult to work out which date corresponds to each batch.
 
         Args:
-            base_path: Base path for finding land masks.
             frequency: A dictionary specifying how often to make plots, with keys:
                 batch (plot every N batches)
                 epoch (plot every N epochs)
@@ -59,8 +61,9 @@ class PlottingCallback(Callback):
         self.make_video_plots = make_video_plots
 
         # Plotter instance
-        self.plotter = Plotter(base_path, DEFAULT_SIC_SPEC + plot_spec)
+        self.plotter = Plotter(DEFAULT_SIC_SPEC + plot_spec)
         self.plotter_metadata: Metadata | None = None
+        self._land_mask_cache: dict[Path | None, LandMask] = {}
         self.prefix: str | None = prefix
 
         # Cache the most recent batch
@@ -144,6 +147,15 @@ class PlottingCallback(Callback):
             logger.warning(msg)
             return
         self.plotter.set_hemisphere(pl_module.hemisphere)
+
+        # Load land mask for plotting based on dataset (built once per path,
+        # not rebuilt every validation epoch)
+        datamodule = getattr(trainer, "datamodule", None)
+        mask_directory = getattr(datamodule, "mask_directory", None)
+        land_mask_path = mask_directory / "land_mask.npy" if mask_directory else None
+        if land_mask_path not in self._land_mask_cache:
+            self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
+        self.plotter.land_mask = self._land_mask_cache[land_mask_path]
 
         # Get loggers that support image and video logging
         image_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_image")]
