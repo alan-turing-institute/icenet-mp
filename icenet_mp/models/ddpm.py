@@ -3,9 +3,9 @@ from typing import Any, NoReturn
 import torch
 import torch.nn.functional as F  # noqa: N812
 
-from icenet_mp.models.common import Mask
+from icenet_mp.models.common import Mask, RestrictRange
 from icenet_mp.models.diffusion import GaussianDiffusion, UNetDiffusion
-from icenet_mp.types import ModelStepOutput, TensorNCHW, TensorNTCHW
+from icenet_mp.types import ModelStepOutput, RangeRestriction, TensorNCHW, TensorNTCHW
 
 from .base_model import BaseModel
 
@@ -64,6 +64,7 @@ class DDPM(BaseModel):
         dropout_rate: float = 0.1,
         mask_dir: str | None = None,
         mask_type: str | None = None,
+        restrict_range: str = "clamp",
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
@@ -81,12 +82,19 @@ class DDPM(BaseModel):
                 Required when `mask_type` is "active" or "land".
             mask_type (str | None): Output mask to apply during sampling: "active"
                 (active+land), "land" (land only), or ``None`` to disable.
+            restrict_range (str): How to bound sampled output into [0, 1] before
+                masking: none/sigmoid/clamp/tanh. Default is "clamp".
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """
         super().__init__(**kwargs)
 
         self.osisaf_key = self.output_space.name
+
+        # Bound sampled output into [0, 1] before masking.
+        self.restrict = RestrictRange(
+            RangeRestriction(restrict_range), min_val=0, max_val=1
+        )
 
         # Load the requested mask (active/land/None)
         self.mask = Mask(
@@ -210,9 +218,8 @@ class DDPM(BaseModel):
             )
             y = self.diffusion.p_sample(y, t_batch, pred_v)
 
-        # Clamp then applying masking
-        y = torch.clamp(y, 0, 1)
-        return self.mask(y)
+        # Bound into [0, 1] then apply masking
+        return self.mask(self.restrict(y))
 
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.

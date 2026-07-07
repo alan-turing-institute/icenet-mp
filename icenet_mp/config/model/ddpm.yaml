@@ -1,5 +1,6 @@
 _target_: icenet_mp.models.ddpm.DDPM
 
-# Run DDPM model with default settings
 name: ddpm
+
 mask_type: active
+restrict_range: clamp
