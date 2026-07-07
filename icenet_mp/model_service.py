@@ -84,15 +84,16 @@ class ModelService:
             input_spaces=[s.to_dict() for s in builder.data_module.input_spaces],
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
+            loss=config["loss"],
+            mask_dir=str(builder.data_module.mask_directory),
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
-            output_space=builder.data_module.output_space.to_dict(),
-            mask_dir=str(builder.data_module.mask_directory),
             optimizer=config["train"]["optimizer"],
+            output_space=builder.data_module.output_space.to_dict(),
             scheduler=config["train"]["scheduler"],
-            loss=config["loss"],
-            _recursive_=False,
+            target_variable_indices=builder.data_module.target_variable_indices,
             _convert_="object",
+            _recursive_=False,
         )
 
         return builder
@@ -446,10 +447,6 @@ class ModelService:
         checkpoint_dir: Path | None = None,
     ) -> DecoderStage:
         """Train a decoder on the combined latent space of all frozen encoders."""
-        target_variable_indices = [
-            self.data_module.variable_names[self.data_module.target_group_name].index(v)
-            for v in self.data_module.target_variables
-        ]
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
         ):
@@ -465,7 +462,7 @@ class ModelService:
                 decoder=self.config["model"]["decoder"],
                 encoders=encoder_models,
                 target_dataset_name=self.data_module.target_group_name,
-                target_variable_indices=target_variable_indices,
+                target_variable_indices=self.data_module.target_variable_indices,
                 mask_dir=str(self.data_module.mask_directory),
             )
 
@@ -473,7 +470,7 @@ class ModelService:
             decoder=self.config["model"]["decoder"],
             encoders=encoder_models,
             target_dataset_name=self.data_module.target_group_name,
-            target_variable_indices=target_variable_indices,
+            target_variable_indices=self.data_module.target_variable_indices,
             mask_dir=str(self.data_module.mask_directory),
         )
         log.info(
