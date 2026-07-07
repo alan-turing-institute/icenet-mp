@@ -101,9 +101,24 @@ train:
     accelerator: auto
 ```
 
-By default, the models use an active grid cell mask in the decoder, which sets all grid cells where ice is never found (either because they are on land, or because they are too warm) to zero. By default this setting is `mask_type: active`; alternatives are `land` which only applies a landmask or `none`.
+By default, the models use an active grid cell mask in the decoder, which sets all grid cells where ice is never found (either because they are on land, or because they are too warm) to zero.
+This is controlled by `mask_type`, set in the `decoder` section of the model config (at the top level for `ddpm`, which has no separate decoder):
 
-The models can also restrict the output data to the range 0-1. By default, `restrict_range: sigmoid` is used, however `clamp`, `tanh` or `none` are also available.
+```yaml
+decoder:
+  mask_type: active # active (active+land) | land (land only) | null to disable
+```
+
+`active` masks land and cells where sea ice has never been observed; `land` masks only land; `null` (or omitting `mask_type`) disables masking entirely. You don't need to point at mask files yourself: they're generated automatically by `datasets create` (currently for SSMIS datasets) and located from `base_path`, so requesting `active`/`land` for a target dataset without generated masks fails loudly at model build with a `FileNotFoundError`.
+
+The models can also restrict the output data to the range 0-1, controlled by `restrict_range` in the same `decoder` section:
+
+```yaml
+decoder:
+  restrict_range: sigmoid # none/sigmoid/clamp/tanh
+```
+
+By default, `restrict_range: sigmoid` is used, however `clamp`, `tanh` or `none` are also available.
 
 ## Checkpoints
 

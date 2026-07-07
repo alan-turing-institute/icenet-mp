@@ -2,4 +2,4 @@ _target_: icenet_mp.models.ddpm.DDPM
 
 # Run DDPM model with default settings
 name: ddpm
-mask_type: active # Output mask: active (active+land) | land (land only) | none
+mask_type: active
