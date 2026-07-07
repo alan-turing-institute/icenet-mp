@@ -107,7 +107,7 @@ wheels = [
 
 [[package]]
 name = "anemoi-datasets"
-version = "0.5.37"
+version = "0.5.40"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anemoi-transform" },
@@ -119,6 +119,7 @@ dependencies = [
     { name = "numcodecs" },
     { name = "numpy" },
     { name = "pint" },
+    { name = "psutil" },
     { name = "pydantic" },
     { name = "pyodc" },
     { name = "pyyaml" },
@@ -128,9 +129,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "zarr" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/bf/3c05026b8c6e44c6387804e338ee5e3c13cd0f433f1a6d2272fad729f860/anemoi_datasets-0.5.37.tar.gz", hash = "sha256:b6f8c30dbe8df1c27aaa3e9666dc75834e8001ea706f55c180ee8c502d917747", size = 1907869, upload-time = "2026-05-28T14:59:00.989Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/29/35/d5218887e31587a0dcd2efeb30436efa08a6392923a4ed4053f7dd42b215/anemoi_datasets-0.5.40.tar.gz", hash = "sha256:a8d496e1d3e317b2eba19873fe118739a6a6341b6d85dc7bc913a1b9e33af2be", size = 2009728, upload-time = "2026-06-22T15:02:49.84Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/9b/060c355b419a3839250772dc32411879bc576c3ab14de4eff63b9dc6a270/anemoi_datasets-0.5.37-py3-none-any.whl", hash = "sha256:155d56e5779c074478dfdda76646a004c04c0661e4c6c56a48a026bb86ad9729", size = 373004, upload-time = "2026-05-28T14:58:59.75Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/00/0c2684134bab7175948fb90d9d84f75e3f098734a4ca79e50f68e0b42386/anemoi_datasets-0.5.40-py3-none-any.whl", hash = "sha256:6e29cffcb1c9103699d8da88deaf813bca5c4df9abb5932ce9e4b0844e138440", size = 459422, upload-time = "2026-06-22T15:02:47.974Z" },
 ]
 
 [[package]]
@@ -2047,7 +2048,7 @@ notebooks = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anemoi-datasets", specifier = ">=0.5.37" },
+    { name = "anemoi-datasets", specifier = ">=0.5.40" },
     { name = "anemoi-transform", specifier = ">=0.4.1" },
     { name = "anemoi-utils", specifier = ">=0.5.5" },
     { name = "argopy", specifier = ">=1.4.0" },
