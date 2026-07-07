@@ -41,7 +41,6 @@ class PlottingCallback(Callback):
         difficult to work out which date corresponds to each batch.
 
         Args:
-            base_path: Base path for finding land masks.
             frequency: A dictionary specifying how often to make plots, with keys:
                 batch (plot every N batches)
                 epoch (plot every N epochs)

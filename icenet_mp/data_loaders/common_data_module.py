@@ -7,7 +7,7 @@ from lightning import LightningDataModule
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from icenet_mp.types import ArrayTCHW, DataloaderArgs, DataSpace, Hemisphere
+from icenet_mp.types import ArrayTCHW, DataloaderArgs, DataSpace, Hemisphere, MaskType
 from icenet_mp.utils import mask_dir
 
 from .combined_dataset import CombinedDataset
@@ -129,7 +129,10 @@ class CommonDataModule(LightningDataModule):
         available = [
             path
             for path in paths
-            if (mask_dir(self.base_path, path.stem) / "active_mask.npy").exists()
+            if any(
+                (mask_dir(self.base_path, path.stem) / f"{kind}_mask.npy").exists()
+                for kind in (MaskType.ACTIVE, MaskType.LAND)
+            )
         ]
         chosen = (available or paths)[0].stem
         if len(paths) > 1:

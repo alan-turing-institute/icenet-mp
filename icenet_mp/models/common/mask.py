@@ -13,6 +13,9 @@ class Mask(nn.Module):
     the input is returned unchanged.
     """
 
+    # buffer in __init__, annotated here to make the type explicit
+    mask: Tensor
+
     def __init__(
         self,
         *,
