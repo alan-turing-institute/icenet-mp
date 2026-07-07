@@ -101,6 +101,10 @@ train:
     accelerator: auto
 ```
 
+By default, the models use an active grid cell mask in the decoder, which sets all grid cells where ice is never found (either because they are on land, or because they are too warm) to zero. By default this setting is `mask_type: active`; alternatives are `land` which only applies a landmask or `none`.
+
+The models can also restrict the output data to the range 0-1. By default, `restrict_range: sigmoid` is used, however `clamp`, `tanh` or `none` are also available.
+
 ## Checkpoints
 
 A checkpoint is saved after each epoch to:
