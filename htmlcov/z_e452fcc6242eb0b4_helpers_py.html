@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for icenet_mp/visualisations/helpers.py: 81%</title>
+    <title>Coverage for icenet_mp/visualisations/helpers.py: 85%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_dd2e7eb5.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>icenet_mp<span class="sep">/</span>visualisations<span class="sep">/</span>helpers.py</b>:
-            <span class="pc_cov">81%</span>
+            <span class="pc_cov">85%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">151 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">122<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">29<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">128<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">23<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e452fcc6242eb0b4_land_mask_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-06 19:02 +0000
+            created at 2026-07-07 13:03 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -140,8 +140,8 @@
     <p class="mis show_mis"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">        <span class="nam">vmin</span><span class="op">,</span> <span class="nam">vmax</span> <span class="op">=</span> <span class="nam">vmax</span><span class="op">,</span> <span class="nam">vmin</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">    <span class="key">if</span> <span class="nam">vmax</span> <span class="op">==</span> <span class="nam">vmin</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t60" href="#t60">60</a></span><span class="t">        <span class="com"># create a tiny range so contourf accepts the levels</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">        <span class="nam">eps</span> <span class="op">=</span> <span class="nam">max</span><span class="op">(</span><span class="num">1e-6</span><span class="op">,</span> <span class="nam">abs</span><span class="op">(</span><span class="nam">vmin</span><span class="op">)</span> <span class="op">*</span> <span class="num">1e-6</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">        <span class="nam">vmax</span> <span class="op">=</span> <span class="nam">vmin</span> <span class="op">+</span> <span class="nam">eps</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t61" href="#t61">61</a></span><span class="t">        <span class="nam">eps</span> <span class="op">=</span> <span class="nam">max</span><span class="op">(</span><span class="num">1e-6</span><span class="op">,</span> <span class="nam">abs</span><span class="op">(</span><span class="nam">vmin</span><span class="op">)</span> <span class="op">*</span> <span class="num">1e-6</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">        <span class="nam">vmax</span> <span class="op">=</span> <span class="nam">vmin</span> <span class="op">+</span> <span class="nam">eps</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">    <span class="key">return</span> <span class="nam">np</span><span class="op">.</span><span class="nam">linspace</span><span class="op">(</span><span class="nam">vmin</span><span class="op">,</span> <span class="nam">vmax</span><span class="op">,</span> <span class="nam">n</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -449,20 +449,20 @@
     <p class="pln"><span class="n"><a id="t367" href="#t367">367</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t368" href="#t368">368</a></span><span class="t">        <span class="key">if</span> <span class="nam">np</span><span class="op">.</span><span class="nam">isnan</span><span class="op">(</span><span class="nam">arr</span><span class="op">)</span><span class="op">.</span><span class="nam">any</span><span class="op">(</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t369" href="#t369">369</a></span><span class="t">            <span class="com"># Create overlay for NaN areas (land mask)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t370" href="#t370">370</a></span><span class="t">            <span class="nam">nan_mask</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">isnan</span><span class="op">(</span><span class="nam">arr</span><span class="op">)</span><span class="op">.</span><span class="nam">astype</span><span class="op">(</span><span class="nam">float</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t370" href="#t370">370</a></span><span class="t">            <span class="nam">nan_mask</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">isnan</span><span class="op">(</span><span class="nam">arr</span><span class="op">)</span><span class="op">.</span><span class="nam">astype</span><span class="op">(</span><span class="nam">float</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t371" href="#t371">371</a></span><span class="t">            <span class="com"># Create a custom colourmap: 0=transparent, 1=land color</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t372" href="#t372">372</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t373" href="#t373">373</a></span><span class="t">            <span class="com"># Land colour options: typically 'white' or 'black' (or any valid Matplotlib color)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t374" href="#t374">374</a></span><span class="t">            <span class="nam">colors</span> <span class="op">=</span> <span class="op">[</span><span class="str">"white"</span><span class="op">,</span> <span class="nam">land_color</span><span class="op">]</span>  <span class="com"># 0=white (transparent), 1=land color</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t375" href="#t375">375</a></span><span class="t">            <span class="nam">cmap</span> <span class="op">=</span> <span class="nam">ListedColormap</span><span class="op">(</span><span class="nam">colors</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t376" href="#t376">376</a></span><span class="t">            <span class="nam">ax</span><span class="op">.</span><span class="nam">imshow</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t377" href="#t377">377</a></span><span class="t">                <span class="nam">nan_mask</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t378" href="#t378">378</a></span><span class="t">                <span class="nam">cmap</span><span class="op">=</span><span class="nam">cmap</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t379" href="#t379">379</a></span><span class="t">                <span class="nam">vmin</span><span class="op">=</span><span class="num">0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t380" href="#t380">380</a></span><span class="t">                <span class="nam">vmax</span><span class="op">=</span><span class="num">1</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t381" href="#t381">381</a></span><span class="t">                <span class="nam">alpha</span><span class="op">=</span><span class="num">1.0</span><span class="op">,</span>  <span class="com"># Fully opaque white land areas</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t382" href="#t382">382</a></span><span class="t">                <span class="nam">interpolation</span><span class="op">=</span><span class="str">"nearest"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t383" href="#t383">383</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t374" href="#t374">374</a></span><span class="t">            <span class="nam">colors</span> <span class="op">=</span> <span class="op">[</span><span class="str">"white"</span><span class="op">,</span> <span class="nam">land_color</span><span class="op">]</span>  <span class="com"># 0=white (transparent), 1=land color</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t375" href="#t375">375</a></span><span class="t">            <span class="nam">cmap</span> <span class="op">=</span> <span class="nam">ListedColormap</span><span class="op">(</span><span class="nam">colors</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t376" href="#t376">376</a></span><span class="t">            <span class="nam">ax</span><span class="op">.</span><span class="nam">imshow</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t377" href="#t377">377</a></span><span class="t">                <span class="nam">nan_mask</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t378" href="#t378">378</a></span><span class="t">                <span class="nam">cmap</span><span class="op">=</span><span class="nam">cmap</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t379" href="#t379">379</a></span><span class="t">                <span class="nam">vmin</span><span class="op">=</span><span class="num">0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t380" href="#t380">380</a></span><span class="t">                <span class="nam">vmax</span><span class="op">=</span><span class="num">1</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t381" href="#t381">381</a></span><span class="t">                <span class="nam">alpha</span><span class="op">=</span><span class="num">1.0</span><span class="op">,</span>  <span class="com"># Fully opaque white land areas</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t382" href="#t382">382</a></span><span class="t">                <span class="nam">interpolation</span><span class="op">=</span><span class="str">"nearest"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t383" href="#t383">383</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t384" href="#t384">384</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t385" href="#t385">385</a></span><span class="t">    <span class="com"># Optional: visually mark NaNs as semi-transparent grey overlays here</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t386" href="#t386">386</a></span><span class="t">    <span class="nam">_overlay_nans</span><span class="op">(</span><span class="nam">axs</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">ground_truth</span><span class="op">,</span> <span class="nam">land_color</span><span class="op">=</span><span class="str">"white"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -583,7 +583,7 @@
             <a class="nav" href="z_e452fcc6242eb0b4_land_mask_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.14.3">coverage.py v7.14.3</a>,
-            created at 2026-07-06 19:02 +0000
+            created at 2026-07-07 13:03 +0000
         </p>
     </div>
 </footer>
