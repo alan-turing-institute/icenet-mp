@@ -119,13 +119,11 @@ class CommonDataModule(LightningDataModule):
         return {name: ds.longitudes for name, ds in self.datasets.items()}
 
     @cached_property
-    def _target_mask_dir(self) -> Path:
-        """Mask directory for the prediction target (SIC) group.
+    def mask_directory(self) -> Path:
+        """Mask directory for the prediction target group.
 
-        A target group usually holds a single SIC dataset, but if it holds several,
-        pick the first whose masks have actually been generated, falling back to the
-        first dataset when none are available. Combining masks across datasets is not
-        currently supported (deferred to a future issue or PR).
+        A target group usually holds a single dataset with generated masks, but if it
+        holds several, pick the first. Combining masks across datasets is unsupported.
         """
         paths = self.dataset_groups[self.target_group_name]
         available = [
@@ -143,24 +141,6 @@ class CommonDataModule(LightningDataModule):
                 chosen,
             )
         return mask_dir(self.base_path, chosen)
-
-    @cached_property
-    def active_mask_path(self) -> Path:
-        """Path to the active mask for the target dataset.
-
-        Derived from `base_path` and the SIC target dataset (see `_target_mask_dir`),
-        so the path always traces the data path. The file exists only for datasets
-        whose masks have been generated (eg, currently the SSMIS datasets).
-        """
-        return self._target_mask_dir / "active_mask.npy"
-
-    @cached_property
-    def land_mask_path(self) -> Path:
-        """Path to the land mask for the target dataset.
-
-        Differs only by the file name, same directory as the active mask.
-        """
-        return self._target_mask_dir / "land_mask.npy"
 
     @cached_property
     def output_space(self) -> DataSpace:

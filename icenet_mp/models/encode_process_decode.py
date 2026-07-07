@@ -21,17 +21,11 @@ class EncodeProcessDecode(BaseModel):
         encoders: DictConfig,
         processor: DictConfig,
         decoder: DictConfig,
-        active_mask_path: str | None = None,
-        land_mask_path: str | None = None,
+        mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
         super().__init__(**kwargs)
-
-        # Resolved at model-build from the data module (ref model_service);
-        # decoder loads it only when mask_type requests it.
-        self.active_mask_path = active_mask_path
-        self.land_mask_path = land_mask_path
 
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
@@ -106,10 +100,9 @@ class EncodeProcessDecode(BaseModel):
         # Add a decoder
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
-            active_mask_path=self.active_mask_path,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
-            land_mask_path=self.land_mask_path,
+            mask_dir=mask_dir,
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

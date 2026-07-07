@@ -16,17 +16,17 @@ class Mask(nn.Module):
         *,
         mask_type: str | None,
         output_shape: tuple[int, ...],
-        active_mask_path: str | None = None,
-        land_mask_path: str | None = None,
+        mask_dir: str | Path | None = None,
     ) -> None:
         """Initialise a Mask.
 
         Args:
-            mask_type: "active" (active+land), "land" (land only), or None to disable masking.
+            mask_type: "active" (active+land), "land" (land only), or None to disable.
             output_shape: Expected (channels, height, width) shape of the tensor this
                 mask will be applied to, used to validate the mask loaded from disk.
-            active_mask_path: Path to the active mask. Used when `mask_type` is "active".
-            land_mask_path: Path to the land mask. Used when `mask_type` is "land".
+            mask_dir: Directory holding `active_mask.npy`/`land_mask.npy`, generated for
+                SSMIS datasets by `datasets create`. Required when `mask_type` is
+                "active" or "land".
 
         """
         super().__init__()
@@ -36,14 +36,14 @@ class Mask(nn.Module):
             msg = f"Unknown mask_type {mask_type!r}; expected one of active/land/None."
             raise ValueError(msg)
 
-        mask_path = active_mask_path if mask_type == "active" else land_mask_path
-        if mask_path is None or not Path(mask_path).exists():
+        mask_path = Path(mask_dir) / f"{mask_type}_mask.npy" if mask_dir else None
+        if mask_path is None or not mask_path.exists():
             msg = (
                 f"{mask_type} mask is requested but no mask was found at {mask_path}. "
                 "Masks are generated for SSMIS datasets during `datasets create`."
             )
             raise FileNotFoundError(msg)
-        mask = from_numpy(np.load(Path(mask_path))).float()
+        mask = from_numpy(np.load(mask_path)).float()
         if tuple(mask.shape) != tuple(output_shape):
             msg = (
                 f"{mask_type} mask shape {tuple(mask.shape)} does not match expected "

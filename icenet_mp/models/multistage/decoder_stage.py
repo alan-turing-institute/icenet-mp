@@ -25,14 +25,12 @@ class DecoderStage(BaseModel):
         encoders: list[EncoderStage],
         target_dataset_name: str,
         target_variable_indices: list[int],
-        active_mask_path: str | None = None,
-        land_mask_path: str | None = None,
+        mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise a DecoderStage with multiple frozen encoders and a trainable decoder."""
         super().__init__(**kwargs)
-        self.active_mask_path = active_mask_path
-        self.land_mask_path = land_mask_path
+        self.mask_dir = mask_dir
 
         # Copy encoders from EncoderStages, freeze their parameters and register them.
         self.encoder_names = [encoder.dataset_name for encoder in encoders]
@@ -64,10 +62,9 @@ class DecoderStage(BaseModel):
             raise ValueError(msg)
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
-            active_mask_path=self.active_mask_path,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
-            land_mask_path=self.land_mask_path,
+            mask_dir=self.mask_dir,
         )
 
     @classmethod
@@ -78,8 +75,7 @@ class DecoderStage(BaseModel):
         encoders: list[EncoderStage],
         target_dataset_name: str,
         target_variable_indices: list[int],
-        active_mask_path: str | None = None,
-        land_mask_path: str | None = None,
+        mask_dir: str | None = None,
     ) -> "DecoderStage":
         """Create a DecoderStage from a list of trained EncoderStages."""
         return cls(
@@ -87,8 +83,7 @@ class DecoderStage(BaseModel):
             encoders=encoders,
             target_dataset_name=target_dataset_name,
             target_variable_indices=target_variable_indices,
-            active_mask_path=active_mask_path,
-            land_mask_path=land_mask_path,
+            mask_dir=mask_dir,
             hemisphere=encoders[0].hemisphere,
             input_spaces=[s.to_dict() for s in encoders[0].input_spaces],
             n_forecast_steps=encoders[0].n_forecast_steps,

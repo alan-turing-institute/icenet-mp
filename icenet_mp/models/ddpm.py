@@ -62,8 +62,7 @@ class DDPM(BaseModel):
         normalization: str = "groupnorm",
         time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
-        active_mask_path: str | None = None,
-        land_mask_path: str | None = None,
+        mask_dir: str | None = None,
         mask_type: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -78,10 +77,8 @@ class DDPM(BaseModel):
             normalization (str): Normalization layer type (e.g., "groupnorm").
             time_embed_dim (int): Dimensionality of the timestep embedding.
             dropout_rate (float): Dropout probability applied inside the UNet blocks.
-            active_mask_path (str | None): Path to the active mask (active+land). Used
-                when ``mask_type`` is ``"active"``.
-            land_mask_path (str | None): Path to the land mask. Used when ``mask_type``
-                is ``"land"``.
+            mask_dir (str | None): Directory holding `active_mask.npy`/`land_mask.npy`.
+                Required when `mask_type` is "active" or "land".
             mask_type (str | None): Output mask to apply during sampling: "active"
                 (active+land), "land" (land only), or ``None`` to disable.
             **kwargs: Additional arguments passed to ``BaseModel``.
@@ -95,8 +92,7 @@ class DDPM(BaseModel):
         self.mask = Mask(
             mask_type=mask_type,
             output_shape=self.output_space.shape,
-            active_mask_path=active_mask_path,
-            land_mask_path=land_mask_path,
+            mask_dir=mask_dir,
         )
 
         era5_space = next(

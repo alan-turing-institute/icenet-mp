@@ -152,7 +152,8 @@ class PlottingCallback(Callback):
         # Load land mask for plotting based on dataset (built once per path,
         # not rebuilt every validation epoch)
         datamodule = getattr(trainer, "datamodule", None)
-        land_mask_path = getattr(datamodule, "land_mask_path", None)
+        mask_directory = getattr(datamodule, "mask_directory", None)
+        land_mask_path = mask_directory / "land_mask.npy" if mask_directory else None
         if land_mask_path not in self._land_mask_cache:
             self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
         self.plotter.land_mask = self._land_mask_cache[land_mask_path]

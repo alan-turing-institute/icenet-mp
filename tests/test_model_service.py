@@ -20,8 +20,7 @@ class MockCommonDataModule:
         self.n_forecast_steps = 2
         self.n_history_steps = 3
         self.output_space = DataSpace(1, "output", (10, 10))
-        self.active_mask_path = Path("nonexistent") / "active_mask.npy"
-        self.land_mask_path = Path("nonexistent") / "land_mask.npy"
+        self.mask_directory = Path("nonexistent")
 
 
 class MockModel:
@@ -30,19 +29,17 @@ class MockModel:
         cls,
         checkpoint_path: str | Path,
         *,
-        active_mask_path: str | None = None,
-        land_mask_path: str | None = None,
+        mask_dir: str | None = None,
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         map_location: str | None = None,
         weights_only: bool = False,
     ) -> "MockModel":
         del (
-            active_mask_path,
+            mask_dir,
             checkpoint_path,
             latitudes_fn,
             longitudes_fn,
-            land_mask_path,
             map_location,
             weights_only,
         )

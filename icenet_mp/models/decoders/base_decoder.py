@@ -17,10 +17,9 @@ class BaseDecoder(nn.Module):
     def __init__(
         self,
         *,
-        active_mask_path: str | None = None,
         data_space_in: DataSpace,
         data_space_out: DataSpace,
-        land_mask_path: str | None = None,
+        mask_dir: str | None = None,
         mask_type: str | None = None,
         restrict_range: str = "none",
     ) -> None:
@@ -39,8 +38,7 @@ class BaseDecoder(nn.Module):
         self.mask = Mask(
             mask_type=mask_type,
             output_shape=self.data_space_out.shape,
-            active_mask_path=active_mask_path,
-            land_mask_path=land_mask_path,
+            mask_dir=mask_dir,
         )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:

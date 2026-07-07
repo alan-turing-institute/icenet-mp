@@ -87,8 +87,7 @@ class ModelService:
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
             output_space=builder.data_module.output_space.to_dict(),
-            active_mask_path=str(builder.data_module.active_mask_path),
-            land_mask_path=str(builder.data_module.land_mask_path),
+            mask_dir=str(builder.data_module.mask_directory),
             optimizer=config["train"]["optimizer"],
             scheduler=config["train"]["scheduler"],
             loss=config["loss"],
@@ -135,8 +134,7 @@ class ModelService:
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
         builder.model_ = model_cls.load_from_checkpoint(
             checkpoint_path,
-            active_mask_path=str(builder.data_module.active_mask_path),
-            land_mask_path=str(builder.data_module.land_mask_path),
+            mask_dir=str(builder.data_module.mask_directory),
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
             map_location="cpu",  # portability: will be moved to the correct device later
@@ -457,8 +455,7 @@ class ModelService:
                 encoders=encoder_models,
                 target_dataset_name=self.data_module.target_group_name,
                 target_variable_indices=target_variable_indices,
-                active_mask_path=str(self.data_module.active_mask_path),
-                land_mask_path=str(self.data_module.land_mask_path),
+                mask_dir=str(self.data_module.mask_directory),
             )
 
         decoder_model = DecoderStage.from_template(
@@ -466,8 +463,7 @@ class ModelService:
             encoders=encoder_models,
             target_dataset_name=self.data_module.target_group_name,
             target_variable_indices=target_variable_indices,
-            active_mask_path=str(self.data_module.active_mask_path),
-            land_mask_path=str(self.data_module.land_mask_path),
+            mask_dir=str(self.data_module.mask_directory),
         )
         log.info(
             "Training decoder: latent %s -> output %s",

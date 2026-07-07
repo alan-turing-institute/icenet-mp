@@ -9,13 +9,13 @@ from icenet_mp.utils import mask_dir
 
 
 class TestCommonDataModule:
-    def test_active_mask_path_derived_from_target_dataset(
+    def test_mask_directory_derived_from_target_dataset(
         self, cfg_common_data_module: DictConfig
     ) -> None:
-        """The mask path is built from the root and the SIC target dataset's name."""
+        """The mask dir is built from the root and the SIC target dataset's name."""
         dm = CommonDataModule(cfg_common_data_module)
-        assert dm.active_mask_path == Path(
-            "/mock/base/path/data/preprocessing/masks/mock/active_mask.npy"
+        assert dm.mask_directory == Path(
+            "/mock/base/path/data/preprocessing/masks/mock"
         )
 
     def test_null_preserved_as_none(self, cfg_common_data_module: DictConfig) -> None:
@@ -94,10 +94,9 @@ class TestTargetMaskDir:
 
         dm = CommonDataModule(cfg)
         with caplog.at_level(logging.WARNING):
-            active = dm.active_mask_path
+            chosen = dm.mask_directory
         # Picked sic_b (the available one), not sic_a (the first listed).
-        assert active == mask_dir(tmp_path, "sic_b") / "active_mask.npy"
-        assert dm.land_mask_path == mask_dir(tmp_path, "sic_b") / "land_mask.npy"
+        assert chosen == mask_dir(tmp_path, "sic_b")
         assert any("has 2 datasets" in r.getMessage() for r in caplog.records)
 
     def test_falls_back_to_first_when_no_masks_exist(self, tmp_path, caplog) -> None:  # noqa: ANN001
@@ -111,6 +110,6 @@ class TestTargetMaskDir:
         )
         dm = CommonDataModule(cfg)
         with caplog.at_level(logging.WARNING):
-            active = dm.active_mask_path
-        assert active == mask_dir(tmp_path, "sic_a") / "active_mask.npy"
+            chosen = dm.mask_directory
+        assert chosen == mask_dir(tmp_path, "sic_a")
         assert any("has 2 datasets" in r.getMessage() for r in caplog.records)

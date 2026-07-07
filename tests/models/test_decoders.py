@@ -148,11 +148,10 @@ class TestDecoderMask:
         # Mask the top half (0 = inactive), keep the bottom half (1 = active).
         mask = np.ones(output_space.shape, dtype=np.uint8)
         mask[:8, :] = 0
-        mask_path = tmp_path / "active_mask.npy"
-        np.save(mask_path, mask)
+        np.save(tmp_path / "active_mask.npy", mask)
 
         decoder = NaiveLinearDecoder(
-            active_mask_path=str(mask_path),
+            mask_dir=str(tmp_path),
             data_space_in=latent_space,
             data_space_out=output_space,
             mask_type="active",
@@ -169,7 +168,7 @@ class TestDecoderMask:
         latent_space, output_space = self._spaces()
         with pytest.raises(FileNotFoundError, match="mask is requested"):
             NaiveLinearDecoder(
-                active_mask_path=str(tmp_path / "does_not_exist.npy"),
+                mask_dir=str(tmp_path / "does_not_exist"),
                 data_space_in=latent_space,
                 data_space_out=output_space,
                 mask_type="active",
@@ -180,13 +179,12 @@ class TestDecoderMask:
         # Land = 0 (top half), sea = 1 (bottom half).
         mask = np.ones(output_space.shape, dtype=np.uint8)
         mask[:8, :] = 0
-        mask_path = tmp_path / "land_mask.npy"
-        np.save(mask_path, mask)
+        np.save(tmp_path / "land_mask.npy", mask)
 
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
-            land_mask_path=str(mask_path),
+            mask_dir=str(tmp_path),
             mask_type="land",
         )
 
@@ -234,11 +232,10 @@ class TestDecoderMask:
         latent_space, output_space = self._spaces()
         mask = np.ones(output_space.shape, dtype=np.uint8)
         mask[:8, :] = 0  # top half inactive
-        mask_path = tmp_path / "active_mask.npy"
-        np.save(mask_path, mask)
+        np.save(tmp_path / "active_mask.npy", mask)
 
         decoder = NaiveLinearDecoder(
-            active_mask_path=str(mask_path),
+            mask_dir=str(tmp_path),
             data_space_in=latent_space,
             data_space_out=output_space,
             mask_type="active",
@@ -357,7 +354,7 @@ class TestDecoderMaskOnRealMask:
         output_space = DataSpace(name="sic", channels=1, shape=tuple(mask_np.shape))
         latent_space = DataSpace(name="latent", channels=8, shape=(108, 108))
         decoder = NaiveLinearDecoder(
-            active_mask_path=str(_REAL_MASKS[0]),
+            mask_dir=str(_REAL_MASKS[0].parent),
             data_space_in=latent_space,
             data_space_out=output_space,
             n_forecast_steps=1,
