@@ -30,4 +30,5 @@ decoder:
   conv_subblocks_initial: 1
   conv_subblocks_final: 1
   mask_type: active
-  restrict_range: sigmoid
+  restrict_range: clamp
+  use_final_normalisation: false
