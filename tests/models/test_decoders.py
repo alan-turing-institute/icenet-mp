@@ -153,11 +153,13 @@ class TestPiecewiseDecoder:
 
         # Initialise decoder
         decoder = PiecewiseDecoder(
+            conv_subblocks_initial=0,
+            conv_subblocks_final=0,
             data_space_in=input_space,
             data_space_out=output_space,
-            n_conv_blocks=0,
             restrict_range="none",
             use_final_normalisation=False,
+            use_hann_window=False,
         )
 
         # Generate a sequentially increasing input tensor
@@ -190,10 +192,13 @@ class TestPiecewiseDecoder:
         )
         input_space = DataSpace(name="input", channels=n_patches, shape=patch_size)
         decoder = PiecewiseDecoder(
+            conv_subblocks_initial=0,
+            conv_subblocks_final=0,
             data_space_in=input_space,
             data_space_out=output_space,
-            n_conv_blocks=0,
             restrict_range="clamp",
+            use_final_normalisation=False,
+            use_hann_window=False,
         )
         x = torch.full(
             (1, 1, input_space.channels, *input_space.shape), 1e10, dtype=torch.float32
