@@ -9,6 +9,14 @@ class BetaSchedule(StrEnum):
     COSINE = "cosine"
 
 
+class MaskType(StrEnum):
+    """Enum for types of masking."""
+
+    ACTIVE = "active"
+    LAND = "land"
+    NONE = "none"
+
+
 class RangeRestriction(StrEnum):
     """Enum for bounded output types."""
 

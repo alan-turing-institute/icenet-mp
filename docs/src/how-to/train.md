@@ -106,10 +106,10 @@ This is controlled by `mask_type`, set in the `decoder` section of the model con
 
 ```yaml
 decoder:
-  mask_type: active # active (active+land) | land (land only) | null to disable
+  mask_type: active # active (active+land) | land (land only) | none to disable
 ```
 
-`active` masks land and cells where sea ice has never been observed; `land` masks only land; `null` (or omitting `mask_type`) disables masking entirely. You don't need to point at mask files yourself: they're generated automatically by `datasets create` (currently for SSMIS datasets) and located from `base_path`, so requesting `active`/`land` for a target dataset without generated masks fails loudly at model build with a `FileNotFoundError`.
+`active` masks land and cells where sea ice has never been observed; `land` masks only land; `none` (or omitting `mask_type`, or `null`) disables masking entirely. Unlike `restrict_range` below, an unrecognised `mask_type` raises a `ValueError` rather than silently disabling masking. You don't need to point at mask files yourself: they're generated automatically by `datasets create` (currently for SSMIS datasets) and located from `base_path`, so requesting `active`/`land` for a target dataset without generated masks fails loudly at model build with a `FileNotFoundError`.
 
 The models can also restrict the output data to the range 0-1, controlled by `restrict_range` in the same `decoder` section:
 

@@ -34,7 +34,7 @@ class BaseDecoder(nn.Module):
             RangeRestriction(restrict_range), min_val=0, max_val=1
         )
 
-        # Load the requested mask (active/land/None)
+        # Load the requested mask (ACTIVE/LAND/NONE)
         self.mask = Mask(
             mask_type=mask_type,
             output_shape=self.data_space_out.shape,

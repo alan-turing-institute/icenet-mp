@@ -3,6 +3,8 @@ from pathlib import Path
 import numpy as np
 from torch import Tensor, from_numpy, nn
 
+from icenet_mp.types import MaskType
+
 
 class Mask(nn.Module):
     """Mask out inactive/land cells in model output.
@@ -14,27 +16,26 @@ class Mask(nn.Module):
     def __init__(
         self,
         *,
-        mask_type: str | None,
+        mask_type: MaskType | str | None,
         output_shape: tuple[int, ...],
         mask_dir: str | Path | None = None,
     ) -> None:
         """Initialise a Mask.
 
         Args:
-            mask_type: "active" (active+land), "land" (land only), or None to disable.
+            mask_type: MaskType.ACTIVE (active+land), MaskType.LAND (land only), or
+                MaskType.NONE/None/"" to disable. Any other value raises ValueError.
             output_shape: Expected (channels, height, width) shape of the tensor this
                 mask will be applied to, used to validate the mask loaded from disk.
             mask_dir: Directory holding `active_mask.npy`/`land_mask.npy`, generated for
                 SSMIS datasets by `datasets create`. Required when `mask_type` is
-                "active" or "land".
+                MaskType.ACTIVE or MaskType.LAND.
 
         """
         super().__init__()
-        if mask_type is None:
+        mask_type = MaskType(mask_type) if mask_type else MaskType.NONE
+        if mask_type is MaskType.NONE:
             return
-        if mask_type not in ("active", "land"):
-            msg = f"Unknown mask_type {mask_type!r}; expected one of active/land/None."
-            raise ValueError(msg)
 
         mask_path = Path(mask_dir) / f"{mask_type}_mask.npy" if mask_dir else None
         if mask_path is None or not mask_path.exists():

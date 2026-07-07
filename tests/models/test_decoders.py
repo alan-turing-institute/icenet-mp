@@ -208,7 +208,7 @@ class TestDecoderMask:
     def test_unknown_mask_type_raises(self) -> None:
         """A typo'd mask_type fails loudly rather than silently disabling masking."""
         latent_space, output_space = self._spaces()
-        with pytest.raises(ValueError, match="Unknown mask_type"):
+        with pytest.raises(ValueError, match="not a valid MaskType"):
             NaiveLinearDecoder(
                 data_space_in=latent_space,
                 data_space_out=output_space,
