@@ -30,7 +30,6 @@ class DecoderStage(BaseModel):
     ) -> None:
         """Initialise a DecoderStage with multiple frozen encoders and a trainable decoder."""
         super().__init__(**kwargs)
-        self.mask_dir = mask_dir
 
         # Copy encoders from EncoderStages, freeze their parameters and register them.
         self.encoder_names = [encoder.dataset_name for encoder in encoders]
@@ -64,7 +63,7 @@ class DecoderStage(BaseModel):
             decoder,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
-            mask_dir=self.mask_dir,
+            mask_dir=mask_dir,
         )
 
     @classmethod
