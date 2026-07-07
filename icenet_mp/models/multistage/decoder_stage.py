@@ -100,15 +100,14 @@ class DecoderStage(BaseModel):
         - squeeze time dimension from each input to get [NCHW]
         - encode each dataset with its corresponding frozen encoder
         - concatenate latent representations along the channel dimension
-        - decode to target space [NCHW]
-        - unsqueeze time dimension to return [NTCHW]
+        - decode to target space via rollout() so masking/restrict_range apply
         """
         latents = [
             encoder(inputs[name].squeeze(1))
             for name, encoder in zip(self.encoder_names, self.encoders, strict=True)
         ]
-        combined = torch.cat(latents, dim=1)
-        return self.decoder(combined).unsqueeze(1)
+        combined = torch.cat(latents, dim=1).unsqueeze(1)
+        return self.decoder.rollout(combined)
 
     def process_batch(
         self,
