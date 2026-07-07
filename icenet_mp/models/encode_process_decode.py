@@ -40,7 +40,32 @@ class EncodeProcessDecode(BaseModel):
                 for input_space in self.input_spaces
             ]
         except KeyError as exc:
-            msg = f"Error instantiating encoders: {exc}. Please ensure that encoders are specified for all input spaces: {self.input_spaces}"
+            msg = (
+                f"Error instantiating encoders: {exc}. Please ensure that encoders are "
+                f"specified for all input spaces: {self.input_spaces}"
+            )
+            raise ValueError(msg) from exc
+
+        # Add an additional encoder that encodes the target dataset into latent space
+        # This will be used by any processors that need to compute latent space losses.
+        try:
+            self.target_encoder: BaseEncoder = hydra.utils.instantiate(
+                encoders[self.output_space.name],
+                data_space_in=DataSpace(
+                    name="target",
+                    channels=self.output_space.channels,
+                    shape=self.output_space.shape,
+                ),
+                latent_space=encoders["latent_space"],
+                latitudes_fn=self.latitudes_fn,
+                longitudes_fn=self.longitudes_fn,
+            )
+        except KeyError as exc:
+            msg = (
+                f"Error instantiating target encoder: {exc}. Please ensure that an "
+                f"encoder is specified for '{self.output_space.name}', even if it is "
+                f"not one of the input spaces: {self.input_spaces}."
+            )
             raise ValueError(msg) from exc
 
         # We have to explicitly register each encoder as list[Module] will not be
