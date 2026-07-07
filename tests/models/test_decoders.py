@@ -158,7 +158,7 @@ class TestDecoderMask:
             mask_type="active",
         )
 
-        assert decoder.mask.shape == output_space.shape
+        assert decoder.mask.mask.shape == output_space.shape
         out = decoder.rollout(
             torch.randn(2, 1, latent_space.channels, *latent_space.shape)
         )
@@ -190,7 +190,7 @@ class TestDecoderMask:
             mask_type="land",
         )
 
-        assert decoder.mask.shape == output_space.shape
+        assert decoder.mask.mask.shape == output_space.shape
         out = decoder.rollout(
             torch.randn(2, 1, latent_space.channels, *latent_space.shape)
         )
@@ -205,8 +205,8 @@ class TestDecoderMask:
             data_space_out=output_space,
             mask_type="none",
         )
-        assert decoder.use_mask is False
-        assert not hasattr(decoder, "mask")
+        assert decoder.mask.use_mask is False
+        assert not hasattr(decoder.mask, "mask")
 
     def test_unknown_mask_type_raises(self) -> None:
         """A typo'd mask_type fails loudly rather than silently disabling masking."""
@@ -226,8 +226,8 @@ class TestDecoderMask:
         )
         # No mask requested: no dummy buffer is created and finalise() skips the
         # multiply entirely (rather than doing an identity product with ones).
-        assert decoder.use_mask is False
-        assert not hasattr(decoder, "mask")
+        assert decoder.mask.use_mask is False
+        assert not hasattr(decoder.mask, "mask")
 
     def test_use_mask_with_bounded_keeps_masked_cells_exactly_zero(
         self, tmp_path: Path
@@ -368,7 +368,7 @@ class TestDecoderMaskOnRealMask:
 
         inactive = torch.from_numpy(mask_np == 0)
         # The decoder loaded exactly the on-disk mask.
-        assert torch.equal(decoder.mask.bool(), torch.from_numpy(mask_np != 0))
+        assert torch.equal(decoder.mask.mask.bool(), torch.from_numpy(mask_np != 0))
 
         # Always_zero starts all-True and can only shrink as samples fire active cells,
         # converging down to inactive. An active cell that is 0 by chance in the first

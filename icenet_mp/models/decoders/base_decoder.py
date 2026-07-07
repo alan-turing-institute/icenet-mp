@@ -1,9 +1,6 @@
-from pathlib import Path
+from torch import nn
 
-import numpy as np
-from torch import Tensor, from_numpy, nn
-
-from icenet_mp.models.common import RestrictRange
+from icenet_mp.models.common import Mask, RestrictRange
 from icenet_mp.types import DataSpace, RangeRestriction, TensorNCHW, TensorNTCHW
 
 
@@ -16,9 +13,6 @@ class BaseDecoder(nn.Module):
     Output space:
         TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
-
-    # buffer in __init__, annotated here to make the type explicitly
-    mask: Tensor
 
     def __init__(
         self,
@@ -41,32 +35,13 @@ class BaseDecoder(nn.Module):
             RangeRestriction(restrict_range), min_val=0, max_val=1
         )
 
-        # Load the active mask only when requested. When off, finalise() skips
-        # the multiply entirely. Path is derived from the dataset (ref CommonDataModule.active_mask_path)
-        # Require the file to exist when mask_type is defined, fail loudly if not.
-        if mask_type not in (None, "none", "active", "land"):
-            msg = f"Unknown mask_type {mask_type!r}; expected one of none/active/land."
-            raise ValueError(msg)
-        self.mask_type = mask_type
-        self.use_mask = mask_type in ("active", "land")
-
-        if self.use_mask:
-            mask_path = active_mask_path if mask_type == "active" else land_mask_path
-            if mask_path is None or not Path(mask_path).exists():
-                msg = (
-                    f"{mask_type} mask is requested but no mask was found at "
-                    f"{mask_path}. Masks are generated per dataset during "
-                    f"`datasets create` (currently for SSMIS datasets)."
-                )
-                raise FileNotFoundError(msg)
-            mask = from_numpy(np.load(Path(mask_path))).float()
-            if tuple(mask.shape) != self.data_space_out.shape:
-                msg = (
-                    f"{mask_type} mask shape {tuple(mask.shape)} does not match "
-                    f"decoder output shape {self.data_space_out.shape}."
-                )
-                raise ValueError(msg)
-            self.register_buffer("mask", mask, persistent=False)
+        # Load the requested mask (active/land/none)
+        self.mask = Mask(
+            mask_type=mask_type,
+            output_shape=self.data_space_out.shape,
+            active_mask_path=active_mask_path,
+            land_mask_path=land_mask_path,
+        )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: decode latent space into output space for a single timestep.
@@ -91,10 +66,7 @@ class BaseDecoder(nn.Module):
 
         RangeRestriction choices are: none/sigmoid/tanh/clamp
         """
-        x = self.restrict(x)
-        if self.use_mask:
-            x = x * self.mask.to(dtype=x.dtype)
-        return x
+        return self.mask(self.restrict(x))
 
     def rollout(self, x: TensorNTCHW) -> TensorNTCHW:
         """Decode latent space into output space across multiple timesteps.
