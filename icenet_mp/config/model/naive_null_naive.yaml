@@ -18,4 +18,5 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
-  restrict_range: none # How to bound output into [0,1]: none/sigmoid/clamp/tanh
+  restrict_range: sigmoid # How to bound output into [0,1]: none/sigmoid/clamp/tanh
+  mask_type: active # Output mask: active (active+land) | land (land only) | none
