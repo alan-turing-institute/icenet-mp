@@ -41,7 +41,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -93,7 +93,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -111,7 +111,7 @@ class TestPlotStaticPrediction:
         height, width = ground_truth.shape
 
         # Create a simple land mask with land in the centre
-        land_mask = LandMask(None, "north")
+        land_mask = LandMask(None)
         mask = np.zeros((height, width), dtype=bool)
         centre_h, centre_w = height // 2, width // 2
         mask[centre_h - 5 : centre_h + 5, centre_w - 5 : centre_w + 5] = True
@@ -123,7 +123,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None, "north"),
+            land_mask=land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -144,7 +144,7 @@ class TestPlotStaticPrediction:
         ground_truth, prediction, date = sic_pair_2d
 
         # Create land mask with wrong shape
-        land_mask = LandMask(None, "north")
+        land_mask = LandMask(None)
         wrong_shape_mask = np.zeros((10, 10), dtype=bool)
         land_mask.add_mask(wrong_shape_mask)
 
@@ -170,7 +170,7 @@ class TestPlotStaticInputs:
         """Test basic single channel plotting."""
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -209,7 +209,7 @@ class TestPlotStaticInputs:
         plot_spec = replace(base_plot_spec, per_variable_styles=variable_styles)
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -227,7 +227,7 @@ class TestPlotStaticInputs:
         """Test plotting multiple channels at once."""
         results = plot_static_inputs(
             multi_channel_hw,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -257,7 +257,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {"era5:q_10": era5_humidity_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -282,7 +282,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -310,7 +310,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {var_name: data},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -332,7 +332,7 @@ class TestPlotStaticInputs:
         with caplog.at_level(logging.WARNING):
             plot_static_inputs(
                 {"era5:2t": wrong_dim_array},
-                land_mask=LandMask(None, "north"),
+                land_mask=LandMask(None),
                 plot_spec=base_plot_spec,
                 when=TEST_DATE,
             )

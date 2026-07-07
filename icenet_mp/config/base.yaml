@@ -5,7 +5,7 @@ defaults:
   - loggers:
     - wandb
   - model: naive_unet_naive
-  - predict: sic-icenet-2d
+  - predict: sic-ssmis-2d
   - random: default
   - train: default
   - loss: huber

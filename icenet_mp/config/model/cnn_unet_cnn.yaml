@@ -18,4 +18,5 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
-  bounded: false # Whether to bound the output between 0 and 1
+  mask_type: active
+  restrict_range: sigmoid

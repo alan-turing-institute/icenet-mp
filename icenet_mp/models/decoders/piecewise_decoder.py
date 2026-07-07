@@ -6,10 +6,9 @@ from icenet_mp.models.common import (
     CommonConvBlock,
     NormalisedFold,
     Permute,
-    RestrictRange,
     Shift,
 )
-from icenet_mp.types import RangeRestriction, TensorNCHW
+from icenet_mp.types import TensorNCHW
 
 from .base_decoder import BaseDecoder
 
@@ -34,7 +33,6 @@ class PiecewiseDecoder(BaseDecoder):
         conv_activation: str = "SiLU",
         conv_kernel_size: int = 3,
         n_conv_blocks: int = 3,
-        restrict_range: str = "clamp",
         use_hann_window: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -108,10 +106,6 @@ class PiecewiseDecoder(BaseDecoder):
         # Apply a scale and offset shift to reduce the large values caused by folding
         # multiple pixels into a single output pixel.
         layers.append(Shift(scale=True, offset=True))
-
-        # Specify how/whether the output is bounded between 0 and 1
-        if (method := RangeRestriction(restrict_range)) != RangeRestriction.NONE:
-            layers.append(RestrictRange(method, min_val=0, max_val=1))
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)

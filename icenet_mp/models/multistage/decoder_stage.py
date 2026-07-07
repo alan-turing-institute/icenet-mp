@@ -25,6 +25,7 @@ class DecoderStage(BaseModel):
         encoders: list[EncoderStage],
         target_dataset_name: str,
         target_variable_indices: list[int],
+        mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise a DecoderStage with multiple frozen encoders and a trainable decoder."""
@@ -62,6 +63,7 @@ class DecoderStage(BaseModel):
             decoder,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
+            mask_dir=mask_dir,
         )
 
     @classmethod
@@ -72,6 +74,7 @@ class DecoderStage(BaseModel):
         encoders: list[EncoderStage],
         target_dataset_name: str,
         target_variable_indices: list[int],
+        mask_dir: str | None = None,
     ) -> "DecoderStage":
         """Create a DecoderStage from a list of trained EncoderStages."""
         return cls(
@@ -79,6 +82,7 @@ class DecoderStage(BaseModel):
             encoders=encoders,
             target_dataset_name=target_dataset_name,
             target_variable_indices=target_variable_indices,
+            mask_dir=mask_dir,
             hemisphere=encoders[0].hemisphere,
             input_spaces=[s.to_dict() for s in encoders[0].input_spaces],
             n_forecast_steps=encoders[0].n_forecast_steps,
@@ -96,15 +100,14 @@ class DecoderStage(BaseModel):
         - squeeze time dimension from each input to get [NCHW]
         - encode each dataset with its corresponding frozen encoder
         - concatenate latent representations along the channel dimension
-        - decode to target space [NCHW]
-        - unsqueeze time dimension to return [NTCHW]
+        - decode to target space via rollout() so masking/restrict_range apply
         """
         latents = [
             encoder(inputs[name].squeeze(1))
             for name, encoder in zip(self.encoder_names, self.encoders, strict=True)
         ]
-        combined = torch.cat(latents, dim=1)
-        return self.decoder(combined).unsqueeze(1)
+        combined = torch.cat(latents, dim=1).unsqueeze(1)
+        return self.decoder.rollout(combined)
 
     def process_batch(
         self,

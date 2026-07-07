@@ -7,7 +7,8 @@ from lightning import LightningDataModule
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from icenet_mp.types import ArrayTCHW, DataloaderArgs, DataSpace, Hemisphere
+from icenet_mp.types import ArrayTCHW, DataloaderArgs, DataSpace, Hemisphere, MaskType
+from icenet_mp.utils import mask_dir
 
 from .combined_dataset import CombinedDataset
 from .single_dataset import SingleDataset
@@ -116,6 +117,33 @@ class CommonDataModule(LightningDataModule):
     def longitudes(self) -> dict[str, list[float]]:
         """Return the longitudes of the dataset."""
         return {name: ds.longitudes for name, ds in self.datasets.items()}
+
+    @cached_property
+    def mask_directory(self) -> Path:
+        """Mask directory for the prediction target group.
+
+        A target group usually holds a single dataset with generated masks, but if it
+        holds several, pick the first. Combining masks across datasets is unsupported.
+        """
+        paths = self.dataset_groups[self.target_group_name]
+        available = [
+            path
+            for path in paths
+            if any(
+                (mask_dir(self.base_path, path.stem) / f"{kind}_mask.npy").exists()
+                for kind in (MaskType.ACTIVE, MaskType.LAND)
+            )
+        ]
+        chosen = (available or paths)[0].stem
+        if len(paths) > 1:
+            logger.warning(
+                "Target group %r has %d datasets; using %r for masks "
+                "(combining masks across datasets is not supported).",
+                self.target_group_name,
+                len(paths),
+                chosen,
+            )
+        return mask_dir(self.base_path, chosen)
 
     @cached_property
     def output_space(self) -> DataSpace:
