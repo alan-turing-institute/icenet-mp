@@ -83,7 +83,7 @@ class DDPM(BaseModel):
             land_mask_path (str | None): Path to the land mask. Used when ``mask_type``
                 is ``"land"``.
             mask_type (str | None): Output mask to apply during sampling: "active"
-                (active+land), "land" (land only), or "none"/``None`` to disable.
+                (active+land), "land" (land only), or ``None`` to disable.
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """
@@ -91,7 +91,7 @@ class DDPM(BaseModel):
 
         self.osisaf_key = self.output_space.name
 
-        # Load the requested mask (active/land/none)
+        # Load the requested mask (active/land/None)
         self.mask = Mask(
             mask_type=mask_type,
             output_shape=self.output_space.shape,

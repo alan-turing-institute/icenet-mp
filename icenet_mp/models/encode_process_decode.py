@@ -29,7 +29,7 @@ class EncodeProcessDecode(BaseModel):
         super().__init__(**kwargs)
 
         # Resolved at model-build from the data module (ref model_service);
-        # decoder loads it only when use_mask is True.
+        # decoder loads it only when mask_type requests it.
         self.active_mask_path = active_mask_path
         self.land_mask_path = land_mask_path
 

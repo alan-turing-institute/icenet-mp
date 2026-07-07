@@ -49,7 +49,7 @@ class EncoderStage(BaseModel):
             decoder,
             data_space_in=self.encoder.data_space_out,
             data_space_out=self.encoder.data_space_in,
-            mask_type="none",
+            mask_type=None,
         )
 
     @property

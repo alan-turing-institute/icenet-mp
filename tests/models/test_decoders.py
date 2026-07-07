@@ -198,14 +198,13 @@ class TestDecoderMask:
         assert torch.all(out[..., :8, :] == 0).item()
 
     def test_mask_type_none_creates_no_buffer(self) -> None:
-        """An explicit mask_type='none' behaves like no mask: no buffer, no multiply."""
+        """An explicit mask_type=None behaves like no mask: no buffer, no multiply."""
         latent_space, output_space = self._spaces()
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
-            mask_type="none",
+            mask_type=None,
         )
-        assert decoder.mask.use_mask is False
         assert not hasattr(decoder.mask, "mask")
 
     def test_unknown_mask_type_raises(self) -> None:
@@ -226,7 +225,6 @@ class TestDecoderMask:
         )
         # No mask requested: no dummy buffer is created and finalise() skips the
         # multiply entirely (rather than doing an identity product with ones).
-        assert decoder.mask.use_mask is False
         assert not hasattr(decoder.mask, "mask")
 
     def test_use_mask_with_bounded_keeps_masked_cells_exactly_zero(
