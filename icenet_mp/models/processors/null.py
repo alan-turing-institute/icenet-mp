@@ -41,4 +41,4 @@ class NullProcessor(BaseProcessor):
             TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
 
         """
-        return self.model(x[:, -self.data_space.channels :, :, :])
+        return self.model(x)[:, -self.data_space.channels :, :, :]
