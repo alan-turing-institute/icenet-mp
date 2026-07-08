@@ -4,7 +4,8 @@ defaults:
   - override /model: unet
   - _self_
 
-# Increase weight decay to reduce overfitting
+# Reduce learning rate and increase weight decay to reduce overfitting
 train:
   optimizer:
+    lr: 1e-3
     weight_decay: 0.05
