@@ -1,5 +1,6 @@
 defaults:
   - callbacks:
+    - early_stopping
     - ema_weight_averaging
     - learning_rate
     - metric_summary

@@ -1,0 +1,5 @@
+early_stopping:
+  _target_: lightning.pytorch.callbacks.EarlyStopping
+  monitor: validation_loss
+  mode: min
+  patience: 10  # Allow leeway for temporary loss plateaus
