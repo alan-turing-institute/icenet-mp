@@ -5,4 +5,3 @@ plotting:
   make_input_plots: false
   make_static_plots: true
   make_video_plots: false
-  base_path: ${base_path}

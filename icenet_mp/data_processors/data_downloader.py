@@ -20,6 +20,7 @@ from icenet_mp.types import (
     AnemoiInspectArgs,
     AnemoiLoadArgs,
 )
+from icenet_mp.utils import mask_dir
 
 from .preprocessors import IPreprocessor
 
@@ -35,10 +36,13 @@ class DataDownloader:
         Register a preprocessor if appropriate.
         """
         self.name = name
-        _data_path = Path(config["base_path"]).resolve() / "data"
+        base_path = Path(
+            config["base_path"]
+        ).resolve()  # extract basepath for mask_dir()
+        _data_path = base_path / "data"
         self.path_dataset = _data_path / "anemoi" / f"{name}.zarr"
         self.path_preprocessor = _data_path / "preprocessing"
-        self.path_masks = self.path_preprocessor / "masks" / name
+        self.path_masks = mask_dir(base_path, name)
         # Note that Anemoi 'forcings' need to be escaped with `\${}` to avoid being resolved here
         anemoi_config: dict[str, Any] = OmegaConf.to_object(
             config["data"]["datasets"][name]

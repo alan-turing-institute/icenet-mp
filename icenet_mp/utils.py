@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -10,6 +11,16 @@ from wandb.wandb_run import Run
 def datetime_from_npdatetime(dt: np.datetime64) -> datetime:
     """Convert numpy datetime64 to aware datetime in UTC."""
     return dt.astype("datetime64[ms]").astype(datetime).astimezone(UTC)
+
+
+def mask_dir(base_path: Path, dataset_name: str) -> Path:
+    """Path finder for holding the active masks (now generated from SSMIS).
+
+    On-disk active mask layout is defined here once and used everywhere, single source,
+    used both when active masks are written (in dataset creation) and when they are read (during
+    model build), so they never diverge.
+    """
+    return base_path / "data" / "preprocessing" / "masks" / dataset_name
 
 
 def get_device_name(accelerator_name: str) -> str:

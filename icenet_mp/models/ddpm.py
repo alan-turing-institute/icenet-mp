@@ -3,8 +3,9 @@ from typing import Any, NoReturn
 import torch
 import torch.nn.functional as F  # noqa: N812
 
+from icenet_mp.models.common import Mask, RestrictRange
 from icenet_mp.models.diffusion import GaussianDiffusion, UNetDiffusion
-from icenet_mp.types import ModelStepOutput, TensorNCHW, TensorNTCHW
+from icenet_mp.types import ModelStepOutput, RangeRestriction, TensorNCHW, TensorNTCHW
 
 from .base_model import BaseModel
 
@@ -61,6 +62,9 @@ class DDPM(BaseModel):
         normalization: str = "groupnorm",
         time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
+        mask_dir: str | None = None,
+        mask_type: str | None = None,
+        restrict_range: str = "clamp",
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
@@ -74,6 +78,12 @@ class DDPM(BaseModel):
             normalization (str): Normalization layer type (e.g., "groupnorm").
             time_embed_dim (int): Dimensionality of the timestep embedding.
             dropout_rate (float): Dropout probability applied inside the UNet blocks.
+            mask_dir (str | None): Directory holding `active_mask.npy`/`land_mask.npy`.
+                Required when `mask_type` is "active" or "land".
+            mask_type (str | None): Output mask to apply during sampling: "active"
+                (active+land), "land" (land only), or ``None`` to disable.
+            restrict_range (str): How to bound sampled output into [0, 1] before
+                masking: none/sigmoid/clamp/tanh. Default is "clamp".
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """
@@ -81,10 +91,28 @@ class DDPM(BaseModel):
 
         self.osisaf_key = self.output_space.name
 
+        # Bound sampled output into [0, 1] before masking.
+        self.restrict = RestrictRange(
+            RangeRestriction(restrict_range), min_val=0, max_val=1
+        )
+
+        # Load the requested mask (ACTIVE/LAND/NONE)
+        self.mask = Mask(
+            mask_type=mask_type,
+            output_shape=self.output_space.shape,
+            mask_dir=mask_dir,
+        )
+
         era5_space = next(
             space
             for space in self.input_spaces
             if (space["name"] if isinstance(space, dict) else space.name) == "era5"
+        )
+        osisaf_space = next(
+            space
+            for space in self.input_spaces
+            if (space["name"] if isinstance(space, dict) else space.name)
+            == self.osisaf_key
         )
 
         # Get channels from either dict or object
@@ -92,6 +120,10 @@ class DDPM(BaseModel):
             self.era5_space = era5_space["channels"]
         else:
             self.era5_space = era5_space.channels
+        if isinstance(osisaf_space, dict):
+            self.osisaf_channels = osisaf_space["channels"]
+        else:
+            self.osisaf_channels = osisaf_space.channels
 
         # Get the base output channels from output_space
         if isinstance(self.output_space, dict):
@@ -117,7 +149,7 @@ class DDPM(BaseModel):
         )
 
         self.osisaf_encoder = SimpleEncoder2D(
-            in_channels=self.n_history_steps,
+            in_channels=self.n_history_steps * self.osisaf_channels,
             out_channels=self.cond_channels // 2,
         )
 
@@ -186,7 +218,8 @@ class DDPM(BaseModel):
             )
             y = self.diffusion.p_sample(y, t_batch, pred_v)
 
-        return torch.clamp(y, 0, 1)
+        # Bound into [0, 1] then apply masking
+        return self.mask(self.restrict(y))
 
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.
@@ -195,19 +228,19 @@ class DDPM(BaseModel):
 
         Args:
             batch: Dictionary with
-                'osisaf-south' [B, T, 1, H, W]
+                osisaf key (e.g. 'osisaf-south') [B, T, C, H, W]
                 'era5' [B, T, C, H2, W2]
 
         Returns:
             Conditioning tensor [B, cond_channels, H, W]
 
         """
-        osisaf = batch[self.osisaf_key]  # [B, T, 1, H, W]
+        osisaf = batch[self.osisaf_key]  # [B, T, C, H, W]
         era5 = batch["era5"]  # [B, T, C, H2, W2]
 
-        # Handle OSISAF
-        osisaf = osisaf.squeeze(2)  # [B, T, H, W]
-        H, W = osisaf.shape[-2:]  # noqa: N806
+        # Handle OSISAF: flatten time and channels together
+        B, T, C, H, W = osisaf.shape  # noqa: N806
+        osisaf = osisaf.reshape(B, T * C, H, W)
 
         # Handle ERA5
         # Permute to [B, C, T, H2, W2] for 3D operations
