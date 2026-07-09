@@ -30,11 +30,8 @@ class ModelService:
         """Initialize the model service."""
         self.config_ = config
 
-        random_config = config.get("random", {})
-        seed = random_config.get("seed", None)
-        fully_deterministic = random_config.get("fully_deterministic", False)
-
-        if seed is not None:
+        # If a random seed was specified in the configuration, set it for reproducibility.
+        if (seed := config.get("random", {}).get("seed", None)) is not None:
             seed = int(seed)
             os.environ["PYTHONHASHSEED"] = str(seed)
             os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
@@ -43,7 +40,10 @@ class ModelService:
         # If we are in fully deterministic mode, enable deterministic algorithms and
         # patch any known issues with them. We use warn_only=True to avoid segfaults on
         # unsupported operations.
-        if fully_deterministic:
+        self.fully_deterministic = config.get("random", {}).get(
+            "fully_deterministic", False
+        )
+        if self.fully_deterministic:
             torch.use_deterministic_algorithms(True, warn_only=True)  # noqa: FBT003
             patch_interpolate_antialias()
             log.warning(
@@ -84,15 +84,16 @@ class ModelService:
             input_spaces=[s.to_dict() for s in builder.data_module.input_spaces],
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
+            loss=config["loss"],
+            mask_dir=str(builder.data_module.mask_directory),
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
-            output_space=builder.data_module.output_space.to_dict(),
-            mask_dir=str(builder.data_module.mask_directory),
             optimizer=config["train"]["optimizer"],
+            output_space=builder.data_module.output_space.to_dict(),
             scheduler=config["train"]["scheduler"],
-            loss=config["loss"],
-            _recursive_=False,
+            target_variable_indices=builder.data_module.target_variable_indices,
             _convert_="object",
+            _recursive_=False,
         )
 
         return builder
@@ -223,7 +224,8 @@ class ModelService:
             / f"{stage_name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
         )
         trainer.save_checkpoint(checkpoint_path)
-        log.info("Saved %s checkpoint to %s.", stage_name, checkpoint_path)
+        if trainer.is_global_zero:
+            log.info("Saved %s checkpoint to %s.", stage_name, checkpoint_path)
 
     def build_run_directory(self, trainer: Trainer) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
@@ -240,7 +242,7 @@ class ModelService:
             / f"run-{get_timestamp()}-{generate_id()}"
         )
 
-    def build_trainer(
+    def build_trainer(  # noqa: C901
         self,
         *,
         config: DictConfig,
@@ -285,21 +287,28 @@ class ModelService:
             hydra.utils.instantiate(
                 config["trainer"],
                 callbacks=extra_callbacks,
-                deterministic=self.config.get("random", {}).get(
-                    "fully_deterministic", False
-                ),
+                deterministic=self.fully_deterministic,
                 logger=extra_loggers,
             ),
         )
-        # Check warn_only survived Lightning's deterministic setup
-        log.debug(
-            "deterministic_algorithms_enabled: %s",
-            torch.are_deterministic_algorithms_enabled(),
-        )
-        log.debug(
-            "warn_only_enabled: %s",
-            torch.is_deterministic_algorithms_warn_only_enabled(),
-        )
+
+        # Check that fully_deterministic is set correctly
+        if self.fully_deterministic != torch.are_deterministic_algorithms_enabled():
+            log.warning(
+                "Fully deterministic mode is %s but torch deterministic algorithms are %s.",
+                "enabled" if self.fully_deterministic else "disabled",
+                "enabled"
+                if torch.are_deterministic_algorithms_enabled()
+                else "disabled",
+            )
+        if (
+            self.fully_deterministic
+            and not torch.is_deterministic_algorithms_warn_only_enabled()
+        ):
+            log.warning(
+                "Fully deterministic mode is enabled but torch warn_only is disabled. "
+                "Unsupported operations may cause segmentation faults."
+            )
 
         # Assign workers for data loading
         self.data_module.assign_workers(
@@ -327,7 +336,10 @@ class ModelService:
             # Set metadata for supported callbacks
             if isinstance(callback, SupportsMetadata):
                 log.debug("Setting metadata for %s.", callback.__class__.__name__)
-                callback.set_metadata(self.config, self.model.__class__.__name__)
+                model_name = self.config["model"].get(
+                    "name", self.model.__class__.__name__
+                )
+                callback.set_metadata(self.config, model_name)
             # Set plotting stage
             if isinstance(callback, PlottingCallback):
                 log.debug(
@@ -435,10 +447,6 @@ class ModelService:
         checkpoint_dir: Path | None = None,
     ) -> DecoderStage:
         """Train a decoder on the combined latent space of all frozen encoders."""
-        target_variable_indices = [
-            self.data_module.variable_names[self.data_module.target_group_name].index(v)
-            for v in self.data_module.target_variables
-        ]
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
         ):
@@ -454,7 +462,7 @@ class ModelService:
                 decoder=self.config["model"]["decoder"],
                 encoders=encoder_models,
                 target_dataset_name=self.data_module.target_group_name,
-                target_variable_indices=target_variable_indices,
+                target_variable_indices=self.data_module.target_variable_indices,
                 mask_dir=str(self.data_module.mask_directory),
             )
 
@@ -462,7 +470,7 @@ class ModelService:
             decoder=self.config["model"]["decoder"],
             encoders=encoder_models,
             target_dataset_name=self.data_module.target_group_name,
-            target_variable_indices=target_variable_indices,
+            target_variable_indices=self.data_module.target_variable_indices,
             mask_dir=str(self.data_module.mask_directory),
         )
         log.info(

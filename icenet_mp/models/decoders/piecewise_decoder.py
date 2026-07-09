@@ -6,7 +6,6 @@ from icenet_mp.models.common import (
     CommonConvBlock,
     NormalisedFold,
     Permute,
-    Shift,
 )
 from icenet_mp.types import TensorNCHW
 
@@ -16,9 +15,10 @@ from .base_decoder import BaseDecoder
 class PiecewiseDecoder(BaseDecoder):
     """Piecewise decoder that combines data patches from a latent space to build the output space.
 
-    - 1 convolutional block to set the required number of channels
-    - n_conv_blocks of constant-size convolutional blocks
+    - Initial convolutional block at input resolution
     - Combine patches into output of size output_height x output_width
+    - Final convolutional block at output resolution
+    - Normalise then bound the output
 
     Latent space:
         TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
@@ -32,8 +32,10 @@ class PiecewiseDecoder(BaseDecoder):
         *,
         conv_activation: str = "SiLU",
         conv_kernel_size: int = 3,
-        n_conv_blocks: int = 3,
-        use_hann_window: bool = False,
+        conv_subblocks_initial: int = 3,
+        conv_subblocks_final: int = 3,
+        use_hann_window: bool = True,
+        use_final_normalisation: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseDecoder."""
@@ -66,20 +68,29 @@ class PiecewiseDecoder(BaseDecoder):
         )
         input_channels_required = self.data_space_out.channels * n_patches
 
-        # Construct list of layers
+        # Construct the list of layers
         layers: list[nn.Module] = []
 
-        # If necessary, add a convolutional block to get the required number of channels
-        if (n_conv_blocks != 0) or (
-            self.data_space_in.channels != input_channels_required
+        if (self.data_space_in.channels != input_channels_required) and (
+            conv_subblocks_initial < 1
         ):
+            msg = (
+                f"conv_subblocks_initial {conv_subblocks_initial} must be >= 1 "
+                f"if input channels {self.data_space_in.channels} != "
+                f"required input channels {input_channels_required}."
+            )
+            raise ValueError(msg)
+
+        # Optionally add an initial convolutional block at input resolution.
+        # This will also set the correct number of channels if needed.
+        if conv_subblocks_initial > 0:
             layers.append(
                 CommonConvBlock(
                     self.data_space_in.channels,
                     input_channels_required,
                     kernel_size=conv_kernel_size,
                     activation=conv_activation,
-                    n_subblocks=n_conv_blocks + 1,
+                    n_subblocks=conv_subblocks_initial,
                 ),
             )
 
@@ -103,9 +114,22 @@ class PiecewiseDecoder(BaseDecoder):
             )
         )
 
-        # Apply a scale and offset shift to reduce the large values caused by folding
-        # multiple pixels into a single output pixel.
-        layers.append(Shift(scale=True, offset=True))
+        # Optionally add a final convolutional block at output resolution
+        if conv_subblocks_final > 0:
+            layers.append(
+                CommonConvBlock(
+                    self.data_space_out.channels,
+                    self.data_space_out.channels,
+                    kernel_size=conv_kernel_size,
+                    activation=conv_activation,
+                    n_subblocks=conv_subblocks_final,
+                ),
+            )
+
+        # Normalise the folded output before bounding it. We set affine=False to avoid
+        # saturation that can cause the output to collapse to a constant prediction.
+        if use_final_normalisation:
+            layers.append(nn.BatchNorm2d(self.data_space_out.channels, affine=False))
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)

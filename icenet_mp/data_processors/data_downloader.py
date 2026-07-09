@@ -1,10 +1,12 @@
 import logging
 import shutil
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from anemoi.datasets import open_dataset
+from anemoi.datasets.commands.cleanup import Cleanup
 from anemoi.datasets.commands.finalise import Finalise
 from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
@@ -14,6 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
+    AnemoiCleanupArgs,
     AnemoiDatasetStatus,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
@@ -49,6 +52,14 @@ class DataDownloader:
         )  # type: ignore[assignment]
         self.recipe = Recipe(**anemoi_config)
         self.preprocessor = cls_preprocessor(anemoi_config)
+
+    def artifacts(self) -> list[Path]:
+        """Return a list of temporary artifacts created during the download and finalise process."""
+        return [
+            path
+            for path in self.path_dataset.parent.glob(f"{self.path_dataset.stem}.*")
+            if path != self.path_dataset
+        ]
 
     def check_status(self) -> AnemoiDatasetStatus:
         """Return the status of the dataset."""
@@ -173,22 +184,33 @@ class DataDownloader:
             )
             logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
 
-        # create active grid cell and land masks for the SSMIS dataset
+        # Create active grid cell and land masks if appropriate
         self.generate_masks(overwrite=overwrite)
+
+        # Cleanup any temporary artifacts created during the download and finalise process
+        if self.artifacts():
+            with suppress(ValueError):
+                Cleanup().run(AnemoiCleanupArgs(path=str(self.path_dataset)))
+            if remaining := self.artifacts():
+                logger.warning("Residual artifacts for dataset %s:", self.name)
+                for artifact in remaining:
+                    logger.warning("... %s", artifact)
+            else:
+                logger.info("Cleaned up temporary artifacts for dataset %s.", self.name)
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for the SSMIS dataset."""
-        # if there is an SSMIS dataset, create the masks
+        # Create the masks if this is an SSMIS dataset
         if "ssmis" not in self.name:
-            logger.info("Not SSMIS dataset, skipping mask creation.")
             return
+        logger.debug("Generating land and active grid cell masks for SSMIS dataset.")
 
         self.path_masks.mkdir(parents=True, exist_ok=True)
         land_mask_path = self.path_masks / "land_mask.npy"
         active_mask_path = self.path_masks / "active_mask.npy"
 
         if land_mask_path.exists() and active_mask_path.exists() and not overwrite:
-            logger.info("Both masks already exist, skipping creation.")
+            logger.debug("Both masks already exist, skipping creation.")
             return
 
         # Unpack status flags into a binary array, skipping any missing dates
@@ -209,7 +231,7 @@ class DataDownloader:
 
         # land mask: land = 0, sea = 1
         if land_mask_path.exists() and not overwrite:
-            logger.info("Land mask already exists, skipping creation.")
+            logger.debug("Land mask already exists, skipping creation.")
             land_mask = np.load(land_mask_path)
         else:
             land_mask = np.squeeze(binary[..., [7]]).sum(axis=0)
@@ -223,7 +245,7 @@ class DataDownloader:
 
         # active mask: active grid cells = 1, inactive = 0
         if active_mask_path.exists() and not overwrite:
-            logger.info("Active mask already exists, skipping creation.")
+            logger.debug("Active mask already exists, skipping creation.")
         else:
             # Identify grid cells that are inactive for all time steps
             inactive_count = np.squeeze(binary[..., [0]]).sum(axis=0)

@@ -1,15 +1,13 @@
 _target_: icenet_mp.models.EncodeProcessDecode
 
-name: reproject-unet-naive
+name: unet
 
 encoders:
   latent_space: [432, 432]
   era5:
-    _target_: icenet_mp.models.encoders.ReprojectionEncoder
-    project_to: "sic-icenet"
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   float-argo:
-    _target_: icenet_mp.models.encoders.ReprojectionEncoder
-    project_to: "sic-icenet"
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   sic-icenet:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   sic-ssmis:
@@ -17,7 +15,7 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
-  start_out_channels: 64
+  start_out_channels: 128
 
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder

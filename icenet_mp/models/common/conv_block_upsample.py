@@ -9,11 +9,12 @@ from .weighted_upsample import WeightedUpsample
 
 
 class ConvBlockUpsample(nn.Module):
-    """Convolutional block that doubles spatial dimensions.
+    """Convolutional block that increases spatial dimensions by scale_factor.
 
     (Upsample > Norm > Act) > ConvNormAct > ConvNormAct
 
-    If out_channels is not specified then this will halve the number of input channels.
+    If out_channels is not specified then this will also scale the number of channels
+    down by scale_factor.
 
     Reverse of ConvBlockDownsample, using upsampling to increase spatial dimensions.
     """
@@ -27,6 +28,7 @@ class ConvBlockUpsample(nn.Module):
         n_subblocks: int = 2,
         norm_type: str = "batchnorm",
         out_channels: int | None = None,
+        scale_factor: int = 2,
         upsample_mode: str = "bilinear",
     ) -> None:
         """Initialize a ConvBlockUpsample module.
@@ -37,13 +39,17 @@ class ConvBlockUpsample(nn.Module):
             kernel_size: the size of the convolutional kernel.
             n_subblocks: the number of ConvNormAct blocks to stack (default 2).
             norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
-            out_channels: the number of output channels (if None, half of in_channels).
+            out_channels: the number of output channels (if None, scale input channels down by scale_factor).
+            scale_factor: the factor by which to upsample the spatial dimensions (default is 2).
             upsample_mode: the method to use for upsampling ("bilinear" or "shuffle").
 
         """
         super().__init__()
 
-        out_channels = in_channels // 2 if out_channels is None else out_channels
+        # We use integer division here to ensure that out_channels is an integer.
+        out_channels = (
+            in_channels // scale_factor if out_channels is None else out_channels
+        )
 
         if n_subblocks < 1:
             msg = f"n_subblocks must be at least 1, got {n_subblocks}."
@@ -54,12 +60,12 @@ class ConvBlockUpsample(nn.Module):
             raise ValueError(msg)
 
         self.model = nn.Sequential(
-            # Upsampling layer to increase spatial dimensions
+            # Size increasing upsample/normalisation/activation that maintains channels
             {
                 "bilinear": nn.Upsample(
-                    scale_factor=2, mode="bilinear", align_corners=False
+                    scale_factor=scale_factor, mode="bilinear", align_corners=False
                 ),
-                "shuffle": WeightedUpsample(in_channels, upsample_factor=2),
+                "shuffle": WeightedUpsample(in_channels, upsample_factor=scale_factor),
             }[upsample_mode],
             normalisation_from_name(norm_type, in_channels),
             ACTIVATION_FROM_NAME[activation](),
