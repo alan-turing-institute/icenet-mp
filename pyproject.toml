@@ -12,12 +12,12 @@ authors = [
     { name = "Simon Driscoll", email = "simondriscoll88@gmail.com" },
     { name = "Isabel Fenton", email = "ifenton@turing.ac.uk" },
     { name = "Lydia France", email = "85945427+LydiaFrance@users.noreply.github.com" },
-    { name = "Aoife Hughes", email = ""},
+    { name = "Aoife Hughes", email = "aoife.1.hughes@gmail.com"},
     { name = "Maria Carolina Novitasari", email ="124182131+marianovitasari20@users.noreply.github.com" },
     { name = "Nilo Pedrazzini", email = "npedrazzini@turing.ac.uk" },
     { name = "Erin Quan", email = "72717299+erinuclkwon@users.noreply.github.com" },
     { name = "James Robinson", email = "james.em.robinson@gmail.com" },
-    { name = "Shaerdan Shataer", email = ""},
+    { name = "Shaerdan Shataer", email = "Shaerdan@gmail.com"},
     { name = "Louisa van Zeeland", email = "louisa-ai2@protonmail.com" },
 ]
 requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with the tensorflow requirement from icenet
