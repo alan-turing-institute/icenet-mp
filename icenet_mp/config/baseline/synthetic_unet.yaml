@@ -2,7 +2,7 @@
 #
 # Fast synthetic-data pipeline check: the default unet model against a small,
 # deterministic moving-circle dataset instead of real sea-ice data. Run with:
-#   imp synthetic check --config-name synthetic_unet
+#   imp synthetic check --config-name baseline/synthetic_unet
 defaults:
   - /base
   - override /data: synthetic
