@@ -11,4 +11,4 @@ defaults:
   - _self_
 
 trainer:
-  max_epochs: 10
+  max_epochs: 30
