@@ -20,7 +20,7 @@ class MovingCircleConfig:
     height: int = 32
     width: int = 32
     n_timesteps: int = 60
-    radius: float = 3.0
+    radius: float = 5.0
     velocity: tuple[float, float] = (2.0, 1.0)
     start_position: tuple[float, float] | None = None
     foreground_value: float = 1.0
