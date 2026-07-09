@@ -23,7 +23,7 @@ Once the release has been published, train the default set of models for a 24-ho
 - persistence (or similar climatology baseline)
 - the four best performing models at release time
 
-For each training run, set the W&B run `name` to the version and the model type (e.g. `2026.07-persistence`) via the local config:
+For each training run, set the W&B run `name` to the version and the model type (e.g. `2026-07-persistence`) via the local config:
 
 ```yaml
 loggers:
