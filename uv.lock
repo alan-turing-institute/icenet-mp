@@ -1990,7 +1990,7 @@ wheels = [
 
 [[package]]
 name = "icenet-mp"
-version = "0.2.0"
+version = "2026.post7"
 source = { editable = "." }
 dependencies = [
     { name = "anemoi-datasets" },
