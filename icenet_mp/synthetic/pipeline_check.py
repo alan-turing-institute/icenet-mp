@@ -20,8 +20,12 @@ from icenet_mp.types import ArrayTHW
 
 from .debug_video import write_full_dataset_video, write_full_rollout_video
 from .report import plot_loss_curve
-from .shapes import MovingCircleConfig, generate_moving_circle_frames
-from .zarr_writer import daily_dates, write_synthetic_zarr
+from .trajectories import (
+    TrajectorySpan,
+    default_trajectory_configs,
+    generate_multi_trajectory_dataset,
+)
+from .zarr_writer import write_synthetic_zarr
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +44,49 @@ class SyntheticCheckResult:
     wandb_run_name: str | None = None
 
 
+def _date_range(span: TrajectorySpan) -> dict[str, str]:
+    return {
+        "start": span.start_date.strftime("%Y-%m-%d"),
+        "end": span.end_date.strftime("%Y-%m-%d"),
+    }
+
+
+def _split_ranges(spans: list[TrajectorySpan]) -> dict[str, list[dict[str, str]]]:
+    """Assign whole trajectories to train/validate/test.
+
+    Splitting by trajectory (not by day range within one trajectory) means validation
+    and test see (start position, velocity) combinations the model never trained on,
+    so passing the check requires learning the general update rule, not memorising
+    specific days.
+    """
+    if len(spans) < 3:  # noqa: PLR2004
+        msg = f"Need at least 3 trajectories to split train/validate/test, got {len(spans)}."
+        raise ValueError(msg)
+    *train_spans, validate_span, test_span = spans
+    return {
+        "train": [_date_range(span) for span in train_spans],
+        "validate": [_date_range(validate_span)],
+        "test": [_date_range(test_span)],
+    }
+
+
+def _validate_grid_size(grid_size: int) -> None:
+    """UNetProcessor requires latent height/width each divisible by 16 and > 16."""
+    if grid_size <= 16 or grid_size % 16:  # noqa: PLR2004
+        msg = (
+            f"grid_size must be > 16 and divisible by 16 (UNetProcessor's own "
+            f"constraint), got {grid_size}."
+        )
+        raise ValueError(msg)
+
+
 def _generate_dataset(
-    config: DictConfig, output_dir: Path
-) -> tuple[Path, ArrayTHW, list]:
+    config: DictConfig,
+    output_dir: Path,
+    *,
+    grid_size: int,
+    n_trajectories: int,
+) -> tuple[Path, ArrayTHW, list, dict[str, list[dict[str, str]]]]:
     dataset_entries = list(config["data"]["datasets"].values())
     unknown = [
         entry["name"] for entry in dataset_entries if entry["name"] != SYNTHETIC_DATASET_NAME
@@ -55,13 +99,25 @@ def _generate_dataset(
         )
         raise ValueError(msg)
 
-    shape_config = MovingCircleConfig()
-    frames = generate_moving_circle_frames(shape_config)
-    dates = daily_dates(shape_config.n_timesteps)
+    _validate_grid_size(grid_size)
+    trajectories = default_trajectory_configs(
+        height=grid_size, width=grid_size, n_trajectories=n_trajectories
+    )
+    dataset = generate_multi_trajectory_dataset(trajectories)
     zarr_path = output_dir / "data" / "anemoi" / f"{SYNTHETIC_DATASET_NAME}.zarr"
-    write_synthetic_zarr(zarr_path, frames=frames, variable_name=SYNTHETIC_VARIABLE_NAME)
-    logger.info("Wrote synthetic moving-circle dataset to %s.", zarr_path)
-    return zarr_path, frames, dates
+    write_synthetic_zarr(
+        zarr_path,
+        frames=dataset.frames,
+        variable_name=SYNTHETIC_VARIABLE_NAME,
+        missing_dates=dataset.missing_dates,
+    )
+    logger.info(
+        "Wrote %d independent synthetic trajectories (%d days total) to %s.",
+        len(dataset.spans),
+        len(dataset.dates),
+        zarr_path,
+    )
+    return zarr_path, dataset.frames, dataset.dates, _split_ranges(dataset.spans)
 
 
 def _add_wandb_logger(config: DictConfig) -> str:
@@ -131,6 +187,8 @@ def run_synthetic_pipeline_check(
     min_relative_improvement: float = 0.3,
     dump_debug_video: bool = False,
     publish_wandb: bool = False,
+    grid_size: int = 32,
+    n_trajectories: int = 8,
 ) -> SyntheticCheckResult:
     """Run a model+data config against synthetic data and check that it learns.
 
@@ -147,6 +205,15 @@ def run_synthetic_pipeline_check(
         publish_wandb: If True, also log this run to W&B (entity `turing-seaice`)
             alongside the local report files. Off by default so the check stays usable
             offline/in CI without W&B credentials.
+        grid_size: Height/width of the synthetic grid. The model's `encoders.
+            latent_space` is set to match automatically, so this does not need a
+            separate model override. Must be > 16 and divisible by 16 (UNetProcessor's
+            own constraint). Defaults to a small, fast 32; pass e.g. 432 to match real
+            data's native resolution, at the cost of much longer training time.
+        n_trajectories: Number of independent bouncing-circle trajectories to
+            generate (split: all but the last two for training, one for validation,
+            one for test). More trajectories means more/more-diverse training data,
+            at the cost of longer training time.
 
     Returns:
         A `SyntheticCheckResult` describing whether the check passed and why not.
@@ -160,10 +227,16 @@ def run_synthetic_pipeline_check(
     config["base_path"] = str(output_dir)
     if max_epochs is not None:
         config["train"]["trainer"]["max_epochs"] = max_epochs
+    config["model"]["encoders"]["latent_space"] = [grid_size, grid_size]
 
     wandb_run_name = _add_wandb_logger(config) if publish_wandb else None
 
-    zarr_path, frames, dates = _generate_dataset(config, output_dir)
+    zarr_path, frames, dates, split_ranges = _generate_dataset(
+        config, output_dir, grid_size=grid_size, n_trajectories=n_trajectories
+    )
+    config["data"]["split"]["train"] = split_ranges["train"]
+    config["data"]["split"]["validate"] = split_ranges["validate"]
+    config["data"]["split"]["test"] = split_ranges["test"]
 
     if dump_debug_video:
         write_full_dataset_video(

@@ -29,10 +29,20 @@ def write_synthetic_zarr(
     frames: ArrayTHW,
     variable_name: str = "ice_conc",
     start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: B008
+    missing_dates: list[datetime.datetime] | None = None,
 ) -> Path:
-    """Write a single-variable [T, H, W] frame sequence as an anemoi-compatible zarr store."""
+    """Write a single-variable [T, H, W] frame sequence as an anemoi-compatible zarr store.
+
+    `missing_dates` marks specific calendar days as unavailable (their `frames` values
+    are ignored): `SingleDataset`/`CombinedDataset` then exclude them from `.dates`, so
+    no history/forecast window can be built across a missing day. Used to stitch
+    several independent trajectories together without a window ever bridging two of
+    them (which would otherwise show the circle "teleport").
+    """
     n_timesteps, height, width = frames.shape
     dates = daily_dates(n_timesteps, start_date)
+    missing_dates = missing_dates or []
+    missing_date_set = {d.date() for d in missing_dates}
 
     # Anemoi's on-disk layout is [time, channels, ensemble, position]
     data = frames.reshape(n_timesteps, 1, 1, height * width).astype(np.float32)
@@ -41,10 +51,12 @@ def write_synthetic_zarr(
         np.linspace(-90, 90, height), np.linspace(-180, 180, width), indexing="ij"
     )
 
-    mean = data.mean(axis=(0, 2, 3)).astype(np.float64)
-    stdev = data.std(axis=(0, 2, 3)).astype(np.float64)
-    minimum = data.min(axis=(0, 2, 3)).astype(np.float64)
-    maximum = data.max(axis=(0, 2, 3)).astype(np.float64)
+    # Compute statistics from available (non-missing) timesteps only.
+    available = np.array([d.date() not in missing_date_set for d in dates])
+    mean = data[available].mean(axis=(0, 2, 3)).astype(np.float64)
+    stdev = data[available].std(axis=(0, 2, 3)).astype(np.float64)
+    minimum = data[available].min(axis=(0, 2, 3)).astype(np.float64)
+    maximum = data[available].max(axis=(0, 2, 3)).astype(np.float64)
 
     zarr_path.mkdir(parents=True, exist_ok=True)
     z = zarr.open_group(str(zarr_path), mode="w")
@@ -64,7 +76,9 @@ def write_synthetic_zarr(
             "field_shape": [height, width],
             "frequency": "24h",
             "variables": [variable_name],
-            "missing_dates": [],
+            "missing_dates": [
+                d.isoformat(timespec="seconds") for d in missing_dates
+            ],
             "flatten_grid": True,
             "ensemble_dimension": 2,
         }

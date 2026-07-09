@@ -1,3 +1,6 @@
+# train/validate/test below are placeholders required for a valid config -- the
+# synthetic pipeline check overwrites them at runtime with date ranges computed from
+# the actual generated trajectories (see icenet_mp/synthetic/pipeline_check.py).
 batch_size: 4
 
 predict:

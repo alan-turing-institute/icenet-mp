@@ -65,6 +65,28 @@ def check(
             ),
         ),
     ] = False,
+    grid_size: Annotated[
+        int,
+        typer.Option(
+            help=(
+                "Height/width of the synthetic grid. The model's encoders.latent_space "
+                "is set to match automatically. Must be > 16 and divisible by 16. "
+                "Defaults to a small, fast 32; pass 432 to match real data's native "
+                "resolution, at the cost of much longer training time."
+            )
+        ),
+    ] = 32,
+    n_trajectories: Annotated[
+        int,
+        typer.Option(
+            help=(
+                "Number of independent bouncing-circle trajectories to generate (all "
+                "but the last two go to training, one to validation, one to test). "
+                "More trajectories means more/more-diverse data, at the cost of "
+                "longer training time."
+            )
+        ),
+    ] = 8,
 ) -> None:
     """Run a fast synthetic moving-circle pipeline sanity check.
 
@@ -81,6 +103,8 @@ def check(
         min_relative_improvement=min_relative_improvement,
         dump_debug_video=debug_full_video,
         publish_wandb=wandb,
+        grid_size=grid_size,
+        n_trajectories=n_trajectories,
     )
     if result.wandb_run_name:
         log.info("Published to W&B as '%s'.", result.wandb_run_name)
