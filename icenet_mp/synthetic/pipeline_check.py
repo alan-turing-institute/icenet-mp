@@ -9,6 +9,7 @@ is learning at all, in seconds rather than the hours a real training run takes.
 
 import json
 import logging
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 SYNTHETIC_DATASET_NAME = "synthetic_sic"
 SYNTHETIC_VARIABLE_NAME = "ice_conc"
+WANDB_ENTITY = "turing-seaice"
 
 
 @dataclass
@@ -35,6 +37,7 @@ class SyntheticCheckResult:
     train_loss: list[float]
     validation_loss: list[float]
     report_path: Path
+    wandb_run_name: str | None = None
 
 
 def _generate_dataset(
@@ -59,6 +62,27 @@ def _generate_dataset(
     write_synthetic_zarr(zarr_path, frames=frames, variable_name=SYNTHETIC_VARIABLE_NAME)
     logger.info("Wrote synthetic moving-circle dataset to %s.", zarr_path)
     return zarr_path, frames, dates
+
+
+def _add_wandb_logger(config: DictConfig) -> str:
+    """Add a W&B logger alongside whatever's already configured (e.g. local_files).
+
+    Explicitly pins `entity` to the seaice team regardless of the caller's default W&B
+    entity, and gives the run a random `synthetic-` prefixed name so it's easy to spot
+    (and filter out) among real experiments in the shared `train`/`evaluate` projects.
+    """
+    run_name = f"synthetic-{uuid.uuid4().hex[:8]}"
+    config["loggers"]["wandb"] = {
+        "_target_": "lightning.pytorch.loggers.wandb.WandbLogger",
+        "entity": WANDB_ENTITY,
+        "save_dir": "${base_path}/training/",
+        "log_model": False,
+        "name": run_name,
+    }
+    logger.info(
+        "Publishing this run to W&B entity '%s' as '%s'.", WANDB_ENTITY, run_name
+    )
+    return run_name
 
 
 def _load_loss_history(history_path: Path) -> dict[str, list[float]]:
@@ -106,6 +130,7 @@ def run_synthetic_pipeline_check(
     max_epochs: int | None = None,
     min_relative_improvement: float = 0.3,
     dump_debug_video: bool = False,
+    publish_wandb: bool = False,
 ) -> SyntheticCheckResult:
     """Run a model+data config against synthetic data and check that it learns.
 
@@ -119,6 +144,9 @@ def run_synthetic_pipeline_check(
             a full-dataset ground-truth-vs-prediction rollout as videos under
             ``output_dir/report/debug``. Off by default: it re-runs inference across
             every window in the dataset and adds real wall-clock time.
+        publish_wandb: If True, also log this run to W&B (entity `turing-seaice`)
+            alongside the local report files. Off by default so the check stays usable
+            offline/in CI without W&B credentials.
 
     Returns:
         A `SyntheticCheckResult` describing whether the check passed and why not.
@@ -132,6 +160,8 @@ def run_synthetic_pipeline_check(
     config["base_path"] = str(output_dir)
     if max_epochs is not None:
         config["train"]["trainer"]["max_epochs"] = max_epochs
+
+    wandb_run_name = _add_wandb_logger(config) if publish_wandb else None
 
     zarr_path, frames, dates = _generate_dataset(config, output_dir)
 
@@ -193,4 +223,5 @@ def run_synthetic_pipeline_check(
         train_loss=train_loss,
         validation_loss=validation_loss,
         report_path=report_path,
+        wandb_run_name=wandb_run_name,
     )

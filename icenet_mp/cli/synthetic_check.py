@@ -53,6 +53,18 @@ def check(
             ),
         ),
     ] = False,
+    wandb: Annotated[
+        bool,
+        typer.Option(
+            "--wandb",
+            help=(
+                "Also publish this run to W&B (entity 'turing-seaice'), alongside the "
+                "local report files, under a random 'synthetic-' prefixed run name. "
+                "Off by default: requires W&B credentials and publishes to a shared "
+                "team workspace."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run a fast synthetic moving-circle pipeline sanity check.
 
@@ -68,7 +80,10 @@ def check(
         max_epochs=max_epochs,
         min_relative_improvement=min_relative_improvement,
         dump_debug_video=debug_full_video,
+        publish_wandb=wandb,
     )
+    if result.wandb_run_name:
+        log.info("Published to W&B as '%s'.", result.wandb_run_name)
     if result.passed:
         log.info("Synthetic pipeline check PASSED. Report: %s", result.report_path)
     else:
