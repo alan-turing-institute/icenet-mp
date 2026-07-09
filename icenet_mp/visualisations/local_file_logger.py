@@ -40,6 +40,8 @@ class LocalFileLogger(Logger):
         self._save_dir = Path(save_dir)
         self._name = name
         self._metrics_path = self._save_dir / "metrics.jsonl"
+        self._image_call_count = 0
+        self._video_call_count = 0
 
     @property
     def name(self) -> str:
@@ -71,31 +73,45 @@ class LocalFileLogger(Logger):
         self,
         key: str,
         images: list[Any],
-        step: int | None = None,  # noqa: ARG002
+        step: int | None = None,
         **kwargs: Any,  # noqa: ARG002
     ) -> None:
-        """Save each image in `images` as a PNG under `save_dir/images`."""
+        """Save each image in `images` as a PNG under `save_dir/images`.
+
+        Every call gets its own, uniquely-numbered file (like W&B's step-indexed media
+        timeline) rather than overwriting by `key` alone -- `Plotter` reuses the same
+        `key` (date + variable) on every validation epoch, since the underlying dates
+        don't change, so keying on `key` alone would silently keep only the last epoch.
+        """
+        call_index = step if step is not None else self._image_call_count
+        self._image_call_count += 1
         image_dir = self._save_dir / "images"
         image_dir.mkdir(parents=True, exist_ok=True)
         for idx, image in enumerate(images):
             if not hasattr(image, "save"):
                 logger.warning("Cannot save non-image object for key '%s'.", key)
                 continue
-            image.save(image_dir / f"{_sanitise(key)}_{idx}.png")
+            image.save(image_dir / f"{call_index:05d}__{_sanitise(key)}_{idx}.png")
 
     def log_video(
         self,
         key: str,
         videos: list[Any],
-        step: int | None = None,  # noqa: ARG002
+        step: int | None = None,
         **kwargs: Any,
     ) -> None:
-        """Save each video buffer in `videos` under `save_dir/videos`."""
+        """Save each video buffer in `videos` under `save_dir/videos`.
+
+        See `log_image` for why calls are uniquely numbered rather than keyed on `key`
+        alone.
+        """
+        call_index = step if step is not None else self._video_call_count
+        self._video_call_count += 1
         video_dir = self._save_dir / "videos"
         video_dir.mkdir(parents=True, exist_ok=True)
         formats = kwargs.get("format") or ["mp4"] * len(videos)
         for idx, (video, video_format) in enumerate(zip(videos, formats, strict=True)):
             video.seek(0)
-            (video_dir / f"{_sanitise(key)}_{idx}.{video_format}").write_bytes(
-                video.read()
-            )
+            (
+                video_dir / f"{call_index:05d}__{_sanitise(key)}_{idx}.{video_format}"
+            ).write_bytes(video.read())

@@ -36,17 +36,29 @@ def check(
         float,
         typer.Option(
             help=(
-                "Minimum fractional drop in validation loss (first epoch to last) "
-                "required for the check to pass."
+                "Minimum fractional drop from the first epoch's validation loss to "
+                "the best epoch's, required for the check to pass."
             )
         ),
     ] = 0.3,
+    debug_full_video: Annotated[
+        bool,
+        typer.Option(
+            "--debug-full-video",
+            help=(
+                "Also render the entire generated dataset, and the trained model's "
+                "rollout across the whole dataset (not just sampled evaluation "
+                "batches), as videos under output_dir/report/debug. Off by default: "
+                "this re-runs inference across every window and adds real time."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Run a fast synthetic moving-circle pipeline sanity check.
 
     Trains and evaluates the model+data configuration given by `config_name`/`overrides`
     (exactly as for a real job) against a small, deterministic moving-circle dataset,
-    then asserts that validation loss actually improved. Loss-curve and
+    then asserts that the model actually learned. Loss-curve and
     ground-truth-vs-prediction plots are written to `output_dir` for local inspection,
     and the command exits non-zero on failure so it can gate CI.
     """
@@ -55,6 +67,7 @@ def check(
         output_dir=Path(output_dir),
         max_epochs=max_epochs,
         min_relative_improvement=min_relative_improvement,
+        dump_debug_video=debug_full_video,
     )
     if result.passed:
         log.info("Synthetic pipeline check PASSED. Report: %s", result.report_path)

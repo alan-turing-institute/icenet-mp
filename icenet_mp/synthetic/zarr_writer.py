@@ -15,6 +15,14 @@ import zarr
 from icenet_mp.types import ArrayTHW
 
 
+def daily_dates(
+    n_timesteps: int,
+    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: B008
+) -> list[datetime.datetime]:
+    """Return `n_timesteps` consecutive daily dates starting at `start_date`."""
+    return [start_date + datetime.timedelta(days=step) for step in range(n_timesteps)]
+
+
 def write_synthetic_zarr(
     zarr_path: Path,
     *,
@@ -24,7 +32,7 @@ def write_synthetic_zarr(
 ) -> Path:
     """Write a single-variable [T, H, W] frame sequence as an anemoi-compatible zarr store."""
     n_timesteps, height, width = frames.shape
-    dates = [start_date + datetime.timedelta(days=step) for step in range(n_timesteps)]
+    dates = daily_dates(n_timesteps, start_date)
 
     # Anemoi's on-disk layout is [time, channels, ensemble, position]
     data = frames.reshape(n_timesteps, 1, 1, height * width).astype(np.float32)

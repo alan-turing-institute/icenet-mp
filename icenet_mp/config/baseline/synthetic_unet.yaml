@@ -1,12 +1,12 @@
 # @package _global_
 #
-# Fast synthetic-data pipeline check: the default unet model against a small,
-# deterministic moving-circle dataset instead of real sea-ice data. Run with:
+# Fast synthetic-data pipeline check: builds on the real baseline/01_unet config
+# (unet model, tuned lr/weight_decay) against a small, deterministic moving-circle
+# dataset instead of real sea-ice data. Run with:
 #   imp synthetic check --config-name baseline/synthetic_unet
 defaults:
-  - /base
+  - /baseline/01_unet
   - override /data: synthetic
-  - override /model: unet
   - override /predict: synthetic-2d
   - override /train: synthetic
   - override /evaluate: synthetic
@@ -14,13 +14,25 @@ defaults:
     - local_files
   - _self_
 
-# The synthetic grid is tiny, so a much smaller latent space than the real (432, 432)
-# default is plenty and keeps the check fast. There is no land, so masking is disabled.
+# The synthetic grid is tiny, so a much smaller latent space and processor width than
+# the real defaults are plenty, keep the check fast, and avoid grossly overparameterising
+# a model relative to the handful of training windows available. There is no land, so
+# masking is disabled.
 model:
   encoders:
     latent_space: [32, 32]
+  processor:
+    start_out_channels: 8
   decoder:
     mask_type: none
+
+# baseline/01_unet lowers lr and raises weight_decay to fight overfitting on real,
+# much larger data. That's too conservative here now that the model itself is tiny
+# (~170K params) -- it was stalling convergence rather than preventing overfitting.
+train:
+  optimizer:
+    lr: 1e-2
+    weight_decay: 0.0
 
 random:
   seed: 1234

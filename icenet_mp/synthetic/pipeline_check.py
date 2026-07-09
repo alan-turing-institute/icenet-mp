@@ -2,9 +2,9 @@
 
 Trains and evaluates a real model+data configuration (e.g. ``baseline/synthetic_unet``)
 against a small, deterministic moving-circle dataset instead of real sea-ice data, then
-checks that validation loss actually improved. This is intended to catch pipeline bugs
-(shape mismatches, broken history/forecast windowing, rollout regressions) and confirm a
-model is learning at all, in seconds rather than the hours a real training run takes.
+checks that the model actually learned. This is intended to catch pipeline bugs (shape
+mismatches, broken history/forecast windowing, rollout regressions) and confirm a model
+is learning at all, in seconds rather than the hours a real training run takes.
 """
 
 import json
@@ -15,14 +15,17 @@ from pathlib import Path
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.model_service import ModelService
+from icenet_mp.types import ArrayTHW
 
+from .debug_video import write_full_dataset_video, write_full_rollout_video
 from .report import plot_loss_curve
 from .shapes import MovingCircleConfig, generate_moving_circle_frames
-from .zarr_writer import write_synthetic_zarr
+from .zarr_writer import daily_dates, write_synthetic_zarr
 
 logger = logging.getLogger(__name__)
 
 SYNTHETIC_DATASET_NAME = "synthetic_sic"
+SYNTHETIC_VARIABLE_NAME = "ice_conc"
 
 
 @dataclass
@@ -34,7 +37,9 @@ class SyntheticCheckResult:
     report_path: Path
 
 
-def _generate_dataset(config: DictConfig, output_dir: Path) -> None:
+def _generate_dataset(
+    config: DictConfig, output_dir: Path
+) -> tuple[Path, ArrayTHW, list]:
     dataset_entries = list(config["data"]["datasets"].values())
     unknown = [
         entry["name"] for entry in dataset_entries if entry["name"] != SYNTHETIC_DATASET_NAME
@@ -47,10 +52,13 @@ def _generate_dataset(config: DictConfig, output_dir: Path) -> None:
         )
         raise ValueError(msg)
 
-    frames = generate_moving_circle_frames(MovingCircleConfig())
+    shape_config = MovingCircleConfig()
+    frames = generate_moving_circle_frames(shape_config)
+    dates = daily_dates(shape_config.n_timesteps)
     zarr_path = output_dir / "data" / "anemoi" / f"{SYNTHETIC_DATASET_NAME}.zarr"
-    write_synthetic_zarr(zarr_path, frames=frames)
+    write_synthetic_zarr(zarr_path, frames=frames, variable_name=SYNTHETIC_VARIABLE_NAME)
     logger.info("Wrote synthetic moving-circle dataset to %s.", zarr_path)
+    return zarr_path, frames, dates
 
 
 def _load_loss_history(history_path: Path) -> dict[str, list[float]]:
@@ -71,7 +79,9 @@ def _check_learning(
         reasons.append("Not enough validation epochs recorded to assess learning.")
         return reasons
 
-    first, last = validation_loss[0], validation_loss[-1]
+    # Compare against the best epoch reached, not the last: a short toy run can easily
+    # overfit after finding a good minimum, and that's not a pipeline/learnability bug.
+    first, best = validation_loss[0], min(validation_loss)
     if first <= 0:
         reasons.append(
             f"Initial validation loss is non-positive ({first}); cannot assess "
@@ -79,11 +89,11 @@ def _check_learning(
         )
         return reasons
 
-    improvement = (first - last) / first
+    improvement = (first - best) / first
     if improvement < min_relative_improvement:
         reasons.append(
-            f"Validation loss only improved by {improvement:.1%} "
-            f"(first={first:.4g}, last={last:.4g}); expected at least "
+            f"Best validation loss only improved by {improvement:.1%} over the first "
+            f"epoch (first={first:.4g}, best={best:.4g}); expected at least "
             f"{min_relative_improvement:.0%}."
         )
     return reasons
@@ -95,6 +105,7 @@ def run_synthetic_pipeline_check(
     output_dir: Path,
     max_epochs: int | None = None,
     min_relative_improvement: float = 0.3,
+    dump_debug_video: bool = False,
 ) -> SyntheticCheckResult:
     """Run a model+data config against synthetic data and check that it learns.
 
@@ -102,8 +113,12 @@ def run_synthetic_pipeline_check(
         config: A composed Hydra config, e.g. from the ``synthetic_unet`` baseline.
         output_dir: Directory to write the generated dataset, checkpoints, and report to.
         max_epochs: Optional override for ``train.trainer.max_epochs``.
-        min_relative_improvement: Minimum fractional drop in validation loss (first
-            epoch to last) required for the check to pass.
+        min_relative_improvement: Minimum fractional drop from the first epoch's
+            validation loss to the best epoch's, required for the check to pass.
+        dump_debug_video: If True, additionally render the entire generated dataset and
+            a full-dataset ground-truth-vs-prediction rollout as videos under
+            ``output_dir/report/debug``. Off by default: it re-runs inference across
+            every window in the dataset and adds real wall-clock time.
 
     Returns:
         A `SyntheticCheckResult` describing whether the check passed and why not.
@@ -118,11 +133,31 @@ def run_synthetic_pipeline_check(
     if max_epochs is not None:
         config["train"]["trainer"]["max_epochs"] = max_epochs
 
-    _generate_dataset(config, output_dir)
+    zarr_path, frames, dates = _generate_dataset(config, output_dir)
+
+    if dump_debug_video:
+        write_full_dataset_video(
+            frames=frames,
+            dates=dates,
+            variable_name=SYNTHETIC_VARIABLE_NAME,
+            output_path=output_dir / "report" / "debug" / "full_dataset.mp4",
+        )
 
     service = ModelService.from_config(config)
     service.train()
     service.evaluate()
+
+    if dump_debug_video:
+        write_full_rollout_video(
+            model=service.model,
+            zarr_path=zarr_path,
+            target_group_name=config["predict"]["target"]["group_name"],
+            target_variables=list(config["predict"]["target"].get("variables", [])),
+            n_history_steps=int(config["predict"]["n_history_steps"]),
+            n_forecast_steps=int(config["predict"]["n_forecast_steps"]),
+            variable_name=SYNTHETIC_VARIABLE_NAME,
+            output_path=output_dir / "report" / "debug" / "full_rollout.mp4",
+        )
 
     history = _load_loss_history(output_dir / "report" / "loss_history.json")
     train_loss = history.get("train_loss", [])
