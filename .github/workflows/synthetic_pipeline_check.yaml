@@ -1,0 +1,31 @@
+name: Synthetic pipeline check
+
+# Not yet enabled for push/PR runs -- trigger manually via workflow_dispatch until ready.
+on:
+  workflow_dispatch:
+
+jobs:
+  synthetic-pipeline-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.8.3"
+
+      - name: Run synthetic moving-circle pipeline check
+        run: uv run imp synthetic check --config-name synthetic_unet --output-dir outputs/synthetic_check
+
+      - name: Upload synthetic check report and plots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: synthetic-pipeline-check
+          path: outputs/synthetic_check/report

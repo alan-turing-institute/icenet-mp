@@ -1,0 +1,101 @@
+"""A Lightning logger that writes images, videos, and metrics to local files.
+
+Implements the subset of the `WandbLogger` interface used by `PlottingCallback`
+(`log_image`/`log_video`) and Lightning's own metric logging (`log_metrics`), so a
+training/evaluation job can produce local, human-inspectable artefacts (loss curves,
+prediction plots) without network access or a W&B account -- e.g. in CI.
+"""
+
+import json
+import logging
+import re
+from pathlib import Path
+from typing import Any
+
+from lightning.fabric.loggers.logger import Logger as FabricLogger
+
+logger = logging.getLogger(__name__)
+
+_UNSAFE_KEY_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+def _sanitise(key: str) -> str:
+    return _UNSAFE_KEY_CHARS.sub("__", key)
+
+
+class LocalFileLogger(FabricLogger):
+    """Write metrics, images, and videos to plain files under `save_dir`."""
+
+    def __init__(self, save_dir: str, name: str = "local_files", **_kwargs: Any) -> None:
+        """Write metrics/images/videos to local files instead of an external service.
+
+        Args:
+            save_dir: Directory to write `metrics.jsonl`, `images/`, and `videos/` to.
+            name: Logger name, returned by the `name` property.
+            _kwargs: Ignored. Absorbs `job_type`/`project` etc. passed by
+                `ModelService.build_trainer`, which are only meaningful for W&B.
+
+        """
+        super().__init__()
+        self._save_dir = Path(save_dir)
+        self._name = name
+        self._metrics_path = self._save_dir / "metrics.jsonl"
+
+    @property
+    def name(self) -> str:
+        """Return the logger name."""
+        return self._name
+
+    @property
+    def version(self) -> str:
+        """Return a fixed version, since this logger does not manage run versioning."""
+        return "0"
+
+    @property
+    def save_dir(self) -> str:
+        """Return the root directory this logger writes to."""
+        return str(self._save_dir)
+
+    def log_hyperparams(self, params: Any, *args: Any, **kwargs: Any) -> None:
+        """Do nothing; hyperparameters are already saved as `model_config.yaml`."""
+        del params, args, kwargs
+
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
+        """Append a JSON line of metrics to `metrics.jsonl`."""
+        self._save_dir.mkdir(parents=True, exist_ok=True)
+        record = {"step": step, **{k: float(v) for k, v in metrics.items()}}
+        with self._metrics_path.open("a") as handle:
+            handle.write(json.dumps(record) + "\n")
+
+    def log_image(
+        self,
+        key: str,
+        images: list[Any],
+        step: int | None = None,  # noqa: ARG002
+        **kwargs: Any,  # noqa: ARG002
+    ) -> None:
+        """Save each image in `images` as a PNG under `save_dir/images`."""
+        image_dir = self._save_dir / "images"
+        image_dir.mkdir(parents=True, exist_ok=True)
+        for idx, image in enumerate(images):
+            if not hasattr(image, "save"):
+                logger.warning("Cannot save non-image object for key '%s'.", key)
+                continue
+            image.save(image_dir / f"{_sanitise(key)}_{idx}.png")
+
+    def log_video(
+        self,
+        key: str,
+        videos: list[Any],
+        step: int | None = None,  # noqa: ARG002
+        **kwargs: Any,
+    ) -> None:
+        """Save each video buffer in `videos` under `save_dir/videos`."""
+        video_dir = self._save_dir / "videos"
+        video_dir.mkdir(parents=True, exist_ok=True)
+        formats = kwargs.get("format") or ["mp4"] * len(videos)
+        for idx, (video, video_format) in enumerate(zip(videos, formats, strict=True)):
+            video.seek(0)
+            (video_dir / f"{_sanitise(key)}_{idx}.{video_format}").write_bytes(
+                video.read()
+            )

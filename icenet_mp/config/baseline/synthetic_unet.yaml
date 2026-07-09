@@ -1,0 +1,26 @@
+# @package _global_
+#
+# Fast synthetic-data pipeline check: the default unet model against a small,
+# deterministic moving-circle dataset instead of real sea-ice data. Run with:
+#   imp synthetic check --config-name synthetic_unet
+defaults:
+  - /base
+  - override /data: synthetic
+  - override /model: unet
+  - override /predict: synthetic-2d
+  - override /train: synthetic
+  - override /evaluate: synthetic
+  - override /loggers:
+    - local_files
+  - _self_
+
+# The synthetic grid is tiny, so a much smaller latent space than the real (432, 432)
+# default is plenty and keeps the check fast. There is no land, so masking is disabled.
+model:
+  encoders:
+    latent_space: [32, 32]
+  decoder:
+    mask_type: none
+
+random:
+  seed: 1234

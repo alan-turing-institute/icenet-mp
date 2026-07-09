@@ -1,0 +1,5 @@
+defaults:
+  - datasets:
+    - synthetic_sic
+  - split: synthetic
+  - _self_
