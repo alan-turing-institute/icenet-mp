@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from lightning.fabric.loggers.logger import Logger as FabricLogger
+from lightning.pytorch.loggers.logger import Logger
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def _sanitise(key: str) -> str:
     return _UNSAFE_KEY_CHARS.sub("__", key)
 
 
-class LocalFileLogger(FabricLogger):
+class LocalFileLogger(Logger):
     """Write metrics, images, and videos to plain files under `save_dir`."""
 
     def __init__(self, save_dir: str, name: str = "local_files", **_kwargs: Any) -> None:
