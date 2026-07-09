@@ -1,5 +1,7 @@
 defaults:
   - callbacks:
+    - best_checkpoint
+    - early_stopping
     - ema_weight_averaging
     - learning_rate
     - metric_summary

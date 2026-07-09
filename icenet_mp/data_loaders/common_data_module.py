@@ -162,6 +162,14 @@ class CommonDataModule(LightningDataModule):
         return self.variable_names[self.target_group_name]
 
     @cached_property
+    def target_variable_indices(self) -> list[int]:
+        """Return the indices of the variables to predict."""
+        return [
+            self.variable_names[self.target_group_name].index(variable)
+            for variable in self.target_variables
+        ]
+
+    @cached_property
     def variable_names(self) -> dict[str, list[str]]:
         """Return the variable names for each input."""
         return {ds.name: ds.variable_names for ds in self.datasets.values()}

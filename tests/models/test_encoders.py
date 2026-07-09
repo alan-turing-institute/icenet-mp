@@ -71,9 +71,10 @@ class TestPiecewiseEncoder:
             name="input", channels=test_input_chw[0], shape=test_input_chw[1:]
         )
         encoder = PiecewiseEncoder(
+            conv_subblocks_initial=0,
+            conv_subblocks_final=0,
             data_space_in=input_space,
             latent_space=test_latent_hw,
-            n_conv_blocks=0,
         )
 
         # Encode an input of ones
@@ -110,9 +111,10 @@ class TestPiecewiseEncoder:
         )
         patch_shape: tuple[int, int] = test_patches[0]
         encoder = PiecewiseEncoder(
+            conv_subblocks_initial=0,
+            conv_subblocks_final=0,
             data_space_in=input_space,
             latent_space=patch_shape,
-            n_conv_blocks=0,
         )
         latent_ntchw = encoder.rollout(input_ntchw)
 

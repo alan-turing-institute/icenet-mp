@@ -31,6 +31,7 @@ class CNNEncoder(BaseEncoder):
         kernel_size: int = 3,
         n_layers: int = 3,
         n_subblocks: int = 2,
+        scale_factor: int = 2,
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNEncoder."""
@@ -42,8 +43,8 @@ class CNNEncoder(BaseEncoder):
 
         # If necessary, apply a convolutional resizing to get the correct input dimensions
         initial_required_shape = (
-            self.data_space_out.shape[0] * (2**n_layers),
-            self.data_space_out.shape[1] * (2**n_layers),
+            self.data_space_out.shape[0] * (scale_factor**n_layers),
+            self.data_space_out.shape[1] * (scale_factor**n_layers),
         )
         if self.data_space_in.shape != initial_required_shape:
             layers.append(ResizingInterpolation(initial_required_shape))
@@ -62,6 +63,7 @@ class CNNEncoder(BaseEncoder):
                     activation=activation,
                     kernel_size=kernel_size,
                     n_subblocks=n_subblocks,
+                    scale_factor=scale_factor,
                 )
             )
             logger.debug(
@@ -70,7 +72,7 @@ class CNNEncoder(BaseEncoder):
                 kernel_size,
                 n_channels,
             )
-            n_channels *= 2
+            n_channels *= scale_factor
 
         # Set the number of output channels correctly
         self.data_space_out.channels = n_channels

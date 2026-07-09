@@ -1,0 +1,5 @@
+best_checkpoint:
+  _target_: lightning.pytorch.callbacks.ModelCheckpoint
+  monitor: validation_loss
+  mode: min
+  save_top_k: 1

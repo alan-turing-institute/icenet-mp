@@ -17,6 +17,15 @@ class AnemoiDatasetStatus(NamedTuple):
 
 
 @dataclass
+class AnemoiCleanupArgs:
+    """Arguments for anemoi cleanup."""
+
+    path: str
+    command: str = "unused"
+    delta: list[str] | None = None
+
+
+@dataclass
 class AnemoiFinaliseArgs:
     """Arguments for anemoi finalise."""
 

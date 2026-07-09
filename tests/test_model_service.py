@@ -17,10 +17,11 @@ class MockCommonDataModule:
         self.input_spaces = [DataSpace(5, "input", (20, 20))]
         self.latitudes = {"input": [0.0] * 400}
         self.longitudes = {"input": [0.0] * 400}
+        self.mask_directory = Path("nonexistent")
         self.n_forecast_steps = 2
         self.n_history_steps = 3
         self.output_space = DataSpace(1, "output", (10, 10))
-        self.mask_directory = Path("nonexistent")
+        self.target_variable_indices = [0]
 
 
 class MockModel:

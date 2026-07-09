@@ -33,15 +33,16 @@ class CNNDecoder(BaseDecoder):
         kernel_size: int = 3,
         n_layers: int = 3,
         n_subblocks: int = 2,
+        scale_factor: int = 2,
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNDecoder."""
         super().__init__(**kwargs)
 
         # Calculate the factor by which the scale changes after n_layers
-        layer_factor = 2**n_layers
+        layer_factor = scale_factor**n_layers
 
-        # Ensure number of channels is divisible by the power of two implied by n_layers
+        # Ensure number of channels is divisible by the factor implied by n_layers
         if self.data_space_in.channels % layer_factor:
             msg = (
                 f"The number of input channels {self.data_space_in.channels} must be divisible by {layer_factor}. "
@@ -85,6 +86,7 @@ class CNNDecoder(BaseDecoder):
                     activation=activation,
                     kernel_size=kernel_size,
                     n_subblocks=n_subblocks,
+                    scale_factor=scale_factor,
                 )
             )
             logger.debug(
@@ -93,8 +95,8 @@ class CNNDecoder(BaseDecoder):
                 kernel_size,
                 n_channels,
             )
-            n_channels //= 2
-            shape = (shape[0] * 2, shape[1] * 2)
+            n_channels //= scale_factor
+            shape = (shape[0] * scale_factor, shape[1] * scale_factor)
 
         # If necessary, resize downwards to match the output shape
         if shape != self.data_space_out.shape:

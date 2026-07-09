@@ -6,16 +6,17 @@ from .conv_norm_act import ConvNormAct
 
 
 class ConvBlockDownsample(nn.Module):
-    """Convolutional block that halves spatial dimensions.
+    """Convolutional block that decreases spatial dimensions by scale_factor.
 
     ConvNormAct > ConvNormAct
 
-    If out_channels is not specified then this will double the number of input channels.
+    If out_channels is not specified then this will also scale the number of channels
+    up by scale_factor.
 
     Reverse of ConvBlockUpsample.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         in_channels: int,
         *,
@@ -24,6 +25,7 @@ class ConvBlockDownsample(nn.Module):
         n_subblocks: int = 2,
         norm_type: str = "batchnorm",
         out_channels: int | None = None,
+        scale_factor: int = 2,
     ) -> None:
         """Initialize a ConvBlockDownsample module.
 
@@ -33,7 +35,8 @@ class ConvBlockDownsample(nn.Module):
             kernel_size: the size of the convolutional kernel.
             n_subblocks: the number of ConvNormAct blocks to stack (default 2).
             norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
-            out_channels: the number of output channels (if None, double the input channels).
+            out_channels: the number of output channels (if None, scale input channels up by scale_factor).
+            scale_factor: the factor by which to downsample the spatial dimensions (default is 2).
 
         """
         super().__init__()
@@ -42,7 +45,9 @@ class ConvBlockDownsample(nn.Module):
             msg = f"n_subblocks must be at least 1, got {n_subblocks}."
             raise ValueError(msg)
 
-        out_channels = in_channels * 2 if out_channels is None else out_channels
+        out_channels = (
+            in_channels * scale_factor if out_channels is None else out_channels
+        )
         self.model = nn.Sequential(
             # Size reducing convolution/normalisation/activation that changes channels
             ConvNormAct(
@@ -52,7 +57,7 @@ class ConvBlockDownsample(nn.Module):
                 kernel_size=kernel_size,
                 norm_type=norm_type,
                 padding=(kernel_size - 1) // 2,
-                stride=2,
+                stride=scale_factor,
             ),
             *(
                 # Size preserving convolution/normalisation/activation that maintains channels

@@ -34,12 +34,13 @@ class TestPersistence:
             name="persistence",
             hemisphere="north",
             input_spaces=[input_space],
+            loss=cfg_loss,
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=output_space,
             optimizer={},
             scheduler={},
-            loss=cfg_loss,
+            target_variable_indices=list(range(test_output_shape[2])),
         )
         batch = {
             "input": torch.randn(
@@ -71,6 +72,7 @@ class TestPersistence:
                     "shape": (1, 1),
                 }
             ],
+            loss=cfg_loss,
             n_forecast_steps=1,
             n_history_steps=1,
             output_space={
@@ -80,7 +82,7 @@ class TestPersistence:
             },
             optimizer={},
             scheduler={},
-            loss=cfg_loss,
+            target_variable_indices=[0],
         )
         assert model.configure_optimizers() is None, (
             "No optimizer should be initialized"
