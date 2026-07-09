@@ -4,11 +4,10 @@ defaults:
   - evaluate: default
   - loggers:
     - wandb
-  - model: naive_unet_naive
+  - loss: huber
+  - model: quick_test
   - predict: sic-ssmis-2d
   - random: default
   - train: default
-  - loss: huber
+  - platform: default
   - _self_
-
-base_path: ../base

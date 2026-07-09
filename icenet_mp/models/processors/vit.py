@@ -33,9 +33,12 @@ class VitProcessor(BaseProcessor):
         """Initialize Vision Transformer model for sea ice forecasting."""
         super().__init__(**kwargs)
 
-        # Ensure input is square
+        # Ensure input is square and divisible by patch_size
         if self.data_space.shape[0] != self.data_space.shape[1]:
             msg = "The height and width of the input are not equal."
+            raise ValueError(msg)
+        if self.data_space.shape[0] % patch_size != 0:
+            msg = f"img_size {self.data_space.shape[0]} must be divisible by patch_size {patch_size}."
             raise ValueError(msg)
 
         self.img_size = self.data_space.shape[0]

@@ -45,26 +45,23 @@ uv run imp <command> ++base_path=/local/path/to/my/data
 ```
 
 !!! warning
-    `base_persistence.yaml` overrides the options in `base.yaml` needed to run the `persistence` model.
+    `baseline/00_persistence.yaml` overrides the options in `base.yaml` needed to run the `persistence` model.
 
 ## HPC systems
 
-For shared HPC systems (Baskerville, DAWN, or Isambard-AI), use the appropriate base config, which sets the pre-downloaded data path and the right GPU accelerator:
+For shared HPC systems (Baskerville, DAWN, or Isambard-AI), add the matching `platform` override, which sets the pre-downloaded data path and the right GPU accelerator:
 
-```yaml
-defaults:
-  - base_isambardai             # or base_dawn or base_isambardai
-  - override /data: full_north  # to use the full northern-hemisphere dataset instead of the sample
-  - _self_
+```bash
+uv run imp <command> --config-name <your local config>.local platform=isambardai data=full_north  # or platform=baskerville or platform=dawn
 ```
 
 ## Datasets
 
 ### Selecting a dataset
 
-The default dataset group is controlled by the `data` key, which defaults to `sample` in `base.yaml` (i.e. `config/data/sample.yaml`).
-To understand how dataset properties are encoded in dataset names, see `config/data/datasets/naming_convention.txt`.
-To define a custom set of datasets, create `config/data/my_datasets.local.yaml`:
+The default dataset group is controlled by the `data` key, which defaults to `sample` in `base.yaml` (i.e. `data/sample.yaml`).
+To understand how dataset properties are encoded in dataset names, see `data/datasets/naming_convention.txt`.
+To define a custom set of datasets, create `data/my_datasets.local.yaml`:
 
 ```yaml
 defaults:
