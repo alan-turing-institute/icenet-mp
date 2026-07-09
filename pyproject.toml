@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "icenet-mp"
-version = "0.2.0"
+version = "2026-07"
 description = "IceNet Multimodal Pipeline for predicting sea ice."
 readme = "README.md"
 authors = [
@@ -12,10 +12,12 @@ authors = [
     { name = "Simon Driscoll", email = "simondriscoll88@gmail.com" },
     { name = "Isabel Fenton", email = "ifenton@turing.ac.uk" },
     { name = "Lydia France", email = "85945427+LydiaFrance@users.noreply.github.com" },
+    { name = "Aoife Hughes", email = ""},
     { name = "Maria Carolina Novitasari", email ="124182131+marianovitasari20@users.noreply.github.com" },
     { name = "Nilo Pedrazzini", email = "npedrazzini@turing.ac.uk" },
     { name = "Erin Quan", email = "72717299+erinuclkwon@users.noreply.github.com" },
     { name = "James Robinson", email = "james.em.robinson@gmail.com" },
+    { name = "Shaerdan Shataer", email = ""},
     { name = "Louisa van Zeeland", email = "louisa-ai2@protonmail.com" },
 ]
 requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with the tensorflow requirement from icenet
