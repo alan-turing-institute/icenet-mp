@@ -18,14 +18,10 @@ On the main repo page, go to **Releases** -> **Draft a new release**.
 
 ## 3. Run the model comparison suite
 
-Once the release has been published — and before any other changes are merged — train the default set of models for a 24-hour run on Isambard, using the full dataset and all other defaults. The models tested should be the basic model suite, i.e.:
+Once the release has been published, train the default set of models for a 24-hour run on Isambard, using the tagged release version. This should use the full dataset and all other defaults. The models tested should be the basic model suite, i.e.:
 
-- Persistence
-- UNet (`naive-UNet-naive`)
-- CNN-UNet-CNN
-- CNN-ViT-CNN
-- Diffusion
-
+- persistence (or similar climatology baseline)
+- the four best performing models at release time
 For each training run, set the W&B run `name` to the version and the model type (e.g. `2026-v1-persistence`) via the local config:
 
 ```yaml
@@ -35,5 +31,7 @@ loggers:
 ```
 
 Evaluate each trained model, again using the version-based name for the evaluation run.
+
+Upload summary evaluation plots/metrics to GitHub as release attachments.
 
 Finally, copy the trained/evaluated run folders to Sharepoint as a backup.
