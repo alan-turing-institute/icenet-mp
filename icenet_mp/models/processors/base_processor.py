@@ -1,3 +1,5 @@
+from collections import deque
+
 from torch import cat, nn, stack
 
 from icenet_mp.types import DataSpace, ProcessorOutput, TensorNCHW, TensorNTCHW
@@ -83,16 +85,17 @@ class BaseProcessor(nn.Module):
 
         """
         # The current window of n_history_steps timesteps, oldest to newest
-        window: list[TensorNCHW] = [
+        window: deque[TensorNCHW] = deque(
             x[:, idx_t, :, :, :] for idx_t in range(self.n_history_steps)
-        ]
+        )
 
         # Slide the window forward, predicting one timestep at a time from the whole
         # window and then dropping the oldest timestep to make room for the prediction.
         outputs: list[TensorNCHW] = []
         for _ in range(self.n_forecast_steps):
-            next_step = self(cat(window, dim=1))
+            next_step = self(cat(list(window), dim=1))
             outputs.append(next_step)
-            window = [*window[1:], next_step]
+            window.popleft()
+            window.append(next_step)
 
         return ProcessorOutput(prediction=stack(outputs, dim=1))
