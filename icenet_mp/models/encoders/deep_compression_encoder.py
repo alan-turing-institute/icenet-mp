@@ -26,28 +26,28 @@ class DeepCompressionEncoder(BaseEncoder):
     ResBlocks with pixel-shuffle (or strided-conv) downsampling between levels.
 
     Input space:
-        TensorNTCHW with (batch_size, n_history_steps, input_channels, H, W)
+        TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
 
     Latent space:
-        TensorNTCHW with (batch_size, n_history_steps, latent_channels, H/s^D, W/s^D)
+        TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
         where s is ``stride`` and D is ``len(hid_channels)``.
     """
 
     def __init__(  # noqa: PLR0913
         self,
         *,
-        latent_channels: int,
-        hid_channels: Sequence[int] = (64, 128, 256),
-        hid_blocks: Sequence[int] = (3, 3, 3),
-        kernel_size: int = 3,
-        stride: int = 2,
-        patch_size: int = 1,
-        pixel_shuffle: bool = True,
-        norm: str = "groupnorm",
         attention_heads: dict[int, int] = {},  # noqa: B006
-        ffn_factor: int = 1,
-        periodic: bool = False,
         dropout: float | None = None,
+        ffn_factor: int = 1,
+        hid_blocks: Sequence[int] = (3, 3, 3),
+        hid_channels: Sequence[int] = (64, 128, 256),
+        kernel_size: int = 3,
+        latent_channels: int | None = None,
+        norm: str = "groupnorm",
+        patch_size: int = 1,
+        periodic: bool = False,
+        pixel_shuffle: bool = True,
+        stride: int = 2,
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionEncoder."""
@@ -57,6 +57,23 @@ class DeepCompressionEncoder(BaseEncoder):
             msg = f"hid_blocks and hid_channels must have the same length, got {len(hid_blocks)} and {len(hid_channels)}"
             raise ValueError(msg)
         in_channels = self.data_space_in.channels
+
+        # Validate the output shape is correct.
+        spatial_factor = patch_size * stride ** (len(hid_channels) - 1)
+        output_shape = (
+            self.data_space_in.shape[0] // spatial_factor,
+            self.data_space_in.shape[1] // spatial_factor,
+        )
+        if output_shape != self.data_space_out.shape:
+            msg = (
+                f"Stride {stride} and number of layers {len(hid_channels)} will encode "
+                f"inputs of shape {self.data_space_in.shape} to shape {output_shape} "
+                f"but the required latent space shape is {self.data_space_out.shape}"
+            )
+            raise ValueError(msg)
+
+        # Set latent channels to the last hidden channel if not specified
+        latent_channels = latent_channels or hid_channels[-1]
 
         conv_kwargs = {
             "kernel_size": kernel_size,

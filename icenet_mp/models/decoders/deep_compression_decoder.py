@@ -27,26 +27,26 @@ class DeepCompressionDecoder(BaseDecoder):
     layers, ending with an optional unpatchify step.
 
     Latent space:
-        TensorNTCHW with (batch_size, n_forecast_steps, latent_channels, H_lat, W_lat)
+        TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
 
     Output space:
-        TensorNTCHW with (batch_size, n_forecast_steps, output_channels, H, W)
+        TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
     def __init__(  # noqa: PLR0913
         self,
         *,
-        hid_channels: Sequence[int] = (64, 128, 256),
-        hid_blocks: Sequence[int] = (3, 3, 3),
-        kernel_size: int = 3,
-        stride: int = 2,
-        patch_size: int = 1,
-        pixel_shuffle: bool = True,
-        norm: str = "groupnorm",
         attention_heads: dict[int, int] = {},  # noqa: B006
-        ffn_factor: int = 1,
-        periodic: bool = False,
         dropout: float | None = None,
+        ffn_factor: int = 1,
+        hid_blocks: Sequence[int] = (3, 3, 3),
+        hid_channels: Sequence[int] = (64, 128, 256),
+        kernel_size: int = 3,
+        norm: str = "groupnorm",
+        patch_size: int = 1,
+        periodic: bool = False,
+        pixel_shuffle: bool = True,
+        stride: int = 2,
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionDecoder."""
@@ -57,6 +57,20 @@ class DeepCompressionDecoder(BaseDecoder):
             raise ValueError(msg)
         in_channels = self.data_space_in.channels
         out_channels = self.data_space_out.channels
+
+        # Validate the output shape is correct.
+        spatial_factor = patch_size * stride ** (len(hid_channels) - 1)
+        output_shape = (
+            self.data_space_in.shape[0] * spatial_factor,
+            self.data_space_in.shape[1] * spatial_factor,
+        )
+        if output_shape != self.data_space_out.shape:
+            msg = (
+                f"Stride {stride} and number of layers {len(hid_channels)} will decode "
+                f"latents of shape {self.data_space_in.shape} to shape {output_shape} "
+                f"but the required output shape is {self.data_space_out.shape}"
+            )
+            raise ValueError(msg)
 
         conv_kwargs = {
             "kernel_size": kernel_size,
