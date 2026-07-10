@@ -30,12 +30,12 @@
 | icenet\_mp/data\_loaders/common\_data\_module.py                |       99 |       33 |     67% |48-49, 92, 100-104, 109, 114, 119, 151, 160-162, 167, 175, 179-182, 188-204, 210-223, 229-245, 251-264 |
 | icenet\_mp/data\_loaders/single\_dataset.py                     |      141 |        5 |     96% |179, 184, 208, 282-287 |
 | icenet\_mp/data\_processors/\_\_init\_\_.py                     |        2 |        0 |    100% |           |
-| icenet\_mp/data\_processors/data\_downloader.py                 |      172 |      103 |     40% |71-72, 109-149, 153-170, 192-199, 204-261, 266-269, 278-280, 288-322 |
+| icenet\_mp/data\_processors/data\_downloader.py                 |      172 |       58 |     66% |71-72, 109-149, 153-170, 199, 222, 227-228, 234-235, 248, 266-269, 278-280, 289-290, 303-313 |
 | icenet\_mp/data\_processors/data\_downloader\_factory.py        |       11 |        4 |     64% |     19-26 |
 | icenet\_mp/data\_processors/filters/\_\_init\_\_.py             |       13 |        0 |    100% |           |
 | icenet\_mp/data\_processors/filters/nan\_to\_num\_filter.py     |        9 |        0 |    100% |           |
-| icenet\_mp/data\_processors/filters/reproject\_filter.py        |       31 |        1 |     97% |       111 |
-| icenet\_mp/data\_processors/filters/set\_geography\_filter.py   |       19 |        1 |     95% |        51 |
+| icenet\_mp/data\_processors/filters/reproject\_filter.py        |       31 |        0 |    100% |           |
+| icenet\_mp/data\_processors/filters/set\_geography\_filter.py   |       19 |        0 |    100% |           |
 | icenet\_mp/data\_processors/preprocessors/\_\_init\_\_.py       |        4 |        0 |    100% |           |
 | icenet\_mp/data\_processors/preprocessors/icenet\_sic.py        |       64 |       46 |     28% |21-27, 31, 36-67, 75-132 |
 | icenet\_mp/data\_processors/preprocessors/ipreprocessor.py      |       10 |        2 |     80% |     10-11 |
@@ -46,9 +46,9 @@
 | icenet\_mp/data\_processors/sources/lazy\_argopy.py             |       13 |        2 |     85% |     29-30 |
 | icenet\_mp/exceptions.py                                        |        3 |        0 |    100% |           |
 | icenet\_mp/geotools/\_\_init\_\_.py                             |       10 |        0 |    100% |           |
-| icenet\_mp/geotools/geographic\_field.py                        |       37 |       20 |     46% |15-16, 22, 27, 31, 40, 47, 60-71, 84 |
-| icenet\_mp/geotools/geographic\_grid.py                         |       76 |       20 |     74% |31, 40, 46, 48, 54, 60, 65-66, 70-72, 81-83, 90, 94, 98, 102, 106, 110 |
-| icenet\_mp/geotools/geographic\_metadata.py                     |       88 |       39 |     56% |14-15, 21, 26, 31, 36, 41, 45, 49-56, 60, 64, 68, 72, 76, 87-97, 101, 105, 109, 113, 117, 121, 128 |
+| icenet\_mp/geotools/geographic\_field.py                        |       37 |       16 |     57% |22, 31, 40, 47, 60-71 |
+| icenet\_mp/geotools/geographic\_grid.py                         |       76 |       19 |     75% |31, 40, 46, 48, 54, 60, 65-66, 70-72, 81-83, 90, 98, 102, 106, 110 |
+| icenet\_mp/geotools/geographic\_metadata.py                     |       88 |       31 |     65% |26, 31, 36, 41, 45, 49-56, 60, 64, 68, 72, 76, 89, 93-97, 101, 105, 109, 113, 117, 121, 128 |
 | icenet\_mp/geotools/grid\_factory.py                            |       44 |       12 |     73% |17-18, 27-30, 35-38, 59-60 |
 | icenet\_mp/geotools/reproject.py                                |       26 |        4 |     85% |36-37, 40-41 |
 | icenet\_mp/losses/\_\_init\_\_.py                               |        4 |        0 |    100% |           |
@@ -126,7 +126,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 235-236 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 336, 362-363, 441-445 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **4685** | **1378** | **71%** |           |
+| **TOTAL**                                                       | **4685** | **1318** | **72%** |           |
 
 
 ## Setup coverage badge
