@@ -1,0 +1,38 @@
+_target_: icenet_mp.models.EncodeProcessDecode
+
+name: dc_unet_dc
+
+encoders:
+  latent_space: [144, 144]
+  era5:
+    _target_: icenet_mp.models.encoders.DeepCompressionEncoder
+    hid_channels: [64, 128]
+    hid_blocks: [3, 3]
+    stride: 3
+  float-argo:
+    _target_: icenet_mp.models.encoders.DeepCompressionEncoder
+    hid_channels: [64, 128]
+    hid_blocks: [3, 3]
+    stride: 3
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.DeepCompressionEncoder
+    hid_channels: [64, 128]
+    hid_blocks: [3, 3]
+    stride: 3
+  sic-ssmis:
+    _target_: icenet_mp.models.encoders.DeepCompressionEncoder
+    hid_channels: [64, 128]
+    hid_blocks: [3, 3]
+    stride: 3
+
+processor:
+  _target_: icenet_mp.models.processors.UNetProcessor
+  start_out_channels: 64
+
+decoder:
+  _target_: icenet_mp.models.decoders.DeepCompressionDecoder
+  hid_channels: [64, 128]
+  hid_blocks: [3, 3]
+  mask_type: active
+  restrict_range: clamp
+  stride: 3
