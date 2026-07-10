@@ -22,15 +22,17 @@ logger = logging.getLogger(__name__)
 class DeepCompressionEncoder(BaseEncoder):
     """Encoder following the Deep Compression AutoEncoder (DCAE) architecture.
 
-    Applies an optional initial patchify step, then descends through levels of
-    ResBlocks with pixel-shuffle (or strided-conv) downsampling between levels.
+    Mirror of :class:`DeepCompressionDecoder`.
+
+    - (optional) initial patchify (PixelUnshuffle or Conv2d) step
+    - len(hid_blocks) layers of downsample (pixel-unshuffle or strided-conv) then hid_blocks ResBlocks
+    - final convolution to latent channels
 
     Input space:
-        TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
+        TensorNTCHW with (batch_size, n_timeslices, input_channels, input_height, input_width)
 
     Latent space:
-        TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
-        where s is ``stride`` and D is ``len(hid_channels)``.
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
     """
 
     def __init__(  # noqa: PLR0913
@@ -156,13 +158,13 @@ class DeepCompressionEncoder(BaseEncoder):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
-        """Encode a single timestep from input space to latent space.
+        """Forward step: encode input space into latent space with a DCAE encoder.
 
         Args:
-            x: TensorNCHW with (batch_size, input_channels, H, W)
+            x: TensorNCHW with (batch_size, input_channels, input_height, input_width)
 
         Returns:
-            TensorNCHW with (batch_size, latent_channels, H_lat, W_lat)
+            TensorNCHW with (batch_size, latent_channels, latent_height, latent_width)
 
         """
         return self.model(x)

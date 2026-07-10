@@ -2,7 +2,7 @@
 
 Reference:
     Deep Compression Autoencoder for Efficient High-Resolution Diffusion Models
-    (Chen et al., 2024)
+    (Chen et al., 2024) [https://arxiv.org/abs/2410.10733]
 """
 
 import logging
@@ -22,9 +22,11 @@ logger = logging.getLogger(__name__)
 class DeepCompressionDecoder(BaseDecoder):
     """Decoder following the Deep Compression AutoEncoder (DCAE) architecture.
 
-    Mirror of :class:`DeepCompressionEncoder`: ascends from latent channels through
-    layers of ResBlocks with pixel-shuffle (or nearest-upsample) upsampling between
-    layers, ending with an optional unpatchify step.
+    Mirror of :class:`DeepCompressionEncoder`.
+
+    - initial convolution from latent channels
+    - len(hid_blocks) layers of hid_blocks ResBlocks then upsample (PixelShuffle or Upsample)
+    - final convolution to output channels
 
     Latent space:
         TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
@@ -151,13 +153,13 @@ class DeepCompressionDecoder(BaseDecoder):
         self.model = nn.Sequential(*layers)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
-        """Decode a single timestep from latent space to output space.
+        """Forward step: decode latent space into output space with a DCAE decoder.
 
         Args:
-            x: TensorNCHW with (batch_size, latent_channels, H_lat, W_lat)
+            x: TensorNCHW with (batch_size, latent_channels, latent_height, latent_width)
 
         Returns:
-            TensorNCHW with (batch_size, output_channels, H, W)
+            TensorNCHW with (batch_size, output_channels, output_height, output_width)
 
         """
         return self.model(x)
