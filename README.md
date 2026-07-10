@@ -104,10 +104,10 @@
 | icenet\_mp/models/multistage/processor\_stage.py                |       65 |       44 |     32% |31-55, 72, 89-92, 102-103, 108-114, 139-175 |
 | icenet\_mp/models/persistence.py                                |       17 |        0 |    100% |           |
 | icenet\_mp/models/processors/\_\_init\_\_.py                    |        5 |        0 |    100% |           |
-| icenet\_mp/models/processors/base\_processor.py                 |       22 |        2 |     91% |     32-36 |
+| icenet\_mp/models/processors/base\_processor.py                 |       25 |        2 |     92% |     34-38 |
 | icenet\_mp/models/processors/null.py                            |       10 |        0 |    100% |           |
 | icenet\_mp/models/processors/unet.py                            |       53 |        0 |    100% |           |
-| icenet\_mp/models/processors/vit.py                             |       43 |        4 |     91% |41-42, 95-99 |
+| icenet\_mp/models/processors/vit.py                             |       43 |        4 |     91% |41-42, 101-105 |
 | icenet\_mp/types/\_\_init\_\_.py                                |        6 |        0 |    100% |           |
 | icenet\_mp/types/complex\_datatypes.py                          |       75 |        9 |     88% |63-64, 74, 161-167 |
 | icenet\_mp/types/enums.py                                       |       20 |        1 |     95% |        31 |
@@ -126,7 +126,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 235-236 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 336, 362-363, 441-445 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **4682** | **1378** | **71%** |           |
+| **TOTAL**                                                       | **4685** | **1378** | **71%** |           |
 
 
 ## Setup coverage badge
