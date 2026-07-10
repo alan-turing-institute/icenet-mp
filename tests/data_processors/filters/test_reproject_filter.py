@@ -3,8 +3,11 @@ from unittest.mock import MagicMock
 import numpy as np
 import pandas as pd
 import pytest
+from earthkit.data import SimpleFieldList
 
 from icenet_mp.data_processors.filters.reproject_filter import ReprojectFilter
+
+from .conftest import make_array_field
 
 
 class MockField:
@@ -87,3 +90,22 @@ class TestReprojectFilter:
         mock_reproject_filter.nearest_neighbours([MockField()])
         mock_reproject_filter.nearest_neighbours([MockField()])
         assert mock_nearest_neighbour_indices.call_count == 1
+
+    def test_forward_reprojects_real_fieldlist(self) -> None:
+        """Test a real ReprojectFilter against a real SimpleFieldList."""
+        field = make_array_field(
+            np.array([[1.0, 2.0], [3.0, 4.0]]),
+            lats=[80.0, 80.0, 85.0, 85.0],
+            lons=[0.0, 90.0, 0.0, 90.0],
+        )
+        data = SimpleFieldList([field])
+
+        filter_instance = ReprojectFilter(
+            crs="EPSG:6931", resolution="500km", shape=(2, 2)
+        )
+        result = filter_instance.forward(data)
+
+        assert len(result) == 1
+        output = next(iter(result))
+        assert output.to_numpy().shape == (2, 2)
+        assert output.metadata("param") == "siconc"

@@ -4,7 +4,9 @@ from datetime import datetime, timedelta
 from typing import ClassVar
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
+import xarray as xr
 from anemoi.datasets.create.recipe.dates import StartEndDates
 from anemoi.datasets.dates.groups import GroupOfDates
 from anemoi.utils.registry import Registry
@@ -174,3 +176,52 @@ class TestFTPSource:
             assert "20200101.nc" in str(calls[0])
             assert "20200102.nc" in str(calls[1])
             assert "20200103.nc" in str(calls[2])
+
+    def test_ftp_source_execute_with_load_one(self) -> None:
+        """Execute against the anemoi load_one by mocking only FTP retrbinary."""
+        date = datetime(2020, 1, 1)
+        real_dates: GroupOfDates = GroupOfDates([date], provider=self.date_range)
+
+        ds = xr.Dataset(
+            data_vars={
+                "siconc": (("time", "lat", "lon"), np.array([[[0.1, 0.2], [0.3, 0.4]]]))
+            },
+            coords={
+                "time": (
+                    "time",
+                    np.array([np.datetime64(date)]),
+                    {"standard_name": "time"},
+                ),
+                "lat": (
+                    "lat",
+                    np.array([80.0, 85.0]),
+                    {"units": "degrees_north", "standard_name": "latitude"},
+                ),
+                "lon": (
+                    "lon",
+                    np.array([0.0, 90.0]),
+                    {"units": "degrees_east", "standard_name": "longitude"},
+                ),
+            },
+        )
+        raw_bytes = ds.to_netcdf()
+
+        mock_ftp_class = MagicMock()
+        mock_ftp = MagicMock()
+        mock_ftp_class.return_value.__enter__.return_value = mock_ftp
+        mock_ftp_class.return_value.__exit__.return_value = None
+        mock_ftp.retrbinary.side_effect = lambda _cmd, write_fn: write_fn(raw_bytes)
+
+        context = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
+
+            source = FTPSource(context=context, url="ftp://example.com/data/file.nc")
+            result = source.execute(dates=real_dates)
+
+        assert len(result) == 1
+        field = next(iter(result))
+        assert field.metadata("param") == "siconc"
+        np.testing.assert_array_equal(field.to_numpy(), [[[0.1, 0.2], [0.3, 0.4]]])
+        context.trace.assert_called_once()

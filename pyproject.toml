@@ -22,7 +22,7 @@ authors = [
 ]
 requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with the tensorflow requirement from icenet
 dependencies = [
-    "anemoi-datasets>=0.5.37",
+    "anemoi-datasets>=0.5.40",
     "anemoi-transform>=0.4.1",
     "anemoi-utils>=0.5.5",
     "argopy>=1.4.0",
