@@ -24,7 +24,7 @@ requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with th
 dependencies = [
     "anemoi-datasets>=0.5.40",
     "anemoi-transform>=0.4.1",
-    "anemoi-utils>=0.5.5",
+    "anemoi-utils>=0.5.9",
     "argopy>=1.4.0",
     "cachetools>=6.1.0",
     "cdsapi>=0.7.6",
