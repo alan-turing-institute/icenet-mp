@@ -181,3 +181,43 @@ class TestArgoSource:
             )
             with pytest.raises(LookupError):
                 source.execute(dates=self.dates)
+
+    def test_argo_source_execute_with_load_one(self) -> None:
+        """Execute against the anemoi load_one by mocking only the DataFetcher."""
+        df = pd.DataFrame(
+            {
+                "LATITUDE": [10.0, 11.0],
+                "LONGITUDE": [21.0, 22.0],
+                "TEMP": [1.0, 2.0],
+            }
+        )
+        mock_region_fetcher = MagicMock()
+        mock_region_fetcher.to_dataframe.return_value = df
+        mock_fetcher_instance = MagicMock()
+        mock_fetcher_instance.region.return_value = mock_region_fetcher
+        mock_datafetcher_cls = MagicMock(return_value=mock_fetcher_instance)
+
+        context = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
+                mock_datafetcher_cls,
+                raising=False,
+            )
+
+            source = ArgoSource(
+                context=context,
+                area="20/30/0/40",
+                crs="EPSG:6931",
+                param=["TEMP"],
+                resolution="500km",
+                shape=(2, 2),
+            )
+            result = source.execute(dates=self.dates)
+
+        assert len(result) == len(self.dates.dates)
+        for field, date in zip(result, sorted(self.dates.dates), strict=True):
+            assert field.metadata("valid_datetime") == date.isoformat()
+            assert field.to_numpy().shape == (2, 2)
+        context.trace.assert_called_once()
