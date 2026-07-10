@@ -45,8 +45,14 @@ class VitProcessor(BaseProcessor):
         self.patch_size = patch_size
         self.out_channels = self.data_space.channels
 
+        # The input is a window of n_history_steps timesteps concatenated along
+        # channels (see BaseProcessor.rollout), so patch embedding must accept
+        # n_history_steps times as many channels as a single timestep has.
         self.patch_embed = PatchEmbedding(
-            self.data_space.channels, patch_size, emb_dim, self.img_size
+            self.data_space.channels * self.n_history_steps,
+            patch_size,
+            emb_dim,
+            self.img_size,
         )
         num_patches = (self.img_size // patch_size) ** 2
 
@@ -72,10 +78,10 @@ class VitProcessor(BaseProcessor):
         )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
-        """Forward pass through the ViT model for a single timestep.
+        """Forward pass through the ViT model for a window of history/forecast timesteps.
 
         Args:
-            x: TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
+            x: TensorNCHW with (batch_size, n_latent_channels_total * n_history_steps, latent_height, latent_width)
 
         Returns:
             TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
