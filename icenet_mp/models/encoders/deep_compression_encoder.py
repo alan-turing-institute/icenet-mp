@@ -7,7 +7,7 @@ Reference:
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 from torch import nn
 
@@ -77,11 +77,9 @@ class DeepCompressionEncoder(BaseEncoder):
         # Set latent channels to the last hidden channel if not specified
         latent_channels = latent_channels or hid_channels[-1]
 
-        conv_kwargs = {
-            "kernel_size": kernel_size,
-            "padding": kernel_size // 2,
-            "padding_mode": "circular" if periodic else "zeros",
-        }
+        # Set padding and padding mode for convolutions
+        padding = kernel_size // 2
+        padding_mode: Literal["circular", "zeros"] = "circular" if periodic else "zeros"
 
         # Construct list of layers
         layers: list[nn.Module] = []
@@ -102,7 +100,9 @@ class DeepCompressionEncoder(BaseEncoder):
                     nn.Conv2d(
                         patch_size**2 * in_channels,
                         hid_channels[idx],
-                        **conv_kwargs,
+                        kernel_size=kernel_size,
+                        padding=padding,
+                        padding_mode=padding_mode,
                     )
                 )
             elif pixel_shuffle:
@@ -113,7 +113,9 @@ class DeepCompressionEncoder(BaseEncoder):
                         nn.Conv2d(
                             hid_channels[idx - 1] * stride**2,
                             hid_channels[idx],
-                            **conv_kwargs,
+                            kernel_size=kernel_size,
+                            padding=padding,
+                            padding_mode=padding_mode,
                         ),
                     )
                 )
@@ -123,8 +125,10 @@ class DeepCompressionEncoder(BaseEncoder):
                     nn.Conv2d(
                         hid_channels[idx - 1],
                         hid_channels[idx],
+                        kernel_size=kernel_size,
                         stride=stride,
-                        **conv_kwargs,
+                        padding=padding,
+                        padding_mode=padding_mode,
                     )
                 )
 
@@ -132,11 +136,13 @@ class DeepCompressionEncoder(BaseEncoder):
             layers.extend(
                 ResBlock(
                     hid_channels[idx],
-                    norm=norm,
                     attention_heads=attention_heads.get(idx),
-                    ffn_factor=ffn_factor,
                     dropout=dropout,
-                    **conv_kwargs,
+                    ffn_factor=ffn_factor,
+                    kernel_size=kernel_size,
+                    norm=norm,
+                    padding_mode=padding_mode,
+                    padding=padding,
                 )
                 for _ in range(num_blocks)
             )
@@ -147,7 +153,9 @@ class DeepCompressionEncoder(BaseEncoder):
                     nn.Conv2d(
                         hid_channels[idx],
                         latent_channels,
-                        **conv_kwargs,
+                        kernel_size=kernel_size,
+                        padding=padding,
+                        padding_mode=padding_mode,
                     )
                 )
 

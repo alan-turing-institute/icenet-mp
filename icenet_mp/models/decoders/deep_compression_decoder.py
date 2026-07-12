@@ -7,7 +7,7 @@ Reference:
 
 import logging
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 from torch import nn
 
@@ -74,11 +74,9 @@ class DeepCompressionDecoder(BaseDecoder):
             )
             raise ValueError(msg)
 
-        conv_kwargs = {
-            "kernel_size": kernel_size,
-            "padding": kernel_size // 2,
-            "padding_mode": "circular" if periodic else "zeros",
-        }
+        # Set padding and padding mode for convolutions
+        padding = kernel_size // 2
+        padding_mode: Literal["circular", "zeros"] = "circular" if periodic else "zeros"
 
         # Construct list of layers
         layers: list[nn.Module] = []
@@ -94,17 +92,27 @@ class DeepCompressionDecoder(BaseDecoder):
         for idx in reversed(range(len(hid_blocks))):
             if idx + 1 == len(hid_blocks):
                 # Deepest layer: convolve from latent channels
-                layers.append(nn.Conv2d(in_channels, hid_channels[idx], **conv_kwargs))
+                layers.append(
+                    nn.Conv2d(
+                        in_channels,
+                        hid_channels[idx],
+                        kernel_size=kernel_size,
+                        padding=padding,
+                        padding_mode=padding_mode,
+                    )
+                )
 
             # Add `num_blocks` residual blocks
             layers.extend(
                 ResBlock(
                     hid_channels[idx],
-                    norm=norm,
                     attention_heads=attention_heads.get(idx),
-                    ffn_factor=ffn_factor,
                     dropout=dropout,
-                    **conv_kwargs,
+                    ffn_factor=ffn_factor,
+                    kernel_size=kernel_size,
+                    norm=norm,
+                    padding_mode=padding_mode,
+                    padding=padding,
                 )
                 for _ in range(hid_blocks[idx])
             )
@@ -125,7 +133,11 @@ class DeepCompressionDecoder(BaseDecoder):
                         (
                             nn.Upsample(scale_factor=stride, mode="nearest"),
                             nn.Conv2d(
-                                hid_channels[idx], hid_channels[idx - 1], **conv_kwargs
+                                hid_channels[idx],
+                                hid_channels[idx - 1],
+                                kernel_size=kernel_size,
+                                padding=padding,
+                                padding_mode=padding_mode,
                             ),
                         )
                     )
@@ -143,11 +155,25 @@ class DeepCompressionDecoder(BaseDecoder):
                     layers.extend(
                         (
                             nn.Upsample(scale_factor=patch_size, mode="nearest"),
-                            nn.Conv2d(hid_channels[idx], out_channels, **conv_kwargs),
+                            nn.Conv2d(
+                                hid_channels[idx],
+                                out_channels,
+                                kernel_size=kernel_size,
+                                padding=padding,
+                                padding_mode=padding_mode,
+                            ),
                         )
                     )
             else:
-                layers.append(nn.Conv2d(hid_channels[idx], out_channels, **conv_kwargs))
+                layers.append(
+                    nn.Conv2d(
+                        hid_channels[idx],
+                        out_channels,
+                        kernel_size=kernel_size,
+                        padding=padding,
+                        padding_mode=padding_mode,
+                    )
+                )
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)
