@@ -5,6 +5,8 @@ import pytest
 
 from icenet_mp.data_processors.filters.nan_to_num_filter import NanToNumFilter
 
+from .conftest import make_array_field
+
 
 @pytest.fixture
 def filter_instance() -> NanToNumFilter:
@@ -67,3 +69,16 @@ class TestNanToNumFilter:
 
         called_array = mock_nffn.call_args[0][0]
         np.testing.assert_array_equal(called_array, data)
+
+    def test_forward_transform_replaces_nan_with_real_field(
+        self, filter_instance: NanToNumFilter
+    ) -> None:
+        """Test a real NanToNumFilter against a real ArrayField."""
+        field = make_array_field(
+            np.array([1.0, np.nan]), lats=[80.0, 85.0], lons=[0.0, 90.0]
+        )
+
+        result = filter_instance.forward_transform(field)
+
+        np.testing.assert_array_equal(result.to_numpy(), [1.0, -1.0])
+        assert result.metadata("param") == "siconc"
