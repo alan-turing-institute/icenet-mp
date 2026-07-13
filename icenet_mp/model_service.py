@@ -598,7 +598,7 @@ class ModelService:
             target_encoder=target_encoder,
         )
         log.info(
-            "Training processor: (%d, %d, %d, %d) -> (%d, %d, %d, %d)",
+            "Training processor: history (%d, %d, %d, %d) -> forecast (%d, %d, %d, %d)",
             processor_model.processor.n_history_steps,
             *processor_model.processor.data_space.chw,
             processor_model.processor.n_forecast_steps,
