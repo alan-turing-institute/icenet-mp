@@ -8,21 +8,25 @@ encoders:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
     hid_channels: [64, 128]
     hid_blocks: [3, 3]
+    latent_channels: 64
     stride: 3
   float-argo:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
     hid_channels: [64, 128]
     hid_blocks: [3, 3]
+    latent_channels: 8
     stride: 3
   sic-icenet:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
     hid_channels: [64, 128]
     hid_blocks: [3, 3]
+    latent_channels: 2
     stride: 3
   sic-ssmis:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
     hid_channels: [64, 128]
     hid_blocks: [3, 3]
+    latent_channels: 16
     stride: 3
 
 processor:
