@@ -1,9 +1,13 @@
 from unittest.mock import MagicMock
 
+import numpy as np
 import pandas as pd
 import pytest
+from earthkit.data import SimpleFieldList
 
 from icenet_mp.data_processors.filters import SetGeographyFilter
+
+from .conftest import make_array_field
 
 
 @pytest.fixture
@@ -50,3 +54,20 @@ class TestSetGeographyFilter:
         geo1 = f1.cached_geography((432, 432))
         geo2 = f2.cached_geography((432, 432))
         assert geo1 is not geo2
+
+    def test_forward_wraps_real_fieldlist_with_geography(self) -> None:
+        """Test a real SetGeographyFilter against a real SimpleFieldList."""
+        values = np.array([[1.0, 2.0], [3.0, 4.0]])
+        field = make_array_field(
+            values, lats=[80.0, 80.0, 85.0, 85.0], lons=[0.0, 90.0, 0.0, 90.0]
+        )
+        data = SimpleFieldList([field])
+
+        filter_instance = SetGeographyFilter(crs="EPSG:6931", resolution="500km")
+        result = filter_instance.forward(data)
+
+        assert len(result) == 1
+        output = next(iter(result))
+        assert output.shape == (2, 2)
+        assert output.metadata("param") == "siconc"
+        np.testing.assert_array_equal(output.to_numpy(), values)
