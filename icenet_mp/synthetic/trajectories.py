@@ -89,7 +89,7 @@ def generate_multi_trajectory_dataset(
     trajectories: Sequence[MovingCircleConfig],
     *,
     gap_days: int = 2,
-    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: B008
+    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
 ) -> MultiTrajectoryDataset:
     """Concatenate independent trajectories end-to-end, with gap days between them."""
     frame_chunks: list[ArrayTHW] = []

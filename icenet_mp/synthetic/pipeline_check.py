@@ -29,7 +29,7 @@ from .zarr_writer import write_synthetic_zarr
 
 logger = logging.getLogger(__name__)
 
-SYNTHETIC_DATASET_NAME = "synthetic_sic"
+SYNTHETIC_DATASET_NAME = "synthetic-sic"
 SYNTHETIC_VARIABLE_NAME = "ice_conc"
 WANDB_ENTITY = "turing-seaice"
 
@@ -89,7 +89,9 @@ def _generate_dataset(
 ) -> tuple[Path, ArrayTHW, list, dict[str, list[dict[str, str]]]]:
     dataset_entries = list(config["data"]["datasets"].values())
     unknown = [
-        entry["name"] for entry in dataset_entries if entry["name"] != SYNTHETIC_DATASET_NAME
+        entry["name"]
+        for entry in dataset_entries
+        if entry["name"] != SYNTHETIC_DATASET_NAME
     ]
     if unknown:
         msg = (
@@ -179,7 +181,7 @@ def _check_learning(
     return reasons
 
 
-def run_synthetic_pipeline_check(
+def run_synthetic_pipeline_check(  # noqa: PLR0913
     config: DictConfig,
     *,
     output_dir: Path,

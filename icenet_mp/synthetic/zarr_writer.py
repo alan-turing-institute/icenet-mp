@@ -17,7 +17,7 @@ from icenet_mp.types import ArrayTHW
 
 def daily_dates(
     n_timesteps: int,
-    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: B008
+    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
 ) -> list[datetime.datetime]:
     """Return `n_timesteps` consecutive daily dates starting at `start_date`."""
     return [start_date + datetime.timedelta(days=step) for step in range(n_timesteps)]
@@ -28,7 +28,7 @@ def write_synthetic_zarr(
     *,
     frames: ArrayTHW,
     variable_name: str = "ice_conc",
-    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: B008
+    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
     missing_dates: list[datetime.datetime] | None = None,
 ) -> Path:
     """Write a single-variable [T, H, W] frame sequence as an anemoi-compatible zarr store.
@@ -76,9 +76,7 @@ def write_synthetic_zarr(
             "field_shape": [height, width],
             "frequency": "24h",
             "variables": [variable_name],
-            "missing_dates": [
-                d.isoformat(timespec="seconds") for d in missing_dates
-            ],
+            "missing_dates": [d.isoformat(timespec="seconds") for d in missing_dates],
             "flatten_grid": True,
             "ensemble_dimension": 2,
         }

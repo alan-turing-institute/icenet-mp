@@ -26,7 +26,9 @@ def _sanitise(key: str) -> str:
 class LocalFileLogger(Logger):
     """Write metrics, images, and videos to plain files under `save_dir`."""
 
-    def __init__(self, save_dir: str, name: str = "local_files", **_kwargs: Any) -> None:
+    def __init__(
+        self, save_dir: str, name: str = "local_files", **_kwargs: Any
+    ) -> None:
         """Write metrics/images/videos to local files instead of an external service.
 
         Args:
@@ -58,7 +60,7 @@ class LocalFileLogger(Logger):
         """Return the root directory this logger writes to."""
         return str(self._save_dir)
 
-    def log_hyperparams(self, params: Any, *args: Any, **kwargs: Any) -> None:
+    def log_hyperparams(self, params: Any, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
         """Do nothing; hyperparameters are already saved as `model_config.yaml`."""
         del params, args, kwargs
 

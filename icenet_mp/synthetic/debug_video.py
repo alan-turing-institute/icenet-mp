@@ -55,7 +55,7 @@ def write_full_dataset_video(
     output_path.write_bytes(buffer.read())
 
 
-def write_full_rollout_video(
+def write_full_rollout_video(  # noqa: PLR0913
     *,
     model: BaseModel,
     zarr_path: Path,

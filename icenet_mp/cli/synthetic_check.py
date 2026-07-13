@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 @synthetic_cli.command("check")
 @hydra_adaptor
-def check(
+def check(  # noqa: PLR0913
     config: DictConfig,
     output_dir: Annotated[
         str,
@@ -41,6 +41,7 @@ def check(
             )
         ),
     ] = 0.3,
+    *,
     debug_full_video: Annotated[
         bool,
         typer.Option(

@@ -26,7 +26,10 @@ class LossHistoryCallback(Callback):
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         self.history_path.write_text(
             json.dumps(
-                {"train_loss": self.train_loss, "validation_loss": self.validation_loss},
+                {
+                    "train_loss": self.train_loss,
+                    "validation_loss": self.validation_loss,
+                },
                 indent=2,
             )
         )
@@ -41,8 +44,10 @@ class LossHistoryCallback(Callback):
             self._write()
 
     def on_validation_epoch_end(
-        self, trainer: Trainer, pl_module: LightningModule
-    ) -> None:  # noqa: ARG002
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,  # noqa: ARG002
+    ) -> None:
         """Record the epoch's mean validation loss."""
         if trainer.sanity_checking:
             return
