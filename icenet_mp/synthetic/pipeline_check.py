@@ -225,7 +225,7 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Work on a detached copy so we never mutate the caller's config in place.
-    config = OmegaConf.create(OmegaConf.to_container(config, resolve=False))
+    config = DictConfig(OmegaConf.to_container(config, resolve=False))
     config["base_path"] = str(output_dir)
     if max_epochs is not None:
         config["train"]["trainer"]["max_epochs"] = max_epochs
