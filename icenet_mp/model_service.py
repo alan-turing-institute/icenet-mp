@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import cast
 
@@ -216,16 +217,37 @@ class ModelService:
             ),
         )
 
-    def _save_checkpoint(self, trainer: Trainer, stage_name: str) -> None:
-        """Save a stage checkpoint at a predictable path."""
-        checkpoint_path = (
-            self.build_run_directory(trainer)
-            / "checkpoints"
-            / f"{stage_name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+    def _save_stage_checkpoint(self, trainer: Trainer, stage_name: str) -> None:
+        """Save a stage checkpoint at a predictable path.
+
+        If a best checkpoint is available, it will be moved to the desired path.
+        """
+        ckpt_dir = self.build_run_directory(trainer) / "checkpoints"
+        ckpt_name = f"{stage_name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+        # Check for existing best checkpoints
+        best_model_paths = set(
+            filter(
+                None,
+                (
+                    str(getattr(callback, "best_model_path", ""))
+                    for callback in trainer.checkpoint_callbacks
+                ),
+            )
         )
-        trainer.save_checkpoint(checkpoint_path)
+        if not best_model_paths:
+            # Save a new checkpoint at the desired path
+            trainer.save_checkpoint(ckpt_dir / ckpt_name, weights_only=False)
+        elif len(best_model_paths) == 1:
+            # Move a checkpoint that already exists to the desired path
+            best_model_path = Path(best_model_paths.pop())
+            ckpt_name = f"{stage_name}.{best_model_path.name}"
+            if trainer.is_global_zero:
+                shutil.move(best_model_path, ckpt_dir / ckpt_name)
+        else:
+            msg = f"Cannot determine which of {len(best_model_paths)} checkpoints to save."
+            raise ValueError(msg)
         if trainer.is_global_zero:
-            log.info("Saved %s checkpoint to %s.", stage_name, checkpoint_path)
+            log.info("Saved %s checkpoint to %s.", stage_name, ckpt_dir / ckpt_name)
 
     def build_run_directory(self, trainer: Trainer) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
@@ -479,7 +501,7 @@ class ModelService:
             decoder_model.decoder.data_space_out.chw,
         )
         trainer = self._fit(model=decoder_model, config=config, job_stage="decoder")
-        self._save_checkpoint(trainer, "decoder")
+        self._save_stage_checkpoint(trainer, "decoder")
         return decoder_model
 
     def train_stage_encoders(
@@ -545,7 +567,7 @@ class ModelService:
                 config=config,
                 job_stage=f"encoder-{encoder.name}",
             )
-            self._save_checkpoint(trainer, f"encoder-{encoder.name}")
+            self._save_stage_checkpoint(trainer, f"encoder-{encoder.name}")
             encoder_models.append(encoder_model)
 
         return encoder_models
@@ -564,7 +586,7 @@ class ModelService:
         model.decoder.load_state_dict(processor_model.decoder.state_dict())
         log.info("Loaded pretrained weights for decoder.")
         trainer = self._fit(config=config, job_stage="finetune")
-        self._save_checkpoint(trainer, "finetune")
+        self._save_stage_checkpoint(trainer, "finetune")
 
     def train_stage_processor(
         self,
@@ -605,5 +627,5 @@ class ModelService:
             *processor_model.processor.data_space.chw,
         )
         trainer = self._fit(model=processor_model, config=config, job_stage="processor")
-        self._save_checkpoint(trainer, "processor")
+        self._save_stage_checkpoint(trainer, "processor")
         return processor_model
