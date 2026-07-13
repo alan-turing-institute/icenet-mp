@@ -1,12 +1,19 @@
 name: Synthetic pipeline check
 
-# Not yet enabled for push/PR runs -- trigger manually via workflow_dispatch until ready.
+# Trains a deliberately small UNet (start_out_channels=32 instead of 128) on the
+# synthetic moving-circle data at the minimum 32x32 grid, so the whole check fits in
+# a few minutes on a CPU runner. Two tests:
+#   1. the pipeline runs end-to-end and passes its own improvement gate
+#      (validation loss must improve >= 30% from the first epoch to the best);
+#   2. the best validation RMSE beats a lenient threshold (see below).
 on:
+  pull_request:
   workflow_dispatch:
 
 jobs:
   synthetic-pipeline-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -20,8 +27,36 @@ jobs:
         with:
           version: "0.8.3"
 
-      - name: Run synthetic moving-circle pipeline check
-        run: uv run imp synthetic check --config-name baseline/synthetic_unet --output-dir outputs/synthetic_check
+      # Test 1: the pipeline runs end-to-end and passes its improvement gate.
+      - name: Run small synthetic UNet check
+        run: >
+          uv run imp synthetic check --config-name baseline/synthetic_unet
+          model.processor.start_out_channels=32
+          train.trainer.max_epochs=12
+          --output-dir outputs/synthetic_check
+
+      # Test 2: best validation RMSE under a lenient threshold. The small model
+      # reaches ~0.43 in 12 epochs (an untrained model sits at ~0.65), so 0.55
+      # fails only if learning is broken, not on ordinary run-to-run noise.
+      - name: Check best validation RMSE against threshold
+        run: |
+          uv run python - <<'EOF'
+          import json
+
+          THRESHOLD = 0.55
+          rmses = []
+          with open("outputs/synthetic_check/report/metrics.jsonl") as f:
+              for line in f:
+                  record = json.loads(line)
+                  if "validation_rmse_mean" in record:
+                      rmses.append(record["validation_rmse_mean"])
+          best = min(rmses)
+          print(f"Best validation RMSE: {best:.4f} (threshold {THRESHOLD})")
+          if best > THRESHOLD:
+              raise SystemExit(
+                  f"FAILED: best validation RMSE {best:.4f} exceeds {THRESHOLD}"
+              )
+          EOF
 
       - name: Upload synthetic check report and plots
         if: always()
