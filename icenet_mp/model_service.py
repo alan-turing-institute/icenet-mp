@@ -310,10 +310,8 @@ class ModelService:
         if self.fully_deterministic != torch.are_deterministic_algorithms_enabled():
             log.warning(
                 "Fully deterministic mode is %s but torch deterministic algorithms are %s.",
-                "enabled" if self.fully_deterministic else "disabled",
-                "enabled"
-                if torch.are_deterministic_algorithms_enabled()
-                else "disabled",
+                ["disabled", "enabled"][self.fully_deterministic],
+                ["disabled", "enabled"][torch.are_deterministic_algorithms_enabled()],
             )
         if (
             self.fully_deterministic
