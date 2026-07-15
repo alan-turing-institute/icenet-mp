@@ -27,12 +27,14 @@ class FTPSource(Source):
         url: str,
         passwd: str = "",
         user: str = "anonymous",
+        timeout: float = 60.0,
     ) -> None:
         """Initialise the source."""
         self.context = context
         # Parse the FTP URL
         self.ftp_args = {"passwd": passwd, "user": user}
         self.server, self.path_pattern = url.replace("ftp://", "").split("/", 1)
+        self.timeout = timeout
 
     def execute(self, dates: list[datetime] | GroupOfDates) -> FieldList:
         """Execute the data loading process from an FTP source."""
@@ -46,7 +48,10 @@ class FTPSource(Source):
 
         # Connect to the FTP server
         field_lists: list[FieldList] = []
-        with TemporaryDirectory() as tmpdir, FTP(self.server) as session:  # noqa: S321
+        with (
+            TemporaryDirectory() as tmpdir,
+            FTP(self.server, timeout=self.timeout) as session,  # noqa: S321
+        ):
             base_path = Path(tmpdir)
             session.login(**self.ftp_args)
 
@@ -63,7 +68,7 @@ class FTPSource(Source):
                         field_lists.append(
                             load_one("📂", self.context, [iso_date], str(local_path))
                         )
-                    except FtpError as exc:
+                    except (FtpError, OSError) as exc:
                         msg = f"Failed to download from '{remote_path}': {exc}"
                         logger.warning(msg)
 
