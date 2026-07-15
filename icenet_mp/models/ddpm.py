@@ -544,7 +544,7 @@ class DDPM(BaseModel):
 
         """
         y = batch["target"]  # [B, T, 1, H, W]
-        y_hat = self.sample(batch).unsqueeze(2)  # [B, C_cond, 1, H, W]
+        y_hat = self.sample(batch).unsqueeze(2)  # [B, T, 1, H, W]
 
         loss = self.loss(y_hat, y)
         self.log(
