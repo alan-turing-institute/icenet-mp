@@ -165,6 +165,9 @@ class DDPM(BaseModel):
 
         self.learning_rate = learning_rate
 
+        # Only emit the ERA5-forecast-missing warning once per model instance
+        self._warned_missing_era5_forecast = False
+
         self.save_hyperparameters()
 
     def forward(self, *args: Any, **kwargs: Any) -> NoReturn:
@@ -342,6 +345,15 @@ class DDPM(BaseModel):
             if era5_forecast is not None:
                 next_era5 = era5_forecast[:, step : step + 1]
             else:
+                if not self._warned_missing_era5_forecast:
+                    warnings.warn(
+                        "era5_forecast not provided in batch, repeating the last "
+                        "observed ERA5 frame for all remaining autoregressive "
+                        "forecast steps. This may reduce forecast quality for "
+                        "longer horizons.",
+                        stacklevel=2,
+                    )
+                    self._warned_missing_era5_forecast = True
                 next_era5 = era5[:, -1:]
             era5 = torch.cat([era5, next_era5], dim=1)
 
@@ -438,7 +450,7 @@ class DDPM(BaseModel):
         # Sample random timesteps
         t = torch.randint(
             0, self.timesteps, (x.shape[0],), device=self.device
-        ).long()  # look into this
+        ).long()  
 
         # Create noisy version
         noise = torch.randn_like(y)  # B, T, H, W
