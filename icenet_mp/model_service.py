@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 from pathlib import Path
@@ -204,6 +205,19 @@ class ModelService:
             get_device_name(trainer.accelerator.name()),
         )
         trainer.fit(model=current_model, datamodule=self.data_module)
+
+        # Explicitly release cached device memory rather than delegating this to the
+        # Python garbage collector. Multistage training runs many stages in one
+        # long-lived process, so unreleased memory from earlier stages slows or blocks
+        # later stages.
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        if torch.mps.is_available():
+            torch.mps.empty_cache()
+        if torch.xpu.is_available():
+            torch.xpu.empty_cache()
+        gc.collect()
+
         return trainer
 
     def _merged_config(self, stage_name: str) -> DictConfig:
@@ -296,10 +310,8 @@ class ModelService:
         if self.fully_deterministic != torch.are_deterministic_algorithms_enabled():
             log.warning(
                 "Fully deterministic mode is %s but torch deterministic algorithms are %s.",
-                "enabled" if self.fully_deterministic else "disabled",
-                "enabled"
-                if torch.are_deterministic_algorithms_enabled()
-                else "disabled",
+                ["disabled", "enabled"][self.fully_deterministic],
+                ["disabled", "enabled"][torch.are_deterministic_algorithms_enabled()],
             )
         if (
             self.fully_deterministic
