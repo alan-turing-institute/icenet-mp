@@ -45,6 +45,7 @@ class FTPSource(Source):
             )
             for date in dates
         }
+        total = sum(len(remote_path_list) for remote_path_list in remote_paths.values())
 
         # Connect to the FTP server
         field_lists: list[FieldList] = []
@@ -56,8 +57,10 @@ class FTPSource(Source):
             session.login(**self.ftp_args)
 
             # Iterate over remote paths
+            count = 0
             for iso_date, remote_path_list in remote_paths.items():
                 for remote_path in remote_path_list:
+                    count += 1
                     directory, filename = remote_path.rsplit("/", 1)
                     local_path = base_path / filename
                     try:
@@ -69,8 +72,17 @@ class FTPSource(Source):
                             load_one("📂", self.context, [iso_date], str(local_path))
                         )
                     except (FtpError, OSError) as exc:
-                        msg = f"Failed to download from '{remote_path}': {exc}"
-                        logger.warning(msg)
+                        logger.warning(
+                            "[%d/%d] Failed to download from '%s': %s",
+                            count,
+                            total,
+                            remote_path,
+                            exc,
+                        )
+                    else:
+                        logger.info(
+                            "[%d/%d] Downloaded '%s'.", count, total, remote_path
+                        )
 
         # Combine all downloaded files into a MultiFieldList
         return MultiFieldList(field_lists)

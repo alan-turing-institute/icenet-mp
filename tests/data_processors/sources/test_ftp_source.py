@@ -249,6 +249,38 @@ class TestFTPSource:
 
             mock_ftp_class.assert_called_once_with("example.com", timeout=5.0)
 
+    def test_ftp_source_execute_logs_per_file_progress(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Each file attempt logs a [count/total] progress line, success or failure."""
+        mock_ftp_class = MagicMock()
+        mock_ftp = MagicMock()
+        mock_ftp_class.return_value.__enter__.return_value = mock_ftp
+        mock_ftp_class.return_value.__exit__.return_value = None
+        mock_ftp.retrbinary.side_effect = [None, TimeoutError("timed out"), None]
+
+        mock_load_one = MagicMock()
+        mock_load_one.return_value = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+
+            source = FTPSource(
+                context=self.mock_context,
+                url=r"ftp://example.com/data/file.nc",
+            )
+            with caplog.at_level("INFO"):
+                source.execute(dates=self.dates)
+
+        messages = [record.message for record in caplog.records]
+        assert "[1/3] Downloaded 'data/file.nc'." in messages
+        assert any(
+            message.startswith("[2/3] Failed to download from 'data/file.nc':")
+            for message in messages
+        )
+        assert "[3/3] Downloaded 'data/file.nc'." in messages
+
     def test_ftp_source_execute_handles_os_error(self) -> None:
         """A stalled/dropped connection (OSError, e.g. socket.timeout) is caught per-file."""
         mock_ftp_class = MagicMock()
