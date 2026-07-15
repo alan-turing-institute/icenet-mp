@@ -175,7 +175,7 @@ class DDPM(BaseModel):
         self,
         batch: dict[str, TensorNTCHW],
         sample_weight: torch.Tensor | None = None,  # noqa: ARG002
-    ) -> torch.Tensor:
+    ) -> TensorNCHW:
         """Generate forecasts using a reverse diffusion process.
 
         This method selects between two diffusion sampling strategies:
