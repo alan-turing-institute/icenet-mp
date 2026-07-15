@@ -103,13 +103,6 @@ class DDPM(BaseModel):
         else:
             self.base_output_channels = self.output_space.channels
 
-        self.timesteps = timesteps
-        self.cond_channels = 64
-        self.input_channels = self.cond_channels
-
-        # "InstanceNorm" calculates the mean/std per batch, removing the need for offline preprocessing
-        self.era5_norm = torch.nn.InstanceNorm3d(self.era5_space, affine=True)
-
         # For autoregressive, we predict one step at a time
         if self.use_autoregressive:
             self.output_channels = self.base_output_channels
