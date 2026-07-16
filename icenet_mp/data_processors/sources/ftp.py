@@ -12,6 +12,7 @@ from anemoi.datasets.create.sources.xarray import load_one
 from anemoi.datasets.dates.groups import GroupOfDates
 from earthkit.data.core.fieldlist import FieldList, MultiFieldList
 from earthkit.data.utils.patterns import Pattern
+from typing_extensions import override
 
 from icenet_mp.utils import to_list
 
@@ -36,16 +37,16 @@ class FTPSource(Source):
         self.server, self.path_pattern = url.replace("ftp://", "").split("/", 1)
         self.timeout = timeout
 
-    def execute(self, dates: list[datetime] | GroupOfDates) -> FieldList:
+    @override
+    def execute(self, argument: list[datetime] | GroupOfDates) -> FieldList:
         """Execute the data loading process from an FTP source."""
         # Get list of remote file paths
         remote_paths = {
             date.isoformat(): to_list(
                 Pattern(self.path_pattern).substitute(date=date, allow_extra=True)
             )
-            for date in dates
+            for date in argument
         }
-        total = sum(len(remote_path_list) for remote_path_list in remote_paths.values())
 
         # Connect to the FTP server
         field_lists: list[FieldList] = []
@@ -57,10 +58,8 @@ class FTPSource(Source):
             session.login(**self.ftp_args)
 
             # Iterate over remote paths
-            count = 0
             for iso_date, remote_path_list in remote_paths.items():
                 for remote_path in remote_path_list:
-                    count += 1
                     directory, filename = remote_path.rsplit("/", 1)
                     local_path = base_path / filename
                     try:
@@ -73,16 +72,12 @@ class FTPSource(Source):
                         )
                     except (FtpError, OSError) as exc:
                         logger.warning(
-                            "[%d/%d] Failed to download from '%s': %s",
-                            count,
-                            total,
+                            "Failed to download from '%s': %s",
                             remote_path,
                             exc,
                         )
                     else:
-                        logger.info(
-                            "[%d/%d] Downloaded '%s'.", count, total, remote_path
-                        )
+                        logger.info("Downloaded '%s'.", remote_path)
 
         # Combine all downloaded files into a MultiFieldList
         return MultiFieldList(field_lists)

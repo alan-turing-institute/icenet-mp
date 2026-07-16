@@ -63,7 +63,7 @@ class TestFTPSource:
                 user="testuser",
                 passwd="testpass",  # noqa: S106
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify FTP session was created with correct credentials
             mock_ftp_class.assert_called_once_with("example.com", timeout=60.0)
@@ -93,7 +93,7 @@ class TestFTPSource:
                 context=self.mock_context,
                 url=r"ftp://example.com/data/file.nc",
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify FTP session was created with correct credentials
             mock_ftp_class.assert_called_once_with("example.com", timeout=60.0)
@@ -130,7 +130,7 @@ class TestFTPSource:
                 context=self.mock_context,
                 url=r"ftp://data.server.com/archive/datasets/file.nc",
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify correct server was used
             mock_ftp_class.assert_called_once_with("data.server.com", timeout=60.0)
@@ -166,7 +166,7 @@ class TestFTPSource:
                 context=self.mock_context,
                 url=r"ftp://example.com/data/{date:strftime(%Y%m%d)}.nc",
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify load_one was called with correct iso dates
             calls = mock_load_one.call_args_list
@@ -218,7 +218,7 @@ class TestFTPSource:
             mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
 
             source = FTPSource(context=context, url="ftp://example.com/data/file.nc")
-            result = source.execute(dates=real_dates)
+            result = source.execute(argument=real_dates)
 
         assert len(result) == 1
         field = next(iter(result))
@@ -245,7 +245,7 @@ class TestFTPSource:
                 url=r"ftp://example.com/data/file.nc",
                 timeout=5.0,
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             mock_ftp_class.assert_called_once_with("example.com", timeout=5.0)
 
@@ -271,7 +271,7 @@ class TestFTPSource:
                 url=r"ftp://example.com/data/file.nc",
             )
             with caplog.at_level("INFO"):
-                source.execute(dates=self.dates)
+                source.execute(argument=self.dates)
 
         messages = [record.message for record in caplog.records]
         assert "[1/3] Downloaded 'data/file.nc'." in messages
@@ -301,7 +301,7 @@ class TestFTPSource:
                 url=r"ftp://example.com/data/file.nc",
             )
             # Should not raise: the OSError is caught and logged per-file.
-            result = source.execute(dates=self.dates)
+            result = source.execute(argument=self.dates)
 
             assert mock_load_one.call_count == 0
             assert len(result) == 0

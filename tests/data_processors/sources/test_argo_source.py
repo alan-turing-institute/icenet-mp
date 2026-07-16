@@ -81,7 +81,7 @@ class TestArgoSource:
                 resolution="25p0km",
                 shape=(4, 4),
             )
-            result = source.execute(dates=self.dates)
+            result = source.execute(argument=self.dates)
 
         # DataFetcher instantiated once per requested date (inside retry helper)
         assert mock_datafetcher_cls.call_count == n_dates
@@ -180,7 +180,7 @@ class TestArgoSource:
                 shape=(432, 432),
             )
             with pytest.raises(LookupError):
-                source.execute(dates=self.dates)
+                source.execute(argument=self.dates)
 
     def test_argo_source_execute_with_load_one(self) -> None:
         """Execute against the anemoi load_one by mocking only the DataFetcher."""
@@ -214,7 +214,7 @@ class TestArgoSource:
                 resolution="500km",
                 shape=(2, 2),
             )
-            result = source.execute(dates=self.dates)
+            result = source.execute(argument=self.dates)
 
         assert len(result) == len(self.dates.dates)
         for field, date in zip(result, sorted(self.dates.dates), strict=True):
