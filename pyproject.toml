@@ -49,6 +49,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "torch>=2.8.0,!=2.10.0", # uv will constantly reinstall torch 2.10.0 due to incorrect metadata https://github.com/astral-sh/uv/issues/17711
     "torchmetrics>=1.9.0",
+    "tqdm>=4.68.0",
     "typer>=0.26.8",
     "typing-extensions>=4.16.0",
     "wandb>=0.28.0",

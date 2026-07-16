@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import tqdm
 from anemoi.datasets import open_dataset
 from anemoi.datasets.commands.cleanup import Cleanup
 from anemoi.datasets.commands.finalise import Finalise
@@ -12,6 +13,7 @@ from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
 from anemoi.datasets.commands.load import Load
 from anemoi.datasets.create.recipe import Recipe
+from anemoi.datasets.usage.gridded import MissingDateError
 from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
@@ -327,29 +329,21 @@ class DataDownloader:
             raise RuntimeError(msg) from exc
 
     def integrity_check(self) -> None:
-        """Sequentially read every non-missing timestep to detect zarr corruption."""
+        """Sequentially read every non-missing date to detect zarr corruption."""
         ds = open_dataset(self.path_dataset)
         missing_indices: set[int] = set(getattr(ds, "missing", None) or ())
-        if missing_indices:
-            logger.info(
-                "Skipping %d missing date(s) during integrity check for dataset %s.",
-                len(missing_indices),
-                self.name,
-            )
-        for idx in filter(lambda idx: idx not in missing_indices, range(len(ds))):
+        for idx in tqdm.tqdm(range(len(ds)), total=len(ds), desc="Integrity check"):
             try:
-                ds[idx]
-            except Exception as exc:
-                msg = (
-                    f"Zarr integrity check failed for dataset {self.name}: "
-                    f"unreadable timestep at index {idx}."
-                )
+                if idx not in missing_indices:
+                    ds[idx]
+            except (MissingDateError, OSError) as exc:
+                msg = f"❌ Integrity check for {self.name}: date {idx} unreadable."
                 raise RuntimeError(msg) from exc
         logger.info(
-            "Zarr integrity check passed for dataset %s: %d timestep(s) verified "
-            "(%d skipped as missing).",
+            "✅ Integrity check for %s: %d/%d date(s) verified (%d known missing).",
             self.name,
             len(ds) - len(missing_indices),
+            len(ds),
             len(missing_indices),
         )
 

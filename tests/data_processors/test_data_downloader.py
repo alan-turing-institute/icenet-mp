@@ -453,7 +453,7 @@ class TestDataDownloader:
         build_zarr(mock_data_downloader.path_dataset, mock_data)
         with caplog.at_level(logging.INFO):
             mock_data_downloader.integrity_check()
-        assert "Zarr integrity check passed" in caplog.text
+        assert "✅ Integrity check" in caplog.text
 
     def test_integrity_check_skips_missing_dates(
         self,
@@ -471,8 +471,10 @@ class TestDataDownloader:
         )
         with caplog.at_level(logging.INFO):
             mock_data_downloader.integrity_check()
-        assert "Skipping 2 missing date" in caplog.text
-        assert "Zarr integrity check passed" in caplog.text
+        assert (
+            "Integrity check for test: 3/5 date(s) verified (2 known missing)."
+            in caplog.text
+        )
 
     def test_integrity_check_raises_on_corrupt_chunk(
         self,
@@ -480,16 +482,21 @@ class TestDataDownloader:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """integrity_check() raises RuntimeError if a non-missing chunk cannot be read."""
+
+        def _getitem(idx: int) -> np.ndarray:
+            if idx == 1:
+                msg = "corrupt"
+                raise OSError(msg)
+            return np.zeros((2, 2))
+
         mock_dataset = MagicMock(missing=set())
         mock_dataset.__len__.return_value = 3
-        mock_dataset.__getitem__.side_effect = [
-            np.zeros((2, 2)),
-            OSError("corrupt"),
-            None,
-        ]
+        mock_dataset.__getitem__.side_effect = _getitem
         monkeypatch.setattr(
             "icenet_mp.data_processors.data_downloader.open_dataset",
             lambda _: mock_dataset,
         )
-        with pytest.raises(RuntimeError, match="Zarr integrity check failed"):
+        with pytest.raises(
+            RuntimeError, match="Integrity check for test: date 1 unreadable"
+        ):
             mock_data_downloader.integrity_check()
