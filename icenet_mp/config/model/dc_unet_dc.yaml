@@ -6,28 +6,28 @@ encoders:
   latent_space: [144, 144]
   era5:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [64, 128]
+    hid_channels: [96, 192]
     hid_blocks: [1, 1]
-    latent_channels: 64
+    latent_channels: 96
     pixel_shuffle: false
     stride: 3
   float-argo:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [64, 128]
+    hid_channels: [32, 64]
     hid_blocks: [1, 1]
     latent_channels: 8
     pixel_shuffle: false
     stride: 3
   sic-icenet:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [64, 128]
+    hid_channels: [32, 64]
     hid_blocks: [1, 1]
     latent_channels: 2
     pixel_shuffle: false
     stride: 3
   sic-ssmis:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [64, 128]
+    hid_channels: [32, 64]
     hid_blocks: [1, 1]
     latent_channels: 16
     pixel_shuffle: false
@@ -42,5 +42,5 @@ decoder:
   hid_channels: [64, 128]
   hid_blocks: [1, 1]
   mask_type: active
-  restrict_range: clamp
+  restrict_range: sigmoid
   stride: 3
