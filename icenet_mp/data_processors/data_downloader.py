@@ -299,10 +299,11 @@ class DataDownloader:
                         path=str(self.path_dataset),
                         detailed=True,
                         progress=False,
-                        statistics=False,  # recalculate statistics on-the-fly
+                        statistics=False,  # anemoi's brute-force stats crash on missing dates; integrity_check() reads the data instead
                         size=True,
                     )
                 )
+                self.integrity_check()
             else:
                 ds_info = InspectZarr()._info(str(self.path_dataset))
                 logger.info("  Path    : %s", ds_info.path)
@@ -324,6 +325,33 @@ class DataDownloader:
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
             raise RuntimeError(msg) from exc
+
+    def integrity_check(self) -> None:
+        """Sequentially read every non-missing timestep to detect zarr corruption."""
+        ds = open_dataset(self.path_dataset)
+        missing_indices: set[int] = set(getattr(ds, "missing", None) or ())
+        if missing_indices:
+            logger.info(
+                "Skipping %d missing date(s) during integrity check for dataset %s.",
+                len(missing_indices),
+                self.name,
+            )
+        for idx in filter(lambda idx: idx not in missing_indices, range(len(ds))):
+            try:
+                ds[idx]
+            except Exception as exc:
+                msg = (
+                    f"Zarr integrity check failed for dataset {self.name}: "
+                    f"unreadable timestep at index {idx}."
+                )
+                raise RuntimeError(msg) from exc
+        logger.info(
+            "Zarr integrity check passed for dataset %s: %d timestep(s) verified "
+            "(%d skipped as missing).",
+            self.name,
+            len(ds) - len(missing_indices),
+            len(missing_indices),
+        )
 
     def load_in_chunks(self) -> None:
         """Download a single Anemoi dataset in chunks, skipping those already present."""

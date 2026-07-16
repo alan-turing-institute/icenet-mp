@@ -274,12 +274,11 @@ class TestFTPSource:
                 source.execute(argument=self.dates)
 
         messages = [record.message for record in caplog.records]
-        assert "[1/3] Downloaded 'data/file.nc'." in messages
+        assert "Downloaded 'data/file.nc'." in messages
         assert any(
-            message.startswith("[2/3] Failed to download from 'data/file.nc':")
+            message.startswith("Failed to download from 'data/file.nc':")
             for message in messages
         )
-        assert "[3/3] Downloaded 'data/file.nc'." in messages
 
     def test_ftp_source_execute_handles_os_error(self) -> None:
         """A stalled/dropped connection (OSError, e.g. socket.timeout) is caught per-file."""
