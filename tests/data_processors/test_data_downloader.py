@@ -352,6 +352,38 @@ class TestDataDownloader:
         np.testing.assert_array_equal(np.load(land_mask_path), [[0, 1], [1, 1]])
         np.testing.assert_array_equal(np.load(active_mask_path), [[0, 1], [0, 1]])
 
+    def test_generate_masks_skips_missing_leading_date(
+        self,
+        mock_data_downloader_ssmis: DataDownloader,
+        mock_data_status_flag: dict[str, dict[str, Any]],
+    ) -> None:
+        """A missing index 0 must not crash the status_flag conversion (regression, #379)."""
+        dates = mock_data_status_flag["coords"]["time"]["data"]
+        data_with_gap = dict(mock_data_status_flag)
+        data_with_gap["coords"] = {
+            **mock_data_status_flag["coords"],
+            "time": {**mock_data_status_flag["coords"]["time"], "data": dates[1:]},
+        }
+        data_with_gap["data_vars"] = {
+            "status_flag": {
+                **mock_data_status_flag["data_vars"]["status_flag"],
+                "data": mock_data_status_flag["data_vars"]["status_flag"]["data"][1:],
+            }
+        }
+        build_zarr(
+            mock_data_downloader_ssmis.path_dataset,
+            data_with_gap,
+            full_dates=dates,
+            missing_dates=[dates[0]],
+        )
+
+        mock_data_downloader_ssmis.generate_masks(overwrite=False)
+
+        land_mask_path = mock_data_downloader_ssmis.path_masks / "land_mask.npy"
+        active_mask_path = mock_data_downloader_ssmis.path_masks / "active_mask.npy"
+        np.testing.assert_array_equal(np.load(land_mask_path), [[0, 1], [1, 1]])
+        np.testing.assert_array_equal(np.load(active_mask_path), [[0, 1], [0, 1]])
+
     def test_generate_masks_skips_non_ssmis_dataset(
         self, mock_data_downloader: DataDownloader
     ) -> None:
