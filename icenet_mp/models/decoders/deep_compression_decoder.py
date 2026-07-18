@@ -25,7 +25,7 @@ class DeepCompressionDecoder(BaseDecoder):
     Mirror of :class:`DeepCompressionEncoder`.
 
     - initial convolution from latent channels
-    - len(hid_blocks) layers of hid_blocks ResBlocks then upsample (PixelShuffle or Upsample)
+    - `len(hid_blocks) - 1` layers of `hid_blocks[i]` ResBlocks then upsample (PixelShuffle or Upsample)
     - final convolution to output channels
 
     Latent space:

@@ -13,7 +13,7 @@ encoders:
     stride: 3
   float-argo:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [48, 96]
+    hid_channels: [64, 128]
     hid_blocks: [1, 1]
     latent_channels: 8
     pixel_shuffle: false
@@ -39,7 +39,7 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.DeepCompressionDecoder
-  hid_channels: [96, 192]
+  hid_channels: [64, 128]
   hid_blocks: [1, 1]
   mask_type: active
   restrict_range: sigmoid

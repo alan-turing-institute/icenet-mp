@@ -25,7 +25,7 @@ class DeepCompressionEncoder(BaseEncoder):
     Mirror of :class:`DeepCompressionDecoder`.
 
     - (optional) initial patchify (PixelUnshuffle or Conv2d) step
-    - len(hid_blocks) layers of downsample (pixel-unshuffle or strided-conv) then hid_blocks ResBlocks
+    - `len(hid_blocks) - 1` layers of downsample (pixel-unshuffle or strided-conv) then `hid_blocks[i]` ResBlocks
     - final convolution to latent channels
 
     Input space:
