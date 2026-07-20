@@ -1,9 +1,12 @@
 """Tests for the FTP data source."""
 
 from datetime import datetime, timedelta
+from typing import ClassVar
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
+import xarray as xr
 from anemoi.datasets.create.recipe.dates import StartEndDates
 from anemoi.datasets.dates.groups import GroupOfDates
 from anemoi.utils.registry import Registry
@@ -14,13 +17,13 @@ from icenet_mp.data_processors.sources import FTPSource, register_sources
 class TestFTPSource:
     """Test suite for FTPSource class."""
 
-    mock_context = MagicMock()
-    date_range = StartEndDates(
+    mock_context: ClassVar[MagicMock] = MagicMock()
+    date_range: ClassVar[StartEndDates] = StartEndDates(
         start=datetime(2020, 1, 1),
         end=datetime(2020, 1, 3),
         frequency=timedelta(days=1),
     )
-    dates = GroupOfDates(list(date_range), provider=date_range)
+    dates: ClassVar[GroupOfDates] = GroupOfDates(list(date_range), provider=date_range)
 
     def test_ftp_source_registration(self) -> None:
         """Test that FTPSource is properly registered."""
@@ -60,10 +63,10 @@ class TestFTPSource:
                 user="testuser",
                 passwd="testpass",  # noqa: S106
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify FTP session was created with correct credentials
-            mock_ftp_class.assert_called_once_with("example.com")
+            mock_ftp_class.assert_called_once_with("example.com", timeout=60.0)
             mock_ftp.login.assert_called_once_with(user="testuser", passwd="testpass")  # noqa: S106
 
             # Verify load_one was called for each date
@@ -90,10 +93,10 @@ class TestFTPSource:
                 context=self.mock_context,
                 url=r"ftp://example.com/data/file.nc",
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify FTP session was created with correct credentials
-            mock_ftp_class.assert_called_once_with("example.com")
+            mock_ftp_class.assert_called_once_with("example.com", timeout=60.0)
             mock_ftp.login.assert_called_once_with(user="anonymous", passwd="")
 
             # Verify load_one was called for each date
@@ -127,10 +130,10 @@ class TestFTPSource:
                 context=self.mock_context,
                 url=r"ftp://data.server.com/archive/datasets/file.nc",
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify correct server was used
-            mock_ftp_class.assert_called_once_with("data.server.com")
+            mock_ftp_class.assert_called_once_with("data.server.com", timeout=60.0)
 
             # Verify directory change was attempted
             mock_ftp.cwd.assert_called_with("/archive/datasets")
@@ -163,7 +166,7 @@ class TestFTPSource:
                 context=self.mock_context,
                 url=r"ftp://example.com/data/{date:strftime(%Y%m%d)}.nc",
             )
-            source.execute(dates=self.dates)
+            source.execute(argument=self.dates)
 
             # Verify load_one was called with correct iso dates
             calls = mock_load_one.call_args_list
@@ -173,3 +176,131 @@ class TestFTPSource:
             assert "20200101.nc" in str(calls[0])
             assert "20200102.nc" in str(calls[1])
             assert "20200103.nc" in str(calls[2])
+
+    def test_ftp_source_execute_with_load_one(self) -> None:
+        """Execute against the anemoi load_one by mocking only FTP retrbinary."""
+        date = datetime(2020, 1, 1)
+        real_dates: GroupOfDates = GroupOfDates([date], provider=self.date_range)
+
+        ds = xr.Dataset(
+            data_vars={
+                "siconc": (("time", "lat", "lon"), np.array([[[0.1, 0.2], [0.3, 0.4]]]))
+            },
+            coords={
+                "time": (
+                    "time",
+                    np.array([np.datetime64(date)]),
+                    {"standard_name": "time"},
+                ),
+                "lat": (
+                    "lat",
+                    np.array([80.0, 85.0]),
+                    {"units": "degrees_north", "standard_name": "latitude"},
+                ),
+                "lon": (
+                    "lon",
+                    np.array([0.0, 90.0]),
+                    {"units": "degrees_east", "standard_name": "longitude"},
+                ),
+            },
+        )
+        raw_bytes = ds.to_netcdf()
+
+        mock_ftp_class = MagicMock()
+        mock_ftp = MagicMock()
+        mock_ftp_class.return_value.__enter__.return_value = mock_ftp
+        mock_ftp_class.return_value.__exit__.return_value = None
+        mock_ftp.retrbinary.side_effect = lambda _cmd, write_fn: write_fn(raw_bytes)
+
+        context = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
+
+            source = FTPSource(context=context, url="ftp://example.com/data/file.nc")
+            result = source.execute(argument=real_dates)
+
+        assert len(result) == 1
+        field = next(iter(result))
+        assert field.metadata("param") == "siconc"
+        np.testing.assert_array_equal(field.to_numpy(), [[[0.1, 0.2], [0.3, 0.4]]])
+        context.trace.assert_called_once()
+
+    def test_ftp_source_custom_timeout(self) -> None:
+        """Test that a custom timeout is passed through to the FTP connection."""
+        mock_ftp_class = MagicMock()
+        mock_ftp = MagicMock()
+        mock_ftp_class.return_value.__enter__.return_value = mock_ftp
+        mock_ftp_class.return_value.__exit__.return_value = None
+
+        mock_load_one = MagicMock()
+        mock_load_one.return_value = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+
+            source = FTPSource(
+                context=self.mock_context,
+                url=r"ftp://example.com/data/file.nc",
+                timeout=5.0,
+            )
+            source.execute(argument=self.dates)
+
+            mock_ftp_class.assert_called_once_with("example.com", timeout=5.0)
+
+    def test_ftp_source_execute_logs_per_file_progress(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Each file attempt logs a [count/total] progress line, success or failure."""
+        mock_ftp_class = MagicMock()
+        mock_ftp = MagicMock()
+        mock_ftp_class.return_value.__enter__.return_value = mock_ftp
+        mock_ftp_class.return_value.__exit__.return_value = None
+        mock_ftp.retrbinary.side_effect = [None, TimeoutError("timed out"), None]
+
+        mock_load_one = MagicMock()
+        mock_load_one.return_value = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+
+            source = FTPSource(
+                context=self.mock_context,
+                url=r"ftp://example.com/data/file.nc",
+            )
+            with caplog.at_level("INFO"):
+                source.execute(argument=self.dates)
+
+        messages = [record.message for record in caplog.records]
+        assert "Downloaded 'data/file.nc'." in messages
+        assert any(
+            message.startswith("Failed to download from 'data/file.nc':")
+            for message in messages
+        )
+
+    def test_ftp_source_execute_handles_os_error(self) -> None:
+        """A stalled/dropped connection (OSError, e.g. socket.timeout) is caught per-file."""
+        mock_ftp_class = MagicMock()
+        mock_ftp = MagicMock()
+        mock_ftp_class.return_value.__enter__.return_value = mock_ftp
+        mock_ftp_class.return_value.__exit__.return_value = None
+        mock_ftp.retrbinary.side_effect = TimeoutError("timed out")
+
+        mock_load_one = MagicMock()
+        mock_load_one.return_value = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+
+            source = FTPSource(
+                context=self.mock_context,
+                url=r"ftp://example.com/data/file.nc",
+            )
+            # Should not raise: the OSError is caught and logged per-file.
+            result = source.execute(argument=self.dates)
+
+            assert mock_load_one.call_count == 0
+            assert len(result) == 0

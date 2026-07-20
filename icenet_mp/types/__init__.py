@@ -1,7 +1,9 @@
-from .complex_datatypes import DataSpace, ModelStepOutput
-from .enums import BetaSchedule, RangeRestriction, TensorDimensions
+from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
+from .enums import BetaSchedule, MaskType, RangeRestriction, TensorDimensions
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
+    AnemoiCleanupArgs,
+    AnemoiDatasetStatus,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
     AnemoiInspectArgs,
@@ -9,7 +11,7 @@ from .simple_datatypes import (
     DataloaderArgs,
     DiffColourmapSpec,
     Metadata,
-    PlotSpec,
+    ProcessorOutput,
 )
 from .typedefs import (
     ArrayCHW,
@@ -26,6 +28,8 @@ from .typedefs import (
 )
 
 __all__ = [
+    "AnemoiCleanupArgs",
+    "AnemoiDatasetStatus",
     "AnemoiFinaliseArgs",
     "AnemoiInitArgs",
     "AnemoiInspectArgs",
@@ -43,9 +47,11 @@ __all__ = [
     "DiffMode",
     "DiffStrategy",
     "Hemisphere",
+    "MaskType",
     "Metadata",
     "ModelStepOutput",
     "PlotSpec",
+    "ProcessorOutput",
     "RangeRestriction",
     "SupportsMetadata",
     "TensorDimensions",

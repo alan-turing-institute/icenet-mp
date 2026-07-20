@@ -50,8 +50,13 @@ class UNetProcessor(BaseProcessor):
         channels = [start_out_channels * 2**exponent for exponent in range(4)]
 
         # Encoder
+        # The input is a window of n_history_steps timesteps concatenated along
+        # channels (see BaseProcessor.rollout), so the first layer must accept
+        # n_history_steps times as many channels as a single timestep has.
         self.conv1 = CommonConvBlock(
-            self.data_space.channels, channels[0], kernel_size=kernel_size
+            self.data_space.channels * self.n_history_steps,
+            channels[0],
+            kernel_size=kernel_size,
         )
         self.maxpool1 = nn.MaxPool2d(kernel_size=2)
         self.conv2 = CommonConvBlock(channels[0], channels[1], kernel_size=kernel_size)
@@ -83,10 +88,10 @@ class UNetProcessor(BaseProcessor):
         )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
-        """Forward step: apply UNet model to NCHW tensor for a single timestep.
+        """Forward step: apply UNet model to a window of history/forecast timesteps.
 
         Args:
-            x: TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
+            x: TensorNCHW with (batch_size, n_latent_channels_total * n_history_steps, latent_height, latent_width)
 
         Returns:
             TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
@@ -94,7 +99,10 @@ class UNetProcessor(BaseProcessor):
         """
         _, _, h, w = x.shape
         if h % 16 or h <= 16 or w % 16 or w <= 16:  # noqa: PLR2004
-            msg = f"Latent space height and width must be divisible by 16 with a factor more than 1, got {h} and {w}."
+            msg = (
+                f"Latent space height ({h}) and width ({w}) must each be divisible by "
+                f"16 with a factor more than 1."
+            )
             raise ValueError(msg)
 
         # Encoder

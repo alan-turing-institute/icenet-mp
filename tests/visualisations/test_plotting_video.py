@@ -61,19 +61,21 @@ class TestPlotVideoPrediction:
         spec = replace(
             DEFAULT_SIC_SPEC, include_difference=True, video_format=video_format
         )
+        variable_name = "test-variable"
 
         result = plot_video_prediction(
             ground_truth,
             prediction,
             dates=dates,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=spec,
+            variable_name=variable_name,
         )
 
         # Reference the fixture to avoid unused-argument lint error
         assert fake_video_from_animation is not None
 
-        expected_key = f"sea-ice-concentration-{TEST_DATE.strftime('%Y-%m-%d')}"
+        expected_key = f"{TEST_DATE.strftime('%Y-%m-%d')}-{variable_name}"
         assert expected_key in result
         buffer = result[expected_key]
         assert isinstance(buffer, io.BytesIO)
@@ -92,7 +94,7 @@ class TestPlotVideoSingleInput:
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
         )
 
@@ -134,7 +136,7 @@ class TestPlotVideoSingleInput:
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
         )
 
@@ -164,7 +166,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 wrong_dim_array,
                 dates=test_dates_short,
-                land_mask=LandMask(None, "north"),
+                land_mask=LandMask(None),
                 plot_spec=base_plot_spec,
             )
 
@@ -177,13 +179,13 @@ class TestPlotVideoSingleInput:
         wrong_dates = [TEST_DATE]  # Only 1 date for 2 timesteps
 
         with pytest.raises(
-            InvalidArrayError, match="Number of dates.*!= number of timesteps"
+            InvalidArrayError, match=r"Number of dates.*!= number of timesteps"
         ):
             plot_video_single_input(
                 "era5:2t",
                 era5_temperature_thw,
                 dates=wrong_dates,
-                land_mask=LandMask(None, "north"),
+                land_mask=LandMask(None),
                 plot_spec=base_plot_spec,
             )
 
@@ -213,14 +215,14 @@ class TestPlotVideoInputs:
 
         results = plot_video_inputs(
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             variables=variables,
         )
 
         assert len(results) == len(variables)
         for name in variables:
-            key = f"{name}-{test_dates_short[0].strftime('%Y-%m-%d')}"
+            key = f"{test_dates_short[0].strftime('%Y-%m-%d')}-{name}"
             assert key in results
             video_buffer = results[key]
             assert isinstance(video_buffer, io.BytesIO)
@@ -237,7 +239,7 @@ class TestPlotVideoInputs:
         # Create videos
         video_results = plot_video_inputs(
             dates=test_dates_short,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             variables=multi_channel_thw,
         )

@@ -10,12 +10,12 @@ from anemoi.datasets.create.source import Source
 from anemoi.datasets.create.sources import source_registry
 from anemoi.datasets.create.sources.xarray import load_one
 from anemoi.datasets.dates.groups import GroupOfDates
-from argopy import DataFetcher
-from argopy.errors import NoData
 from earthkit.data import FieldList
 from haversine import Unit, haversine_vector
 from pandas import DataFrame
+from typing_extensions import override
 
+from icenet_mp.data_processors.sources import lazy_argopy as argopy
 from icenet_mp.geotools import grid_factory
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,8 @@ class ArgoSource(Source):
             msg = f"Invalid area: {area}. Expected format: 'N/W/S/E'"
             raise ValueError(msg)
 
-    def execute(self, dates: list[datetime] | GroupOfDates) -> FieldList:
+    @override
+    def execute(self, argument: list[datetime] | GroupOfDates) -> FieldList:
         """Download Argo float data within given date range."""
         # Construct the grid that we want to project onto
         grid_points = np.stack(
@@ -72,7 +73,7 @@ class ArgoSource(Source):
         logger.info("Created grid with %d latitudes and %d longitudes.", *grid_shape)
 
         # Create a dummy data structure of the correct shape
-        requested_dates: list[datetime] = sorted(date for date in dates)
+        requested_dates: list[datetime] = sorted(date for date in argument)
 
         weighted_data: dict[str, np.ndarray] = {
             variable: np.full((len(requested_dates), *grid_shape), np.nan, dtype=float)
@@ -186,7 +187,7 @@ class ArgoSource(Source):
 def _fetch_argo_dataframe_with_retry(
     region: list[float],
     time_window: list[datetime],
-    max_attempts: int = 5,
+    max_attempts: int = 10,
     initial_backoff_s: float = 0.5,
 ) -> DataFrame:
     """Fetch Argo data with exponential backoff.
@@ -212,7 +213,7 @@ def _fetch_argo_dataframe_with_retry(
     # Download from ERDDAP with exponential backoff
     for attempt in range(1, max_attempts + 1):
         try:
-            return DataFetcher().region(region + time_window).to_dataframe()
+            return argopy.DataFetcher().region(region + time_window).to_dataframe()
         except (FileNotFoundError, TimeoutError) as exc:
             # Annoyingly, both 50x errors and 404 errors raise a FileNotFoundError and
             # the error message does not contain the HTTP status code so we need to
@@ -229,7 +230,7 @@ def _fetch_argo_dataframe_with_retry(
             backoff = initial_backoff_s * (2 ** (attempt - 1))
             logger.info("Retrying download in %.1fs.", backoff)
             time.sleep(backoff)
-        except NoData as exc:
+        except argopy.NoData as exc:
             msg = f"{data_target} is unavailable."
             logger.warning(msg)
             raise LookupError(msg) from exc

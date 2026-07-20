@@ -1,6 +1,7 @@
 """Tests for the Argo data source."""
 
 from datetime import datetime, timedelta
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -16,13 +17,13 @@ from icenet_mp.data_processors.sources.argo import _fetch_argo_dataframe_with_re
 class TestArgoSource:
     """Test suite for ArgoSource class."""
 
-    mock_context = MagicMock()
-    date_range = StartEndDates(
+    mock_context: ClassVar[MagicMock] = MagicMock()
+    date_range: ClassVar[StartEndDates] = StartEndDates(
         start=datetime(2020, 1, 1),
         end=datetime(2020, 1, 3),
         frequency=timedelta(days=1),
     )
-    dates = GroupOfDates(list(date_range), provider=date_range)
+    dates: ClassVar[GroupOfDates] = GroupOfDates(list(date_range), provider=date_range)
 
     def test_argo_source_registration(self) -> None:
         """Test that ArgoSource is properly registered."""
@@ -66,8 +67,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher",
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
                 mock_datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.load_one", mock_load_one)
 
@@ -79,7 +81,7 @@ class TestArgoSource:
                 resolution="25p0km",
                 shape=(4, 4),
             )
-            result = source.execute(dates=self.dates)
+            result = source.execute(argument=self.dates)
 
         # DataFetcher instantiated once per requested date (inside retry helper)
         assert mock_datafetcher_cls.call_count == n_dates
@@ -108,7 +110,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher", datafetcher_cls
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
+                datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.time.sleep", MagicMock())
 
@@ -134,7 +138,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher", datafetcher_cls
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
+                datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.time.sleep", MagicMock())
 
@@ -159,8 +165,9 @@ class TestArgoSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.argo.DataFetcher",
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
                 mock_datafetcher_cls,
+                raising=False,
             )
             mp.setattr("icenet_mp.data_processors.sources.argo.load_one", MagicMock())
 
@@ -173,4 +180,44 @@ class TestArgoSource:
                 shape=(432, 432),
             )
             with pytest.raises(LookupError):
-                source.execute(dates=self.dates)
+                source.execute(argument=self.dates)
+
+    def test_argo_source_execute_with_load_one(self) -> None:
+        """Execute against the anemoi load_one by mocking only the DataFetcher."""
+        df = pd.DataFrame(
+            {
+                "LATITUDE": [10.0, 11.0],
+                "LONGITUDE": [21.0, 22.0],
+                "TEMP": [1.0, 2.0],
+            }
+        )
+        mock_region_fetcher = MagicMock()
+        mock_region_fetcher.to_dataframe.return_value = df
+        mock_fetcher_instance = MagicMock()
+        mock_fetcher_instance.region.return_value = mock_region_fetcher
+        mock_datafetcher_cls = MagicMock(return_value=mock_fetcher_instance)
+
+        context = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(
+                "icenet_mp.data_processors.sources.lazy_argopy.DataFetcher",
+                mock_datafetcher_cls,
+                raising=False,
+            )
+
+            source = ArgoSource(
+                context=context,
+                area="20/30/0/40",
+                crs="EPSG:6931",
+                param=["TEMP"],
+                resolution="500km",
+                shape=(2, 2),
+            )
+            result = source.execute(argument=self.dates)
+
+        assert len(result) == len(self.dates.dates)
+        for field, date in zip(result, sorted(self.dates.dates), strict=True):
+            assert field.metadata("valid_datetime") == date.isoformat()
+            assert field.to_numpy().shape == (2, 2)
+        context.trace.assert_called_once()

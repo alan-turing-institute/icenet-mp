@@ -1,10 +1,12 @@
 defaults:
   - callbacks:
-    - device_stats
+    - best_checkpoint
+    - early_stopping
     - ema_weight_averaging
     - learning_rate
     - metric_summary
     - plotting
+  - multistage: default
   - optimizer: default
   - scheduler: default
   - trainer: default

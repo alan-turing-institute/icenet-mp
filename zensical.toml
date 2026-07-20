@@ -1,0 +1,70 @@
+[project]
+site_name = "IceNet-MP"
+docs_dir = "docs/src"
+repo_name = "alan-turing-institute/icenet-mp"
+repo_url = "https://github.com/alan-turing-institute/icenet-mp"
+site_dir = "docs/_build"
+
+# Structure
+nav = [
+    { "Home" = "index.md" },
+    { "User Guide" = [
+        { "Overview" = "user-guide/index.md" },
+        { "Installation" = "user-guide/installation.md" },
+        { "Configuration" = "user-guide/configuration.md" },
+        { "Commands" = "user-guide/commands.md" },
+    ] },
+    { "How-to" = [
+        { "Overview" = "how-to/index.md" },
+        { "Add a model" = "how-to/add-a-model.md" },
+        { "Add a processor" = "how-to/add-a-processor.md" },
+        { "Train a model" = "how-to/train.md" },
+        { "Train a model in multiple stages" = "how-to/train-multistage.md" },
+        { "Evaluate a model" = "how-to/evaluate.md" },
+        { "Create a release" = "how-to/release.md" },
+    ] },
+    { "API Reference" = [
+        { "Overview" = "api/index.md" },
+        { "Callbacks" = "api/callbacks.md" },
+        { "Compatibility" = "api/compatibility.md" },
+        { "Data Loaders" = "api/data_loaders.md" },
+        { "Data Processors" = "api/data_processors.md" },
+        { "Geotools" = "api/geotools.md" },
+        { "Losses" = "api/losses.md" },
+        { "Metrics" = "api/metrics.md" },
+        { "Models" = "api/models.md" },
+        { "Types" = "api/types.md" },
+        { "Visualisations" = "api/visualisations.md" },
+        { "Configuration YAML" = "api/config.md" },
+    ] },
+]
+
+[project.theme]
+variant = "classic"
+features = [
+    "navigation.indexes",
+    "navigation.sections",
+    "navigation.top",
+    "toc.integrate",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "indigo"
+accent = "indigo"
+
+# mkdocstrings configuration
+[project.plugins.mkdocstrings.handlers.python]
+inventories = ["https://docs.python.org/3/objects.inv"]
+paths = ["icenet_mp"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "google"
+filters = ["!^__all__$", "!^_"]
+inherited_members = false
+members_order = "source"
+show_if_no_docstring = true
+show_root_full_path = false
+show_root_heading = false
+show_root_toc_entry = false
+show_source = false

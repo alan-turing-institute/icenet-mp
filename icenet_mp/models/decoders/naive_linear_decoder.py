@@ -1,7 +1,6 @@
 from typing import Any
 
 from torch import nn
-from torch.nn.functional import sigmoid
 
 from icenet_mp.models.common import ResizingInterpolation
 from icenet_mp.types import TensorNCHW
@@ -13,18 +12,15 @@ class NaiveLinearDecoder(BaseDecoder):
     """Naive, linear decoder that takes data in a latent space and translates it to a larger output space.
 
     Latent space:
-        TensorNTCHW with (batch_size, n_forecast_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
 
     Output space:
-        TensorNTCHW with (batch_size, n_forecast_steps, output_channels, output_height, output_width)
+        TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
-    def __init__(self, *, bounded: bool = False, **kwargs: Any) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """Initialise a NaiveLinearDecoder."""
         super().__init__(**kwargs)
-
-        # specify whether the output is bounded between 0 and 1
-        self.bounded = bounded
 
         # List of layers
         layers: list[nn.Module] = []
@@ -51,6 +47,4 @@ class NaiveLinearDecoder(BaseDecoder):
             TensorNCHW with (batch_size, output_channels, output_height, output_width)
 
         """
-        if self.bounded:
-            return sigmoid(self.model(x))
         return self.model(x)

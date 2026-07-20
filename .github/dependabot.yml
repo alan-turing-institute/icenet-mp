@@ -2,13 +2,21 @@
 
 version: 2
 updates:
-  # GitHub Action update PRs
+  # GitHub Actions
+  # - .github/workflows/
   - package-ecosystem: "github-actions"
-    directory: "/"  # This will update .github/workflows/
+    directory: "/"
     schedule:
       interval: "weekly"
-  # Python package update PRs
-  - package-ecosystem: uv  # This will update 'pyproject.toml'
+  # Pre-commit hooks
+  # - .pre-commit-config.yaml
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  # Python packages
+  # - pyproject.toml
+  - package-ecosystem: uv
     directory: "/"
     cooldown:
       default-days: 7  # only consider packages that were released at least 7 days ago

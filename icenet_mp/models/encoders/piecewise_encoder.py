@@ -11,21 +11,23 @@ from .base_encoder import BaseEncoder
 class PiecewiseEncoder(BaseEncoder):
     """Piecewise encoder that splits data from an input space into smaller patches in a latent space.
 
+    - Optional initial convolutional block at input resolution
     - Split into patches of size latent_height x latent_width
-    - n_conv_blocks of constant-size convolutional blocks
+    - Optional final convolutional block at output resolution
 
     Input space:
-        TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
+        TensorNTCHW with (batch_size, n_timeslices, input_channels, input_height, input_width)
 
     Latent space:
-        TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
     """
 
     def __init__(
         self,
         conv_activation: str = "SiLU",
         conv_kernel_size: int = 3,
-        n_conv_blocks: int = 2,
+        conv_subblocks_initial: int = 3,
+        conv_subblocks_final: int = 3,
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseEncoder."""
@@ -61,7 +63,21 @@ class PiecewiseEncoder(BaseEncoder):
         self.data_space_out.channels = self.data_space_in.channels * n_patches
 
         # Construct the list of layers
-        layers = [
+        layers: list[nn.Module] = []
+
+        # Optionally add an initial convolutional block at input resolution.
+        if conv_subblocks_initial > 0:
+            layers.append(
+                CommonConvBlock(
+                    self.data_space_in.channels,
+                    self.data_space_in.channels,
+                    kernel_size=conv_kernel_size,
+                    activation=conv_activation,
+                    n_subblocks=conv_subblocks_initial,
+                ),
+            )
+
+        layers += [
             # Unfold into patches of size data_space_out.shape: [N, C * patch_area, n_patches]
             nn.Unfold(
                 self.data_space_out.shape,
@@ -76,15 +92,15 @@ class PiecewiseEncoder(BaseEncoder):
             nn.Flatten(1, 2),
         ]
 
-        # Optionally add non-linearity with convolutional blocks
-        if n_conv_blocks > 0:
+        # Optionally add a final convolutional block at output resolution
+        if conv_subblocks_final > 0:
             layers.append(
                 CommonConvBlock(
                     self.data_space_out.channels,
                     self.data_space_out.channels,
                     kernel_size=conv_kernel_size,
                     activation=conv_activation,
-                    n_subblocks=n_conv_blocks,
+                    n_subblocks=conv_subblocks_final,
                 ),
             )
 

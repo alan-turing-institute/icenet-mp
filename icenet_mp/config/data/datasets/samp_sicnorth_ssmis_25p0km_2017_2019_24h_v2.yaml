@@ -54,14 +54,14 @@ samp-sicnorth-ssmis-25p0km-2017-2019-24h-v2:
           param: total_standard_uncertainty
 
       # Replace NaNs with 0 for concentration variables and 99 for uncertainty variables
-      - nan_to_num:
+      - nan-to-num:
           variables: [ice_conc, raw_ice_conc_values]
           replace_with: 0.0
-      - nan_to_num:
+      - nan-to-num:
           variables: [algorithm_standard_uncertainty, smearing_standard_uncertainty, total_standard_uncertainty]
           replace_with: 99
 
       # Set the geography to EASE2 25km grid
-      - set_geography:
+      - set-geography:
           crs: "EPSG:6931"
           resolution: "25p0km"

@@ -10,6 +10,8 @@ encoders:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   sic-icenet:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
+  sic-ssmis:
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
@@ -17,3 +19,5 @@ processor:
 
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
+  mask_type: active
+  restrict_range: sigmoid

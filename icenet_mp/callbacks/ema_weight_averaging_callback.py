@@ -1,6 +1,8 @@
-from torch.optim.swa_utils import get_ema_multi_avg_fn
+from typing import Any
 
-from .weight_averaging import WeightAveraging
+from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch.callbacks import WeightAveraging
+from torch.optim.swa_utils import get_ema_multi_avg_fn
 
 
 class EMAWeightAveragingCallback(WeightAveraging):
@@ -26,6 +28,18 @@ class EMAWeightAveragingCallback(WeightAveraging):
         )
         self.every_n_epochs = every_n_epochs
         self.every_n_steps = every_n_steps
+
+    def on_train_batch_end(
+        self, trainer: Trainer, pl_module: LightningModule, *args: Any, **kwargs: Any
+    ) -> None:
+        """Ignore the update if the module has no parameters."""
+        if next(pl_module.parameters(), None) is not None:
+            super().on_train_batch_end(trainer, pl_module, *args, **kwargs)
+
+    def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        """Ignore the update if the module has no parameters."""
+        if next(pl_module.parameters(), None) is not None:
+            super().on_train_epoch_end(trainer, pl_module)
 
     def should_update(
         self, step_idx: int | None = None, epoch_idx: int | None = None

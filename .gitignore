@@ -1,4 +1,5 @@
 __pycache__
+.claude
 .coverage*
 .DS_Store
 .ipynb_checkpoints/
@@ -7,6 +8,8 @@ __pycache__
 .vscode
 *local.yaml
 dist
+docs/_build
+docs/src/api/config.md
 outputs
 wandb
 notebooks/data

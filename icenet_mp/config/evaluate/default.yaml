@@ -4,3 +4,5 @@ defaults:
     - metric_summary
     - plotting
   - _self_
+
+trainer: ${train.trainer}

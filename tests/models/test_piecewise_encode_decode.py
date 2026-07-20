@@ -20,7 +20,7 @@ class TestPiecewiseEncodeDecode:
     ) -> None:
         # In order to exactly reproduce the input, we need:
         # - timesteps to be the same in the encoder and decoder
-        n_history_steps = n_forecast_steps = test_timesteps
+        n_history_steps = test_timesteps
         # - patch size to divide the input size
         if (
             test_input_chw[1] % test_patch_size[0] != 0
@@ -54,18 +54,20 @@ class TestPiecewiseEncodeDecode:
             name="input", channels=input_ntchw.shape[2], shape=input_ntchw.shape[3:]
         )
         encoder = PiecewiseEncoder(
+            conv_subblocks_initial=n_conv_blocks,
+            conv_subblocks_final=n_conv_blocks,
             data_space_in=input_space,
             latent_space=test_patch_size,
-            n_conv_blocks=n_conv_blocks,
-            n_history_steps=n_history_steps,
         )
         latent_ntchw = encoder.rollout(input_ntchw)
         decoder = PiecewiseDecoder(
+            conv_subblocks_initial=n_conv_blocks,
+            conv_subblocks_final=n_conv_blocks,
             data_space_in=encoder.data_space_out,
             data_space_out=input_space,
-            n_conv_blocks=n_conv_blocks,
-            n_forecast_steps=n_forecast_steps,
             restrict_range="none",
+            use_final_normalisation=False,
+            use_hann_window=False,
         )
         output_ntchw = decoder.rollout(latent_ntchw)
         assert torch.equal(input_ntchw, output_ntchw)

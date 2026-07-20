@@ -1,6 +1,8 @@
-from torch import nn, stack
+from collections import deque
 
-from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
+from torch import cat, nn, stack
+
+from icenet_mp.types import DataSpace, ProcessorOutput, TensorNCHW, TensorNTCHW
 
 
 class BaseProcessor(nn.Module):
@@ -17,57 +19,83 @@ class BaseProcessor(nn.Module):
         self,
         *,
         data_space: DataSpace,
+        data_space_target: DataSpace | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
     ) -> None:
         """Initialise a BaseProcessor."""
         super().__init__()
         self.data_space = data_space
+        self.data_space_target = data_space_target or data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
+        # The latent spatial dimensions (H, W) for the inputs and target must match
+        if self.data_space_target.shape != self.data_space.shape:
+            msg = (
+                f"Expected data_space_target.shape {self.data_space_target.shape} "
+                f"to match data_space.shape {self.data_space.shape}"
+            )
+            raise ValueError(msg)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
-        """Forward step: process in NCHW latent space for a single timestep.
+        """Forward step: predict the next timestep from a window of history/forecast timesteps.
 
         Args:
-            x: TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
+            x: TensorNCHW with (batch_size, n_latent_channels_total * n_history_steps, latent_height, latent_width),
+               i.e. the current window of n_history_steps timesteps concatenated along channels,
+               ordered oldest to newest.
 
         Returns:
-            TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
+            TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width),
+            i.e. the single next predicted timestep.
 
         """
         msg = "If you are using the default forward method, you must implement rollout."
         raise NotImplementedError(msg)
 
-    def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> TensorNTCHW:  # noqa: ARG002
+    def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ProcessorOutput:  # noqa: ARG002
         """Process in latent space across multiple timesteps.
 
-        The default implementation simply calls `self.forward` on each time slice until
-        a sufficient number of forecast steps have been produced. These are then stacked
-        together to produce the final output.
+        The default implementation slides a window of the n_history_steps most recent
+        timesteps along, concatenating them along the channel dimension and calling
+        `self.forward` once per forecast step to predict the next timestep, which is
+        then appended to the window (dropping the oldest timestep) so that every
+        prediction is conditioned on all of the currently-available history rather
+        than a single timestep. This matches issue #272: earlier versions called
+        `self.forward` on one history/forecast timestep at a time, which meant each
+        forecast day only ever saw a single timestep of context and, once
+        n_forecast_steps > n_history_steps, replayed stale original history timesteps
+        in a fixed cycle instead of the most recently produced information.
 
-        If you want to handle the NTCHW tensors directly, or to use the target tensor for
-        model training simply override this method in your child class.
+        Override this method to handle the NTCHW tensors directly or to compute a custom
+        loss using the target tensor `y` (e.g. for diffusion models). Set `loss` on the
+        returned `ProcessorOutput` to supply a custom training loss; the caller will use
+        it directly and skip its own loss computation.
 
         Args:
-            x: Input TensorNTCHW with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-            y: during training: Target TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
-               otherwise:       None
+            x: Encoded input TensorNTCHW with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+            y: during training: Encoded target TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_target, latent_height, latent_width)
+                where n_latent_channels_target = self.data_space_target.channels (<= n_latent_channels_total);
+                otherwise: None
 
         Returns:
-            Predicted TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+            ProcessorOutput with:
+                prediction: TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+                loss: an optional processor-specific loss
 
         """
-        # Cut the NTCHW input into NCHW slices
-        nchw_slices = [x[:, idx_t, :, :, :] for idx_t in range(self.n_history_steps)]
+        # The current window of n_history_steps timesteps, oldest to newest
+        window: deque[TensorNCHW] = deque(
+            x[:, idx_t, :, :, :] for idx_t in range(self.n_history_steps)
+        )
 
-        # Rollout the model over the input slices, producing an output for each one.
-        # Also append the predictions to the list of input slices, so that we can still
-        # predict when n_forecast_steps > n_history_steps.
+        # Slide the window forward, predicting one timestep at a time from the whole
+        # window and then dropping the oldest timestep to make room for the prediction.
         outputs: list[TensorNCHW] = []
         for _ in range(self.n_forecast_steps):
-            outputs.append(self(nchw_slices.pop(0)))
-            nchw_slices.append(outputs[-1])
+            next_step = self(cat(list(window), dim=1))
+            outputs.append(next_step)
+            window.popleft()
+            window.append(next_step)
 
-        # Stack the outputs up as a new time dimension
-        return stack(outputs, dim=1)
+        return ProcessorOutput(prediction=stack(outputs, dim=1))

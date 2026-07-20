@@ -104,7 +104,7 @@ def test_axes_have_reasonable_gaps(
     colourbar_strategy: str,
 ) -> None:
     """Require a small horizontal gutter between side-by-side axes."""
-    ground_truth, prediction, _ = sic_pair_2d
+    ground_truth, _, _ = sic_pair_2d
 
     spec = replace(
         DEFAULT_SIC_SPEC,
@@ -123,8 +123,8 @@ def test_axes_have_reasonable_gaps(
     )
 
     def _min_horizontal_gap(a: RECTANGLE, b: RECTANGLE) -> float:
-        la, ba, ra, ta = a
-        lb, bb, rb, tb = b
+        la, _, ra, _ = a
+        lb, _, rb, _ = b
         if ra <= lb:  # a left of b
             return lb - ra
         if rb <= la:  # b left of a
@@ -286,8 +286,8 @@ def test_single_panel_has_reasonable_gap(
     panel_rect = axis_rectangle(ax)
     cbar_rect = axis_rectangle(cax)
 
-    pl, pb, pr, pt = panel_rect
-    cl, cb, cr, ct = cbar_rect
+    _, pb, pr, _ = panel_rect
+    cl, _, _, ct = cbar_rect
 
     if colourbar_location == "vertical":
         # Vertical colorbar should be to the right of panel

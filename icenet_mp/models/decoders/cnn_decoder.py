@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 from torch import nn
-from torch.nn.functional import sigmoid
 
 from icenet_mp.models.common import ConvBlockUpsample, ResizingInterpolation
 from icenet_mp.types import TensorNCHW
@@ -21,10 +20,10 @@ class CNNDecoder(BaseDecoder):
     - Convolve to number of output channels (if needed)
 
     Input space:
-        TensorNTCHW with (batch_size, n_history_steps, input_channels, input_height, input_width)
+        TensorNTCHW with (batch_size, n_timeslices, input_channels, input_height, input_width)
 
     Latent space:
-        TensorNTCHW with (batch_size, n_history_steps, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
     """
 
     def __init__(
@@ -33,19 +32,17 @@ class CNNDecoder(BaseDecoder):
         activation: str = "ReLU",
         kernel_size: int = 3,
         n_layers: int = 3,
-        bounded: bool = False,
+        n_subblocks: int = 2,
+        scale_factor: int = 2,
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNDecoder."""
         super().__init__(**kwargs)
 
-        # specify whether the output is bounded between 0 and 1
-        self.bounded = bounded
-
         # Calculate the factor by which the scale changes after n_layers
-        layer_factor = 2**n_layers
+        layer_factor = scale_factor**n_layers
 
-        # Ensure number of channels is divisible by the power of two implied by n_layers
+        # Ensure number of channels is divisible by the factor implied by n_layers
         if self.data_space_in.channels % layer_factor:
             msg = (
                 f"The number of input channels {self.data_space_in.channels} must be divisible by {layer_factor}. "
@@ -85,7 +82,11 @@ class CNNDecoder(BaseDecoder):
         for _ in range(n_layers):
             layers.append(
                 ConvBlockUpsample(
-                    n_channels, activation=activation, kernel_size=kernel_size
+                    n_channels,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                    n_subblocks=n_subblocks,
+                    scale_factor=scale_factor,
                 )
             )
             logger.debug(
@@ -94,8 +95,8 @@ class CNNDecoder(BaseDecoder):
                 kernel_size,
                 n_channels,
             )
-            n_channels //= 2
-            shape = (shape[0] * 2, shape[1] * 2)
+            n_channels //= scale_factor
+            shape = (shape[0] * scale_factor, shape[1] * scale_factor)
 
         # If necessary, resize downwards to match the output shape
         if shape != self.data_space_out.shape:
@@ -106,14 +107,16 @@ class CNNDecoder(BaseDecoder):
                 self.data_space_out.shape,
             )
 
-        # If necessary, convolve to the required number of output channels
-        if n_channels != self.data_space_out.channels:
-            layers.append(nn.Conv2d(n_channels, self.data_space_out.channels, 1))
-            logger.debug(
-                "- Channel convolution from %d to %d",
-                n_channels,
-                self.data_space_out.channels,
-            )
+        # Run a final convolution that will both ensure that we have the right number of
+        # output channels and also the the final operation is a layer that can produce
+        # values across the full output range (not just the range of the activation
+        # function in the last ConvBlockUpsample).
+        layers.append(nn.Conv2d(n_channels, self.data_space_out.channels, 1))
+        logger.debug(
+            "- Channel convolution from %d to %d",
+            n_channels,
+            self.data_space_out.channels,
+        )
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)
@@ -128,6 +131,4 @@ class CNNDecoder(BaseDecoder):
             TensorNCHW with (batch_size, latent_channels, latent_height, latent_width)
 
         """
-        if self.bounded:
-            return sigmoid(self.model(x))
         return self.model(x)

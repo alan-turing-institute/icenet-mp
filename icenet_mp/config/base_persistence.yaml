@@ -1,5 +1,0 @@
-defaults:
-  - base
-  - override /train: persistence
-  - override /model: persistence
-  - _self_

@@ -1,7 +1,9 @@
 defaults:
   - default
   - override callbacks:
-    - device_stats
+    - learning_rate
+    - metric_summary
+    - plotting
     - unconditional_checkpoint
   - _self_
 

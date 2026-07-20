@@ -1,6 +1,7 @@
 import logging
+import math
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
@@ -13,6 +14,10 @@ from icenet_mp.models import BaseModel
 from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
 from icenet_mp.utils import datetime_from_npdatetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
+from icenet_mp.visualisations.land_mask import LandMask
+
+if TYPE_CHECKING:  # per rule TC003
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +33,7 @@ class PlottingCallback(Callback):
         make_static_plots: bool = True,
         make_video_plots: bool = True,
         plot_spec: PlotSpec | None = None,
-        base_path: str | None = None,
+        prefix: str | None = None,
     ) -> None:
         """Create plots during evaluation or training validation.
 
@@ -36,24 +41,30 @@ class PlottingCallback(Callback):
         difficult to work out which date corresponds to each batch.
 
         Args:
-            frequency: A dictionary specifying how often to make plots, with keys "batch" and/or "epoch".
+            frequency: A dictionary specifying how often to make plots, with keys:
+                batch (plot every N batches)
+                epoch (plot every N epochs)
+                number (plot N sample batches evenly spaced across the epoch)
             make_input_plots: Whether to plot the raw inputs.
             make_static_plots: Whether to create static plots.
             make_video_plots: Whether to create video plots.
             plot_spec: Plotting specification to use (contains difference settings, timestep selection, etc.).
-            base_path: Base path for finding land masks.
+            prefix: An optional prefix to add to all plot keys when logging.
 
         """
         super().__init__()
         self.frequency_batch = int((frequency or {}).get("batch", -1))
         self.frequency_epoch = int((frequency or {}).get("epoch", -1))
+        self.frequency_number = int((frequency or {}).get("number", -1))
         self.make_input_plots = make_input_plots
         self.make_static_plots = make_static_plots
         self.make_video_plots = make_video_plots
 
         # Plotter instance
-        self.plotter = Plotter(base_path, DEFAULT_SIC_SPEC + plot_spec)
+        self.plotter = Plotter(DEFAULT_SIC_SPEC + plot_spec)
         self.plotter_metadata: Metadata | None = None
+        self._land_mask_cache: dict[Path | None, LandMask] = {}
+        self.prefix: str | None = prefix
 
         # Cache the most recent batch
         self.cached_batch_idx_: int | None = None
@@ -71,6 +82,20 @@ class PlottingCallback(Callback):
             self.cached_outputs_ = ModelStepOutput(**outputs)
             self.cached_batch_idx_ = batch_idx
             self.cached_dataloader_idx_ = dataloader_idx
+
+    def is_sample_batch(self, batch_idx: int, total_batches: int | float) -> bool:  # noqa: PYI041
+        """Return True if batch_idx is one of frequency_number equally-spaced targets."""
+        if (
+            self.frequency_number <= 0
+            or not math.isfinite(total_batches)
+            or total_batches <= 0
+        ):
+            return False
+        n = int(min(self.frequency_number, total_batches))
+        if n == 1:
+            return batch_idx == total_batches - 1
+        targets = {round(i * (total_batches - 1) / (n - 1)) for i in range(n)}
+        return batch_idx in targets
 
     def load_dataset(
         self, dataloader: DataLoader | list[DataLoader] | None
@@ -123,19 +148,47 @@ class PlottingCallback(Callback):
             return
         self.plotter.set_hemisphere(pl_module.hemisphere)
 
+        # Load land mask for plotting based on dataset (built once per path,
+        # not rebuilt every validation epoch)
+        datamodule = getattr(trainer, "datamodule", None)
+        mask_directory = getattr(datamodule, "mask_directory", None)
+        land_mask_path = mask_directory / "land_mask.npy" if mask_directory else None
+        if land_mask_path not in self._land_mask_cache:
+            self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
+        self.plotter.land_mask = self._land_mask_cache[land_mask_path]
+
         # Get loggers that support image and video logging
         image_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_image")]
         video_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_video")]
 
+        # Get channel names from the model
+        channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
+
         if self.make_static_plots:
-            self.plotter.log_static_outputs(self.cached_outputs_, dates, image_loggers)
+            self.plotter.log_static_outputs(
+                self.cached_outputs_,
+                dates,
+                image_loggers,
+                channel_names,
+                prefix=self.prefix,
+            )
             if self.make_input_plots:
-                self.plotter.log_static_inputs(dataset.inputs, dates, image_loggers)
+                self.plotter.log_static_inputs(
+                    dataset.inputs, dates, image_loggers, prefix=self.prefix
+                )
 
         if self.make_video_plots:
-            self.plotter.log_video_outputs(self.cached_outputs_, dates, video_loggers)
+            self.plotter.log_video_outputs(
+                self.cached_outputs_,
+                dates,
+                video_loggers,
+                channel_names,
+                prefix=self.prefix,
+            )
             if self.make_input_plots:
-                self.plotter.log_video_inputs(dataset.inputs, dates, video_loggers)
+                self.plotter.log_video_inputs(
+                    dataset.inputs, dates, video_loggers, prefix=self.prefix
+                )
 
     def on_test_batch_end(
         self,
@@ -150,13 +203,16 @@ class PlottingCallback(Callback):
         # Check whether this is a batch we want to plot based on the frequency settings
         is_per_epoch = trainer.is_last_batch
         is_per_batch = self.frequency_batch > 0 and not batch_idx % self.frequency_batch
+        is_sampled_batch = self.is_sample_batch(
+            batch_idx, trainer.num_test_batches[dataloader_idx]
+        )
 
         # Cache if this is a batch we want to plot
-        if is_per_epoch or is_per_batch:
+        if is_per_epoch or is_per_batch or is_sampled_batch:
             self.cache_batch(batch_idx, dataloader_idx, outputs)
 
         # If this is a selected batch then we will plot here
-        if is_per_batch:
+        if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
                 logger.warning("Could not load dataset, skipping plotting.")
@@ -196,13 +252,16 @@ class PlottingCallback(Callback):
         # Check whether this is a batch we want to plot based on the frequency settings
         is_per_epoch = trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch
         is_per_batch = self.frequency_batch > 0 and not batch_idx % self.frequency_batch
+        is_sampled_batch = self.is_sample_batch(
+            batch_idx, trainer.num_val_batches[dataloader_idx]
+        )
 
         # Cache if this is a batch we want to plot
-        if is_per_epoch or is_per_batch:
+        if is_per_epoch or is_per_batch or is_sampled_batch:
             self.cache_batch(batch_idx, dataloader_idx, outputs)
 
         # If this is a selected batch then we will plot here
-        if is_per_batch:
+        if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
                 logger.warning("Could not load dataset, skipping plotting.")

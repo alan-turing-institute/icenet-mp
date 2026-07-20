@@ -22,10 +22,10 @@ samp-floatsouth-argo-1p0-2017-2019-24h-v1:
           resolution: "1p0"
           shape: [90, 360]
       # Replace NaNs with a fill value
-      - nan_to_num:
+      - nan-to-num:
           variables: [TEMP, PSAL]
           replace_with: 99
       # Set the geography to EPSG:4326 with 1 degree resolution
-      - set_geography:
+      - set-geography:
           crs: ${...0.argo.crs}
           resolution: ${...0.argo.resolution}

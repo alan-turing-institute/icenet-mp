@@ -33,17 +33,26 @@ class VitProcessor(BaseProcessor):
         """Initialize Vision Transformer model for sea ice forecasting."""
         super().__init__(**kwargs)
 
-        # Ensure input is square
+        # Ensure input is square and divisible by patch_size
         if self.data_space.shape[0] != self.data_space.shape[1]:
             msg = "The height and width of the input are not equal."
+            raise ValueError(msg)
+        if self.data_space.shape[0] % patch_size != 0:
+            msg = f"img_size {self.data_space.shape[0]} must be divisible by patch_size {patch_size}."
             raise ValueError(msg)
 
         self.img_size = self.data_space.shape[0]
         self.patch_size = patch_size
         self.out_channels = self.data_space.channels
 
+        # The input is a window of n_history_steps timesteps concatenated along
+        # channels (see BaseProcessor.rollout), so patch embedding must accept
+        # n_history_steps times as many channels as a single timestep has.
         self.patch_embed = PatchEmbedding(
-            self.data_space.channels, patch_size, emb_dim, self.img_size
+            self.data_space.channels * self.n_history_steps,
+            patch_size,
+            emb_dim,
+            self.img_size,
         )
         num_patches = (self.img_size // patch_size) ** 2
 
@@ -69,16 +78,16 @@ class VitProcessor(BaseProcessor):
         )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
-        """Forward pass through the ViT model for a single timestep.
+        """Forward pass through the ViT model for a window of history/forecast timesteps.
 
         Args:
-            x: TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
+            x: TensorNCHW with (batch_size, n_latent_channels_total * n_history_steps, latent_height, latent_width)
 
         Returns:
             TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width)
 
         """
-        batch, _, height, _ = x.shape
+        batch, _, height, width = x.shape
 
         x = self.patch_embed(x)  # (B, N, D)
         x = x + self.pos_embed
@@ -88,7 +97,15 @@ class VitProcessor(BaseProcessor):
         x = self.norm(x)  # (B, N, D)
         x = self.decoder(x)  # (B, N, out_channels**patch_size*patch_size)
 
-        h_patches = w_patches = height // self.patch_size
+        if height % self.patch_size or width % self.patch_size:
+            msg = (
+                f"Latent space height ({height}) and width ({width}) must each be "
+                f"divisible by patch size ({self.patch_size})."
+            )
+            raise ValueError(msg)
+
+        h_patches = height // self.patch_size
+        w_patches = width // self.patch_size
         x = x.reshape(
             batch,
             h_patches,

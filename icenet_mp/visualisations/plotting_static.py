@@ -54,7 +54,7 @@ def plot_static_prediction(
     date: date | datetime,
     land_mask: LandMask,
     plot_spec: PlotSpec,
-    variable_name: str = "sea-ice-concentration",
+    variable_name: str,
 ) -> dict[str, list[ImageFile]]:
     """Create static maps comparing ground truth and prediction data.
 
@@ -85,7 +85,6 @@ def plot_static_prediction(
         width,
         layout_config,
         warnings,
-        levels,
     ) = _prepare_static_plot(plot_spec, ground_truth, prediction)
 
     # Initialise the figure and axes with dynamic top spacing if needed
@@ -110,7 +109,6 @@ def plot_static_prediction(
         land_mask,
         diff_colour_scale=diff_colour_scale,
         precomputed_difference=difference,
-        levels_override=levels,
     )
 
     # Restore axis titles after drawing (they were cleared in _draw_frame)
@@ -140,7 +138,7 @@ def plot_static_prediction(
 
     try:
         return {
-            f"{variable_name}-{date.strftime(r'%Y-%m-%d')}": [image_from_figure(fig)]
+            f"{date.strftime(r'%Y-%m-%d')}-{variable_name}": [image_from_figure(fig)]
         }
     finally:
         plt.close(fig)
@@ -245,7 +243,7 @@ def plot_static_inputs(
             plt.close(fig)
 
         # Add image to results dict
-        key = f"{variable_name}-{when.strftime(r'%Y-%m-%d')}"
+        key = f"{when.strftime(r'%Y-%m-%d')}-{variable_name}"
         if key not in results:
             results[key] = []
         results[key].append(pil_img)

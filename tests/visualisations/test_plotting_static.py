@@ -36,15 +36,17 @@ class TestPlotStaticPrediction:
         ground_truth, prediction, date = sic_pair_2d
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True)
 
+        variable_name = "test-variable"
         result = plot_static_prediction(
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=spec,
+            variable_name=variable_name,
         )
 
-        expected_key = f"sea-ice-concentration-{date.strftime('%Y-%m-%d')}"
+        expected_key = f"{date.strftime('%Y-%m-%d')}-{variable_name}"
         assert expected_key in result
         images = result[expected_key]
         assert len(images) == 1
@@ -86,14 +88,16 @@ class TestPlotStaticPrediction:
         )
 
         # Ensure plot_static_prediction runs without error and returns an image
+        variable_name = "test-variable"
         result = plot_static_prediction(
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=spec,
+            variable_name=variable_name,
         )
-        images = result[f"sea-ice-concentration-{date.strftime('%Y-%m-%d')}"]
+        images = result[f"{date.strftime('%Y-%m-%d')}-{variable_name}"]
         assert len(images) == 1, "Expected 1 image"
         assert images[0].width > 0, "Image width should be greater than 0"
         assert images[0].height > 0, "Image height should be greater than 0"
@@ -107,21 +111,23 @@ class TestPlotStaticPrediction:
         height, width = ground_truth.shape
 
         # Create a simple land mask with land in the centre
-        land_mask = LandMask(None, "north")
+        land_mask = LandMask(None)
         mask = np.zeros((height, width), dtype=bool)
         centre_h, centre_w = height // 2, width // 2
         mask[centre_h - 5 : centre_h + 5, centre_w - 5 : centre_w + 5] = True
         land_mask.add_mask(mask)
 
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True)
+        variable_name = "test-variable"
         result = plot_static_prediction(
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None, "north"),
+            land_mask=land_mask,
             plot_spec=spec,
+            variable_name=variable_name,
         )
-        expected_key = f"sea-ice-concentration-{date.strftime('%Y-%m-%d')}"
+        expected_key = f"{date.strftime('%Y-%m-%d')}-{variable_name}"
         assert expected_key in result
         images = result[expected_key]
         assert len(images) == 1
@@ -138,7 +144,7 @@ class TestPlotStaticPrediction:
         ground_truth, prediction, date = sic_pair_2d
 
         # Create land mask with wrong shape
-        land_mask = LandMask(None, "north")
+        land_mask = LandMask(None)
         wrong_shape_mask = np.zeros((10, 10), dtype=bool)
         land_mask.add_mask(wrong_shape_mask)
 
@@ -149,6 +155,7 @@ class TestPlotStaticPrediction:
                 date=date,
                 land_mask=land_mask,
                 plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="dummy",
             )
             assert "No land mask available for shape (48, 48)." in caplog.text
 
@@ -163,14 +170,14 @@ class TestPlotStaticInputs:
         """Test basic single channel plotting."""
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_land_mask(
@@ -189,7 +196,7 @@ class TestPlotStaticInputs:
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_custom_styles(
@@ -202,14 +209,14 @@ class TestPlotStaticInputs:
         plot_spec = replace(base_plot_spec, per_variable_styles=variable_styles)
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:2t-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_multiple_channels(
@@ -220,14 +227,14 @@ class TestPlotStaticInputs:
         """Test plotting multiple channels at once."""
         results = plot_static_inputs(
             multi_channel_hw,
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
 
         assert len(results) == len(multi_channel_hw)
         for expected_name in multi_channel_hw:
-            expected_key = f"{expected_name}-{TEST_DATE.strftime('%Y-%m-%d')}"
+            expected_key = f"{TEST_DATE.strftime('%Y-%m-%d')}-{expected_name}"
             assert expected_key in results
             pil_images = results[expected_key]
             assert isinstance(pil_images[0], ImageFile)
@@ -250,14 +257,14 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {"era5:q_10": era5_humidity_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"era5:q_10-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:q_10"
         assert isinstance(pil_images[0], ImageFile)
 
     @pytest.mark.parametrize("colourbar_location", ["vertical", "horizontal"])
@@ -275,7 +282,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -303,14 +310,14 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {var_name: data},
-            land_mask=LandMask(None, "north"),
+            land_mask=LandMask(None),
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
 
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
-        assert name == f"{var_name}-{TEST_DATE.strftime('%Y-%m-%d')}"
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-{var_name}"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_wrong_dimension(
@@ -325,7 +332,7 @@ class TestPlotStaticInputs:
         with caplog.at_level(logging.WARNING):
             plot_static_inputs(
                 {"era5:2t": wrong_dim_array},
-                land_mask=LandMask(None, "north"),
+                land_mask=LandMask(None),
                 plot_spec=base_plot_spec,
                 when=TEST_DATE,
             )

@@ -21,6 +21,7 @@ class EncodeProcessDecode(BaseModel):
         encoders: DictConfig,
         processor: DictConfig,
         decoder: DictConfig,
+        mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
@@ -36,21 +37,37 @@ class EncodeProcessDecode(BaseModel):
                     latent_space=encoders["latent_space"],
                     latitudes_fn=self.latitudes_fn,
                     longitudes_fn=self.longitudes_fn,
-                    n_history_steps=self.n_history_steps,
                 )
                 for input_space in self.input_spaces
             ]
         except KeyError as exc:
-            msg = f"Error instantiating encoders: {exc}. Please ensure that encoders are specified for all input spaces: {self.input_spaces}"
+            msg = (
+                f"Error instantiating encoders: {exc}. Please ensure that encoders are "
+                f"specified for all input spaces: {self.input_spaces}"
+            )
             raise ValueError(msg) from exc
 
-        # Check that all encoders have the same output shape
-        encoder_output_shapes = {
-            encoder.data_space_out.shape for encoder in self.encoders
-        }
-        if len(encoder_output_shapes) != 1:
-            msg = f"Expected all encoders to have the same output shape, but found {len(encoder_output_shapes)} different shapes: {encoder_output_shapes}"
-            raise ValueError(msg)
+        # Add an additional encoder that encodes the target dataset into latent space
+        # This will be used by any processors that need to compute latent space losses.
+        try:
+            self.target_encoder: BaseEncoder = hydra.utils.instantiate(
+                encoders[self.output_space.name],
+                data_space_in=DataSpace(
+                    name="target",
+                    channels=self.output_space.channels,
+                    shape=self.output_space.shape,
+                ),
+                latent_space=encoders["latent_space"],
+                latitudes_fn=self.latitudes_fn,
+                longitudes_fn=self.longitudes_fn,
+            )
+        except KeyError as exc:
+            msg = (
+                f"Error instantiating target encoder: {exc}. Please ensure that an "
+                f"encoder is specified for '{self.output_space.name}', even if it is "
+                f"not one of the input spaces: {self.input_spaces}."
+            )
+            raise ValueError(msg) from exc
 
         # We have to explicitly register each encoder as list[Module] will not be
         # automatically picked up by PyTorch
@@ -58,11 +75,20 @@ class EncodeProcessDecode(BaseModel):
             module_name = f"encoder_{input_space.name}".lower().replace("-", "_")
             self.add_module(module_name, module)
 
+        # Confirm that all encoders have the same output shape
+        latent_shapes = {encoder.data_space_out.shape for encoder in self.encoders}
+        if len(latent_shapes) != 1:
+            msg = (
+                f"Expected all encoders to have the same output shape, but found "
+                f"{len(latent_shapes)} different shapes: {latent_shapes}"
+            )
+            raise ValueError(msg)
+
         # Add a processor
         combined_latent_space = DataSpace(
             name="combined_latent_space",
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
-            shape=encoder_output_shapes.pop(),
+            shape=latent_shapes.pop(),
         )
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
@@ -76,7 +102,7 @@ class EncodeProcessDecode(BaseModel):
             decoder,
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
-            n_forecast_steps=self.n_forecast_steps,
+            mask_dir=mask_dir,
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
@@ -98,10 +124,9 @@ class EncodeProcessDecode(BaseModel):
 
         # Process in latent space:
         # combined input tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        # target tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width) or None
         latent_output: TensorNTCHW = self.processor.rollout(
-            latent_input_combined, inputs.get("target")
-        )
+            latent_input_combined
+        ).prediction
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output)

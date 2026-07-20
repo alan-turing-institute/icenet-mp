@@ -30,7 +30,6 @@ from icenet_mp.visualisations.plotting_core import (
     compute_difference,
     compute_display_ranges,
     create_normalisation,
-    levels_from_spec,
     make_diff_colourmap,
     prepare_difference_stream,
     safe_nanmax,
@@ -69,7 +68,7 @@ def plot_video_prediction(
     dates: Sequence[date | datetime],
     land_mask: LandMask,
     plot_spec: PlotSpec,
-    variable_name: str = "sea-ice-concentration",
+    variable_name: str,
 ) -> dict[str, io.BytesIO]:
     """Generate animations showing the temporal evolution of sea ice concentration.
 
@@ -124,7 +123,6 @@ def plot_video_prediction(
         width=width,
         layout_config=layout_config,
     )
-    levels = levels_from_spec(plot_spec)
 
     # Stable ranges for the whole animation
     display_ranges = compute_display_ranges(
@@ -162,7 +160,6 @@ def plot_video_prediction(
         land_mask,
         diff_colour_scale=diff_colour_scale,
         precomputed_difference=precomputed_diff_0,
-        levels_override=levels,
         display_ranges_override=display_ranges,
     )
     # Restore axis titles after drawing (they were cleared in _draw_frame)
@@ -211,7 +208,6 @@ def plot_video_prediction(
             land_mask,
             diff_colour_scale=diff_colour_scale,
             precomputed_difference=precomputed_diff_tt,
-            levels_override=levels,
             display_ranges_override=display_ranges,
         )
         # Restore axis titles after drawing (they were cleared in _draw_frame)
@@ -238,7 +234,7 @@ def plot_video_prediction(
             video_format=plot_spec.video_format,
         )
         # Return the video buffer
-        return {f"{variable_name}-{dates[0].strftime(r'%Y-%m-%d')}": video_buffer}
+        return {f"{dates[0].strftime(r'%Y-%m-%d')}-{variable_name}": video_buffer}
     finally:
         # Clean up by closing figure
         plt.close(fig)
@@ -440,7 +436,7 @@ def plot_video_inputs(
                 land_mask=land_mask,
                 plot_spec=plot_spec,
             )
-            results[f"{variable_name}-{dates[0].strftime(r'%Y-%m-%d')}"] = video_buffer
+            results[f"{dates[0].strftime(r'%Y-%m-%d')}-{variable_name}"] = video_buffer
 
         except (InvalidArrayError, ValueError, MemoryError, OSError):
             logger.exception(

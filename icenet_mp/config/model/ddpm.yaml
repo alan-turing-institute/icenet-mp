@@ -1,4 +1,9 @@
 _target_: icenet_mp.models.ddpm.DDPM
 
-# Run DDPM model with default settings
 name: ddpm
+
+dropout_rate: 0.05
+mask_type: active
+restrict_range: clamp
+start_out_channels: 64
+timesteps: 150

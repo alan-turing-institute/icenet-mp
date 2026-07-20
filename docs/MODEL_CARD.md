@@ -3,14 +3,14 @@
 ## Versioning and Reference Information
 
 ### Card Authors
-Sophie Arana, Isabel Fenton, Maria Novitasari, James Robinson, Louisa van Zeeland
+Sophie Arana, Isabel Fenton, Maria Novitasari, Erin Quan, James Robinson, Shaerdan Shataer, Louisa van Zeeland
 
 
 ### Model/System Name
 IceNet Multimodal Pipeline (shorthand: IceNet-MP)
 
 ### Version
-tbd
+Release 2026.07
 
 ### TRL
 TRL 2
@@ -28,7 +28,7 @@ tbd
 Louisa van Zeeland
 
 ### Contact Information
-Louisa van Zeeland - lvanzeeland@turing.ac.uk
+Louisa van Zeeland (lvanzeeland@turing.ac.uk) or seaice@turing.ac.uk (this will send an email to all team members)
 
 ### Access to Products
 Code for the forecasting pipeline is open source and available on [GitHub](https://github.com/alan-turing-institute/icenet-mp

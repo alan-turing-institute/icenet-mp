@@ -10,4 +10,4 @@ lr_scheduler_parameters:
 # These parameters are passed to the scheduler instance
 scheduler_parameters:
   eta_min: 1e-6
-  T_max: 10
+  T_max: ${...trainer.max_epochs}

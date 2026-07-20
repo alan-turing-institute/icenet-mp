@@ -22,7 +22,6 @@ from .plotting_core import (
     colourmap_with_bad,
     compute_difference,
     compute_display_ranges,
-    levels_from_spec,
     make_diff_colourmap,
 )
 from .range_check import compute_range_check_report
@@ -68,11 +67,11 @@ def _prepare_static_plot(
     plot_spec: PlotSpec,
     ground_truth: np.ndarray,
     prediction: np.ndarray,
-) -> tuple[int, int, LayoutConfig | None, list[str], np.ndarray]:
+) -> tuple[int, int, LayoutConfig | None, list[str]]:
     """Validate arrays and compute helpers needed for plotting.
 
     Returns:
-        Tuple of (height, width, layout_config, warnings, contour levels).
+        Tuple of (height, width, layout_config, warnings).
 
     """
     if ground_truth.shape != prediction.shape:
@@ -99,8 +98,7 @@ def _prepare_static_plot(
     if warnings:
         layout_config = LayoutConfig(title_footer=TitleFooterConfig(title_space=0.10))
 
-    levels = levels_from_spec(plot_spec)
-    return height, width, layout_config, warnings, levels
+    return height, width, layout_config, warnings
 
 
 def _prepare_difference(

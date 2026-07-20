@@ -1,4 +1,6 @@
 import logging
+from pathlib import Path
+from typing import Annotated
 
 import typer
 from omegaconf import DictConfig
@@ -15,10 +17,37 @@ log = logging.getLogger(__name__)
 
 @training_cli.command()
 @hydra_adaptor
-def train(config: DictConfig) -> None:
+def train(
+    config: DictConfig,
+    checkpoint_dir: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "Path to a directory of existing checkpoints. If a checkpoint exists "
+                "in this directory for any model component, it will be loaded and "
+                "training will be skipped for that component. "
+            )
+        ),
+    ] = None,
+    *,
+    multistage: Annotated[
+        bool,
+        typer.Option(
+            "--multistage",
+            help=(
+                "Train an EncodeProcessDecode model in multiple stages (encoders, then "
+                "decoder, then processor, then finetune). Default is single-stage "
+                "training."
+            ),
+        ),
+    ] = False,
+) -> None:
     """Train a model."""
     model = ModelService.from_config(config)
-    model.train()
+    model.train(
+        checkpoint_dir=Path(checkpoint_dir).resolve() if checkpoint_dir else None,
+        multistage=multistage,
+    )
 
 
 if __name__ == "__main__":
