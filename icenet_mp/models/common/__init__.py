@@ -8,6 +8,8 @@ from .normalised_fold import NormalisedFold
 from .patchembed import PatchEmbedding
 from .permute import Permute
 from .res_block import ResBlock
+from .residual_downsample import ResidualDownsample
+from .residual_upsample import ResidualUpsample
 from .resizing_interpolation import ResizingInterpolation
 from .restrict_range import RestrictRange
 from .self_attention import SelfAttention2D
@@ -27,6 +29,8 @@ __all__ = [
     "PatchEmbedding",
     "Permute",
     "ResBlock",
+    "ResidualDownsample",
+    "ResidualUpsample",
     "ResizingInterpolation",
     "RestrictRange",
     "SelfAttention2D",
