@@ -17,8 +17,25 @@ import numpy as np
 
 from icenet_mp.types import ArrayTHW
 
-from .shapes import MovingCircleConfig, generate_moving_circle_frames
+from .shapes import (
+    GrowShrinkCircleConfig,
+    MovingCircleConfig,
+    generate_grow_shrink_frames,
+    generate_moving_circle_frames,
+)
 from .zarr_writer import daily_dates
+
+TrajectoryConfig = MovingCircleConfig | GrowShrinkCircleConfig
+
+
+def generate_frames(config: TrajectoryConfig) -> ArrayTHW:
+    """Generate the [T, H, W] frames for a single trajectory of either dynamics."""
+    if isinstance(config, MovingCircleConfig):
+        return generate_moving_circle_frames(config)
+    if isinstance(config, GrowShrinkCircleConfig):
+        return generate_grow_shrink_frames(config)
+    msg = f"Unknown trajectory config type: {type(config).__name__}"
+    raise TypeError(msg)
 
 
 @dataclass(frozen=True)
@@ -85,8 +102,65 @@ def default_trajectory_configs(
     return tuple(trajectories)
 
 
+def default_grow_shrink_configs(
+    *,
+    height: int = 32,
+    width: int = 32,
+    n_timesteps: int = 20,
+    n_trajectories: int = 8,
+) -> tuple[GrowShrinkCircleConfig, ...]:
+    """`n_trajectories` grow-shrink blobs with distinct centre, rate, and phase.
+
+    Each blob stays put but pulses in size via morphological dilation/erosion. Centres
+    are spread evenly around a ring (kept clear of the edges by the largest grown
+    radius), and the growth amplitude, cycle period, and starting phase all vary per
+    trajectory, so a model must learn the general grow-then-shrink rule rather than
+    memorise one pulse. `base_radius`/growth scale with grid size (relative to a 32x32
+    reference) so the task looks the same at any resolution.
+    """
+    scale = height / 32
+    base_radius = 8.0 * scale
+    # A dilation/erosion iteration changes the blob radius by roughly one pixel, so
+    # expressing the amplitudes as fractions of the seed radius keeps the deepest
+    # erosion safely inside the seed (never vanishes) and the largest dilation inside
+    # the frame at any resolution. growth peaks at ~0.75R, shrinkage at ~0.5R.
+    max_growth = round(0.75 * base_radius)
+    centre_row, centre_col = height / 2, width / 2
+    start_radius = max(
+        0.0, min(height, width) / 2 - base_radius - max_growth - 2 * scale
+    )
+
+    configs = []
+    for i in range(n_trajectories):
+        angle = 2 * np.pi * i / n_trajectories
+        center = (
+            centre_row + start_radius * np.sin(angle),
+            centre_col + start_radius * np.cos(angle),
+        )
+        # Vary the growth amplitude a little per trajectory (0.55R-0.75R).
+        growth = round((0.55 + 0.10 * (i % 3)) * base_radius)
+        # Erosion stays at most half the seed radius, so a shrinking blob never vanishes.
+        shrinkage = min(growth, round(0.5 * base_radius))
+        period = n_timesteps * (0.7 + 0.3 * (i % 2))
+        phase = i / n_trajectories
+        configs.append(
+            GrowShrinkCircleConfig(
+                height=height,
+                width=width,
+                n_timesteps=n_timesteps,
+                base_radius=base_radius,
+                growth=growth,
+                shrinkage=shrinkage,
+                period=period,
+                phase=phase,
+                center=center,
+            )
+        )
+    return tuple(configs)
+
+
 def generate_multi_trajectory_dataset(
-    trajectories: Sequence[MovingCircleConfig],
+    trajectories: Sequence[TrajectoryConfig],
     *,
     gap_days: int = 2,
     start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
@@ -103,7 +177,7 @@ def generate_multi_trajectory_dataset(
 
     cursor = 0
     for index, traj_config in enumerate(trajectories):
-        frame_chunks.append(generate_moving_circle_frames(traj_config))
+        frame_chunks.append(generate_frames(traj_config))
         spans.append(
             TrajectorySpan(
                 start_date=all_dates[cursor],

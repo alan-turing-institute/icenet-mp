@@ -22,6 +22,7 @@ from .debug_video import write_full_dataset_video, write_full_rollout_video
 from .report import plot_loss_curve
 from .trajectories import (
     TrajectorySpan,
+    default_grow_shrink_configs,
     default_trajectory_configs,
     generate_multi_trajectory_dataset,
 )
@@ -32,6 +33,13 @@ logger = logging.getLogger(__name__)
 SYNTHETIC_DATASET_NAME = "synthetic-sic"
 SYNTHETIC_VARIABLE_NAME = "ice_conc"
 WANDB_ENTITY = "turing-seaice"
+
+# Selectable synthetic dynamics: a translating circle (advection) or a stationary blob
+# that grows and shrinks in place (morphological open/close, mimicking seasonal ice
+# advance/retreat).
+DYNAMICS_MOVING = "moving"
+DYNAMICS_GROW_SHRINK = "grow-shrink"
+DYNAMICS_CHOICES = (DYNAMICS_MOVING, DYNAMICS_GROW_SHRINK)
 
 
 @dataclass
@@ -80,12 +88,26 @@ def _validate_grid_size(grid_size: int) -> None:
         raise ValueError(msg)
 
 
+def _make_trajectories(*, dynamics: str, grid_size: int, n_trajectories: int) -> tuple:
+    if dynamics == DYNAMICS_MOVING:
+        return default_trajectory_configs(
+            height=grid_size, width=grid_size, n_trajectories=n_trajectories
+        )
+    if dynamics == DYNAMICS_GROW_SHRINK:
+        return default_grow_shrink_configs(
+            height=grid_size, width=grid_size, n_trajectories=n_trajectories
+        )
+    msg = f"Unknown dynamics {dynamics!r}; expected one of {DYNAMICS_CHOICES}."
+    raise ValueError(msg)
+
+
 def _generate_dataset(
     config: DictConfig,
     output_dir: Path,
     *,
     grid_size: int,
     n_trajectories: int,
+    dynamics: str,
 ) -> tuple[Path, ArrayTHW, list, dict[str, list[dict[str, str]]]]:
     dataset_entries = list(config["data"]["datasets"].values())
     unknown = [
@@ -102,8 +124,8 @@ def _generate_dataset(
         raise ValueError(msg)
 
     _validate_grid_size(grid_size)
-    trajectories = default_trajectory_configs(
-        height=grid_size, width=grid_size, n_trajectories=n_trajectories
+    trajectories = _make_trajectories(
+        dynamics=dynamics, grid_size=grid_size, n_trajectories=n_trajectories
     )
     dataset = generate_multi_trajectory_dataset(trajectories)
     zarr_path = output_dir / "data" / "anemoi" / f"{SYNTHETIC_DATASET_NAME}.zarr"
@@ -191,6 +213,7 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
     publish_wandb: bool = False,
     grid_size: int = 32,
     n_trajectories: int = 8,
+    dynamics: str = DYNAMICS_MOVING,
 ) -> SyntheticCheckResult:
     """Run a model+data config against synthetic data and check that it learns.
 
@@ -212,10 +235,14 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
             separate model override. Must be > 16 and divisible by 16 (UNetProcessor's
             own constraint). Defaults to a small, fast 32; pass e.g. 432 to match real
             data's native resolution, at the cost of much longer training time.
-        n_trajectories: Number of independent bouncing-circle trajectories to
-            generate (split: all but the last two for training, one for validation,
-            one for test). More trajectories means more/more-diverse training data,
-            at the cost of longer training time.
+        n_trajectories: Number of independent trajectories to generate (split: all but
+            the last two for training, one for validation, one for test). More
+            trajectories means more/more-diverse training data, at the cost of longer
+            training time.
+        dynamics: Which synthetic dynamics to generate. ``"moving"`` (default) is a
+            circle translating and bouncing off the grid edges (advection);
+            ``"grow-shrink"`` is a stationary blob that grows and shrinks in place via
+            morphological open/close, mimicking seasonal ice advance/retreat.
 
     Returns:
         A `SyntheticCheckResult` describing whether the check passed and why not.
@@ -234,7 +261,11 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
     wandb_run_name = _add_wandb_logger(config) if publish_wandb else None
 
     zarr_path, frames, dates, split_ranges = _generate_dataset(
-        config, output_dir, grid_size=grid_size, n_trajectories=n_trajectories
+        config,
+        output_dir,
+        grid_size=grid_size,
+        n_trajectories=n_trajectories,
+        dynamics=dynamics,
     )
     config["data"]["split"]["train"] = split_ranges["train"]
     config["data"]["split"]["validate"] = split_ranges["validate"]

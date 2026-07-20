@@ -1,11 +1,12 @@
 name: Synthetic pipeline check
 
-# Trains a deliberately small UNet (start_out_channels=32 instead of 128) on the
-# synthetic moving-circle data at the minimum 32x32 grid, so the whole check fits in
-# a few minutes on a CPU runner. Two tests:
+# Trains a small model on the synthetic moving-circle data for each architecture, so
+# the whole check fits in a few minutes on a CPU runner. Both baselines are exercised
+# via a matrix (a broken pipeline or a non-learning model fails whichever arm it
+# affects). For each arm, two tests:
 #   1. the pipeline runs end-to-end and passes its own improvement gate
 #      (validation loss must improve >= 30% from the first epoch to the best);
-#   2. the best validation RMSE beats a lenient threshold (see below).
+#   2. the best validation RMSE beats a lenient, per-model threshold (see below).
 on:
   pull_request:
   workflow_dispatch:
@@ -14,6 +15,28 @@ jobs:
   synthetic-pipeline-check:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # A narrow UNet (start_out_channels=32 instead of 128) at the minimum 32x32
+          # grid. Reaches ~0.43 RMSE in 12 epochs (untrained sits at ~0.65), so 0.55
+          # fails only if learning is broken, not on ordinary run-to-run noise.
+          - name: unet
+            config: baseline/synthetic_unet
+            overrides: model.processor.start_out_channels=32 train.trainer.max_epochs=12
+            grid_size: 32
+            rmse_threshold: "0.55"
+          # The full CNN-ViT-CNN at its smallest working grid (48x48; the ViT needs its
+          # capacity to learn the task and shrinking it stops it clearing the gate). It
+          # converges within ~2 epochs, so 6 is ample. Reaches ~0.34 RMSE (untrained
+          # ~0.44), so 0.42 fails only if learning is broken.
+          - name: cnn-vit
+            config: baseline/synthetic_cnn_vit
+            overrides: train.trainer.max_epochs=6
+            grid_size: 48
+            rmse_threshold: "0.42"
+    name: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -28,22 +51,23 @@ jobs:
           version: "0.8.3"
 
       # Test 1: the pipeline runs end-to-end and passes its improvement gate.
-      - name: Run small synthetic UNet check
+      - name: Run small synthetic ${{ matrix.name }} check
         run: >
-          uv run imp synthetic check --config-name baseline/synthetic_unet
-          model.processor.start_out_channels=32
-          train.trainer.max_epochs=12
+          uv run imp synthetic check --config-name ${{ matrix.config }}
+          ${{ matrix.overrides }}
+          --grid-size ${{ matrix.grid_size }}
           --output-dir outputs/synthetic_check
 
-      # Test 2: best validation RMSE under a lenient threshold. The small model
-      # reaches ~0.43 in 12 epochs (an untrained model sits at ~0.65), so 0.55
-      # fails only if learning is broken, not on ordinary run-to-run noise.
+      # Test 2: best validation RMSE under a lenient, per-model threshold.
       - name: Check best validation RMSE against threshold
+        env:
+          RMSE_THRESHOLD: ${{ matrix.rmse_threshold }}
         run: |
           uv run python - <<'EOF'
           import json
+          import os
 
-          THRESHOLD = 0.55
+          threshold = float(os.environ["RMSE_THRESHOLD"])
           rmses = []
           with open("outputs/synthetic_check/report/metrics.jsonl") as f:
               for line in f:
@@ -51,10 +75,10 @@ jobs:
                   if "validation_rmse_mean" in record:
                       rmses.append(record["validation_rmse_mean"])
           best = min(rmses)
-          print(f"Best validation RMSE: {best:.4f} (threshold {THRESHOLD})")
-          if best > THRESHOLD:
+          print(f"Best validation RMSE: {best:.4f} (threshold {threshold})")
+          if best > threshold:
               raise SystemExit(
-                  f"FAILED: best validation RMSE {best:.4f} exceeds {THRESHOLD}"
+                  f"FAILED: best validation RMSE {best:.4f} exceeds {threshold}"
               )
           EOF
 
@@ -62,5 +86,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: synthetic-pipeline-check
+          name: synthetic-pipeline-check-${{ matrix.name }}
           path: outputs/synthetic_check/report

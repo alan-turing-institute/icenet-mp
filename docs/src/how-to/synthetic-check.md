@@ -43,6 +43,21 @@ uv run imp synthetic check --config-name baseline/synthetic_cnn_vit --grid-size 
 
 Each run writes the generated dataset, checkpoints, loss-curve and prediction plots, and a pass/fail report to `--output-dir` (default `outputs/synthetic_check`).
 
+### Choosing the dynamics
+
+The `--dynamics` option selects what the synthetic shapes do, so you can exercise different failure modes:
+
+```bash
+# Advection: a rigid circle translates and bounces off the edges (the default).
+uv run imp synthetic check --config-name baseline/synthetic_unet --dynamics moving
+
+# Growth/melt: a stationary blob grows and shrinks in place via a morphological
+# open/close cycle, mimicking sea ice advancing and retreating seasonally.
+uv run imp synthetic check --config-name baseline/synthetic_unet --dynamics grow-shrink
+```
+
+`moving` tests whether the model learns to translate a fixed shape; `grow-shrink` tests whether it learns concentration change in place (the shape never moves, but its extent pulses). Both work with either baseline and at any valid grid size.
+
 ## Notes and constraints
 
 - **Grid sizes must respect each architecture's minimum.**
@@ -53,4 +68,4 @@ Each run writes the generated dataset, checkpoints, loss-curve and prediction pl
 - **Runtime scales roughly with the square of the grid size.** Use small grids to iterate and 432 only to confirm behaviour at the real resolution; `--max-epochs` caps the run length (with few epochs, you may also need to lower `--min-relative-improvement` since the pass gate is calibrated for a full run).
 - **Give the UNet enough epochs before judging it.** Its BatchNorm layers use different statistics in train and eval mode, so validation loss often stays flat for the first ~5 epochs while training loss falls, then catches up as the running statistics settle. A 2–5 epoch run can therefore fail the improvement gate spuriously; the default 30 epochs (with early stopping) is reliable.
 - **Passing is necessary, not sufficient.** The synthetic shapes move deterministically, so a model that cannot learn them has no chance on real ice — but success here does not guarantee skill on real data.
-- **CI runs a small version automatically.** The `Synthetic pipeline check` workflow trains a narrow UNet (`model.processor.start_out_channels=32`, 12 epochs, 32×32 grid) on every pull request and additionally asserts the best validation RMSE stays under a lenient threshold — see `.github/workflows/synthetic_pipeline_check.yaml`.
+- **CI runs a small version automatically for both architectures.** The `Synthetic pipeline check` workflow runs a matrix on every pull request: a narrow UNet (`model.processor.start_out_channels=32`, 12 epochs, 32×32 grid) and the CNN-ViT-CNN (6 epochs, 48×48 grid). Each arm runs the check end-to-end and additionally asserts the best validation RMSE stays under a lenient per-model threshold — see `.github/workflows/synthetic_pipeline_check.yaml`.

@@ -53,12 +53,11 @@ class BaseModel(LightningModule, ABC):
 
         Optimizer configuration is also set here.
 
-        Args:
-            use_centroid_metric: If True, add the value-weighted centre-of-mass
-                distance metric to every metric collection. Only meaningful for the
-                synthetic moving-circle check, where the field is a single blob with a
-                well-defined centroid; on real multi-region sea ice it is not a useful
-                summary, so it is opt-in and enabled only by the synthetic baselines.
+        When ``use_centroid_metric`` is True, the value-weighted centre-of-mass
+        distance metric is added to every metric collection. This is only meaningful
+        for the synthetic checks, where the field is a single blob with a well-defined
+        centroid; on real multi-region sea ice it is not a useful summary, so it is
+        opt-in and enabled only by the synthetic baselines.
         """
         super().__init__()
 

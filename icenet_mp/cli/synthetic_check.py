@@ -5,7 +5,7 @@ from typing import Annotated
 import typer
 from omegaconf import DictConfig
 
-from icenet_mp.synthetic import run_synthetic_pipeline_check
+from icenet_mp.synthetic import DYNAMICS_MOVING, run_synthetic_pipeline_check
 
 from .hydra import hydra_adaptor
 
@@ -81,13 +81,23 @@ def check(  # noqa: PLR0913
         int,
         typer.Option(
             help=(
-                "Number of independent bouncing-circle trajectories to generate (all "
-                "but the last two go to training, one to validation, one to test). "
-                "More trajectories means more/more-diverse data, at the cost of "
-                "longer training time."
+                "Number of independent trajectories to generate (all but the last two "
+                "go to training, one to validation, one to test). More trajectories "
+                "means more/more-diverse data, at the cost of longer training time."
             )
         ),
     ] = 8,
+    dynamics: Annotated[
+        str,
+        typer.Option(
+            help=(
+                "Which synthetic dynamics to generate: 'moving' (default) is a circle "
+                "translating and bouncing off the grid edges; 'grow-shrink' is a "
+                "stationary blob that grows and shrinks in place via a morphological "
+                "open/close cycle, mimicking seasonal ice advance/retreat."
+            )
+        ),
+    ] = DYNAMICS_MOVING,
 ) -> None:
     """Run a fast synthetic moving-circle pipeline sanity check.
 
@@ -106,6 +116,7 @@ def check(  # noqa: PLR0913
         publish_wandb=wandb,
         grid_size=grid_size,
         n_trajectories=n_trajectories,
+        dynamics=dynamics,
     )
     if result.wandb_run_name:
         log.info("Published to W&B as '%s'.", result.wandb_run_name)
