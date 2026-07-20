@@ -1,3 +1,4 @@
+from .channel_adaptor import ChannelAdaptor
 from .conv_block_common import CommonConvBlock
 from .conv_block_downsample import ConvBlockDownsample
 from .conv_block_upsample import ConvBlockUpsample
@@ -16,6 +17,7 @@ from .transformerblock import TransformerEncoderBlock
 from .weighted_upsample import WeightedUpsample
 
 __all__ = [
+    "ChannelAdaptor",
     "CommonConvBlock",
     "ConvBlockDownsample",
     "ConvBlockUpsample",
