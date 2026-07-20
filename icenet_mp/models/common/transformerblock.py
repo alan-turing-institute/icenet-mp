@@ -37,6 +37,7 @@ class TransformerEncoderBlock(nn.Module):
             torch.Tensor: Output tensor of shape [B, N, dim]
 
         """
-        x = x + self.attn(self.ln1(x), self.ln1(x), self.ln1(x))[0]
+        normed = self.ln1(x)
+        x = x + self.attn(normed, normed, normed)[0]
 
         return x + self.mlp(self.ln2(x))

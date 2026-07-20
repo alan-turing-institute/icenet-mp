@@ -36,15 +36,22 @@ class IceNetAccuracy(Metric):
         """Update metric state with a new batch of predictions and targets."""
         preds = (preds > THRESHOLD).long()
         target = (target > THRESHOLD).long()
-        if sample_weight is None:
-            sample_weight = torch.ones_like(target)
         base_score = preds == target
-        weighted_score = torch.sum(base_score * sample_weight, dim=[0, 2, 3, 4])
+        if sample_weight is None:
+            # No weights: the weighted sum is just the match count and the possible
+            # score is the element count, without materialising a tensor of ones.
+            weighted_score = torch.sum(base_score, dim=[0, 2, 3, 4])
+            possible_score = torch.full_like(
+                weighted_score,
+                base_score.numel() // base_score.shape[1],
+            )
+        else:
+            weighted_score = torch.sum(base_score * sample_weight, dim=[0, 2, 3, 4])
+            possible_score = torch.sum(sample_weight, dim=[0, 2, 3, 4])
         if self.weighted_score.numel() == 0:  # type: ignore[has-type]
             self.weighted_score = weighted_score
         else:
             self.weighted_score += weighted_score
-        possible_score = torch.sum(sample_weight, dim=[0, 2, 3, 4])
         if self.possible_score.numel() == 0:  # type: ignore[has-type]
             self.possible_score = possible_score
         else:

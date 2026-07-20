@@ -1,0 +1,55 @@
+_target_: icenet_mp.models.EncodeProcessDecode
+
+name: cnn-vit-cnn-enhanced
+
+# Separate file from cnn_vit_cnn.yaml (rather than adding overrides on top of it) so
+# the original baseline stays untouched and the two can be run/compared side by side
+# without one edit risking the other. See baseline/03b_cnn_vit_cnn_enhanced.yaml and
+# EXPERIMENT_NOTES.md ("Part 6") for what each change below is and why.
+
+encoders:
+  latent_space: [216, 216]
+  era5:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  float-argo:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  sic-ssmis:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+
+processor:
+  _target_: icenet_mp.models.processors.VitProcessor
+  depth: 6
+  dropout: 0.1
+  emb_dim: 256
+  heads: 8
+  mlp_dim: 1024
+  patch_size: 24
+  refine_kernel_size: 5
+
+decoder:
+  _target_: icenet_mp.models.decoders.CNNDecoder
+  n_layers: 1
+  mask_type: active
+  restrict_range: clamp
+
+use_motion_channels: true
+
+# Label each input history day with its position in the window (0 = oldest,
+# 1 = most recent) as an extra constant channel, giving the encoders an explicit
+# day-order cue.
+use_day_order_channels: true
+
+# Both default off here so this config's behaviour is unchanged; enabled together in
+# baseline/03c_cnn_vit_cnn_residual (see next_steps.md for the motivating analysis).
+# use_skip_connection: concatenate the most recent encoded history frame onto the
+# processor output so fine boundary detail bypasses the ViT patch bottleneck.
+use_skip_connection: false
+# use_residual_output: decode a *delta* added onto the last observed target frame
+# (persistence base), clamped to [0, 1]. Pair with decoder.restrict_range: none.
+use_residual_output: false

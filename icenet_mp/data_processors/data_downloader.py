@@ -226,7 +226,13 @@ class DataDownloader:
         if not available_indices:
             msg = f"No available timesteps in status_flag for dataset {self.name}."
             raise RuntimeError(msg)
-        status_flag = np.asarray(ds_sf, dtype=np.uint8)[available_indices]
+        # Read available indices one at a time rather than converting the whole
+        # dataset with np.asarray(ds_sf)[available_indices]: that touches every
+        # index (including missing ones) before the slice ever applies, so it
+        # raises MissingDateError even though missing dates were excluded above.
+        status_flag = np.stack(
+            [np.asarray(ds_sf[i], dtype=np.uint8) for i in available_indices]
+        )
         binary = np.unpackbits(status_flag, axis=-1).reshape(*status_flag.shape, 8)
 
         # land mask: land = 0, sea = 1

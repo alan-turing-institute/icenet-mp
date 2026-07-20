@@ -1,0 +1,14 @@
+# @package _global_
+defaults:
+  - /base
+  - override /model: cnn_unet_cnn_direct
+  - _self_
+
+# One-shot (non-autoregressive) UNet arm: same enhancement set and optimizer as
+# baseline/02b_cnn_unet_cnn_enhanced, with UNetProcessor swapped for
+# UNetDirectProcessor (predicts all forecast steps in one forward pass). Mirrors
+# baseline/03d_cnn_vit_cnn_direct's change to the ViT arm.
+train:
+  optimizer:
+    lr: 1e-3
+    weight_decay: 0.05

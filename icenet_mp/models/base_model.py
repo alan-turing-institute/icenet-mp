@@ -243,7 +243,7 @@ class BaseModel(LightningModule, ABC):
 
         """
         batch = self.process_batch(batch)
-        target = batch["target"].clone().detach()
+        target = batch.pop("target").detach()
         prediction = self(batch)
         loss = self.loss(prediction, target)
 
@@ -284,7 +284,7 @@ class BaseModel(LightningModule, ABC):
 
         """
         batch = self.process_batch(batch)
-        target = batch["target"].clone().detach()
+        target = batch.pop("target").detach()
         prediction = self(batch)
         loss = self.loss(prediction, target)
 
