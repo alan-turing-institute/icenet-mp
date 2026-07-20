@@ -17,6 +17,7 @@ from omegaconf import DictConfig
 from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
+    CentroidErrorPerForecastDay,
     IceNetAccuracy,
     MAEPerForecastDay,
     RMSEPerForecastDay,
@@ -42,6 +43,7 @@ class BaseModel(LightningModule, ABC):
         output_space: DictConfig,
         scheduler: DictConfig,
         loss: DictConfig,
+        use_centroid_metric: bool = False,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
@@ -50,6 +52,13 @@ class BaseModel(LightningModule, ABC):
         of forecast and history steps.
 
         Optimizer configuration is also set here.
+
+        Args:
+            use_centroid_metric: If True, add the value-weighted centre-of-mass
+                distance metric to every metric collection. Only meaningful for the
+                synthetic moving-circle check, where the field is a single blob with a
+                well-defined centroid; on real multi-region sea ice it is not a useful
+                summary, so it is opt-in and enabled only by the synthetic baselines.
         """
         super().__init__()
 
@@ -85,6 +94,8 @@ class BaseModel(LightningModule, ABC):
             "rmse": RMSEPerForecastDay(),
             "sieerror": SeaIceExtentErrorPerForecastDay(),
         }
+        if use_centroid_metric:
+            _common_metrics["centroid_error"] = CentroidErrorPerForecastDay()
         self.test_metrics = MetricCollection(deepcopy(_common_metrics))
         self.train_metrics = MetricCollection(deepcopy(_common_metrics))
         self.validation_metrics = MetricCollection(deepcopy(_common_metrics))

@@ -31,6 +31,10 @@ defaults:
 model:
   decoder:
     mask_type: none
+  # The synthetic field is a single moving circle with a well-defined centre, so the
+  # value-weighted centroid distance is a meaningful summary here (unlike on real
+  # multi-region sea ice, where it is off by default).
+  use_centroid_metric: true
 
 # baseline/03_cnn_vit_cnn inherits the global default lr=5e-3, which learns too
 # slowly through the sigmoid range restriction to pass the check's improvement gate
