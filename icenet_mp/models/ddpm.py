@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, NoReturn
 
 import torch
@@ -441,9 +442,7 @@ class DDPM(BaseModel):
             y = batch["target"].squeeze(2)  # [B, T, H, W] — all steps at once
 
         # Sample random timesteps
-        t = torch.randint(
-            0, self.timesteps, (x.shape[0],), device=self.device
-        ).long()  
+        t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
 
         # Create noisy version
         noise = torch.randn_like(y)  # B, T, H, W
@@ -548,8 +547,8 @@ class DDPM(BaseModel):
             - loss: test loss value
 
         """
-        y = batch["target"]  # [B, T, 1, H, W]
-        y_hat = self.sample(batch).unsqueeze(2)  # [B, T, 1, H, W]
+        y = batch["target"].squeeze(2)  # [B, T, H, W]
+        y_hat = self.sample(batch)  # [B, T, H, W]
 
         loss = self.loss(y_hat, y)
         self.log(
@@ -562,6 +561,8 @@ class DDPM(BaseModel):
         )
 
         # Convert to NTCHW format to update metrics and return
-        self.test_metrics.update(y_hat, y)
+        prediction = y_hat.unsqueeze(2)  # [B, T, 1, H, W]
+        target = y.unsqueeze(2)  # [B, T, 1, H, W]
+        self.test_metrics.update(prediction, target)
 
-        return ModelStepOutput(prediction=y_hat, target=y, loss=loss)
+        return ModelStepOutput(prediction, target, loss)
