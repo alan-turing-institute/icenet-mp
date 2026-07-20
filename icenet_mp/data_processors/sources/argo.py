@@ -13,6 +13,7 @@ from anemoi.datasets.dates.groups import GroupOfDates
 from earthkit.data import FieldList
 from haversine import Unit, haversine_vector
 from pandas import DataFrame
+from typing_extensions import override
 
 from icenet_mp.data_processors.sources import lazy_argopy as argopy
 from icenet_mp.geotools import grid_factory
@@ -59,7 +60,8 @@ class ArgoSource(Source):
             msg = f"Invalid area: {area}. Expected format: 'N/W/S/E'"
             raise ValueError(msg)
 
-    def execute(self, dates: list[datetime] | GroupOfDates) -> FieldList:
+    @override
+    def execute(self, argument: list[datetime] | GroupOfDates) -> FieldList:
         """Download Argo float data within given date range."""
         # Construct the grid that we want to project onto
         grid_points = np.stack(
@@ -71,7 +73,7 @@ class ArgoSource(Source):
         logger.info("Created grid with %d latitudes and %d longitudes.", *grid_shape)
 
         # Create a dummy data structure of the correct shape
-        requested_dates: list[datetime] = sorted(date for date in dates)
+        requested_dates: list[datetime] = sorted(date for date in argument)
 
         weighted_data: dict[str, np.ndarray] = {
             variable: np.full((len(requested_dates), *grid_shape), np.nan, dtype=float)
