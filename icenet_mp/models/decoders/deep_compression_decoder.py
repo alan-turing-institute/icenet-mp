@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from torch import nn
 
-from icenet_mp.models.common import ResBlock, WeightedUpsample
+from icenet_mp.models.common import ResBlock, ResidualUpsample
 from icenet_mp.types import TensorNCHW
 
 from .base_decoder import BaseDecoder
@@ -57,6 +57,12 @@ class DeepCompressionDecoder(BaseDecoder):
         if len(hid_blocks) != len(hid_channels):
             msg = f"hid_blocks and hid_channels must have the same length, got {len(hid_blocks)} and {len(hid_channels)}"
             raise ValueError(msg)
+        if patch_size < 1:
+            msg = f"patch_size must be >= 1, got {patch_size}"
+            raise ValueError(msg)
+        if stride < 1:
+            msg = f"stride must be >= 1, got {stride}"
+            raise ValueError(msg)
         in_channels = self.data_space_in.channels
         out_channels = self.data_space_out.channels
 
@@ -93,9 +99,11 @@ class DeepCompressionDecoder(BaseDecoder):
             if idx + 1 == len(hid_blocks):
                 # Deepest layer: convolve from latent channels
                 layers.append(
-                    nn.Conv2d(
-                        in_channels,
-                        hid_channels[idx],
+                    ResidualUpsample(
+                        in_channels=in_channels,
+                        out_channels=hid_channels[idx],
+                        factor=1,
+                        pixel_shuffle=False,
                         kernel_size=kernel_size,
                         padding=padding,
                         padding_mode=padding_mode,
@@ -118,57 +126,27 @@ class DeepCompressionDecoder(BaseDecoder):
             )
 
             if idx > 0:
-                if pixel_shuffle:
-                    # Subsequent layers: upsample via ICNR-initialised pixel shuffle
-                    layers.append(
-                        WeightedUpsample(
-                            hid_channels[idx],
-                            out_channels=hid_channels[idx - 1],
-                            upsample_factor=stride,
-                        )
-                    )
-                else:
-                    # Subsequent layers: upsample via interpolation then convolve
-                    layers.extend(
-                        (
-                            nn.Upsample(scale_factor=stride, mode="nearest"),
-                            nn.Conv2d(
-                                hid_channels[idx],
-                                hid_channels[idx - 1],
-                                kernel_size=kernel_size,
-                                padding=padding,
-                                padding_mode=padding_mode,
-                            ),
-                        )
-                    )
-            # Shallowest layer: convolve then (optionally unpatchify)
-            elif patch_size > 1:
-                if pixel_shuffle:
-                    layers.append(
-                        WeightedUpsample(
-                            hid_channels[idx],
-                            out_channels=out_channels,
-                            upsample_factor=patch_size,
-                        )
-                    )
-                else:
-                    layers.extend(
-                        (
-                            nn.Upsample(scale_factor=patch_size, mode="nearest"),
-                            nn.Conv2d(
-                                hid_channels[idx],
-                                out_channels,
-                                kernel_size=kernel_size,
-                                padding=padding,
-                                padding_mode=padding_mode,
-                            ),
-                        )
-                    )
-            else:
+                # Subsequent layers: upsample by factor `stride`
                 layers.append(
-                    nn.Conv2d(
-                        hid_channels[idx],
-                        out_channels,
+                    ResidualUpsample(
+                        in_channels=hid_channels[idx],
+                        out_channels=hid_channels[idx - 1],
+                        factor=stride,
+                        pixel_shuffle=pixel_shuffle,
+                        kernel_size=kernel_size,
+                        padding=padding,
+                        padding_mode=padding_mode,
+                    )
+                )
+
+            else:
+                # Shallowest layer: convolve then (optionally unpatchify).
+                layers.append(
+                    ResidualUpsample(
+                        in_channels=hid_channels[idx],
+                        out_channels=out_channels,
+                        factor=patch_size,
+                        pixel_shuffle=pixel_shuffle if patch_size > 1 else False,
                         kernel_size=kernel_size,
                         padding=padding,
                         padding_mode=padding_mode,

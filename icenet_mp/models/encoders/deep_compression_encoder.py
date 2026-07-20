@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from torch import nn
 
-from icenet_mp.models.common import ResBlock
+from icenet_mp.models.common import ResBlock, ResidualDownsample
 from icenet_mp.types import TensorNCHW
 
 from .base_encoder import BaseEncoder
@@ -58,6 +58,12 @@ class DeepCompressionEncoder(BaseEncoder):
         if len(hid_blocks) != len(hid_channels):
             msg = f"hid_blocks and hid_channels must have the same length, got {len(hid_blocks)} and {len(hid_channels)}"
             raise ValueError(msg)
+        if patch_size < 1:
+            msg = f"patch_size must be >= 1, got {patch_size}"
+            raise ValueError(msg)
+        if stride < 1:
+            msg = f"stride must be >= 1, got {stride}"
+            raise ValueError(msg)
         in_channels = self.data_space_in.channels
 
         # Validate the output shape is correct.
@@ -94,41 +100,28 @@ class DeepCompressionEncoder(BaseEncoder):
         for idx, num_blocks in enumerate(hid_blocks):
             if idx == 0:
                 # Shallowest layer: (optionally patchify) then convolve the input
-                if patch_size > 1:
-                    layers.append(nn.PixelUnshuffle(patch_size))
                 layers.append(
-                    nn.Conv2d(
-                        patch_size**2 * in_channels,
-                        hid_channels[idx],
+                    ResidualDownsample(
+                        in_channels=in_channels,
+                        out_channels=hid_channels[idx],
+                        factor=patch_size,
+                        pixel_shuffle=pixel_shuffle if patch_size > 1 else False,
                         kernel_size=kernel_size,
-                        padding=padding,
                         padding_mode=padding_mode,
-                    )
-                )
-            elif pixel_shuffle:
-                # Subsequent layers: downsample via patchify then convolve
-                layers.extend(
-                    (
-                        nn.PixelUnshuffle(stride),
-                        nn.Conv2d(
-                            hid_channels[idx - 1] * stride**2,
-                            hid_channels[idx],
-                            kernel_size=kernel_size,
-                            padding=padding,
-                            padding_mode=padding_mode,
-                        ),
+                        padding=padding,
                     )
                 )
             else:
-                # Subsequent layers: downsample via strided convolution
+                # Subsequent layers: downsample by factor `stride`
                 layers.append(
-                    nn.Conv2d(
-                        hid_channels[idx - 1],
-                        hid_channels[idx],
+                    ResidualDownsample(
+                        in_channels=hid_channels[idx - 1],
+                        out_channels=hid_channels[idx],
+                        factor=stride,
+                        pixel_shuffle=pixel_shuffle,
                         kernel_size=kernel_size,
-                        stride=stride,
-                        padding=padding,
                         padding_mode=padding_mode,
+                        padding=padding,
                     )
                 )
 
@@ -148,11 +141,13 @@ class DeepCompressionEncoder(BaseEncoder):
             )
 
             if idx + 1 == len(hid_blocks):
-                # Deepest layer: convolve to latent channels
+                # Deepest layer: convolve to latent channels.
                 layers.append(
-                    nn.Conv2d(
-                        hid_channels[idx],
-                        latent_channels,
+                    ResidualDownsample(
+                        in_channels=hid_channels[idx],
+                        out_channels=latent_channels,
+                        factor=1,
+                        pixel_shuffle=False,
                         kernel_size=kernel_size,
                         padding=padding,
                         padding_mode=padding_mode,

@@ -40,12 +40,12 @@ class ResidualDownsample(nn.Module):
         """
         super().__init__()
         if pixel_shuffle:
-            self.parametric = nn.Sequential(
-                nn.PixelUnshuffle(factor),
+            self.parametric: nn.Module = nn.Sequential(
+                nn.PixelUnshuffle(factor) if factor > 1 else nn.Identity(),
                 nn.Conv2d(in_channels * factor**2, out_channels, **kwargs),
             )
             self.shortcut = nn.Sequential(
-                nn.PixelUnshuffle(factor),
+                nn.PixelUnshuffle(factor) if factor > 1 else nn.Identity(),
                 ChannelAdaptor(in_channels * factor**2, out_channels),
             )
         else:
@@ -53,7 +53,8 @@ class ResidualDownsample(nn.Module):
                 in_channels, out_channels, stride=factor, **kwargs
             )
             self.shortcut = nn.Sequential(
-                nn.AvgPool2d(factor), ChannelAdaptor(in_channels, out_channels)
+                nn.AvgPool2d(factor) if factor > 1 else nn.Identity(),
+                ChannelAdaptor(in_channels, out_channels),
             )
 
     def forward(self, x: Tensor) -> Tensor:

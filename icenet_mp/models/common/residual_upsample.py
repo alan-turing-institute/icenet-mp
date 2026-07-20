@@ -41,21 +41,25 @@ class ResidualUpsample(nn.Module):
         """
         super().__init__()
         if pixel_shuffle:
-            self.parametric = WeightedUpsample(
+            self.parametric: nn.Module = WeightedUpsample(
                 in_channels, out_channels=out_channels, upsample_factor=factor
             )
             self.shortcut = nn.Sequential(
                 ChannelAdaptor(in_channels, out_channels * factor**2),
-                nn.PixelShuffle(factor),
+                nn.PixelShuffle(factor) if factor > 1 else nn.Identity(),
             )
         else:
             self.parametric = nn.Sequential(
-                nn.Upsample(scale_factor=factor, mode="nearest"),
+                nn.Upsample(scale_factor=factor, mode="nearest")
+                if factor > 1
+                else nn.Identity(),
                 nn.Conv2d(in_channels, out_channels, **kwargs),
             )
             self.shortcut = nn.Sequential(
                 ChannelAdaptor(in_channels, out_channels),
-                nn.Upsample(scale_factor=factor, mode="nearest"),
+                nn.Upsample(scale_factor=factor, mode="nearest")
+                if factor > 1
+                else nn.Identity(),
             )
 
     def forward(self, x: Tensor) -> Tensor:
