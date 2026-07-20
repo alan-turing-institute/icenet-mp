@@ -7,7 +7,7 @@ encoders:
   era5:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
     hid_channels: [96, 192]
-    hid_blocks: [3, 3]
+    hid_blocks: [2, 2]
     latent_channels: 96
     pixel_shuffle: false
     stride: 3
