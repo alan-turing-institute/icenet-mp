@@ -3,6 +3,8 @@
 import torch
 from torch import Tensor, nn
 
+from icenet_mp.types import TensorNCHW
+
 
 class ChannelAdaptor(nn.Module):
     """Deterministically change the number of channels of an NCHW tensor.
@@ -12,7 +14,7 @@ class ChannelAdaptor(nn.Module):
     non-learnable 1x1 convolution.
     """
 
-    weight: Tensor
+    channel_map: Tensor
 
     def __init__(self, in_channels: int, out_channels: int) -> None:
         """Initialise a ChannelAdaptor."""
@@ -25,15 +27,17 @@ class ChannelAdaptor(nn.Module):
         # is less than in_channels, this will average channels. The map between input
         # and output channels is fixed, and we therefore calculate it once and save it
         # as a buffer.
-        weight = torch.zeros(out_channels, in_channels)
+        channel_map = torch.zeros(out_channels, in_channels)
         for idx_out in range(out_channels):
             start = (idx_out * in_channels) // out_channels
             end = -(-((idx_out + 1) * in_channels) // out_channels)  # ceil division
-            weight[idx_out, start:end] = 1.0 / (end - start)
-        self.register_buffer("weight", weight.view(out_channels, in_channels, 1, 1))
+            channel_map[idx_out, start:end] = 1.0 / (end - start)
+        self.register_buffer(
+            "channel_map", channel_map.view(out_channels, in_channels, 1, 1)
+        )
 
-    def forward(self, x: Tensor) -> Tensor:
-        """Apply the channel adaptation to x."""
+    def forward(self, x: TensorNCHW) -> TensorNCHW:
+        """Apply the deterministic channel map to an NCHW tensor."""
         if self.out_channels == self.in_channels:
             return x
-        return nn.functional.conv2d(x, weight=self.weight)
+        return nn.functional.conv2d(x, weight=self.channel_map)
