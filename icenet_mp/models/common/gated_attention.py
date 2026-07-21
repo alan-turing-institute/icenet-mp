@@ -11,6 +11,7 @@ class GatedAttention(nn.Module):
     """
 
     def __init__(self, channels: int, *, kernel_size: int, dilation: int) -> None:
+        """Initialise a GatedAttention module."""
         super().__init__()
         depthwise_kernel = 2 * dilation - 1
         dilated_kernel = kernel_size // dilation + ((kernel_size // dilation) % 2 - 1)
@@ -41,6 +42,7 @@ class GatedAttention(nn.Module):
         value, gate = self.expand(self.attend(x)).chunk(2, dim=1)
         return x + self.proj_out(value * gate.sigmoid())
 
+
 class GatedAttentionBlock(nn.Module):
     """SimVPv2 gSTA block.
 
@@ -69,6 +71,7 @@ class GatedAttentionBlock(nn.Module):
         mlp_ratio: float,
         drop_prob: float,
     ) -> None:
+        """Initialise a GatedAttentionBlock."""
         super().__init__()
         self.drop_prob = drop_prob
 
