@@ -9,11 +9,19 @@ from .self_attention import SelfAttention2D
 
 
 class ResBlock(nn.Module):
-    """Residual block: normalise -> (optional) attention -> spatial feed-forward network.
+    """Residual block following the EfficientViTBlock design.
 
-    Implementation of the DCAE ResBlock. The FFN uses the ``kernel_size`` (and other
-    conv settings) passed via ``**conv_kwargs``, matching DCAE's use of spatial (not
-    1x1) convolutions for local feature mixing.
+    - (optional) attention subblock
+        - normalise the input
+        - attention to select spatial features
+        - add residual connection to the input
+    - feed-forward subblock
+        - normalise the input
+        - 1x1 convolution to expand channels by `ffn_factor`
+        - SiLU activation
+        - (optional) dropout
+        - 1x1 convolution to reduce channels back to input size
+        - add residual connection to the input
     """
 
     def __init__(
@@ -29,13 +37,20 @@ class ResBlock(nn.Module):
         """Initialise a ResBlock."""
         super().__init__()
 
-        self.norm = normalisation_from_name(norm, channels)
-        self.attn = (
+        # Optional attention sub-block
+        self.attn_norm: nn.Module | None = (
+            normalisation_from_name(norm, channels)
+            if attention_heads is not None
+            else None
+        )
+        self.attn: nn.Module | None = (
             SelfAttention2D(channels, heads=attention_heads)
             if attention_heads is not None
             else None
         )
 
+        # Feed-forward sub-block
+        self.ffn_norm = normalisation_from_name(norm, channels)
         ffn_layers: list[nn.Module] = [
             nn.Conv2d(channels, ffn_factor * channels, **conv_kwargs),
             nn.SiLU(),
@@ -48,7 +63,6 @@ class ResBlock(nn.Module):
         self.ffn = nn.Sequential(*ffn_layers)
 
     def forward(self, x: Tensor) -> Tensor:
-        y = self.norm(x)
-        if self.attn is not None:
-            y = y + self.attn(y)
-        return x + self.ffn(y)
+        if self.attn is not None and self.attn_norm is not None:
+            x = x + self.attn(self.attn_norm(x))
+        return x + self.ffn(self.ffn_norm(x))
