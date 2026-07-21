@@ -39,7 +39,6 @@ class DeepCompressionEncoder(BaseEncoder):
         self,
         *,
         attention_heads: dict[int, int] = {},  # noqa: B006
-        dropout: float | None = None,
         ffn_factor: int = 1,
         hid_blocks: Sequence[int] = (3, 3, 3),
         hid_channels: Sequence[int] = (64, 128, 256),
@@ -130,7 +129,6 @@ class DeepCompressionEncoder(BaseEncoder):
                 ResBlock(
                     hid_channels[idx],
                     attention_heads=attention_heads.get(idx),
-                    dropout=dropout,
                     ffn_factor=ffn_factor,
                     kernel_size=kernel_size,
                     norm=norm,

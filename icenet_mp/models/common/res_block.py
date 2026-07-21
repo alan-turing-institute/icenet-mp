@@ -1,9 +1,10 @@
-"""Residual block: normalise -> (optional) attention -> 1x1 feed-forward network."""
+"""Residual block: normalise -> (optional) attention -> GLU-gated feed-forward network."""
 
 from typing import Any
 
 from torch import Tensor, nn
 
+from .glumb_conv import GLUMBConv
 from .normalisations import normalisation_from_name
 from .self_attention import SelfAttention2D
 
@@ -17,10 +18,7 @@ class ResBlock(nn.Module):
         - add residual connection to the input
     - feed-forward subblock
         - normalise the input
-        - 1x1 convolution to expand channels by `ffn_factor`
-        - SiLU activation
-        - (optional) dropout
-        - 1x1 convolution to reduce channels back to input size
+        - GLU-gated inverted-bottleneck convolution expanding channels by `ffn_factor`
         - add residual connection to the input
     """
 
@@ -31,7 +29,6 @@ class ResBlock(nn.Module):
         norm: str = "groupnorm",
         attention_heads: int | None = None,
         ffn_factor: int = 1,
-        dropout: float | None = None,
         **conv_kwargs: Any,
     ) -> None:
         """Initialise a ResBlock."""
@@ -51,16 +48,12 @@ class ResBlock(nn.Module):
 
         # Feed-forward sub-block
         self.ffn_norm = normalisation_from_name(norm, channels)
-        ffn_layers: list[nn.Module] = [
-            nn.Conv2d(channels, ffn_factor * channels, **conv_kwargs),
-            nn.SiLU(),
-        ]
-        if dropout is not None:
-            ffn_layers.append(nn.Dropout(dropout))
-        conv_layer = nn.Conv2d(ffn_factor * channels, channels, **conv_kwargs)
-        conv_layer.weight.data.mul_(1e-2)
-        ffn_layers.append(conv_layer)
-        self.ffn = nn.Sequential(*ffn_layers)
+        self.ffn = GLUMBConv(
+            channels,
+            expand_ratio=ffn_factor,
+            residual_connection=False,  # residual connection is already present
+            **conv_kwargs,
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         if self.attn is not None and self.attn_norm is not None:
