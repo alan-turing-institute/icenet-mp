@@ -12,10 +12,16 @@ class ResidualDownsample(nn.Module):
 
     Mirror of :class:`ResidualUpsample` for the encoder side.
 
-    The parametric block is either PixelUnshuffle plus Conv2d or strided Conv2d.
-    The shortcut block is a non-parametric operation that matches the type of spatial
-    downsampling used in the parametric block (PixelUnshuffle or Pool) plus a channel
-    adaptor that matches the number of output channels.
+    The parametric block is one of:
+    - Conv2d + (PixelUnshuffle + ChannelAdaptor)
+    - strided Conv2d + ChannelAdaptor
+
+    The shortcut block is one of:
+    - PixelUnshuffle + ChannelAdaptor
+    - AvgPool2d + ChannelAdaptor
+
+    chosen to match the spatial downsampling used in the parametric block. In all cases,
+    the non-parametric ChannelAdaptor is used to set the number of output channels.
 
     """
 
@@ -40,10 +46,20 @@ class ResidualDownsample(nn.Module):
         """
         super().__init__()
         if pixel_shuffle:
-            self.parametric: nn.Module = nn.Sequential(
-                nn.PixelUnshuffle(factor) if factor > 1 else nn.Identity(),
-                nn.Conv2d(in_channels * factor**2, out_channels, **kwargs),
-            )
+            if factor > 1:
+                # Convolve before reshuffling to reduce the intermediate channel count.
+                conv_channels = -(-out_channels // factor**2)  # ceil division
+                self.parametric: nn.Module = nn.Sequential(
+                    nn.Conv2d(in_channels, conv_channels, **kwargs),
+                    nn.PixelUnshuffle(factor),
+                    ChannelAdaptor(conv_channels * factor**2, out_channels),
+                )
+            elif factor == 1:
+                # If factor is 1, no downsampling is needed
+                self.parametric = nn.Conv2d(in_channels, out_channels, **kwargs)
+            else:
+                msg = f"factor must be >= 1, got {factor}"
+                raise ValueError(msg)
             self.shortcut = nn.Sequential(
                 nn.PixelUnshuffle(factor) if factor > 1 else nn.Identity(),
                 ChannelAdaptor(in_channels * factor**2, out_channels),
