@@ -5,8 +5,8 @@ from typing import Any
 from torch import Tensor, nn
 
 from .glumb_conv import GLUMBConv
+from .lite_mla import LiteMLA
 from .normalisations import normalisation_from_name
-from .self_attention import SelfAttention2D
 
 
 class ResBlock(nn.Module):
@@ -28,6 +28,7 @@ class ResBlock(nn.Module):
         *,
         norm: str = "groupnorm",
         attention_heads: int | None = None,
+        attention_scales: tuple[int, ...] = (5,),
         ffn_factor: int = 1,
         **conv_kwargs: Any,
     ) -> None:
@@ -41,7 +42,12 @@ class ResBlock(nn.Module):
             else None
         )
         self.attn: nn.Module | None = (
-            SelfAttention2D(channels, heads=attention_heads)
+            LiteMLA(
+                channels,
+                heads=attention_heads,
+                scales=attention_scales,
+                padding_mode=conv_kwargs.get("padding_mode", "zeros"),
+            )
             if attention_heads is not None
             else None
         )

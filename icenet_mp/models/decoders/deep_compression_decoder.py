@@ -39,6 +39,7 @@ class DeepCompressionDecoder(BaseDecoder):
         self,
         *,
         attention_heads: dict[int, int] = {},  # noqa: B006
+        attention_scales: tuple[int, ...] = (5,),
         ffn_factor: int = 1,
         hid_blocks: Sequence[int] = (3, 3, 3),
         hid_channels: Sequence[int] = (64, 128, 256),
@@ -114,6 +115,7 @@ class DeepCompressionDecoder(BaseDecoder):
                 ResBlock(
                     hid_channels[idx],
                     attention_heads=attention_heads.get(idx),
+                    attention_scales=attention_scales,
                     ffn_factor=ffn_factor,
                     kernel_size=kernel_size,
                     norm=norm,
