@@ -5,71 +5,22 @@ Reference:
     (Gao et al., 2022) [https://arxiv.org/abs/2206.05099]
 
 SimVP is a spatio-temporal predictor made of three plain-CNN pieces:
-    1. A per-timestep spatial encoder consisting of stacked ConvNormAct blocks
+    1. A per-timestep spatial encoder built from ``ConvBlockDownsample`` blocks.
     2. A temporal translator ("Mid-Xnet") using a U-Net-shaped stack of
        ``Inception`` modules (a 1x1 bottleneck followed by parallel grouped
        convolutions at different kernel sizes).
-    3. A per-timestep spatial decoder that mirrors the encoder.
+    3. A per-timestep spatial decoder built from ``ConvBlockUpsample`` blocks that
+       mirrors the encoder.
 """
 
 from typing import Any
 
 from torch import Tensor, cat, nn
 
-from icenet_mp.models.common import ConvNormAct
-from icenet_mp.models.common.activations import ACTIVATION_FROM_NAME
-from icenet_mp.models.common.normalisations import normalisation_from_name
+from icenet_mp.models.common import ConvBlockDownsample, ConvBlockUpsample, ConvNormAct
 from icenet_mp.types import ProcessorOutput, TensorNCHW, TensorNTCHW
 
 from .base_processor import BaseProcessor
-
-
-class _ConvSC(nn.Module):
-    """Spatial conv block: (transposed) Conv2d + GroupNorm + LeakyReLU.
-
-    The non-transposed path is built from the shared `ConvNormAct` block. Transposed
-    convolution (used by the decoder to upsample) isn't something `ConvNormAct`
-    supports, so that path reuses the `normalisation_from_name`/`ACTIVATION_FROM_NAME`
-    helpers directly instead.
-    """
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        *,
-        stride: int,
-        transpose: bool = False,
-    ) -> None:
-        super().__init__()
-        # A stride of 1 is a no-op for up/downsampling, so there is no need to transpose it.
-        transpose = transpose and stride != 1
-        if transpose:
-            self.block = nn.Sequential(
-                nn.ConvTranspose2d(
-                    in_channels,
-                    out_channels,
-                    kernel_size=3,
-                    stride=stride,
-                    padding=1,
-                    output_padding=stride // 2,
-                ),
-                normalisation_from_name("groupnorm", out_channels),
-                ACTIVATION_FROM_NAME["LeakyReLU"](),
-            )
-        else:
-            self.block = ConvNormAct(
-                in_channels,
-                out_channels,
-                kernel_size=3,
-                stride=stride,
-                padding=1,
-                activation="LeakyReLU",
-                norm_type="groupnorm",
-            )
-
-    def forward(self, x: Tensor) -> Tensor:
-        return self.block(x)
 
 
 class _Inception(nn.Module):
@@ -85,21 +36,19 @@ class _Inception(nn.Module):
         groups: int,
     ) -> None:
         super().__init__()
-        self.reduce = nn.Conv2d(in_channels, hid_channels, kernel_size=1)
-        # A grouped convolution requires both channel counts to be divisible by groups;
-        # fall back to an ungrouped convolution otherwise (matches the reference
-        # implementation, which guards this the same way).
-        effective_groups = (
+        self.channel_conv = nn.Conv2d(in_channels, hid_channels, kernel_size=1)
+        # Check that n_groups divides both hid_channels and out_channels, otherwise use 1
+        n_groups = (
             groups if hid_channels % groups == 0 and out_channels % groups == 0 else 1
         )
-        self.branches = nn.ModuleList(
+        self.parallel_convs = nn.ModuleList(
             [
                 ConvNormAct(
                     hid_channels,
                     out_channels,
                     kernel_size=k,
                     padding=k // 2,
-                    groups=effective_groups,
+                    groups=n_groups,
                     activation="LeakyReLU",
                     norm_type="groupnorm",
                 )
@@ -108,64 +57,109 @@ class _Inception(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        x = self.reduce(x)
-        y = self.branches[0](x)
-        for branch in self.branches[1:]:
-            y = y + branch(x)
+        x = self.channel_conv(x)
+        y = self.parallel_convs[0](x)
+        for parallel_conv in self.parallel_convs[1:]:
+            y = y + parallel_conv(x)
         return y
 
 
-class _Encoder(nn.Module):
-    """Per-frame spatial encoder: a stack of `_ConvSC` blocks."""
+class _SpatialEncoder(nn.Module):
+    """Per-frame spatial encoder: one `ConvBlockDownsample` per stride-1/stride-2 step.
+
+    Mirror of :class:`_SpatialDecoder`.
+
+    The paper's alternating stride-1/stride-2 pattern always starts with a stride-1,
+    channel-projecting layer at full resolution (no downsampling) -- this first layer
+    is what the decoder's skip connection is taken from.
+    """
 
     def __init__(self, in_channels: int, hid_channels: int, depth: int) -> None:
         super().__init__()
         strides = ([1, 2] * depth)[:depth]
-        self.channel_conv = _ConvSC(in_channels, hid_channels, stride=strides[0])
-        self.layers = nn.ModuleList(
-            _ConvSC(hid_channels, hid_channels, stride=s) for s in strides[1:]
+        self.downsample_convs = nn.ModuleList(
+            ConvBlockDownsample(
+                in_channels if idx == 0 else hid_channels,
+                activation="LeakyReLU",
+                kernel_size=3,
+                n_subblocks=1,
+                norm_type="groupnorm",
+                out_channels=hid_channels,
+                scale_factor=stride,
+            )
+            for idx, stride in enumerate(strides[1:])
+        )
+        self.channel_conv = ConvBlockDownsample(
+            in_channels,
+            activation="LeakyReLU",
+            kernel_size=3,
+            n_subblocks=1,
+            norm_type="groupnorm",
+            out_channels=hid_channels,
+            scale_factor=strides[0],
         )
 
     def forward(self, x: TensorNCHW) -> tuple[TensorNCHW, TensorNCHW]:
         """Return (final latent, first-layer activations) for the decoder skip connection."""
         skip = self.channel_conv(x)
         z = skip
-        for layer in self.layers:
-            z = layer(z)
+        for downsample_conv in self.downsample_convs:
+            z = downsample_conv(z)
         return z, skip
 
 
-class _Decoder(nn.Module):
-    """Per-frame spatial decoder: transposed `_ConvSC` blocks mirroring the encoder."""
+class _SpatialDecoder(nn.Module):
+    """Per-frame spatial decoder: one `ConvBlockUpsample` per stride-1/stride-2 step.
+
+    Mirror of :class:`_SpatialEncoder`.
+
+    As in `_SpatialEncoder`, the paper's alternating pattern reversed always ends with
+    stride 1, so the final layer is always a single channel-projecting layer at full
+    resolution -- the one that receives the concatenated encoder skip connection.
+    """
 
     def __init__(self, hid_channels: int, out_channels: int, depth: int) -> None:
         super().__init__()
         strides = list(reversed(([1, 2] * depth)[:depth]))
-        self.layers = nn.ModuleList(
-            [
-                _ConvSC(hid_channels, hid_channels, stride=s, transpose=True)
-                for s in strides[:-1]
-            ]
+        self.upsample_convs = nn.ModuleList(
+            ConvBlockUpsample(
+                hid_channels,
+                activation="LeakyReLU",
+                kernel_size=3,
+                n_subblocks=1,
+                norm_type="groupnorm",
+                out_channels=hid_channels,
+                scale_factor=stride,
+                upsample_mode="shuffle",
+            )
+            for stride in strides[:-1]
         )
-        self.skip_conv = _ConvSC(
-                    2 * hid_channels, hid_channels, stride=strides[-1], transpose=True
-                )
+        self.skip_conv = ConvBlockUpsample(
+            2 * hid_channels,
+            activation="LeakyReLU",
+            kernel_size=3,
+            n_subblocks=1,
+            norm_type="groupnorm",
+            out_channels=hid_channels,
+            scale_factor=strides[-1],
+            upsample_mode="shuffle",
+        )
         self.channel_conv = nn.Conv2d(hid_channels, out_channels, kernel_size=1)
 
     def forward(self, z: TensorNCHW, skip: TensorNCHW) -> TensorNCHW:
-        for layer in self.layers[:-1]:
-            z = layer(z)
+        for upsample_conv in self.upsample_convs:
+            z = upsample_conv(z)
         z = self.skip_conv(cat([z, skip], dim=1))
         return self.channel_conv(z)
 
 
 class _MidXNet(nn.Module):
-    """Temporal translator ("Mid-Xnet"): a U-Net of `_Inception` blocks over stacked frames.
+    """Temporal translator ("Mid-Xnet"): a U-Net of `_Inception` blocks.
 
-    Input/output are frames stacked along the channel dimension, i.e. (N, T*C, H, W).
+    Input/output are timeslices stacked along the channel dimension, i.e. (N, T*C, H, W).
     In the original SimVP, in_channels == out_channels (T_in == T_out); here they may
     differ so that a different number of forecast steps than history steps can be
-    produced (see the module docstring).
+    produced.
     """
 
     def __init__(
@@ -268,7 +262,7 @@ class SimVPProcessor(BaseProcessor):
             )
             raise ValueError(msg)
 
-        self.encoder = _Encoder(
+        self.encoder = _SpatialEncoder(
             self.data_space.channels, hid_channels_spatial, spatial_depth
         )
         self.translator = _MidXNet(
@@ -279,7 +273,7 @@ class SimVPProcessor(BaseProcessor):
             kernel_sizes=kernel_sizes,
             groups=groups,
         )
-        self.decoder = _Decoder(
+        self.decoder = _SpatialDecoder(
             hid_channels_spatial, self.data_space.channels, spatial_depth
         )
 
