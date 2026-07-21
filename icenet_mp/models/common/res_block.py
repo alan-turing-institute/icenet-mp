@@ -9,10 +9,11 @@ from .self_attention import SelfAttention2D
 
 
 class ResBlock(nn.Module):
-    """Residual block: normalise -> (optional) attention -> 1x1 feed-forward network.
+    """Residual block: normalise -> (optional) attention -> spatial feed-forward network.
 
-    Implementation of the DCAE ResBlock. The FFN always uses 1x1 convolutions regardless
-    of the ``kernel_size`` passed via ``**conv_kwargs``.
+    Implementation of the DCAE ResBlock. The FFN uses the ``kernel_size`` (and other
+    conv settings) passed via ``**conv_kwargs``, matching DCAE's use of spatial (not
+    1x1) convolutions for local feature mixing.
     """
 
     def __init__(
@@ -35,15 +36,13 @@ class ResBlock(nn.Module):
             else None
         )
 
-        # Feed-forward network uses 1x1 convolutions regardless of outer kernel_size
-        ffn_kwargs = {**conv_kwargs, "kernel_size": 1, "padding": 0}
         ffn_layers: list[nn.Module] = [
-            nn.Conv2d(channels, ffn_factor * channels, **ffn_kwargs),
+            nn.Conv2d(channels, ffn_factor * channels, **conv_kwargs),
             nn.SiLU(),
         ]
         if dropout is not None:
             ffn_layers.append(nn.Dropout(dropout))
-        conv_layer = nn.Conv2d(ffn_factor * channels, channels, **ffn_kwargs)
+        conv_layer = nn.Conv2d(ffn_factor * channels, channels, **conv_kwargs)
         conv_layer.weight.data.mul_(1e-2)
         ffn_layers.append(conv_layer)
         self.ffn = nn.Sequential(*ffn_layers)
