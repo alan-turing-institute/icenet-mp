@@ -42,7 +42,7 @@ class ResidualUpsample(nn.Module):
         super().__init__()
         if pixel_shuffle:
             self.parametric: nn.Module = WeightedUpsample(
-                in_channels, out_channels=out_channels, upsample_factor=factor
+                in_channels, out_channels=out_channels, upsample_factor=factor, **kwargs
             )
             self.shortcut = nn.Sequential(
                 ChannelAdaptor(in_channels, out_channels * factor**2),
