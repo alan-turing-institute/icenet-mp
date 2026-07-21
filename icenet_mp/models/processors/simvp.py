@@ -52,10 +52,12 @@ class _SpatialEncoder(nn.Module):
             "out_channels": hid_channels,
         }
         self.channel_conv = ConvBlockDownsample(
-            in_channels, scale_factor=strides[0], **block_kwargs
+            in_channels,
+            scale_factor=strides[0],
+            **block_kwargs,  # type: ignore[arg-type]
         )
         self.downsample_convs = nn.ModuleList(
-            ConvBlockDownsample(hid_channels, scale_factor=stride, **block_kwargs)
+            ConvBlockDownsample(hid_channels, scale_factor=stride, **block_kwargs)  # type: ignore[arg-type]
             for stride in strides[1:]
         )
 
@@ -91,11 +93,13 @@ class _SpatialDecoder(nn.Module):
             "upsample_mode": "shuffle",
         }
         self.upsample_convs = nn.ModuleList(
-            ConvBlockUpsample(hid_channels, scale_factor=stride, **block_kwargs)
+            ConvBlockUpsample(hid_channels, scale_factor=stride, **block_kwargs)  # type: ignore[arg-type]
             for stride in strides[:-1]
         )
         self.skip_conv = ConvBlockUpsample(
-            2 * hid_channels, scale_factor=strides[-1], **block_kwargs
+            2 * hid_channels,
+            scale_factor=strides[-1],
+            **block_kwargs,  # type: ignore[arg-type]
         )
         self.channel_conv = nn.Conv2d(hid_channels, out_channels, kernel_size=1)
 
@@ -190,18 +194,20 @@ class SimVPProcessor(BaseProcessor):
             GatedAttentionBlock(
                 self.n_history_steps * hid_channels_spatial,
                 hid_channels_temporal,
-                **translator_kwargs,
+                **translator_kwargs,  # type: ignore[arg-type]
             ),
             *(
                 GatedAttentionBlock(
-                    hid_channels_temporal, hid_channels_temporal, **translator_kwargs
+                    hid_channels_temporal,
+                    hid_channels_temporal,
+                    **translator_kwargs,  # type: ignore[arg-type]
                 )
                 for _ in range(temporal_depth - 2)
             ),
             GatedAttentionBlock(
                 hid_channels_temporal,
                 self.n_forecast_steps * hid_channels_spatial,
-                **translator_kwargs,
+                **translator_kwargs,  # type: ignore[arg-type]
             ),
         )
         self.decoder = _SpatialDecoder(
