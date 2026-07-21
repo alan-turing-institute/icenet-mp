@@ -18,7 +18,7 @@ from typing import Any
 from torch import Tensor, cat, nn
 
 from icenet_mp.models.common import ConvBlockDownsample, ConvBlockUpsample, ConvNormAct
-from icenet_mp.types import ProcessorOutput, TensorNCHW, TensorNTCHW
+from icenet_mp.types import ProcessorOutput, TensorNTCHW
 
 from .base_processor import BaseProcessor
 
@@ -79,7 +79,7 @@ class _SpatialEncoder(nn.Module):
         strides = ([1, 2] * depth)[:depth]
         self.downsample_convs = nn.ModuleList(
             ConvBlockDownsample(
-                in_channels if idx == 0 else hid_channels,
+                hid_channels,
                 activation="LeakyReLU",
                 kernel_size=3,
                 n_subblocks=1,
@@ -87,7 +87,7 @@ class _SpatialEncoder(nn.Module):
                 out_channels=hid_channels,
                 scale_factor=stride,
             )
-            for idx, stride in enumerate(strides[1:])
+            for stride in strides[1:]
         )
         self.channel_conv = ConvBlockDownsample(
             in_channels,
@@ -99,13 +99,14 @@ class _SpatialEncoder(nn.Module):
             scale_factor=strides[0],
         )
 
-    def forward(self, x: TensorNCHW) -> tuple[TensorNCHW, TensorNCHW]:
+    def forward(self, x: TensorNTCHW) -> tuple[TensorNTCHW, TensorNTCHW]:
         """Return (final latent, first-layer activations) for the decoder skip connection."""
-        skip = self.channel_conv(x)
-        z = skip
+        n, t, c, h, w = x.shape
+        skip_nchw = self.channel_conv(x.view(n * t, c, h, w))
+        z = skip_nchw
         for downsample_conv in self.downsample_convs:
             z = downsample_conv(z)
-        return z, skip
+        return z.view(n, t, *z.shape[1:]), skip_nchw.view(n, t, *skip_nchw.shape[1:])
 
 
 class _SpatialDecoder(nn.Module):
@@ -146,11 +147,15 @@ class _SpatialDecoder(nn.Module):
         )
         self.channel_conv = nn.Conv2d(hid_channels, out_channels, kernel_size=1)
 
-    def forward(self, z: TensorNCHW, skip: TensorNCHW) -> TensorNCHW:
+    def forward(self, z: TensorNTCHW, skip: TensorNTCHW) -> TensorNTCHW:
+        z_nchw = z.view(z.shape[0] * z.shape[1], z.shape[2], z.shape[3], z.shape[4])
+        skip_nchw = skip.reshape(skip.shape[0] * skip.shape[1], *skip.shape[2:])
+
         for upsample_conv in self.upsample_convs:
-            z = upsample_conv(z)
-        z = self.skip_conv(cat([z, skip], dim=1))
-        return self.channel_conv(z)
+            z_nchw = upsample_conv(z_nchw)
+        z_nchw = self.skip_conv(cat([z_nchw, skip_nchw], dim=1))
+        output = self.channel_conv(z_nchw)
+        return output.view(z.shape[0], z.shape[1], *output.shape[1:])
 
 
 class _MidXNet(nn.Module):
@@ -194,9 +199,9 @@ class _MidXNet(nn.Module):
             + [inception(2 * hid_channels, out_channels)]
         )
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: TensorNTCHW) -> TensorNTCHW:
         skips = []
-        z = x
+        z = x.view(x.shape[0], x.shape[1] * x.shape[2], x.shape[3], x.shape[4])
         for i, layer in enumerate(self.enc):
             z = layer(z)
             if i < self.depth - 1:
@@ -205,7 +210,7 @@ class _MidXNet(nn.Module):
         z = self.dec[0](z)
         for i in range(1, self.depth):
             z = self.dec[i](cat([z, skips[-i]], dim=1))
-        return z
+        return z.view(x.shape[0], -1, x.shape[2], x.shape[3], x.shape[4])
 
 
 class SimVPProcessor(BaseProcessor):
@@ -278,39 +283,32 @@ class SimVPProcessor(BaseProcessor):
         )
 
     def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ProcessorOutput:  # noqa: ARG002
-        n, t, c, h, w = x.shape
-        if t != self.n_history_steps:
-            msg = f"Expected T={self.n_history_steps}, got {t}"
+        if x.shape[1] != self.n_history_steps:
+            msg = f"Expected T={self.n_history_steps}, got {x.shape[1]}"
             raise ValueError(msg)
 
-        # Spatial encoder: applied independently per-timeslice. Both embed and skip
-        # come out with shape (N*T, hid_S, H_hid, W_hid).
-        embed, skip = self.encoder(x.view(n * t, c, h, w))
-        _, c_hid, h_hid, w_hid = embed.shape
+        # Spatial encoder: applied independently per-timeslice.
+        embed, skip_history = self.encoder(x)  # [N, n_history_steps, hid_S, H_hid, W_hid]
 
-        # Move the history timeslices to the channel dimension, apply temporal
-        # translation, then move the forecast timeslices back to the time dimension,
-        # ending up with shape (N * n_forecast_steps, hid_S, H_hid, W_hid).
-        z = self.translator(embed.view(n, t * c_hid, h_hid, w_hid))
-        z = z.view(n * self.n_forecast_steps, c_hid, h_hid, w_hid)
+        # Apply the temporal translator
+        z = self.translator(embed) # [N, n_forecast_steps, hid_S, H_hid, W_hid]
 
-        skip = skip.view(n, t, *skip.shape[1:])
-        if self.n_forecast_steps == self.n_history_steps:
-            # As in the original SimVP: decode forecast frame i using the first
-            # encoder layer's activations for that same history frame i.
-            skip_dec = skip
-        else:
-            # The paper only ever predicts as many frames as it is given, so it does
-            # not define a skip connection for this case. Reuse the most recent
-            # history frame's skip features for every forecast frame instead of
-            # leaving the decoder's skip connection undefined.
-            skip_dec = skip[:, -1:].expand(-1, self.n_forecast_steps, -1, -1, -1)
-        # `.expand()` above (when taken) produces a non-contiguous tensor, so this
-        # merge needs `.reshape()`; `.view()` would raise in that branch.
-        skip_dec = skip_dec.reshape(n * self.n_forecast_steps, *skip_dec.shape[2:])
+        # The skip connection needs exactly n_forecast_steps timeslices.
+        # - n_history_steps > n_forecast_steps: use the most recent n_forecast_steps
+        # - n_history_steps = n_forecast_steps: use all steps
+        # - n_history_steps < n_forecast_steps: use all available steps, then repeat the most recent one
+        skip_forecast = skip_history[
+            :,
+            [
+                min(
+                    max(0, self.n_history_steps - self.n_forecast_steps) + i,
+                    self.n_history_steps - 1,
+                )
+                for i in range(self.n_forecast_steps)
+            ],
+        ] # [N, n_forecast_steps, hid_S, H_hid, W_hid]
 
-        # Spatial decoder: applied per-frame, independently of the other forecast frames.
-        yhat2 = self.decoder(z, skip_dec)
-        yhat = yhat2.view(n, self.n_forecast_steps, c, h, w)
+        # Spatial decoder: applied independently per-timeslice.
+        yhat = self.decoder(z, skip_forecast) # [N, n_forecast_steps, C, H, W]
 
         return ProcessorOutput(prediction=yhat)
