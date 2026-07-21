@@ -3,7 +3,7 @@ from torch import Tensor, nn
 
 
 class GatedAttention(nn.Module):
-    """Gated large-kernel attention: gSTA.
+    """Gated spatial-temporal attention: gSTA.
 
     - a depthwise conv (kernel 2*dilation-1)
     - a depthwise dilated conv (kernel ~= kernel_size // dilation)
@@ -61,7 +61,7 @@ class GatedAttentionBlock(nn.Module):
     - add a trailing 1x1 projection when in_channels != out_channels
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         in_channels: int,
         out_channels: int,
@@ -69,11 +69,12 @@ class GatedAttentionBlock(nn.Module):
         kernel_size: int,
         dilation: int,
         mlp_ratio: float,
-        drop_prob: float,
+        drop_path_prob: float,
+        mlp_drop_prob: float,
     ) -> None:
         """Initialise a GatedAttentionBlock."""
         super().__init__()
-        self.drop_prob = drop_prob
+        self.drop_path_prob = drop_path_prob
 
         self.norm1 = nn.BatchNorm2d(in_channels)
         self.attn = GatedAttention(
@@ -93,7 +94,9 @@ class GatedAttentionBlock(nn.Module):
                 groups=hid_channels,
             ),
             nn.GELU(),
+            nn.Dropout(mlp_drop_prob),
             nn.Conv2d(hid_channels, in_channels, kernel_size=1),
+            nn.Dropout(mlp_drop_prob),
         )
         self.layer_scale_2 = nn.Parameter(torch.full((in_channels,), 1e-2))
 
@@ -103,11 +106,11 @@ class GatedAttentionBlock(nn.Module):
             else nn.Conv2d(in_channels, out_channels, kernel_size=1)
         )
 
-    def _drop_subset(self, x: Tensor) -> Tensor:
+    def _drop_path(self, x: Tensor) -> Tensor:
         """Stochastic depth: zero this residual branch for a random subset of samples."""
-        if self.drop_prob == 0.0 or not self.training:
+        if self.drop_path_prob == 0.0 or not self.training:
             return x
-        keep_prob = 1 - self.drop_prob
+        keep_prob = 1 - self.drop_path_prob
         mask = x.new_empty(x.shape[0], *([1] * (x.ndim - 1))).bernoulli_(keep_prob)
         return x * mask / keep_prob
 
@@ -115,7 +118,7 @@ class GatedAttentionBlock(nn.Module):
         self, x: Tensor, norm: nn.Module, block: nn.Module, layer_scale: Tensor
     ) -> Tensor:
         scale = layer_scale[:, None, None]
-        return x + self._drop_subset(scale * block(norm(x)))
+        return x + self._drop_path(scale * block(norm(x)))
 
     def forward(self, x: Tensor) -> Tensor:
         x = self._residual(x, self.norm1, self.attn, self.layer_scale_1)

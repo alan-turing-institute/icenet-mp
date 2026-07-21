@@ -126,10 +126,11 @@ class SimVPProcessor(BaseProcessor):
         self,
         *,
         dilation: int = 3,
-        drop_prob: float = 0.1,
+        drop_path_prob: float = 0.1,
         hid_channels_spatial: int = 64,
         hid_channels_temporal: int = 256,
         kernel_size: int = 21,
+        mlp_drop_prob: float = 0.0,
         mlp_ratio: float = 4.0,
         spatial_depth: int = 4,
         temporal_depth: int = 8,
@@ -139,13 +140,16 @@ class SimVPProcessor(BaseProcessor):
 
         Args:
             dilation: Dilation used by gated attention blocks in the translator.
-            drop_prob: Stochastic depth drop probability for residual branches in the translator.
-            hid_channels_spatial: Hidden channel count for the spatial encoder/decoder (hid_S).
-            hid_channels_temporal: Hidden channel count for the temporal translator (hid_T).
-            kernel_size: Effective receptive field of the translator's gated attention blocks.
-            mlp_ratio: Hidden-channel expansion ratio for the translator's conv-MLP blocks.
-            spatial_depth: Number of ConvBlockDownsample/ConvBlockUpsample layers in the spatial encoder/decoder (N_S).
-            temporal_depth: Number of gSTA blocks in the temporal translator (N_T).
+            drop_path_prob: Probability with which to drop the residual branch of each
+                gated attention block in the translator during training.
+            hid_channels_spatial: Hidden channel count for the spatial encoder/decoder.
+            hid_channels_temporal: Hidden channel count for the temporal translator.
+            kernel_size: Kernel size for gated attention blocks in the translator.
+            mlp_drop_prob: Element-wise dropout probability for the translator conv-MLP blocks.
+            mlp_ratio: Hidden-channel expansion ratio for the translator conv-MLP blocks.
+            spatial_depth: Number of ConvBlockDownsample/ConvBlockUpsample layers in the
+                spatial encoder/decoder.
+            temporal_depth: Number of gated attention blocks in the temporal translator.
             kwargs: Arguments to BaseProcessor.
 
         """
@@ -179,7 +183,8 @@ class SimVPProcessor(BaseProcessor):
             "kernel_size": kernel_size,
             "dilation": dilation,
             "mlp_ratio": mlp_ratio,
-            "drop_prob": drop_prob,
+            "drop_path_prob": drop_path_prob,
+            "mlp_drop_prob": mlp_drop_prob,
         }
         self.translator = nn.Sequential(
             GatedAttentionBlock(
