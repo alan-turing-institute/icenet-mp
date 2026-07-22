@@ -1,5 +1,5 @@
 # @package _global_
 defaults:
   - /base
-  - override /model: simvp
+  - override /model: cnn_simvp_cnn
   - _self_

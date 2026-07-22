@@ -1,0 +1,31 @@
+_target_: icenet_mp.models.EncodeProcessDecode
+
+name: simvp
+
+encoders:
+  latent_space: [216, 216]
+  era5:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  float-argo:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  sic-ssmis:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+
+processor:
+  _target_: icenet_mp.models.processors.SimVPProcessor
+  hid_channels_spatial: 64
+  hid_channels_temporal: 256
+  spatial_depth: 4
+  temporal_depth: 8
+
+decoder:
+  _target_: icenet_mp.models.decoders.CNNDecoder
+  n_layers: 1
+  mask_type: active
+  restrict_range: sigmoid
