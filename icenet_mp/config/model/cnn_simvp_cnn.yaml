@@ -1,6 +1,6 @@
 _target_: icenet_mp.models.EncodeProcessDecode
 
-name: simvp
+name: cnn-simvp-cnn
 
 encoders:
   latent_space: [216, 216]
@@ -26,4 +26,4 @@ decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
   n_layers: 1
   mask_type: active
-  restrict_range: sigmoid
+  restrict_range: clamp
