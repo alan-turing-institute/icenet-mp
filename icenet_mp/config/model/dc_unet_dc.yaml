@@ -7,27 +7,27 @@ encoders:
   era5:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
     hid_channels: [96, 192]
-    hid_blocks: [2, 2]
+    hid_blocks: [3, 3]
     latent_channels: 96
     pixel_shuffle: true
     stride: 3
   float-argo:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [32, 64]
+    hid_channels: [16, 32]
     hid_blocks: [1, 1]
     latent_channels: 8
     pixel_shuffle: true
     stride: 3
   sic-icenet:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [48, 96]
+    hid_channels: [16, 32]
     hid_blocks: [1, 1]
     latent_channels: 2
     pixel_shuffle: true
     stride: 3
   sic-ssmis:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
-    hid_channels: [48, 96]
+    hid_channels: [24, 48]
     hid_blocks: [1, 1]
     latent_channels: 16
     pixel_shuffle: true
@@ -35,7 +35,7 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
-  start_out_channels: 64
+  start_out_channels: 96
 
 decoder:
   _target_: icenet_mp.models.decoders.DeepCompressionDecoder
@@ -43,5 +43,5 @@ decoder:
   hid_blocks: [2, 2]
   mask_type: active
   pixel_shuffle: true
-  restrict_range: sigmoid
+  restrict_range: tanh
   stride: 3
