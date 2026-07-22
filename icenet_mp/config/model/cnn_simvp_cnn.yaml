@@ -19,10 +19,8 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.SimVPProcessor
-  hid_channels_spatial: 64
-  hid_channels_temporal: 256
-  spatial_depth: 4
-  temporal_depth: 8
+  hid_channels: 256
+  n_blocks: 8
 
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
