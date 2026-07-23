@@ -35,7 +35,7 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
-  start_out_channels: 96
+  start_out_channels: 128
 
 decoder:
   _target_: icenet_mp.models.decoders.DeepCompressionDecoder
