@@ -176,12 +176,8 @@ class DDPM(BaseModel):
             activation=activation,
             dropout_rate=dropout_rate,
         )
-
         self.diffusion = GaussianDiffusion(timesteps=timesteps)
-
         self.learning_rate = learning_rate
-
-        self.save_hyperparameters()
 
     def forward(self, *args: Any, **kwargs: Any) -> NoReturn:
         msg = "This model uses `training_step`, `validation_step`, and `test_step` instead of `forward()`"
