@@ -203,7 +203,6 @@ class DDPM(BaseModel):
     def sample(
         self,
         batch: dict[str, TensorNTCHW],
-        sample_weight: torch.Tensor | None = None,  # noqa: ARG002
     ) -> TensorNCHW:
         """Generate forecasts using a reverse diffusion process.
 
@@ -222,9 +221,6 @@ class DDPM(BaseModel):
         Args:
             batch (dict[str, TensorNTCHW]):
                 Dictionary containing the input data.
-
-            sample_weight (torch.Tensor | None):
-                Optional weighting tensor.
 
         Returns:
             torch.Tensor:
@@ -533,7 +529,6 @@ class DDPM(BaseModel):
                 Dictionary containing:
                     - input tensors (used to prepare conditioning inputs)
                     - "target": groundtruth SIC tensor
-                    - optional "sample_weight": weighting tensor
 
         Returns:
             ModelStepOutput:
@@ -585,7 +580,6 @@ class DDPM(BaseModel):
                 Dictionary containing:
                     - input tensors (used to prepare conditioning inputs)
                     - "target": groundtruth SIC tensor
-                    - optional "sample_weight": weighting tensor
 
         Returns:
             ModelStepOutput:
