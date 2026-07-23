@@ -23,16 +23,16 @@ class GatedAttention(nn.Module):
                 channels,
                 channels,
                 depthwise_kernel,
-                padding=(depthwise_kernel - 1) // 2,
                 groups=channels,
+                padding=(depthwise_kernel - 1) // 2,
             ),
             nn.Conv2d(
                 channels,
                 channels,
                 dilated_kernel,
-                padding=dilation * (dilated_kernel - 1) // 2,
-                groups=channels,
                 dilation=dilation,
+                groups=channels,
+                padding=dilation * (dilated_kernel - 1) // 2,
             ),
         )
         self.expand = nn.Conv2d(channels, 2 * channels, kernel_size=1)
