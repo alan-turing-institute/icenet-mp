@@ -1,4 +1,4 @@
-from typing import Any, NoReturn
+from typing import Any, ClassVar, NoReturn
 
 import torch
 import torch.nn.functional as F  # noqa: N812
@@ -51,6 +51,9 @@ class DDPM(BaseModel):
         TensorNTCHW with shape (batch_size, n_forecast_steps * n_output_channels, height, width)
         - Forecasted outputs per timestep and channel, flattened along the channel dimension
     """
+
+    # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
+    ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
 
     def __init__(  # noqa: PLR0913
         self,

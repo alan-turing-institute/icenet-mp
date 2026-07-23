@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 import torch
@@ -15,6 +15,11 @@ if TYPE_CHECKING:
 
 
 class EncodeProcessDecode(BaseModel):
+    """Model that encodes to latent space, processes, then decodes back."""
+
+    # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
+    ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
+
     def __init__(
         self,
         *,
