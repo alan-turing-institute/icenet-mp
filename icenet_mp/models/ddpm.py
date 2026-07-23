@@ -357,7 +357,7 @@ class DDPM(BaseModel):
                 y = self.diffusion.p_sample(y, t_batch, pred_v)
 
             # Clamp and store prediction
-            y_step = torch.clamp(y, 0, 1)
+            y_step = self.mask(self.restrict(y))
             all_predictions.append(y_step)
 
             # Slide OSISAF window: append prediction as new frame.
@@ -462,7 +462,7 @@ class DDPM(BaseModel):
             ModelStepOutput:
             - prediction: reconstructed noisy SIC (pred_v)
             - target: generated noisy SIC (target_v)
-            - loss: test loss value
+            - loss: training loss value
 
         """
         # Prepare input tensor by combining osisaf-south and era5
@@ -470,7 +470,9 @@ class DDPM(BaseModel):
 
         # Extract target
         if self.use_autoregressive:
-            y = batch["target"][:, 0]  # [B, C, H, W] — one step at a time (T[0])
+            y = batch["target"][
+                :, 0
+            ]  # [B, C, H, W] — one step at a time (AR trains on t=0 only)
         else:
             y = batch["target"].flatten(1, 2)  # [B, T*C, H, W] — all steps at once
 
@@ -478,14 +480,20 @@ class DDPM(BaseModel):
         t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
 
         # Create noisy version
-        noise = torch.randn_like(y)  # B, T*C, H, W
-        noisy_y = self.diffusion.q_sample(y, t, noise)  # B, T*C, H, W
+        noise = torch.randn_like(y)  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
+        noisy_y = self.diffusion.q_sample(
+            y, t, noise
+        )  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
 
         # Predict v
-        pred_v: torch.Tensor = self.model(noisy_y, t, x)  # B, T*C, H, W
+        pred_v: torch.Tensor = self.model(
+            noisy_y, t, x
+        )  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
 
         # Compute target v
-        target_v = self.diffusion.calculate_v(y, noise, t)  # B, T*C , H, W
+        target_v = self.diffusion.calculate_v(
+            y, noise, t
+        )  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
 
         # Compute loss
         loss = self.loss(pred_v, target_v)
@@ -531,7 +539,7 @@ class DDPM(BaseModel):
             ModelStepOutput:
             - prediction: reconstructed SIC (y_hat)
             - target: groundtruth SIC (y)
-            - loss: test loss value
+            - loss: validation loss value
 
         """
         # Extract target and optional weights
