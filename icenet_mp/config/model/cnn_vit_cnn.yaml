@@ -30,4 +30,5 @@ decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
   n_layers: 1
   mask_type: active
+  norm_type: groupnorm
   restrict_range: clamp
