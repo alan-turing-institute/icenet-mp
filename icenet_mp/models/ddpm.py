@@ -289,16 +289,11 @@ class DDPM(BaseModel):
         # Start from pure noise
         y = torch.randn(shape, device=self.device)
 
-        dim_threshold = 3
-
         for t in reversed(range(self.timesteps)):
             t_batch = torch.full_like(
                 x[:, 0, 0, 0], t, dtype=torch.long, device=self.device
             )
             pred_v: TensorNCHW = self.model(y, t_batch, x)
-            pred_v = (
-                pred_v.squeeze(3) if pred_v.dim() > dim_threshold else pred_v.squeeze()
-            )
             y = self.diffusion.p_sample(y, t_batch, pred_v)
 
         # Bound into [0, 1] then apply masking
@@ -365,8 +360,13 @@ class DDPM(BaseModel):
             y_step = torch.clamp(y, 0, 1)
             all_predictions.append(y_step)
 
-            # Slide OSISAF window: append prediction as new frame
-            osisaf = torch.cat([osisaf, y_step.unsqueeze(1)], dim=1)
+            # Slide OSISAF window: append prediction as new frame.
+            # SSMIS input has multiple channels per step but the model only
+            # predicts base_output_channels (SIC). Carry the auxiliary channels
+            # forward from the last observed frame and overwrite the SIC slot.
+            new_frame = osisaf[:, -1:].clone()  # [B, 1, C_in, H, W]
+            new_frame[:, :, : self.base_output_channels] = y_step.unsqueeze(1)
+            osisaf = torch.cat([osisaf, new_frame], dim=1)
 
             # Slide ERA5 window: use forecast if available, else repeat last frame
             if era5_forecast is not None:
@@ -470,22 +470,22 @@ class DDPM(BaseModel):
 
         # Extract target
         if self.use_autoregressive:
-            y = batch["target"][:, 0]  # [B, 1, H, W] — one step at a time
+            y = batch["target"][:, 0]  # [B, C, H, W] — one step at a time (T[0])
         else:
-            y = batch["target"].squeeze(2)  # [B, T, H, W] — all steps at once
+            y = batch["target"].flatten(1, 2)  # [B, T*C, H, W] — all steps at once
 
         # Sample random timesteps
         t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
 
         # Create noisy version
-        noise = torch.randn_like(y)  # B, T, H, W
-        noisy_y = self.diffusion.q_sample(y, t, noise)  # B, T, H, W
+        noise = torch.randn_like(y)  # B, T*C, H, W
+        noisy_y = self.diffusion.q_sample(y, t, noise)  # B, T*C, H, W
 
         # Predict v
-        pred_v: torch.Tensor = self.model(noisy_y, t, x)  # B, T, H, W
+        pred_v: torch.Tensor = self.model(noisy_y, t, x)  # B, T*C, H, W
 
         # Compute target v
-        target_v = self.diffusion.calculate_v(y, noise, t)  # B, T, H, W
+        target_v = self.diffusion.calculate_v(y, noise, t)  # B, T*C , H, W
 
         # Compute loss
         loss = self.loss(pred_v, target_v)
@@ -498,11 +498,15 @@ class DDPM(BaseModel):
             sync_dist=True,
         )
 
-        # Convert to NTCHW format to update metrics and return
-        prediction = pred_v.unsqueeze(2)  # B, T, 1, H, W
-        target = target_v.unsqueeze(2)  # B, T, 1, H, W
-        # Note that metrics like IceNetAccuracy and SIE Error might not be meaningful
-        # for the v-prediction space
+        # Convert to NTCHW format to update metrics
+        if self.use_autoregressive:
+            prediction = pred_v.unsqueeze(1)  # [B, 1, C, H, W]
+            target = target_v.unsqueeze(1)  # [B, 1, C, H, W]
+        else:
+            T, C = self.n_forecast_steps, self.base_output_channels  # noqa: N806
+            prediction = pred_v.unflatten(1, (T, C))  # [B, T, C, H, W]
+            target = target_v.unflatten(1, (T, C))  # [B, T, C, H, W]
+
         self.train_metrics.update(prediction, target)
 
         return ModelStepOutput(prediction, target, loss)
@@ -531,10 +535,10 @@ class DDPM(BaseModel):
 
         """
         # Extract target and optional weights
-        y = batch["target"].squeeze(2)  # [B, T, H, W]
+        y = batch["target"].flatten(1, 2)  # [B, T*C, H, W]
 
         # Generate samples
-        y_hat = self.sample(batch)
+        y_hat = self.sample(batch)  # [B, T*C, H, W]
 
         # Calculate loss
         loss = self.loss(y_hat, y)
@@ -548,8 +552,10 @@ class DDPM(BaseModel):
         )
 
         # Convert to NTCHW format to update metrics and return
-        prediction = y_hat.unsqueeze(2)  # [B, C_out, 1, H, W]
-        target = y.unsqueeze(2)  # [B, C_out, 1, H, W]
+        T, C = self.n_forecast_steps, self.base_output_channels  # noqa: N806
+        prediction = y_hat.unflatten(1, (T, C))  # [B, T, C, H, W]
+        target = y.unflatten(1, (T, C))  # [B, T, C, H, W]
+
         self.validation_metrics.update(prediction, target)
 
         return ModelStepOutput(prediction, target, loss)
@@ -580,8 +586,8 @@ class DDPM(BaseModel):
             - loss: test loss value
 
         """
-        y = batch["target"].squeeze(2)  # [B, T, H, W]
-        y_hat = self.sample(batch)  # [B, T, H, W]
+        y = batch["target"].flatten(1, 2)  # [B, T*C, H, W]
+        y_hat = self.sample(batch)  # [B, T*C, H, W]
 
         loss = self.loss(y_hat, y)
         self.log(
@@ -594,8 +600,10 @@ class DDPM(BaseModel):
         )
 
         # Convert to NTCHW format to update metrics and return
-        prediction = y_hat.unsqueeze(2)  # [B, T, 1, H, W]
-        target = y.unsqueeze(2)  # [B, T, 1, H, W]
+        T, C = self.n_forecast_steps, self.base_output_channels  # noqa: N806
+        prediction = y_hat.unflatten(1, (T, C))  # [B, T, C, H, W]
+        target = y.unflatten(1, (T, C))  # [B, T, C, H, W]
+
         self.test_metrics.update(prediction, target)
 
         return ModelStepOutput(prediction, target, loss)
