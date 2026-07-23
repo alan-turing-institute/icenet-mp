@@ -1,6 +1,6 @@
 _target_: icenet_mp.models.EncodeProcessDecode
 
-name: dc_unet_dc
+name: dc-unet-dc
 
 encoders:
   latent_space: [144, 144]
