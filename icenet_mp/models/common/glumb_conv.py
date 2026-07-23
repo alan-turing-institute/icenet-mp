@@ -10,6 +10,7 @@ class GLUMBConv(nn.Module):
     """Inverted-bottleneck FFN with a depthwise spatial convolution and a GLU gate.
 
     Follows the implementation from the HuggingFace diffusers Sana transformer:
+    (https://github.com/huggingface/diffusers/blob/v0.39.0/src/diffusers/models/transformers/sana_transformer.py)
 
     - 1x1 expanding channel projection
     - SiLU activation
