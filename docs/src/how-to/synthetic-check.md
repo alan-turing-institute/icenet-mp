@@ -9,7 +9,7 @@ The check passes if validation loss improves by at least `--min-relative-improve
 ## Prerequisites
 
 Make sure IceNet-MP is [installed](../user-guide/installation.md).
-No real data, base path, or W&B account is needed: the check generates its own dataset and logs to local files (add `--wandb` to also publish to W&B).
+No real data, base path, or W&B account is needed: the check generates its own dataset and logs to local files.
 
 ## Running the check
 
@@ -19,26 +19,26 @@ Two baseline configurations are provided, one per architecture.
 
 ```bash
 # Small (32x32) -- quickest smoke test, ~a few minutes
-uv run imp synthetic check --config-name baseline/synthetic_unet
+uv run imp synthetic-check --config-name baseline/synthetic_unet
 
 # Midsize (144x144)
-uv run imp synthetic check --config-name baseline/synthetic_unet --grid-size 144
+uv run imp synthetic-check --config-name baseline/synthetic_unet --grid-size 144
 
 # Full size (432x432) -- matches the real-data resolution
-uv run imp synthetic check --config-name baseline/synthetic_unet --grid-size 432
+uv run imp synthetic-check --config-name baseline/synthetic_unet --grid-size 432
 ```
 
 ### CNN-ViT-CNN
 
 ```bash
 # Small (48x48) -- the smallest grid this model supports (see notes below)
-uv run imp synthetic check --config-name baseline/synthetic_cnn_vit --grid-size 48
+uv run imp synthetic-check --config-name baseline/synthetic_cnn_vit --grid-size 48
 
 # Midsize (144x144)
-uv run imp synthetic check --config-name baseline/synthetic_cnn_vit --grid-size 144
+uv run imp synthetic-check --config-name baseline/synthetic_cnn_vit --grid-size 144
 
 # Full size (432x432)
-uv run imp synthetic check --config-name baseline/synthetic_cnn_vit --grid-size 432
+uv run imp synthetic-check --config-name baseline/synthetic_cnn_vit --grid-size 432
 ```
 
 Each run writes the generated dataset, checkpoints, loss-curve and prediction plots, and a pass/fail report to `--output-dir` (default `outputs/synthetic_check`).
@@ -49,11 +49,11 @@ The `--dynamics` option selects what the synthetic shapes do, so you can exercis
 
 ```bash
 # Advection: a rigid circle translates and bounces off the edges (the default).
-uv run imp synthetic check --config-name baseline/synthetic_unet --dynamics moving
+uv run imp synthetic-check --config-name baseline/synthetic_unet --dynamics moving
 
 # Growth/melt: a stationary blob grows and shrinks in place via a morphological
 # open/close cycle, mimicking sea ice advancing and retreating seasonally.
-uv run imp synthetic check --config-name baseline/synthetic_unet --dynamics grow-shrink
+uv run imp synthetic-check --config-name baseline/synthetic_unet --dynamics grow-shrink
 ```
 
 `moving` tests whether the model learns to translate a fixed shape; `grow-shrink` tests whether it learns concentration change in place (the shape never moves, but its extent pulses). Both work with either baseline and at any valid grid size.
@@ -63,6 +63,7 @@ uv run imp synthetic check --config-name baseline/synthetic_unet --dynamics grow
 - **Grid sizes must respect each architecture's minimum.**
   Every grid size must be a multiple of 16 and larger than 16: the UNet processor pools the grid four times, and the check applies this constraint to all models.
   The ViT processor additionally patchifies the grid with `patch_size: 24`, so for `synthetic_cnn_vit` the grid must also be a multiple of 24 — in practice, use a multiple of 48 (the least common multiple). The default `--grid-size 32` therefore works for the UNet but **not** for the CNN-ViT, whose smallest working grid is 48.
+  *(The ViT's patch size can be changed via config or CLI overrides if you need a different divisor; adjust both `patch_size` and the grid size accordingly.)*
 - **`encoders.latent_space` is set automatically** to match `--grid-size`, so the model works at any (valid) resolution without editing configs. This reshapes the working resolution only, not the model's capacity.
 - **"No land mask available" warnings are expected.** The synthetic world has no land, so the baseline configs set `model.decoder.mask_type: none`, and plotting falls back accordingly at non-432 shapes.
 - **Runtime scales roughly with the square of the grid size.** Use small grids to iterate and 432 only to confirm behaviour at the real resolution; `--max-epochs` caps the run length (with few epochs, you may also need to lower `--min-relative-improvement` since the pass gate is calibrated for a full run).

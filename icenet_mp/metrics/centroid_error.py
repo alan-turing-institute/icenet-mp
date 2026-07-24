@@ -3,13 +3,15 @@
 import torch
 from torchmetrics import Metric
 
+from .daily_metrics import _BaseErrorMetricDaily
+
 # Frames whose target has less total mass than this are treated as empty (undefined
 # centroid) and excluded from the average; it also floors the denominator so the
 # centroid of an empty frame never divides by zero.
 _EMPTY_MASS_THRESHOLD = 1e-8
 
 
-class CentroidErrorPerForecastDay(Metric):
+class CentroidErrorPerForecastDay(_BaseErrorMetricDaily):
     """Euclidean distance (in pixels) between the predicted and target centroids.
 
     The centroid of a (batch, time) frame is its value-weighted center of mass over
@@ -17,22 +19,6 @@ class CentroidErrorPerForecastDay(Metric):
     (near-)zero total mass have an undefined centroid and are excluded from the
     average.
     """
-
-    def __init__(self) -> None:
-        """Initialize the metric."""
-        super().__init__()
-        self.sum_errors: torch.Tensor
-        self.count: torch.Tensor
-        self.add_state(
-            "sum_errors",
-            default=torch.tensor([], dtype=torch.float32),
-            dist_reduce_fx="sum",
-        )
-        self.add_state(
-            "count",
-            default=torch.tensor([], dtype=torch.long),
-            dist_reduce_fx="sum",
-        )
 
     @staticmethod
     def _centroids(values: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -56,8 +42,9 @@ class CentroidErrorPerForecastDay(Metric):
         col_centroid = (weight.sum(dim=-2) * col_idx).sum(dim=-1) / safe_mass
         return torch.stack([row_centroid, col_centroid], dim=-1), mass
 
-    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
-        """Update metric state with a new batch of predictions and targets."""
+    def _compute_batch_stats(
+        self, preds: torch.Tensor, target: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         pred_centroids, _ = self._centroids(preds.clamp(min=0))
         target_centroids, target_mass = self._centroids(target.clamp(min=0))
 
@@ -66,17 +53,4 @@ class CentroidErrorPerForecastDay(Metric):
 
         batch_sum_errors = (distances * valid).sum(dim=0)
         batch_count = valid.sum(dim=0).long()
-
-        if self.sum_errors.numel() == 0:
-            self.sum_errors = batch_sum_errors
-            self.count = batch_count
-        else:
-            self.sum_errors += batch_sum_errors
-            self.count += batch_count
-
-    def compute(self) -> torch.Tensor:
-        """Compute the mean centroid distance (in pixels) per forecast lead time."""
-        if self.count.numel() == 0:
-            return torch.tensor([], dtype=torch.float32, device=self.sum_errors.device)
-        count = torch.clamp(self.count, min=1)
-        return self.sum_errors / count.float()
+        return batch_sum_errors, batch_count

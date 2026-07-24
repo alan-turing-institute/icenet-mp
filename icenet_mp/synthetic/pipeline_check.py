@@ -9,7 +9,6 @@ is learning at all, in seconds rather than the hours a real training run takes.
 
 import json
 import logging
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,7 +31,6 @@ logger = logging.getLogger(__name__)
 
 SYNTHETIC_DATASET_NAME = "synthetic-sic"
 SYNTHETIC_VARIABLE_NAME = "ice_conc"
-WANDB_ENTITY = "turing-seaice"
 
 # Selectable synthetic dynamics: a translating circle (advection) or a stationary blob
 # that grows and shrinks in place (morphological open/close, mimicking seasonal ice
@@ -49,7 +47,6 @@ class SyntheticCheckResult:
     train_loss: list[float]
     validation_loss: list[float]
     report_path: Path
-    wandb_run_name: str | None = None
 
 
 def _date_range(span: TrajectorySpan) -> dict[str, str]:
@@ -144,32 +141,11 @@ def _generate_dataset(
     return zarr_path, dataset.frames, dataset.dates, _split_ranges(dataset.spans)
 
 
-def _add_wandb_logger(config: DictConfig) -> str:
-    """Add a W&B logger alongside whatever's already configured (e.g. local_files).
-
-    Explicitly pins `entity` to the seaice team regardless of the caller's default W&B
-    entity, and gives the run a random `synthetic-` prefixed name so it's easy to spot
-    (and filter out) among real experiments in the shared `train`/`evaluate` projects.
-    """
-    run_name = f"synthetic-{uuid.uuid4().hex[:8]}"
-    config["loggers"]["wandb"] = {
-        "_target_": "lightning.pytorch.loggers.wandb.WandbLogger",
-        "entity": WANDB_ENTITY,
-        "save_dir": "${base_path}/training/",
-        "log_model": False,
-        "name": run_name,
-    }
-    logger.info(
-        "Publishing this run to W&B entity '%s' as '%s'.", WANDB_ENTITY, run_name
-    )
-    return run_name
-
-
 def _load_loss_history(history_path: Path) -> dict[str, list[float]]:
     if not history_path.exists():
         msg = (
             f"Expected loss history at {history_path}, but it does not exist. Does the "
-            f"config include the 'loss_history' train callback?"
+            f"config include the 'loss_history' logger?"
         )
         raise FileNotFoundError(msg)
     return json.loads(history_path.read_text())
@@ -210,7 +186,6 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
     max_epochs: int | None = None,
     min_relative_improvement: float = 0.3,
     dump_debug_video: bool = False,
-    publish_wandb: bool = False,
     grid_size: int = 32,
     n_trajectories: int = 8,
     dynamics: str = DYNAMICS_MOVING,
@@ -227,9 +202,6 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
             a full-dataset ground-truth-vs-prediction rollout as videos under
             ``output_dir/report/debug``. Off by default: it re-runs inference across
             every window in the dataset and adds real wall-clock time.
-        publish_wandb: If True, also log this run to W&B (entity `turing-seaice`)
-            alongside the local report files. Off by default so the check stays usable
-            offline/in CI without W&B credentials.
         grid_size: Height/width of the synthetic grid. The model's `encoders.
             latent_space` is set to match automatically, so this does not need a
             separate model override. Must be > 16 and divisible by 16 (UNetProcessor's
@@ -257,8 +229,6 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
     if max_epochs is not None:
         config["train"]["trainer"]["max_epochs"] = max_epochs
     config["model"]["encoders"]["latent_space"] = [grid_size, grid_size]
-
-    wandb_run_name = _add_wandb_logger(config) if publish_wandb else None
 
     zarr_path, frames, dates, split_ranges = _generate_dataset(
         config,
@@ -329,5 +299,4 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
         train_loss=train_loss,
         validation_loss=validation_loss,
         report_path=report_path,
-        wandb_run_name=wandb_run_name,
     )

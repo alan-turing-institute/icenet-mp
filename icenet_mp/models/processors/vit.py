@@ -12,18 +12,14 @@ from typing import Any
 import torch
 from torch import nn
 
-from icenet_mp.models.common import (
-    CommonConvBlock,
-    PatchEmbedding,
-    TransformerEncoderBlock,
-)
+from icenet_mp.models.common import PatchEmbedding, TransformerEncoderBlock
 from icenet_mp.types import TensorNCHW
 
 from .base_processor import BaseProcessor
 
 
 class VitProcessor(BaseProcessor):
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         depth: int = 3,
@@ -32,7 +28,6 @@ class VitProcessor(BaseProcessor):
         heads: int = 4,
         mlp_dim: int = 256,
         patch_size: int = 16,
-        refine_channels: int = 64,
         **kwargs: Any,
     ) -> None:
         """Initialize Vision Transformer model for sea ice forecasting."""
@@ -49,7 +44,6 @@ class VitProcessor(BaseProcessor):
         self.img_size = self.data_space.shape[0]
         self.patch_size = patch_size
         self.out_channels = self.data_space.channels
-        self.refine_channels = refine_channels
 
         # The input is a window of n_history_steps timesteps concatenated along
         # channels (see BaseProcessor.rollout), so patch embedding must accept
@@ -74,35 +68,13 @@ class VitProcessor(BaseProcessor):
 
         self.norm = nn.LayerNorm(emb_dim)
 
-        # Project each patch token to a *feature* map at pixel resolution, not directly
-        # to output values: (B, N, patch_size * patch_size * refine_channels).
-        self.patch_to_pixels = nn.Linear(
-            emb_dim, patch_size * patch_size * refine_channels
+        # (B, N, patch_size * patch_size * out_channels *)
+        self.decoder = nn.Sequential(
+            nn.Linear(emb_dim, patch_size * patch_size * self.out_channels),
         )
 
-        # Each patch above is decoded independently, so the reassembled feature map has
-        # hard seams at every patch boundary. Refine with a small conv stack (receptive
-        # field spanning multiple patches) to blend across those seams before projecting
-        # down to the output channels -- a single 1-pixel-radius conv can't smooth a
-        # patch_size-wide discontinuity. Uses GroupNorm rather than BatchNorm: it
-        # normalises per-sample instead of off batch statistics, so it can't suffer the
-        # train/eval divergence that collapsed the UNet processor at small batch sizes.
-        self.refine = nn.Sequential(
-            CommonConvBlock(
-                refine_channels,
-                refine_channels,
-                kernel_size=3,
-                n_subblocks=2,
-                norm_type="groupnorm",
-            ),
-            CommonConvBlock(
-                refine_channels,
-                refine_channels,
-                kernel_size=3,
-                n_subblocks=2,
-                norm_type="groupnorm",
-            ),
-            nn.Conv2d(refine_channels, self.out_channels, kernel_size=1),
+        self.smooth = nn.Conv2d(
+            self.out_channels, self.out_channels, kernel_size=3, padding=1
         )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
@@ -123,7 +95,7 @@ class VitProcessor(BaseProcessor):
 
         x = self.transformer(x)
         x = self.norm(x)  # (B, N, D)
-        x = self.patch_to_pixels(x)  # (B, N, refine_channels * patch_size * patch_size)
+        x = self.decoder(x)  # (B, N, out_channels**patch_size*patch_size)
 
         if height % self.patch_size or width % self.patch_size:
             msg = (
@@ -138,14 +110,14 @@ class VitProcessor(BaseProcessor):
             batch,
             h_patches,
             w_patches,
-            self.refine_channels,
+            self.out_channels,
             self.patch_size,
             self.patch_size,
         )
-        # Shape is batch, refine_channels, h_patches, patch_size, w_patches, patch_size
+        # Shape is batch, out_channels, h_patches, patch_size, w_patches, patch_size
         x = x.permute(0, 3, 1, 4, 2, 5)
 
-        # Shape is batch, refine_channels, height, width
-        x = x.reshape(batch, self.refine_channels, self.img_size, self.img_size)
+        # Shape is batch, out_channels, height, width
+        x = x.reshape(batch, self.out_channels, self.img_size, self.img_size)
 
-        return self.refine(x)
+        return self.smooth(x)

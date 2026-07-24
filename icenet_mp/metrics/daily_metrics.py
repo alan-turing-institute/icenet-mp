@@ -4,14 +4,21 @@ import torch
 from torchmetrics import Metric
 
 
-class BaseErrorMetricDaily(Metric):
-    """Base class for per-timestep error metrics using sufficient statistics."""
+class _BaseErrorMetricDaily(Metric):
+    """Shared state management for per-timestep error metrics.
+
+    Provides ``sum_errors`` and ``count`` buffers with distributed-reduction support,
+    plus the common accumulation logic used by both daily error metrics and centroid
+    distance metrics.  Subclasses override ``_compute_batch_stats()`` to supply their
+    own per-batch ``(sum_errors, count)`` tensors.
+    """
+
+    sum_errors: torch.Tensor
+    count: torch.Tensor
 
     def __init__(self) -> None:
-        """Initialize the metric."""
+        """Initialize the metric state."""
         super().__init__()
-        self.sum_errors: torch.Tensor
-        self.count: torch.Tensor
         self.add_state(
             "sum_errors",
             default=torch.tensor([], dtype=torch.float32),
@@ -23,66 +30,79 @@ class BaseErrorMetricDaily(Metric):
             dist_reduce_fx="sum",
         )
 
+    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:  # type: ignore[override]
+        """Update metric state with a new batch.
+
+        Subclasses must implement ``_compute_batch_stats()`` to return
+        ``(batch_sum_errors, batch_count)`` tensors of shape ``(T,)`` where T is the
+        time dimension.
+        """
+        batch_sum_errors, batch_count = self._compute_batch_stats(preds, target)
+
+        if self.sum_errors.numel() == 0:
+            # First batch — validate shapes match before accepting
+            if self.sum_errors.shape[0] != batch_sum_errors.shape[0]:
+                msg = (
+                    f"Time dimension mismatch on first batch: expected {self.sum_errors.shape[0]}, "
+                    f"got {batch_sum_errors.shape[0]}"
+                )
+                raise ValueError(msg)
+            self.sum_errors = batch_sum_errors
+            self.count = batch_count
+        else:
+            if self.sum_errors.shape[0] != batch_sum_errors.shape[0]:
+                msg = (
+                    f"Time dimension mismatch: expected {self.sum_errors.shape[0]}, "
+                    f"got {batch_sum_errors.shape[0]}"
+                )
+                raise ValueError(msg)
+            self.sum_errors += batch_sum_errors
+            self.count += batch_count
+
+    def compute(self) -> torch.Tensor:
+        """Compute metric per lead time from accumulated sufficient statistics."""
+        if self.count.numel() == 0:
+            return torch.tensor([], dtype=torch.float32, device=self.sum_errors.device)
+        count = torch.clamp(self.count, min=1)
+        mean_errors = self.sum_errors / count.float()
+        return self._finalize(mean_errors)
+
+    def _compute_batch_stats(
+        self, preds: torch.Tensor, target: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute per-time-step sums and counts for a single batch. Override in subclasses."""
+        raise NotImplementedError
+
+    def _finalize(self, mean_errors: torch.Tensor) -> torch.Tensor:
+        """Apply final transformation to mean errors. Override in subclasses."""
+        return mean_errors
+
+
+class BaseErrorMetricDaily(_BaseErrorMetricDaily):
+    """Base class for per-timestep error metrics using sufficient statistics."""
+
     def _compute_errors(
         self, preds: torch.Tensor, targets: torch.Tensor
     ) -> torch.Tensor:
         """Compute element-wise errors. Override in subclasses."""
         raise NotImplementedError
 
-    def update(self, preds: torch.Tensor, targets: torch.Tensor) -> None:
-        """Update metrics with a batch of predictions and targets.
+    def _compute_batch_stats(
+        self, preds: torch.Tensor, targets: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        batch_size = preds.shape[0]
+        num_spatial = preds.shape[2] * preds.shape[3] * preds.shape[4]
 
-        Args:
-            preds: Tensor of shape (batch, time, channels, height, width)
-            targets: Tensor of shape (batch, time, channels, height, width)
-
-        """
-        # Compute errors: (batch, time, channels, height, width)
         errors = self._compute_errors(preds, targets)
-
-        batch_size = errors.shape[0]
-        num_spatial = errors.shape[2] * errors.shape[3] * errors.shape[4]
-
-        # Reshape to (batch, time, -1) then sum over batch and spatial dims
         errors_reshaped = errors.view(batch_size, -1, num_spatial)
         batch_sum_errors = errors_reshaped.sum(dim=(0, 2))
-
-        # Count samples per time step
         batch_count = torch.full(
             (errors.shape[1],),
             batch_size * num_spatial,
             dtype=torch.long,
             device=errors.device,
         )
-
-        # Initialize buffers on first update
-        if self.sum_errors.numel() == 0:
-            self.sum_errors = batch_sum_errors
-            self.count = batch_count
-        else:
-            if self.sum_errors.shape[0] != batch_sum_errors.shape[0]:
-                msg = f"Time dimension mismatch: expected {self.sum_errors.shape[0]}, got {batch_sum_errors.shape[0]}"
-                raise ValueError(msg)
-            self.sum_errors += batch_sum_errors
-            self.count += batch_count
-
-    def _finalize(self, mean_errors: torch.Tensor) -> torch.Tensor:
-        """Apply final transformation to mean errors. Override in subclasses."""
-        return mean_errors
-
-    def compute(self) -> torch.Tensor:
-        """Compute metric per lead time from accumulated sufficient statistics.
-
-        Returns:
-            Tensor of shape (T,) with metric value for each time step
-
-        """
-        if self.count.numel() == 0:
-            return torch.tensor([], dtype=torch.float32, device=self.sum_errors.device)
-
-        count = torch.clamp(self.count, min=1)
-        mean_errors = self.sum_errors / count.float()
-        return self._finalize(mean_errors)
+        return batch_sum_errors, batch_count
 
 
 class RMSEPerForecastDay(BaseErrorMetricDaily):

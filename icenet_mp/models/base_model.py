@@ -43,7 +43,7 @@ class BaseModel(LightningModule, ABC):
         output_space: DictConfig,
         scheduler: DictConfig,
         loss: DictConfig,
-        use_centroid_metric: bool = False,
+        metrics: list[str] | None = None,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
@@ -53,11 +53,10 @@ class BaseModel(LightningModule, ABC):
 
         Optimizer configuration is also set here.
 
-        When ``use_centroid_metric`` is True, the value-weighted centre-of-mass
-        distance metric is added to every metric collection. This is only meaningful
-        for the synthetic checks, where the field is a single blob with a well-defined
-        centroid; on real multi-region sea ice it is not a useful summary, so it is
-        opt-in and enabled only by the synthetic baselines.
+        The ``metrics`` parameter controls which metrics are computed during training,
+        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror"]``;
+        pass ``"centroid_error"`` to add the value-weighted centre-of-mass distance
+        metric (only meaningful for synthetic checks where the field is a single blob).
         """
         super().__init__()
 
@@ -87,14 +86,22 @@ class BaseModel(LightningModule, ABC):
         self.loss_cfg = loss
 
         # Metrics
-        _common_metrics: dict[str, Metric | MetricCollection] = {
-            "accuracy": IceNetAccuracy(),
-            "mae": MAEPerForecastDay(),
-            "rmse": RMSEPerForecastDay(),
-            "sieerror": SeaIceExtentErrorPerForecastDay(),
+        _metric_classes: dict[str, type[Metric] | type[MetricCollection]] = {
+            "accuracy": IceNetAccuracy,
+            "mae": MAEPerForecastDay,
+            "rmse": RMSEPerForecastDay,
+            "sieerror": SeaIceExtentErrorPerForecastDay,
+            "centroid_error": CentroidErrorPerForecastDay,
         }
-        if use_centroid_metric:
-            _common_metrics["centroid_error"] = CentroidErrorPerForecastDay()
+        metric_names = metrics if metrics is not None else [
+            "accuracy",
+            "mae",
+            "rmse",
+            "sieerror",
+        ]
+        _common_metrics: dict[str, Metric | MetricCollection] = {
+            name: _metric_classes[name]() for name in metric_names
+        }
         self.test_metrics = MetricCollection(deepcopy(_common_metrics))
         self.train_metrics = MetricCollection(deepcopy(_common_metrics))
         self.validation_metrics = MetricCollection(deepcopy(_common_metrics))

@@ -7,7 +7,6 @@ defaults:
     - learning_rate
     - metric_summary
     - plotting
-    - loss_history
   - _self_
 
 trainer:

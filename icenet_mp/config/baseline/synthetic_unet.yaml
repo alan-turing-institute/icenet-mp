@@ -5,7 +5,7 @@
 # bouncing-circle trajectories instead of real sea-ice data. Whole trajectories are
 # held out for validation/test, so passing this requires learning the general
 # translate-and-bounce rule, not memorising one instance. Run with:
-#   imp synthetic check --config-name baseline/synthetic_unet
+#   imp synthetic-check --config-name baseline/synthetic_unet
 defaults:
   - /baseline/01_unet
   - override /data: synthetic
@@ -14,6 +14,7 @@ defaults:
   - override /evaluate: synthetic
   - override /loggers:
     - local_files
+    - loss_history
   - _self_
 
 # encoders.latent_space is set at runtime to match whatever --grid-size is used (see
@@ -27,7 +28,12 @@ model:
   # The synthetic field is a single moving circle with a well-defined centre, so the
   # value-weighted centroid distance is a meaningful summary here (unlike on real
   # multi-region sea ice, where it is off by default).
-  use_centroid_metric: true
+  metrics:
+    - accuracy
+    - mae
+    - rmse
+    - sieerror
+    - centroid_error
 
 random:
   seed: 1234

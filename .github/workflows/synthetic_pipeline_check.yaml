@@ -15,6 +15,8 @@ jobs:
   synthetic-pipeline-check:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +55,7 @@ jobs:
       # Test 1: the pipeline runs end-to-end and passes its improvement gate.
       - name: Run small synthetic ${{ matrix.name }} check
         run: >
-          uv run imp synthetic check --config-name ${{ matrix.config }}
+          uv run imp synthetic-check --config-name ${{ matrix.config }}
           ${{ matrix.overrides }}
           --grid-size ${{ matrix.grid_size }}
           --output-dir outputs/synthetic_check
