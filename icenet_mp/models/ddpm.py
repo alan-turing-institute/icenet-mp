@@ -52,7 +52,7 @@ class DDPM(BaseModel):
         - Forecasted outputs per timestep and channel, flattened along the channel dimension
     """
 
-    # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
+    # Parameters that should be excluded from hyperparameter logging
     ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
 
     def __init__(  # noqa: PLR0913
