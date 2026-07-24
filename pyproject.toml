@@ -44,6 +44,7 @@ dependencies = [
     "pillow>=11.3.0",
     "pydantic>=2.11.7",
     "pyproj>=3.7.2",
+    "scikit-learn>=1.8.0", # analysis: PCA, RF feature importance, StandardScaler
     "pytorch-triton-xpu>=0.0; sys_platform == 'linux' and platform_version == '#1 SMP PREEMPT_DYNAMIC Wed Dec 17 11:57:42 GMT 2025'", # only needed for XPU-enabled machines, but we don't have a simple way to determine that
     "pytorch-triton>=0.0; sys_platform == 'linux' and platform_version != '#1 SMP PREEMPT_DYNAMIC Wed Dec 17 11:57:42 GMT 2025'",
     "pyyaml>=6.0.3",
@@ -145,10 +146,13 @@ known-third-party = ["wandb"]
 ]
 "tests/**/*.py" = [
     "DTZ001", # allow unlocalised datetimes in tests
+    "N806", # allow uppercase X/y as ML convention for feature/target arrays
     "S101", # allow asserts in tests
     "INP001", # allow implicit namespace in tests
     "PLR0913", # allow unlimited arguments in tests
     "PLR2004", # allow magic-number comparison in tests
+    "TC002", # allow third-party imports at runtime in tests (e.g. pytest)
+    "TC003", # allow stdlib imports at runtime in tests (e.g. Path with tmp_path)
 ]
 
 [tool.ruff.lint.pylint]

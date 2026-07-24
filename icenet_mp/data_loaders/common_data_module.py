@@ -30,17 +30,26 @@ class CommonDataModule(LightningDataModule):
 
         # Construct dataset groups
         self.dataset_groups = defaultdict(list)
+        self.dataset_variables: dict[str, set[str]] = defaultdict(set)
         for dataset in config["data"]["datasets"].values():
             self.dataset_groups[dataset["group_as"]].append(
                 (
                     self.base_path / "data" / "anemoi" / f"{dataset['name']}.zarr"
                 ).resolve()
             )
+            if variables := dataset.get("variables"):
+                self.dataset_variables[dataset["group_as"]].update(variables)
         logger.info("Found %d dataset groups.", len(self.dataset_groups))
         for idx, (name, paths) in enumerate(self.dataset_groups.items(), start=1):
             logger.info("%d) %s:", idx, name)
             for path in paths:
                 logger.info("%s - %s", " " * (len(str(idx)) + 1), path)
+            if name in self.dataset_variables:
+                logger.info(
+                    "%s selecting variables: %s",
+                    " " * (len(str(idx)) + 1),
+                    sorted(self.dataset_variables[name]),
+                )
 
         # Check prediction target
         self.target_group_name = config["predict"]["target"]["group_name"]
@@ -53,6 +62,11 @@ class CommonDataModule(LightningDataModule):
 
         # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
+        # Optional stride over training window start dates (see CombinedDataset):
+        # consecutive windows overlap in all but one timestep, so a stride of e.g. 2
+        # halves the samples per epoch while barely reducing data coverage. Only
+        # applied to training; validation/test/predict always use every window.
+        self.train_stride = int(config["data"]["split"].get("train_stride", 1))
         self.predict_periods = [
             {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["predict"]
@@ -90,7 +104,11 @@ class CommonDataModule(LightningDataModule):
     def datasets(self) -> dict[str, SingleDataset]:
         """Return a dictionary of dataset group names to SingleDataset objects."""
         return {
-            name: SingleDataset(name, paths)
+            name: SingleDataset(
+                name,
+                paths,
+                variables=sorted(self.dataset_variables.get(name, ())),
+            )
             for name, paths in self.dataset_groups.items()
         }
 
@@ -233,6 +251,7 @@ class CommonDataModule(LightningDataModule):
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            stride=self.train_stride,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )

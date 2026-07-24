@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - /base
+  - override /model: cnn_vit_cnn_enhanced
+  - _self_
+
+# Variant of baseline/03_cnn_vit_cnn.yaml with fixes found on the synthetic
+# moving-circle check (see EXPERIMENT_NOTES.md). Left as a separate baseline/model
+# config pair rather than editing 03_cnn_vit_cnn.yaml in place, so the two can be run
+# side by side for direct comparison. Changes vs. 03_cnn_vit_cnn:
+#   - model.decoder.restrict_range: sigmoid -> clamp
+#   - model.processor.refine_kernel_size: 3 (implicit default) -> 5
+#   - model.use_motion_channels: false -> true
+#   - train.optimizer.lr/weight_decay: tuned to match baseline/01_unet.yaml, since
+#     restrict_range=clamp was found to have a real risk of collapsing training
+#     (getting stuck outputting a constant value with zero gradient) at the original
+#     lr=5e-3 default -- tuning this was what made clamp safe to use in every retest.
+train:
+  optimizer:
+    lr: 1e-3
+    weight_decay: 0.05

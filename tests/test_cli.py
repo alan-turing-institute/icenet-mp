@@ -42,6 +42,7 @@ class TestBaseCLI:
         r"datasets\s+Manage datasets",
         r"evaluate\s+Evaluate a pre-trained model",
         r"train\s+Train a model",
+        r"vif\s+Run VIF analysis on the configured dataset variables.",
     )
 
     def test_help(self) -> None:
@@ -104,6 +105,21 @@ class TestTrainCLI:
                 r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
                 r"--config-name\s+<str>\s+Name of a file to load from the config",
                 r"--multistage\s+Train an EncodeProcessDecode model in",
+                r"--help\s+-h\s+Show this message and exit.",
+            ],
+        )
+
+
+class TestVIFCLI:
+    def test_vif_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["vif", "--help"],
+            expected_patterns=[
+                r"Usage: imp vif \[OPTIONS\] \[OVERRIDES\]...",
+                r"Run VIF analysis on the configured dataset variables.",
+                r"\[overrides\]\.\.\.\s+TEXT\s+Apply space-separated Hydra config",
+                r"--config-name\s+TEXT\s+Specify the name of a file to load from the",
                 r"--help\s+-h\s+Show this message and exit.",
             ],
         )

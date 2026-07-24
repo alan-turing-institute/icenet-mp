@@ -1,0 +1,30 @@
+# @package _global_
+defaults:
+  - /base
+  - override /model: cnn_vit_cnn_enhanced
+  - _self_
+
+# Variant of baseline/03b_cnn_vit_cnn_enhanced.yaml targeting the blur diagnosed in
+# next_steps.md: on the 2021 validation year both CNN-ViT-CNN runs lose to persistence
+# on every pixelwise metric through lead day ~8, and day-1 RMSE is ~2x persistence --
+# the field cannot pass intact through the 81-token ViT bottleneck. Two changes, both
+# of which make persistence the model's zero-effort starting point instead of
+# something it must reconstruct:
+#   - model.use_skip_connection: the most recent encoded history frame bypasses the
+#     processor straight to the decoder (fine boundary detail survives).
+#   - model.use_residual_output: the decoder output becomes a *delta* added onto the
+#     last observed frame, clamped to [0, 1]. Requires decoder.restrict_range: none
+#     so the delta can be negative; the final clamp bounds the sum instead.
+# Ablate either from the CLI, e.g. `model.use_residual_output=false`, to attribute
+# gains separately.
+model:
+  name: cnn-vit-cnn-residual
+  use_skip_connection: true
+  use_residual_output: true
+  decoder:
+    restrict_range: none
+
+train:
+  optimizer:
+    lr: 1e-3
+    weight_decay: 0.05

@@ -18,18 +18,29 @@ class CombinedDataset(Dataset):
         *,
         n_forecast_steps: int = 1,
         n_history_steps: int = 1,
+        stride: int = 1,
     ) -> None:
         """Initialise a combined dataset from a sequence of SingleDatasets.
 
         One of the datasets must be the target and all must have the same frequency. The
         number of forecast and history steps can be set, which will determine the shape
         of the NTCHW tensors returned by __getitem__.
+
+        A stride > 1 keeps only every stride-th valid window start date. Because
+        consecutive windows overlap in all but one timestep, this thins near-duplicate
+        samples: it divides the samples per epoch by the stride while barely reducing
+        the information the dataset covers.
         """
         super().__init__()
 
-        # Store the number of forecast and history steps
+        if stride < 1:
+            msg = f"stride must be at least 1, got {stride}."
+            raise ValueError(msg)
+
+        # Store the number of forecast and history steps, and the window stride
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
+        self.stride = stride
 
         # Create a new dataset for the target with only the selected variables
         self.target = next(
@@ -71,7 +82,7 @@ class CombinedDataset(Dataset):
                 "when the input datasets do not have overlapping time ranges."
             )
             raise ValueError(msg)
-        return available_dates
+        return available_dates[:: self.stride]
 
     @property
     def end_date(self) -> np.datetime64:

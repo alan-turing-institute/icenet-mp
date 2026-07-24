@@ -15,3 +15,7 @@ wandb
 notebooks/data
 notebooks/*.nc
 notebooks/*.mp4
+EXPERIMENT_NOTES.md
+AGENTS.md
+TODO.md
+.cortexkit/

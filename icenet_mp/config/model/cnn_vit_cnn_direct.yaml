@@ -1,0 +1,47 @@
+_target_: icenet_mp.models.EncodeProcessDecode
+
+name: cnn-vit-cnn-direct
+
+# Same as cnn_vit_cnn_enhanced.yaml (see baseline/03c_cnn_vit_cnn_residual.yaml),
+# except the processor is VitDirectProcessor: it predicts all n_forecast_steps in one
+# forward pass instead of BaseProcessor's default autoregressive rollout (one forward
+# pass per forecast step, fed back in as history). See next_steps.md item #8 -- this
+# removes the ~14x sequential-pass cost identified as the single biggest driver of
+# training time, at the cost of no longer conditioning later forecast days on the
+# model's own earlier predictions (only on the original history window).
+
+encoders:
+  latent_space: [216, 216]
+  era5:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  float-argo:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  sic-icenet:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+  sic-ssmis:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
+
+processor:
+  _target_: icenet_mp.models.processors.VitDirectProcessor
+  depth: 6
+  dropout: 0.1
+  emb_dim: 256
+  heads: 8
+  mlp_dim: 1024
+  patch_size: 24
+  refine_kernel_size: 5
+
+decoder:
+  _target_: icenet_mp.models.decoders.CNNDecoder
+  n_layers: 1
+  mask_type: active
+  restrict_range: none
+
+use_motion_channels: true
+use_day_order_channels: true
+use_skip_connection: true
+use_residual_output: true

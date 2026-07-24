@@ -1,0 +1,5 @@
+# Default configuration for EOF (Empirical Orthogonal Function) feature importance.
+# Usage: imp eof --config-name analysis/eof 'data/datasets=[...]'
+
+vif:
+  max_samples: null  # null = use all common dates; int = sample evenly

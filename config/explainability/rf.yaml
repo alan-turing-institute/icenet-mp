@@ -1,0 +1,21 @@
+# Default configuration for Random Forest input explainability analysis.
+# Usage: imp rf --config-name explainability/rf 'data/datasets=[...]'
+#
+# This runs a supervised Random Forest model predicting the target variable (SIC)
+# from all other input variables, then derives per-feature importance via permutation.
+
+vif:
+  max_samples: null  # null = use all common dates; int = sample evenly
+
+rf:
+  n_estimators: 500
+  max_depth: 15          # prevent overfitting on small datasets (climate data)
+  min_samples_leaf: 5    # each leaf needs >= 5 samples for stability
+  min_samples_split: 8   # ~2x min_samples_leaf
+  max_features: "sqrt"     # sqrt(n_features) tree diversity; "sqrt" or "log2"
+  random_state: 42
+  n_jobs: -1             # use all available CPUs
+
+  target:
+    group_as: sic-ssmis
+    variable: ice_conc

@@ -31,6 +31,7 @@ class CNNEncoder(BaseEncoder):
         kernel_size: int = 3,
         n_layers: int = 3,
         n_subblocks: int = 2,
+        norm_type: str = "batchnorm",
         scale_factor: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -63,6 +64,7 @@ class CNNEncoder(BaseEncoder):
                     activation=activation,
                     kernel_size=kernel_size,
                     n_subblocks=n_subblocks,
+                    norm_type=norm_type,
                     scale_factor=scale_factor,
                 )
             )

@@ -1,0 +1,10 @@
+# Default configuration for PCA (Principal Component Analysis) of input variables.
+# Usage: imp pca --config-name pca 'data/datasets=[...]'
+#
+# PCA identifies the directions of maximum variance in the input feature space.
+# Weighted loadings show which original variables contribute most to each component.
+
+vif:
+  max_samples: null  # null = use all common dates; int = sample evenly
+
+pca: {}  # PCA computes all components; number needed for 90% variance is reported automatically.

@@ -1,0 +1,11 @@
+# Default configuration for EOF (Empirical Orthogonal Function) analysis of input variables.
+# Usage: imp eof --config-name eof 'data/datasets=[...]'
+#
+# EOF is the geoscience equivalent of PCA — it decomposes the data into orthogonal
+# spatial patterns (EOFs) ranked by explained variance, with associated time series
+# (PCs). Weighted absolute loadings show which variables contribute most to each pattern.
+
+vif:
+  max_samples: null  # null = use all common dates; int = sample evenly
+
+eof: {}  # EOF computes all modes; number needed for 90% variance is reported automatically.

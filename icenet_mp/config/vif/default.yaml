@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+  - /base
+  - _self_
+
+vif:
+  # VIF threshold above which a variable is flagged as multicollinear.
+  threshold: 5.0
+  # Maximum number of timesteps to sample for VIF computation.
+  # Reduces memory usage on large datasets; samples evenly across the date range.
+  max_samples: null
