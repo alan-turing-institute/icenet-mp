@@ -21,7 +21,7 @@ defaults:
   - override /evaluate: synthetic
   - override /loggers:
     - local_files
-    - loss_history
+    - csv
   - _self_
 
 # encoders.latent_space is set at runtime to match whatever --grid-size is used (see

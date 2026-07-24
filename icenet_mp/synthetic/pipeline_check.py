@@ -7,6 +7,7 @@ mismatches, broken history/forecast windowing, rollout regressions) and confirm 
 is learning at all, in seconds rather than the hours a real training run takes.
 """
 
+import csv
 import json
 import logging
 from dataclasses import dataclass
@@ -145,10 +146,22 @@ def _load_loss_history(history_path: Path) -> dict[str, list[float]]:
     if not history_path.exists():
         msg = (
             f"Expected loss history at {history_path}, but it does not exist. Does the "
-            f"config include the 'loss_history' logger?"
+            f"config include a CSV logger?"
         )
         raise FileNotFoundError(msg)
-    return json.loads(history_path.read_text())
+
+    train_loss: list[float] = []
+    validation_loss: list[float] = []
+
+    with history_path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if "train_loss" in row and row["train_loss"]:
+                train_loss.append(float(row["train_loss"]))
+            if "validation_loss" in row and row["validation_loss"]:
+                validation_loss.append(float(row["validation_loss"]))
+
+    return {"train_loss": train_loss, "validation_loss": validation_loss}
 
 
 def _check_learning(
