@@ -1,6 +1,6 @@
 _target_: icenet_mp.models.EncodeProcessDecode
 
-name: cnn-simvp-cnn
+name: cnn-gsta-cnn
 
 encoders:
   latent_space: [216, 216]
@@ -18,7 +18,7 @@ encoders:
     n_layers: 1
 
 processor:
-  _target_: icenet_mp.models.processors.SimVPProcessor
+  _target_: icenet_mp.models.processors.GSTAProcessor
   hid_channels: 256
   n_blocks: 8
 

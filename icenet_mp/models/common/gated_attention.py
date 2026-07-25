@@ -3,7 +3,7 @@ from torch import Tensor, nn
 
 
 class GatedAttention(nn.Module):
-    """Gated spatial-temporal attention: gSTA.
+    """SimVPv2 gated spatial-temporal attention (gSTA).
 
     - a depthwise conv (kernel 2*dilation-1)
     - a depthwise dilated conv (kernel ~= kernel_size // dilation)
@@ -44,7 +44,7 @@ class GatedAttention(nn.Module):
 
 
 class GatedAttentionBlock(nn.Module):
-    """SimVPv2 gSTA block.
+    """SimVPv2 gated spatial-temporal attention (gSTA) block.
 
     - subblock 1
         - normalise the input

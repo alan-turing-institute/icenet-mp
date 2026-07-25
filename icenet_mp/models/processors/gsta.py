@@ -24,7 +24,7 @@ from icenet_mp.types import ProcessorOutput, TensorNCHW, TensorNTCHW
 from .base_processor import BaseProcessor
 
 
-class SimVPProcessor(BaseProcessor):
+class GSTAProcessor(BaseProcessor):
     """Processor based on the translator from SimVPv2.
 
     Input space:
@@ -46,7 +46,7 @@ class SimVPProcessor(BaseProcessor):
         n_blocks: int = 8,
         **kwargs: Any,
     ) -> None:
-        """Initialise a SimVPProcessor.
+        """Initialise a GSTAProcessor.
 
         Args:
             dilation: Dilation used by gated attention blocks in the translator.
