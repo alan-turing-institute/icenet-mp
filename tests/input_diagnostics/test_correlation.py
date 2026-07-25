@@ -26,9 +26,9 @@ class TestComputeCorrelationMatrix:
 
         corr_df = compute_correlation_matrix(matrix, names)
 
-        assert abs(corr_df.loc["a", "a"] - 1.0) < 1e-6
-        assert abs(corr_df.loc["b", "b"] - 1.0) < 1e-6
-        assert abs(corr_df.loc["c", "c"] - 1.0) < 1e-6
+        assert abs(float(corr_df.loc["a", "a"]) - 1.0) < 1e-6  # type: ignore[arg-type]
+        assert abs(float(corr_df.loc["b", "b"]) - 1.0) < 1e-6  # type: ignore[arg-type]
+        assert abs(float(corr_df.loc["c", "c"]) - 1.0) < 1e-6  # type: ignore[arg-type]
 
     def test_symmetric(self) -> None:
         """Correlation matrix should be symmetric."""
@@ -38,7 +38,7 @@ class TestComputeCorrelationMatrix:
 
         corr_df = compute_correlation_matrix(matrix, names)
 
-        assert abs(corr_df.loc["a", "b"] - corr_df.loc["b", "a"]) < 1e-6
+        assert abs(float(corr_df.loc["a", "b"]) - float(corr_df.loc["b", "a"])) < 1e-6  # type: ignore[arg-type]
 
     def test_perfectly_correlated(self) -> None:
         """Two identical columns should have correlation of 1.0."""
@@ -49,7 +49,7 @@ class TestComputeCorrelationMatrix:
 
         corr_df = compute_correlation_matrix(matrix, names)
 
-        assert abs(corr_df.loc["x", "y"] - 1.0) < 1e-6
+        assert abs(float(corr_df.loc["x", "y"]) - 1.0) < 1e-6  # type: ignore[arg-type]
 
     def test_values_in_range(self) -> None:
         """All correlations should be in [-1, 1]."""

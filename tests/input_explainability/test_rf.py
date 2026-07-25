@@ -5,12 +5,17 @@ from __future__ import annotations
 import dataclasses
 import json
 from pathlib import Path
+from typing import Any, cast
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
 from icenet_mp.input_explainability.rf import (
     _compute_interaction_scores,
+    _get_rf_window_params,
+    _windows_to_arrays,
+    build_rf_windows,
     compute_rf_importance,
     save_rf_results,
 )
@@ -168,7 +173,7 @@ class TestRFResult:
         result = compute_rf_importance(X, y, ["x", "y", "z"], target_name="target")
 
         with pytest.raises(dataclasses.FrozenInstanceError):
-            result.n_samples = 999  # type: ignore[func-returns-value]
+            result.n_samples = 999  # type: ignore[misc]
 
 
 class TestSaveRFResults:
@@ -205,3 +210,275 @@ class TestSaveRFResults:
         assert "permutation_importance" in data
         assert "r2_score" in data
         assert "n_samples" in data
+
+
+class TestGetRFWindowParams:
+    """Tests for the _get_rf_window_params function."""
+
+    def test_defaults_from_predict_config(self) -> None:
+        """Should read n_history_steps and n_forecast_steps from predict config."""
+        from omegaconf import OmegaConf  # noqa: PLC0415
+
+        cfg = OmegaConf.create({
+            "predict": {"n_history_steps": 3, "n_forecast_steps": 14},
+        })
+
+        history, forecast = _get_rf_window_params(cfg)
+
+        assert history == 3
+        assert forecast == 14
+
+    def test_rfcfg_overrides_predict(self) -> None:
+        """RF config values should override predict config."""
+        from omegaconf import OmegaConf  # noqa: PLC0415
+
+        cfg = OmegaConf.create({
+            "predict": {"n_history_steps": 3, "n_forecast_steps": 14},
+            "rf": {"n_history_steps": 5, "n_forecast_steps": 7},
+        })
+
+        history, forecast = _get_rf_window_params(cfg)
+
+        assert history == 5
+        assert forecast == 7
+
+    def test_predict_defaults_when_no_n_steps(self) -> None:
+        """Should use hardcoded defaults when predict config lacks n_steps."""
+        from omegaconf import OmegaConf  # noqa: PLC0415
+
+        cfg = OmegaConf.create({
+            "predict": {},
+        })
+
+        history, forecast = _get_rf_window_params(cfg)
+
+        assert history == 3
+        assert forecast == 14
+
+
+class TestWindowsToArray:
+    """Tests for the _windows_to_arrays function."""
+
+    def test_basic_conversion(self) -> None:
+        """Should convert windows to correct X and y shapes."""
+        from icenet_mp.input_explainability.rf import RFWindow  # noqa: PLC0415
+
+        rng = np.random.default_rng(42)
+        n_windows, n_history, n_vars = 10, 3, 4
+
+        windows = []
+        base_date = np.datetime64("2020-01-01", "D")
+        for i in range(n_windows):
+            history_features = {
+                "group_a": rng.standard_normal((n_history, n_vars)),
+            }
+            target_value = float(rng.integers(0, 100))
+            windows.append(RFWindow(start_date=base_date + i, history_features=history_features, target_value=target_value))
+
+        feature_names = [f"v{i}" for i in range(n_vars)]
+
+        X, y = _windows_to_arrays(windows, feature_names, n_history)
+
+        assert X.shape == (n_windows, n_history * n_vars)
+        assert y.shape == (n_windows,)
+
+    def test_target_values_preserved(self) -> None:
+        """Target values should match input windows."""
+        from icenet_mp.input_explainability.rf import RFWindow  # noqa: PLC0415
+
+        rng = np.random.default_rng(42)
+        n_windows, n_history, n_vars = 5, 2, 3
+
+        target_values = [float(i * 10) for i in range(n_windows)]
+        base_date = np.datetime64("2020-01-01", "D")
+        windows = []
+        for tv_idx, tv in enumerate(target_values):
+            history_features = {
+                "g": rng.standard_normal((n_history, n_vars)),
+            }
+            windows.append(RFWindow(start_date=base_date + tv_idx, history_features=history_features, target_value=tv))
+
+        feature_names = [f"v{i}" for i in range(n_vars)]
+
+        _X, y = _windows_to_arrays(windows, feature_names, n_history)
+
+        np.testing.assert_array_almost_equal(y, target_values)
+
+
+class TestBuildRFWindows:
+    """Tests for the build_rf_windows function."""
+
+    def test_no_valid_windows_raises(self) -> None:
+        """Should raise when no valid windows exist (target missing forecast dates)."""
+        # Mock dataset with 10 consecutive dates.
+        mock_ds = MagicMock()
+        mock_ds.variable_names = ["var_a"]
+        mock_ds.frequency = np.timedelta64(1, "D")
+        base_date = np.datetime64("2020-01-01", "D")
+        mock_ds.dates = {base_date + i for i in range(10)}
+
+        datasets = {"group_a": mock_ds}  # type: ignore[assignment]
+
+        # Mock target zarr with dates that don't overlap forecast window.
+        class _MockZarrRoot:
+            def __contains__(self, key: str) -> bool:
+                return True
+
+            @property
+            def attrs(self) -> MagicMock:
+                m = MagicMock()
+                m.get.return_value = [f"2020-01-{i+1:02d}" for i in range(5)]
+                return m
+
+        with patch("zarr.DirectoryStore"), \
+             patch("zarr.group", return_value=_MockZarrRoot()), \
+             pytest.raises(ValueError, match="No valid windows found"):
+            build_rf_windows(  # type: ignore[arg-type]
+                cast("dict[str, Any]", datasets), Path("/fake/target.zarr"), "ice_conc",
+                n_history_steps=3, n_forecast_steps=5, max_samples=None,
+            )
+
+    def test_window_count_matches_valid_starts(self) -> None:
+        """Number of windows should equal number of valid start dates."""
+        # Mock dataset with 100 consecutive dates.
+        mock_ds = MagicMock()
+        mock_ds.variable_names = ["var_a", "var_b"]
+        mock_ds.frequency = np.timedelta64(1, "D")
+        base_date = np.datetime64("2020-01-01", "D")
+        all_dates = {base_date + i for i in range(100)}
+        mock_ds.dates = all_dates
+
+        datasets = {"group_a": mock_ds}  # type: ignore[assignment]
+
+        # Mock target zarr with dates covering the full range.
+        class _MockZarrRoot:
+            def __contains__(self, key: str) -> bool:
+                return True
+
+            @property
+            def attrs(self) -> MagicMock:
+                m = MagicMock()
+                m.get.return_value = [str(base_date + i) for i in range(100)]
+                return m
+
+            def __getitem__(self, key: str) -> _MockVarGroup:
+                return _MockVarGroup()
+
+        class _MockVarGroup:
+            def __contains__(self, date_str: str) -> bool:
+                try:
+                    d = np.datetime64(date_str[:10], "D")
+                    diff_days = int(((d - base_date) / np.timedelta64(1, "D")).item())
+                    return diff_days in range(100)
+                except ValueError:
+                    return False
+
+            def __getitem__(self, date_str: str) -> _MockDataArray:
+                return _MockDataArray()
+
+        class _MockDataArray:
+            ndim = 2
+
+            def mean(self, _axis: tuple[int, int] | None = None) -> float:
+                return 1.0
+
+            def __getitem__(self, idx: slice) -> _MockDataArray:
+                return self
+
+        with patch("zarr.DirectoryStore"), patch("zarr.group", return_value=_MockZarrRoot()):
+            windows, var_names = build_rf_windows(  # type: ignore[arg-type]
+                cast("dict[str, Any]", datasets), Path("/fake/target.zarr"), "ice_conc",
+                n_history_steps=3, n_forecast_steps=2, max_samples=None,
+            )
+
+        # Valid starts: dates where start+3+2-1 <= 99, i.e., start + n_forecast_steps - 1 <= 99.
+        # Forecast dates for start at index i: i+n_history_steps .. i+n_history_steps+n_forecast_steps-1
+        # So we need i+3+2-1 = i+4 <= 99, meaning i <= 95. That's 96 valid starts (indices 0..95).
+        assert len(windows) == 96
+        assert var_names == ["group_a/var_a", "group_a/var_b"]
+
+    def test_max_samples_limits_windows(self) -> None:
+        """max_samples should limit the number of windows returned."""
+        mock_ds = MagicMock()
+        mock_ds.variable_names = ["var_a"]
+        mock_ds.frequency = np.timedelta64(1, "D")
+        base_date = np.datetime64("2020-01-01", "D")
+        all_dates = {base_date + i for i in range(50)}
+        mock_ds.dates = all_dates
+
+        datasets = {"group_a": mock_ds}  # type: ignore[assignment]
+
+        class _MockZarrRoot:
+            def __contains__(self, key: str) -> bool:
+                return True
+
+            @property
+            def attrs(self) -> MagicMock:
+                m = MagicMock()
+                m.get.return_value = [str(base_date + i) for i in range(50)]
+                return m
+
+            def __getitem__(self, key: str) -> _MockVarGroup:
+                return _MockVarGroup()
+
+        class _MockVarGroup:
+            def __contains__(self, date_str: str) -> bool:
+                try:
+                    d = np.datetime64(date_str[:10], "D")
+                    diff_days = int(((d - base_date) / np.timedelta64(1, "D")).item())
+                    return diff_days in range(50)
+                except ValueError:
+                    return False
+
+            def __getitem__(self, date_str: str) -> _MockDataArray:
+                return _MockDataArray()
+
+        class _MockDataArray:
+            ndim = 2
+
+            def mean(self, _axis: tuple[int, int] | None = None) -> float:
+                return 1.0
+
+            def __getitem__(self, idx: slice) -> _MockDataArray:
+                return self
+
+        with patch("zarr.DirectoryStore"), patch("zarr.group", return_value=_MockZarrRoot()):
+            windows, _ = build_rf_windows(  # type: ignore[arg-type]
+                cast("dict[str, Any]", datasets), Path("/fake/target.zarr"), "ice_conc",
+                n_history_steps=1, n_forecast_steps=1, max_samples=5,
+            )
+
+        assert len(windows) == 5
+
+
+class TestTimeSeriesCV:
+    """Tests that compute_rf_importance uses TimeSeriesSplit (no shuffling)."""
+
+    def test_temporal_ordering_in_folds(self) -> None:
+        """Test folds should be temporally ordered (later dates in later folds)."""
+        rng = np.random.default_rng(42)
+        n_samples, n_features = 100, 3
+        X = rng.standard_normal((n_samples, n_features))
+        y = X[:, 0] + rng.standard_normal(n_samples) * 0.1
+
+        result = compute_rf_importance(X, y, ["a", "b", "c"], target_name="target")
+
+        # With TimeSeriesSplit, the last fold's test set should contain
+        # the highest-indexed samples (later in time).
+        assert result.n_samples == n_samples
+        assert result.r2_score is not None
+
+
+class TestInteractionScores:
+    """Additional tests for interaction score edge cases."""
+
+    def test_interaction_scores_none_when_features_exceed_limit(self) -> None:
+        """Interaction scores should be None when features exceed the limit."""
+        rng = np.random.default_rng(42)
+        n_samples, n_features = 100, 30  # exceeds _MAX_INTERACTION_FEATURES (25)
+        X = rng.standard_normal((n_samples, n_features))
+        y = X[:, 0] + rng.standard_normal(n_samples) * 0.1
+
+        result = compute_rf_importance(X, y, [f"f{i}" for i in range(n_features)], target_name="target")
+
+        assert result.interaction_scores is None

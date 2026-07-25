@@ -135,7 +135,7 @@ class TestEOFResult:
         result = compute_eof(matrix, names)
 
         with pytest.raises(dataclasses.FrozenInstanceError):
-            result.n_samples = 999  # type: ignore[func-returns-value]
+            result.n_samples = 999  # type: ignore[misc]
 
 
 class TestSaveEOFResults:

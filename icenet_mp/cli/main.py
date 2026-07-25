@@ -14,7 +14,6 @@ from .input_explainability import input_exp_app
 from .pca import pca_app
 from .pre_feature_analysis import pre_feature_app
 from .rf import rf_app
-from .synthetic_check import synthetic_cli
 from .train import training_cli
 from .vif import vif_app
 
@@ -39,7 +38,6 @@ app = typer.Typer(
 )
 app.add_typer(datasets_cli, name="datasets")
 app.add_typer(evaluation_cli)
-app.add_typer(synthetic_cli, name="synthetic")
 app.add_typer(training_cli)
 app.add_typer(vif_app)
 app.add_typer(pre_feature_app, name="pre-feature-analysis")

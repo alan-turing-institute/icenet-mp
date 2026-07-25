@@ -121,10 +121,12 @@ def _run_all_strands(
     """
     max_samples = _get_max_samples(config, "vif")
     # Each module can override via its own namespace (e.g. pca.max_samples).
+    # Use the most restrictive value across all modules to ensure no strand
+    # receives more data than any configured limit.
     for mod in ("pca", "eof"):
-        if _get_max_samples(config, mod) is not None:
-            max_samples = _get_max_samples(config, mod)
-            break
+        ms = _get_max_samples(config, mod)
+        if ms is not None:
+            max_samples = min(max_samples, ms) if max_samples is not None else ms
 
     threshold = float(config.get("vif", {}).get("threshold", 5.0))
 
@@ -167,9 +169,10 @@ def _run_all_strands(
     typer.echo(f"\nAll diagnostics complete. Results in {output_dir}/")
 
 
-@input_diag_app.command(name="run")
+@input_diag_app.callback(invoke_without_command=True)
 @hydra_adaptor
 def input_diagnostics(
+    _ctx: typer.Context,
     config: DictConfig,
     output_dir: Annotated[
         str,

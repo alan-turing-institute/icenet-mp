@@ -1,5 +1,10 @@
 # Default configuration for Random Forest feature importance analysis.
 # Usage: imp rf --config-name analysis/rf 'data/datasets=[...]'
+#
+# Temporal windows: each sample is built from n_history_steps days of input history
+# followed by n_forecast_steps forecast days for the target. This replaces the old
+# single-day sampling approach with proper temporal structure matching how the model
+# is trained (CombinedDataset windows).
 
 vif:
   max_samples: null  # null = use all common dates; int = sample evenly
@@ -12,6 +17,13 @@ rf:
   max_features: "sqrt"     # sqrt(n_features) tree diversity; "sqrt" or "log2"
   random_state: 42
   n_jobs: -1             # use all available CPUs
+
+  # Temporal window configuration. Each RF sample is built from a window of
+  # n_history_steps input days followed by n_forecast_steps forecast days.
+  # Defaults match the typical training setup (3-day history, 14-step forecast).
+  # Set to null to fall back to config.predict values when using baseline configs.
+  n_history_steps: 3
+  n_forecast_steps: 14
 
   target:
     group_as: sic-ssmis

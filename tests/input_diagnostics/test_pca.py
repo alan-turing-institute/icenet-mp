@@ -112,7 +112,7 @@ class TestPCAResult:
         result = compute_pca(matrix, names)
 
         with pytest.raises(dataclasses.FrozenInstanceError):
-            result.n_samples = 999  # type: ignore[func-returns-value]
+            result.n_samples = 999  # type: ignore[misc]
 
 
 class TestSavePCAResults:

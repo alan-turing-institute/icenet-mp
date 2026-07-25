@@ -6,8 +6,8 @@ directory with subdirectories for each strand.
 
 Usage::
 
-    imp pre-feature-analysis --config-name baseline/03_cnn_vit_cnn \\
-        'data/datasets=[full_sicnorth_ssmis_25p0km-1979-2024-24h-v2]' \\
+    imp pre-feature-analysis --config-name baseline/03_cnn_vit_cnn \
+        'data/datasets=[full_sicnorth_ssmis_25p0km-1979-2024-24h-v2]' \
         ++vif.max_samples=1000
 
 """
@@ -122,88 +122,115 @@ def _run_eof_strand(
     typer.echo(f"EOF results written to {json_path}")
 
 
-def _run_rf_strand(
-    sample_matrix: np.ndarray,
-    var_names: list[str],
+def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + RF pipeline
     datasets: dict[str, SingleDataset],
+    group_paths: dict[str, list[Path]],
     config: DictConfig,
     output_dir: Path,
 ) -> None:
-    """Run Random Forest feature importance and save results."""
+    """Run Random Forest feature importance using temporal windows and save results."""
     from icenet_mp.input_explainability.rf import (  # noqa: PLC0415
+        _get_rf_window_params,
+        _windows_to_arrays,
+        build_rf_windows,
         compute_rf_importance,
         print_rf_table,
         save_rf_results,
     )
 
-    rf_config = config.get("rf", {})
-    n_jobs = int(rf_config.get("n_jobs", 1))
+    rf_config = config.get("rf", {}) or {}
+    n_jobs = int(rf_config.get("n_jobs", -1))
 
-    # Work on copies so mutations (data-leakage removal) don't affect other strands.
-    X = sample_matrix.copy()  # noqa: N806 — standard ML convention for feature matrix
-    names = list(var_names)
+    # Resolve temporal window parameters.
+    n_history_steps, n_forecast_steps = _get_rf_window_params(config)
+    logger.info(
+        "RF temporal windows: history=%d steps, forecast=%d steps.",
+        n_history_steps, n_forecast_steps,
+    )
 
-    # Extract target variable (SIC/ice_conc) from datasets.
-    target_cfg = rf_config.get("target", {})
+    max_samples = _get_max_samples(config, "rf")
+
+    # Load target variable (SIC/ice_conc).
+    target_cfg = rf_config.get("target", {}) or {}
     target_group_as = str(target_cfg.get("group_as", "sic-ssmis"))
     target_variable = str(target_cfg.get("variable", "ice_conc"))
 
-    # Find the dataset that contains the target variable.
-    target_ds: SingleDataset | None = None
-    for group_name, ds in datasets.items():
-        if target_group_as in group_name or target_group_as in ds.name:
-            target_ds = ds
-            break
+    logger.info(
+        "Loading target variable %r from group %r.",
+        target_variable, target_group_as,
+    )
 
-    if target_ds is None:
+    # Find the zarr file for this group — look up by resolved group name first.
+    target_path: Path | None = None
+    if target_group_as in group_paths:
+        paths_for_group = group_paths[target_group_as]
+        if paths_for_group:
+            target_path = paths_for_group[0]
+
+    # Fallback: scan for any zarr whose path contains the target group name.
+    if target_path is None:
+        for paths in group_paths.values():
+            for p in paths:
+                if target_group_as in str(p):
+                    target_path = p
+                    break
+            if target_path is not None:
+                break
+
+    if target_path is None:
         logger.warning("Target dataset %r not found; skipping RF strand.", target_group_as)
         return
 
-    # Get aligned dates (same as used for sample_matrix).
-    common_dates = sorted(set.intersection(*(set(ds.dates) for ds in datasets.values())))
-    max_samples = _get_max_samples(config, "rf")
-    if max_samples is not None and max_samples < len(common_dates):
-        indices = np.linspace(0, len(common_dates) - 1, max_samples, dtype=int)
-        common_dates = [common_dates[i] for i in indices]
-
-    # Build target array from aligned dates — extract only the target variable's channel.
-    y: list[float] = []
+    # Build temporal windows — no explicit target path means first dataset is used.
     try:
-        target_channel_idx = target_ds.variable_names.index(target_variable)
-    except ValueError:
-        logger.warning(
-            "Target variable %r not found in dataset %s (variables: %s). "
-            "Falling back to mean across all channels.",
-            target_variable, target_ds.name, target_ds.variable_names,
+        windows, var_names = build_rf_windows(
+            datasets,
+            n_history_steps=n_history_steps,
+            n_forecast_steps=n_forecast_steps,
+            max_samples=max_samples,
         )
-        target_channel_idx = None
+    except ValueError as exc:
+        logger.warning("RF window building failed: %s", exc)
+        return
 
-    for date in common_dates:
-        tchw = target_ds.get_tchw([date])  # shape [T=1, C, H, W]
-        if target_channel_idx is not None and target_channel_idx < tchw.shape[1]:
-            spatial_mean = float(tchw[:, target_channel_idx].mean())
-        else:
-            spatial_mean = float(tchw.mean())
-        y.append(spatial_mean)
+    if not windows:
+        logger.warning("No valid RF windows found; skipping RF strand.")
+        return
 
-    y_arr = np.array(y)
+    # Convert windows to feature matrix and target vector.
+    X, y = _windows_to_arrays(windows, var_names, n_history_steps)  # noqa: N806 — standard ML convention for feature matrix
+
+    logger.info(
+        "Final arrays — features: %s, target (%s): %s", X.shape, target_variable, y.shape,
+    )
 
     # Prevent data leakage: if the target variable is also present as a feature column,
-    # remove it from X.  This can happen when the SIC dataset appears in both the input
-    # datasets list and as the target group (the common case for explainability).
+    # remove all columns corresponding to it across all history steps.
     target_label = f"{target_group_as}/{target_variable}"
-    if target_label in names:
-        leak_idx = names.index(target_label)
+    leak_indices: list[int] = []
+    new_var_names: list[str] = []
+
+    n_vars_per_step = len(var_names)  # variables per history step
+    total_feature_cols = n_vars_per_step * n_history_steps
+
+    for col in range(total_feature_cols):
+        var_idx_in_step = col % n_vars_per_step
+        candidate_name = var_names[var_idx_in_step] if var_idx_in_step < len(var_names) else ""
+        if candidate_name == target_label:
+            leak_indices.append(col)
+        else:
+            new_var_names.append(candidate_name)
+
+    if leak_indices:
         logger.info(
-            "Removing data-leakage feature %r from X (it is also the prediction target).",
-            target_label,
+            "Removing %d data-leakage column(s) for feature %r across all history steps.",
+            len(leak_indices), target_label,
         )
-        X = np.delete(X, leak_idx, axis=1)  # noqa: N806 — standard ML convention for feature matrix
-        names.pop(leak_idx)
+        X = np.delete(X, leak_indices, axis=1)  # noqa: N806 — standard ML convention for feature matrix
 
     logger.info("Running Random Forest feature importance...")
     result = compute_rf_importance(
-        X, y_arr, names, target_name=f"{target_group_as}/{target_variable}",
+        X, y, new_var_names, target_name=f"{target_group_as}/{target_variable}",
         n_estimators=rf_config.get("n_estimators", 500),
         max_depth=rf_config.get("max_depth", 15),
         min_samples_leaf=rf_config.get("min_samples_leaf", 5),
@@ -251,15 +278,18 @@ def _run_all_strands(
     """
     max_samples = _get_max_samples(config, "vif")
     # Each module can override via its own namespace (e.g. pca.max_samples).
+    # Use the most restrictive value across all modules to ensure no strand
+    # receives more data than any configured limit.
     for mod in ("pca", "eof", "rf"):
-        if _get_max_samples(config, mod) is not None:
-            max_samples = _get_max_samples(config, mod)
-            break
+        ms = _get_max_samples(config, mod)
+        if ms is not None:
+            max_samples = min(max_samples, ms) if max_samples is not None else ms
 
     threshold = float(config.get("vif", {}).get("threshold", 5.0))
 
     logger.info("Building dataset instances for pre-feature analysis...")
-    datasets = _build_datasets_from_config(config)
+    group_paths, _ = resolve_datasets(config)
+    datasets = build_datasets(group_paths, {})
 
     sample_matrix, var_names = build_sample_matrix(datasets, max_samples=max_samples)
     logger.info("Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names))
@@ -271,7 +301,7 @@ def _run_all_strands(
         ("EOF", lambda: _run_eof_strand(sample_matrix, var_names, output_dir)),
         (
             "RF",
-            lambda: _run_rf_strand(sample_matrix, var_names, datasets, config, output_dir),
+            lambda: _run_rf_strand(datasets, group_paths, config, output_dir),
         ),
         (
             "Correlation heatmap",
@@ -286,9 +316,10 @@ def _run_all_strands(
     typer.echo(f"\nAll analyses complete. Results in {output_dir}/")
 
 
-@pre_feature_app.command(name="run")
+@pre_feature_app.callback(invoke_without_command=True)
 @hydra_adaptor
 def pre_feature_analysis(
+    _ctx: typer.Context,
     config: DictConfig,
     output_dir: Annotated[
         str,
