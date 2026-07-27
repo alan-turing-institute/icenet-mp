@@ -17,7 +17,7 @@ from omegaconf import DictConfig
 from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
-    IceNetAccuracy,
+    IceNetAccuracyPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
@@ -80,7 +80,7 @@ class BaseModel(LightningModule, ABC):
 
         # Metrics
         _common_metrics: dict[str, Metric | MetricCollection] = {
-            "accuracy": IceNetAccuracy(),
+            "accuracy": IceNetAccuracyPerForecastDay(),
             "mae": MAEPerForecastDay(),
             "rmse": RMSEPerForecastDay(),
             "sieerror": SeaIceExtentErrorPerForecastDay(),

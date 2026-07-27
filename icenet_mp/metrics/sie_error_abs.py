@@ -36,18 +36,15 @@ class SeaIceExtentErrorPerForecastDay(Metric):
         self,
         preds: torch.Tensor,
         target: torch.Tensor,
-        _sample_weight: torch.Tensor | None = None,
     ) -> None:
         """Update the SIE accumulators.
 
         Parameters
         ----------
         preds : torch.Tensor
-            Model predictions of shape (B, T, H, W).
+            Model predictions of shape (B, T, C, H, W).
         target : torch.Tensor
-            Ground truth values of shape (B, T, H, W).
-        _sample_weight : Optional[torch.Tensor]
-            Ignored (present for API compatibility).
+            Ground truth values of shape (B, T, C, H, W).
 
         """
         preds = preds > SEA_ICE_THRESHOLD

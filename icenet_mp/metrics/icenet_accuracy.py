@@ -7,10 +7,10 @@ Adapted from the IceNet implementation at:
 import torch
 from torchmetrics import Metric
 
-THRESHOLD = 0.15  # Threshold for binarizing predictions and targets
+SEA_ICE_THRESHOLD = 0.15  # Threshold for binarizing predictions and targets
 
 
-class IceNetAccuracy(Metric):
+class IceNetAccuracyPerForecastDay(Metric):
     """Binary accuracy metric for use at multiple leadtimes."""
 
     def __init__(self) -> None:
@@ -34,8 +34,8 @@ class IceNetAccuracy(Metric):
         sample_weight: torch.Tensor | None = None,
     ) -> None:
         """Update metric state with a new batch of predictions and targets."""
-        preds = (preds > THRESHOLD).long()
-        target = (target > THRESHOLD).long()
+        preds = (preds > SEA_ICE_THRESHOLD).long()
+        target = (target > SEA_ICE_THRESHOLD).long()
         if sample_weight is None:
             sample_weight = torch.ones_like(target)
         base_score = preds == target

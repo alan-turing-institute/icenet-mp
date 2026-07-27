@@ -8,6 +8,7 @@ from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
 from icenet_mp.metrics import (
+    IceNetAccuracyPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
@@ -273,3 +274,62 @@ class TestMetricCalculations:
         assert torch.allclose(daily_result, expected_sie, atol=1e-5)
 
         assert daily_result.mean().item() == pytest.approx(625.0, abs=1e-5)
+
+    def test_calculates_mean_accuracy_daily_correctly(self) -> None:
+        """Test that IceNetAccuracy daily is calculated correctly."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        computed_sie = IceNetAccuracyPerForecastDay()
+        computed_sie.update(preds, targets)
+        daily_result = computed_sie.compute()
+
+        # Expected IceNetAccuracy per day:
+        # Day 1: accuracy = (0 + 0 + 1 + 1)  = 2.0
+        # Day 2: accuracy = (0 + 0 + 1 + 1) = 2.0
+        # Day 3: accuracy = (0 + 0 + 1 + 0) = 1.0
+        expected_sie = torch.tensor([50.0, 50.0, 25.0])  # pixel_size=1 -> no scaling
+
+        assert torch.allclose(daily_result, expected_sie, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(41.66667, abs=1e-5)
+
+    def test_calculates_mean_weighted_accuracy_daily_correctly(self) -> None:
+        """Test that IceNetAccuracy daily is calculated correctly."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        sample_weight_2d = torch.tensor([0.0, 1.0, 0.0, 1.0]).unsqueeze(1).repeat(1, 3)
+        sample_weight = (
+            sample_weight_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        )
+
+        computed_sie = IceNetAccuracyPerForecastDay()
+        computed_sie.update(preds, targets, sample_weight=sample_weight)
+        daily_result = computed_sie.compute()
+
+        # Expected IceNetAccuracy per day:
+        # Day 1: accuracy = (0 + 0 + 1 + 1) * weights = 0 * 0 + 0 * 1 + 0 * 0 + 1 * 1 = 1.0
+        # Day 2: accuracy = (0 + 0 + 1 + 1) * weights = 0 * 0 + 0 * 1 + 0 * 0 + 1 * 1 = 1.0
+        # Day 3: accuracy = (0 + 0 + 1 + 0) * weights = 0 * 0 + 0 * 1 + 0 * 0 + 0 * 1 = 0.0
+        expected_sie = torch.tensor([50.0, 50.0, 0.0])  # pixel_size=1 -> no scaling
+
+        assert torch.allclose(daily_result, expected_sie, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(33.33333, abs=1e-5)
