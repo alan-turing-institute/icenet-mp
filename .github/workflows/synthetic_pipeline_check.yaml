@@ -27,7 +27,6 @@ jobs:
           - name: unet
             config: baseline/synthetic_unet
             overrides: model.processor.start_out_channels=32 train.trainer.max_epochs=12
-            grid_size: 32
             rmse_threshold: "0.55"
           # The full CNN-ViT-CNN at its smallest working grid (48x48; the ViT needs its
           # capacity to learn the task and shrinking it stops it clearing the gate). It
@@ -36,7 +35,6 @@ jobs:
           - name: cnn-vit
             config: baseline/synthetic_cnn_vit
             overrides: train.trainer.max_epochs=6
-            grid_size: 48
             rmse_threshold: "0.42"
     name: ${{ matrix.name }}
     steps:
@@ -52,16 +50,23 @@ jobs:
         with:
           version: "0.8.3"
 
-      # Test 1: the pipeline runs end-to-end and passes its improvement gate.
+      # Test 1: create the synthetic dataset through the public CLI.
+      - name: Create synthetic ${{ matrix.name }} dataset
+        run: >
+          uv run imp datasets create --config-name ${{ matrix.config }}
+          ${{ matrix.overrides }}
+          base_path=outputs/synthetic_check
+
+      # Test 2: the pipeline runs end-to-end and passes its improvement gate.
       - name: Run small synthetic ${{ matrix.name }} check
         run: >
           uv run imp check --config-name ${{ matrix.config }}
           ${{ matrix.overrides }}
-          --grid-size ${{ matrix.grid_size }}
+          base_path=outputs/synthetic_check
           --min-relative-improvement 0.25
           --output-dir outputs/synthetic_check
 
-      # Test 2: best validation RMSE under a lenient, per-model threshold.
+      # Test 3: best validation RMSE under a lenient, per-model threshold.
       - name: Check best validation RMSE against threshold
         env:
           RMSE_THRESHOLD: ${{ matrix.rmse_threshold }}

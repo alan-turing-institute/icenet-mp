@@ -9,7 +9,7 @@ The check passes if validation loss improves by at least `--min-relative-improve
 ## Prerequisites
 
 Make sure IceNet-MP is [installed](../user-guide/installation.md).
-No real data, base path, or W&B account is needed: the check generates its own dataset and logs to local files.
+No real data or W&B account is needed: create the synthetic dataset locally, then run the check against it.
 
 ## Running the check
 
@@ -19,52 +19,23 @@ Two baseline configurations are provided, one per architecture.
 
 ```bash
 # Small (32x32) -- quickest smoke test, ~a few minutes
-uv run imp check --config-name baseline/synthetic_unet
-
-# Midsize (144x144)
-uv run imp check --config-name baseline/synthetic_unet --grid-size 144
-
-# Full size (432x432) -- matches the real-data resolution
-uv run imp check --config-name baseline/synthetic_unet --grid-size 432
+uv run imp datasets create --config-name baseline/synthetic_unet base_path=outputs/synthetic_check
+uv run imp check --config-name baseline/synthetic_unet base_path=outputs/synthetic_check
 ```
 
 ### CNN-ViT-CNN
 
 ```bash
 # Small (48x48) -- the smallest grid this model supports (see notes below)
-uv run imp check --config-name baseline/synthetic_cnn_vit --grid-size 48
-
-# Midsize (144x144)
-uv run imp check --config-name baseline/synthetic_cnn_vit --grid-size 144
-
-# Full size (432x432)
-uv run imp check --config-name baseline/synthetic_cnn_vit --grid-size 432
+uv run imp datasets create --config-name baseline/synthetic_cnn_vit base_path=outputs/synthetic_check
+uv run imp check --config-name baseline/synthetic_cnn_vit base_path=outputs/synthetic_check
 ```
 
-Each run writes the generated dataset, checkpoints, loss-curve and prediction plots, and a pass/fail report to `--output-dir` (default `outputs/synthetic_check`).
-
-### Choosing the dynamics
-
-The `--dynamics` option selects what the synthetic shapes do, so you can exercise different failure modes:
-
-```bash
-# Advection: a rigid circle translates and bounces off the edges (the default).
-uv run imp check --config-name baseline/synthetic_unet --dynamics moving
-
-# Growth/melt: a stationary blob grows and shrinks in place via a morphological
-# open/close cycle, mimicking sea ice advancing and retreating seasonally.
-uv run imp check --config-name baseline/synthetic_unet --dynamics grow-shrink
-```
-
-`moving` tests whether the model learns to translate a fixed shape; `grow-shrink` tests whether it learns concentration change in place (the shape never moves, but its extent pulses). Both work with either baseline and at any valid grid size.
+The create command is idempotent, so it only creates the dataset when it is absent. Both commands must use the same `base_path`. The check writes checkpoints, loss-curve and prediction plots, and a pass/fail report to `--output-dir` (default `outputs/synthetic_check`).
 
 ## Notes and constraints
 
-- **Grid sizes must respect each architecture's minimum.**
-  Every grid size must be a multiple of 16 and larger than 16: the UNet processor pools the grid four times, and the check applies this constraint to all models.
-  The ViT processor additionally patchifies the grid with `patch_size: 24`, so for `synthetic_cnn_vit` the grid must also be a multiple of 24 — in practice, use a multiple of 48 (the least common multiple). The default `--grid-size 32` therefore works for the UNet but **not** for the CNN-ViT, whose smallest working grid is 48.
-  *(The ViT's patch size can be changed via config or CLI overrides if you need a different divisor; adjust both `patch_size` and the grid size accordingly.)*
-- **`encoders.latent_space` is set automatically** to match `--grid-size`, so the model works at any (valid) resolution without editing configs. This reshapes the working resolution only, not the model's capacity.
+- **Grid sizes must respect each architecture's minimum.** The UNet configuration uses 32×32. The CNN-ViT configuration uses 48×48 because its ViT processor patchifies the latent grid with `patch_size: 24`.
 - **"No land mask available" warnings are expected.** The synthetic world has no land, so the baseline configs set `model.decoder.mask_type: none`, and plotting falls back accordingly at non-432 shapes.
 - **Runtime scales roughly with the square of the grid size.** Use small grids to iterate and 432 only to confirm behaviour at the real resolution; `--max-epochs` caps the run length (with few epochs, you may also need to lower `--min-relative-improvement` since the pass gate is calibrated for a full run).
 - **Give the UNet enough epochs before judging it.** Its BatchNorm layers use different statistics in train and eval mode, so validation loss often stays flat for the first ~5 epochs while training loss falls, then catches up as the running statistics settle. A 2–5 epoch run can therefore fail the improvement gate spuriously; the default 30 epochs (with early stopping) is reliable.

@@ -1,6 +1,4 @@
-# train/validate/test below are placeholders required for a valid config -- the
-# synthetic pipeline check overwrites them at runtime with date ranges computed from
-# the actual generated trajectories (see icenet_mp/synthetic/pipeline_check.py).
+# The first six trajectories train; the final two are held out for validation and test.
 batch_size: 4
 
 predict:
@@ -8,13 +6,23 @@ predict:
     end: null
 
 test:
-  - start: 2020-02-20
-    end: 2020-02-29
+  - start: 2020-06-03
+    end: 2020-06-22
 
 train:
   - start: 2020-01-01
-    end: 2020-02-09
+    end: 2020-01-20
+  - start: 2020-01-23
+    end: 2020-02-11
+  - start: 2020-02-14
+    end: 2020-03-04
+  - start: 2020-03-07
+    end: 2020-03-26
+  - start: 2020-03-29
+    end: 2020-04-17
+  - start: 2020-04-20
+    end: 2020-05-09
 
 validate:
-  - start: 2020-02-10
-    end: 2020-02-19
+  - start: 2020-05-12
+    end: 2020-05-31

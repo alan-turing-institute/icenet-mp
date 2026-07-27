@@ -5,7 +5,8 @@
 # bouncing-circle trajectories instead of real sea-ice data. Whole trajectories are
 # held out for validation/test, so passing this requires learning the general
 # translate-and-bounce rule, not memorising one instance. Run with:
-#   imp check --config-name baseline/synthetic_cnn_vit --grid-size 48
+#   imp datasets create --config-name baseline/synthetic_cnn_vit base_path=outputs/synthetic_check
+#   imp check --config-name baseline/synthetic_cnn_vit base_path=outputs/synthetic_check
 #
 # Grid-size constraint: the ViT processor patchifies the latent grid with
 # patch_size=24, so --grid-size must be a multiple of 24; the pipeline check itself
@@ -23,12 +24,12 @@ defaults:
     - local_files
   - _self_
 
-# encoders.latent_space is set at runtime to match whatever --grid-size is used (see
-# run_synthetic_pipeline_check), not overridden here -- this only reshapes the working
-# resolution to match the data, not the model's capacity. There is no land, so masking
-# is disabled. The model's own architecture/width and the default optimizer settings
-# are otherwise left untouched.
+# The synthetic CNN-ViT dataset and latent space use the smallest compatible grid.
+# There is no land, so masking is disabled. The model's architecture/width and default
+# optimizer settings are otherwise left untouched.
 model:
+  encoders:
+    latent_space: [48, 48]
   decoder:
     mask_type: none
   # The synthetic field is a single moving circle with a well-defined centre, so the
@@ -40,6 +41,13 @@ model:
     - rmse
     - sieerror
     - centroid_error
+
+data:
+  datasets:
+    synthetic-sic:
+      input:
+        synthetic:
+          grid_size: 48
 
 # baseline/03_cnn_vit_cnn inherits the global default lr=5e-3, which learns too
 # slowly through the sigmoid range restriction to pass the check's improvement gate
