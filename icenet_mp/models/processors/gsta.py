@@ -14,6 +14,7 @@ Our implementation of GatedAttentionBlock is slightly modified to allow differen
 numbers of input and output channels.
 """
 
+import logging
 from typing import Any
 
 from torch import nn
@@ -22,6 +23,8 @@ from icenet_mp.models.common import GatedAttentionBlock
 from icenet_mp.types import ProcessorOutput, TensorNCHW, TensorNTCHW
 
 from .base_processor import BaseProcessor
+
+log = logging.getLogger(__name__)
 
 
 class GSTAProcessor(BaseProcessor):
@@ -60,9 +63,11 @@ class GSTAProcessor(BaseProcessor):
 
         """
         super().__init__(**kwargs)
-        if n_blocks < 2:  # noqa: PLR2004
-            msg = f"n_blocks must be at least 2, got {n_blocks}"
+        if n_blocks < 1:
+            msg = f"n_blocks must be at least 1, got {n_blocks}"
             raise ValueError(msg)
+        if n_blocks == 1:
+            log.warning("GSTAProcessor.n_blocks=1: no hidden channels will be used.")
 
         # Translator: a flat stack of gated attention blocks
         self.translator = nn.Sequential(
