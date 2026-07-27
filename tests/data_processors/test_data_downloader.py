@@ -266,8 +266,10 @@ class TestDataDownloader:
         self,
         mock_data_downloader: DataDownloader,
         mock_inspect_zarr: MockInspectZarr,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """inspect(verbose=True) reaches the real InspectZarr().run() call."""
+        monkeypatch.setattr(mock_data_downloader, "integrity_check", MagicMock())
         mock_data_downloader.path_dataset.mkdir(parents=True)
         mock_data_downloader.inspect(verbose=True)
         assert mock_inspect_zarr.run_args is not None
@@ -278,13 +280,30 @@ class TestDataDownloader:
         assert args.statistics is False
         assert args.size is True
 
+    def test_inspect_verbose_calls_integrity_check(
+        self,
+        mock_data_downloader: DataDownloader,
+        mock_inspect_zarr: MockInspectZarr,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """inspect(verbose=True) also runs the sequential-read integrity check."""
+        mock_integrity_check = MagicMock()
+        monkeypatch.setattr(
+            mock_data_downloader, "integrity_check", mock_integrity_check
+        )
+        mock_data_downloader.path_dataset.mkdir(parents=True)
+        mock_data_downloader.inspect(verbose=True)
+        mock_integrity_check.assert_called_once()
+
     def test_inspect_verbose_suppresses_value_error(
         self,
         mock_data_downloader: DataDownloader,
         mock_inspect_zarr: MockInspectZarr,
+        monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """inspect(verbose=True) does not raise when InspectZarr().run() raises ValueError."""
+        monkeypatch.setattr(mock_data_downloader, "integrity_check", MagicMock())
         mock_data_downloader.path_dataset.mkdir(parents=True)
         mock_inspect_zarr.run_error = ValueError("statistics not available")
         with caplog.at_level(logging.WARNING):
@@ -295,11 +314,29 @@ class TestDataDownloader:
         self,
         mock_data_downloader: DataDownloader,
         mock_inspect_zarr: MockInspectZarr,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """inspect(verbose=True) wraps FileNotFoundError from InspectZarr().run() as RuntimeError."""
+        monkeypatch.setattr(mock_data_downloader, "integrity_check", MagicMock())
         mock_data_downloader.path_dataset.mkdir(parents=True)
         mock_inspect_zarr.run_error = FileNotFoundError("no dataset at path")
         with pytest.raises(RuntimeError, match="Failed to load dataset"):
+            mock_data_downloader.inspect(verbose=True)
+
+    def test_inspect_verbose_propagates_integrity_check_runtime_error(
+        self,
+        mock_data_downloader: DataDownloader,
+        mock_inspect_zarr: MockInspectZarr,  # noqa: ARG002
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A corrupt-chunk RuntimeError from integrity_check() is not swallowed."""
+        monkeypatch.setattr(
+            mock_data_downloader,
+            "integrity_check",
+            MagicMock(side_effect=RuntimeError("Zarr integrity check failed")),
+        )
+        mock_data_downloader.path_dataset.mkdir(parents=True)
+        with pytest.raises(RuntimeError, match="Zarr integrity check failed"):
             mock_data_downloader.inspect(verbose=True)
 
     def test_finalise_suppresses_cleanup_value_error_and_logs_residual(
@@ -352,6 +389,38 @@ class TestDataDownloader:
         np.testing.assert_array_equal(np.load(land_mask_path), [[0, 1], [1, 1]])
         np.testing.assert_array_equal(np.load(active_mask_path), [[0, 1], [0, 1]])
 
+    def test_generate_masks_skips_missing_leading_date(
+        self,
+        mock_data_downloader_ssmis: DataDownloader,
+        mock_data_status_flag: dict[str, dict[str, Any]],
+    ) -> None:
+        """A missing index 0 must not crash the status_flag conversion (regression, #379)."""
+        dates = mock_data_status_flag["coords"]["time"]["data"]
+        data_with_gap = dict(mock_data_status_flag)
+        data_with_gap["coords"] = {
+            **mock_data_status_flag["coords"],
+            "time": {**mock_data_status_flag["coords"]["time"], "data": dates[1:]},
+        }
+        data_with_gap["data_vars"] = {
+            "status_flag": {
+                **mock_data_status_flag["data_vars"]["status_flag"],
+                "data": mock_data_status_flag["data_vars"]["status_flag"]["data"][1:],
+            }
+        }
+        build_zarr(
+            mock_data_downloader_ssmis.path_dataset,
+            data_with_gap,
+            full_dates=dates,
+            missing_dates=[dates[0]],
+        )
+
+        mock_data_downloader_ssmis.generate_masks(overwrite=False)
+
+        land_mask_path = mock_data_downloader_ssmis.path_masks / "land_mask.npy"
+        active_mask_path = mock_data_downloader_ssmis.path_masks / "active_mask.npy"
+        np.testing.assert_array_equal(np.load(land_mask_path), [[0, 1], [1, 1]])
+        np.testing.assert_array_equal(np.load(active_mask_path), [[0, 1], [0, 1]])
+
     def test_generate_masks_skips_non_ssmis_dataset(
         self, mock_data_downloader: DataDownloader
     ) -> None:
@@ -373,3 +442,61 @@ class TestDataDownloader:
 
         np.testing.assert_array_equal(np.load(land_mask_path), np.zeros((2, 2)))
         np.testing.assert_array_equal(np.load(active_mask_path), np.ones((2, 2)))
+
+    def test_integrity_check_passes_on_clean_dataset(
+        self,
+        mock_data_downloader: DataDownloader,
+        mock_data: dict[str, dict[str, Any]],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """integrity_check() does not raise for a dataset with no missing dates."""
+        build_zarr(mock_data_downloader.path_dataset, mock_data)
+        with caplog.at_level(logging.INFO):
+            mock_data_downloader.integrity_check()
+        assert "✅ Integrity check" in caplog.text
+
+    def test_integrity_check_skips_missing_dates(
+        self,
+        mock_data_downloader: DataDownloader,
+        mock_data_missing_dates: dict[str, dict[str, Any]],
+        dates_as_dt: tuple[datetime.datetime, ...],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """integrity_check() skips known-missing dates instead of raising MissingDateError."""
+        build_zarr(
+            mock_data_downloader.path_dataset,
+            mock_data_missing_dates,
+            full_dates=list(dates_as_dt),
+            missing_dates=[dates_as_dt[1], dates_as_dt[3]],
+        )
+        with caplog.at_level(logging.INFO):
+            mock_data_downloader.integrity_check()
+        assert (
+            "Integrity check for test: 3/5 date(s) verified (2 known missing)."
+            in caplog.text
+        )
+
+    def test_integrity_check_raises_on_corrupt_chunk(
+        self,
+        mock_data_downloader: DataDownloader,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """integrity_check() raises RuntimeError if a non-missing chunk cannot be read."""
+
+        def _getitem(idx: int) -> np.ndarray:
+            if idx == 1:
+                msg = "corrupt"
+                raise OSError(msg)
+            return np.zeros((2, 2))
+
+        mock_dataset = MagicMock(missing=set())
+        mock_dataset.__len__.return_value = 3
+        mock_dataset.__getitem__.side_effect = _getitem
+        monkeypatch.setattr(
+            "icenet_mp.data_processors.data_downloader.open_dataset",
+            lambda _: mock_dataset,
+        )
+        with pytest.raises(
+            RuntimeError, match="Integrity check for test: date 1 unreadable"
+        ):
+            mock_data_downloader.integrity_check()

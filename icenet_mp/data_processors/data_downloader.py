@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import tqdm
 from anemoi.datasets import open_dataset
 from anemoi.datasets.commands.cleanup import Cleanup
 from anemoi.datasets.commands.finalise import Finalise
@@ -12,6 +13,7 @@ from anemoi.datasets.commands.init import Init
 from anemoi.datasets.commands.inspect import InspectZarr
 from anemoi.datasets.commands.load import Load
 from anemoi.datasets.create.recipe import Recipe
+from anemoi.datasets.usage.gridded import MissingDateError
 from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
@@ -226,7 +228,11 @@ class DataDownloader:
         if not available_indices:
             msg = f"No available timesteps in status_flag for dataset {self.name}."
             raise RuntimeError(msg)
-        status_flag = np.asarray(ds_sf, dtype=np.uint8)[available_indices]
+        # Attempting to read the entire array and then index leads to MissingDateError.
+        # Instead iterate over the available indices and recombine.
+        status_flag = np.stack(
+            [np.asarray(ds_sf[i], dtype=np.uint8) for i in available_indices]
+        )
         binary = np.unpackbits(status_flag, axis=-1).reshape(*status_flag.shape, 8)
 
         # land mask: land = 0, sea = 1
@@ -295,10 +301,11 @@ class DataDownloader:
                         path=str(self.path_dataset),
                         detailed=True,
                         progress=False,
-                        statistics=False,  # recalculate statistics on-the-fly
+                        statistics=False,  # anemoi's brute-force stats crash on missing dates; integrity_check() reads the data instead
                         size=True,
                     )
                 )
+                self.integrity_check()
             else:
                 ds_info = InspectZarr()._info(str(self.path_dataset))
                 logger.info("  Path    : %s", ds_info.path)
@@ -320,6 +327,25 @@ class DataDownloader:
         except (AttributeError, FileNotFoundError, PathNotFoundError) as exc:
             msg = f"Failed to load dataset {self.name} at {self.path_dataset}"
             raise RuntimeError(msg) from exc
+
+    def integrity_check(self) -> None:
+        """Sequentially read every non-missing date to detect zarr corruption."""
+        ds = open_dataset(self.path_dataset)
+        missing_indices: set[int] = set(getattr(ds, "missing", None) or ())
+        for idx in tqdm.tqdm(range(len(ds)), total=len(ds), desc="Integrity check"):
+            try:
+                if idx not in missing_indices:
+                    ds[idx]
+            except (MissingDateError, OSError) as exc:
+                msg = f"❌ Integrity check for {self.name}: date {idx} unreadable."
+                raise RuntimeError(msg) from exc
+        logger.info(
+            "✅ Integrity check for %s: %d/%d date(s) verified (%d known missing).",
+            self.name,
+            len(ds) - len(missing_indices),
+            len(ds),
+            len(missing_indices),
+        )
 
     def load_in_chunks(self) -> None:
         """Download a single Anemoi dataset in chunks, skipping those already present."""
