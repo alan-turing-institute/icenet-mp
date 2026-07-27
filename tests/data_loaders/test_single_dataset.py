@@ -77,6 +77,24 @@ class TestSingleDataset:
         assert dates_as_np[1] not in dataset.dates  # 2020-01-02 should be missing
         assert dates_as_np[3] not in dataset.dates  # 2020-01-04 should be missing
 
+    def test_frequency_ignores_missing_dates(
+        self, mock_dataset_missing_dates: Path, dates_as_str: tuple[str, ...]
+    ) -> None:
+        """Frequency should come from the dataset's declared metadata.
+
+        Subset recalculates frequency by diffing the first two dates of whichever
+        date-range slice is requested, so we need to ignore this.
+        """
+        dataset = SingleDataset(
+            name="test_missing",
+            input_files=[mock_dataset_missing_dates],
+            date_ranges=[
+                # This range has a 2-day cadence
+                {"start": None, "end": dates_as_str[4]},
+            ],
+        )
+        assert dataset.frequency == np.timedelta64(1, "D")
+
     def test_start_date(
         self,
         mock_dataset: Path,
