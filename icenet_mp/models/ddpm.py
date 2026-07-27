@@ -466,7 +466,7 @@ class DDPM(BaseModel):
         # Extract target
         if self.use_autoregressive:
             y = batch["target"][
-                :, 0
+                :, 0, :, :, :
             ]  # [B, C, H, W] — one step at a time (AR trains on t=0 only)
         else:
             y = batch["target"].flatten(1, 2)  # [B, T*C, H, W] — all steps at once
