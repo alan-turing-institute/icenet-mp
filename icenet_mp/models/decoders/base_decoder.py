@@ -66,7 +66,7 @@ class BaseDecoder(nn.Module):
         """
         return self.mask(self.restrict(x))
 
-    def rollout(self, x: TensorNTCHW) -> TensorNTCHW:
+    def rollout(self, x: TensorNTCHW, persistence: TensorNTCHW) -> TensorNTCHW:
         """Decode latent space into output space across multiple timesteps.
 
         The default implementation simply calls `self.forward` on each time slice
@@ -79,6 +79,7 @@ class BaseDecoder(nn.Module):
 
         Args:
             x: TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
+            persistence: TensorNCHW with (batch_size, 1, output_channels, output_height, output_width) to add to every forecast step
 
         Returns:
             TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
@@ -88,5 +89,12 @@ class BaseDecoder(nn.Module):
         # make the decoder more generic by simply reading the number of timeslices from
         # the input.
         batch_size, n_timeslices = x.shape[0], x.shape[1]
-        output = self.finalise(self(x.reshape(-1, *self.data_space_in.chw)))
+        # Pass the latents through the decoder to return to output space
+        output_nchw = self(x.reshape(-1, *self.data_space_in.chw))
+        # Expand persistence to match the number of output timesteps
+        persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
+        persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
+        # Add persistence to the output and finalise (bound and mask) the result
+        output = self.finalise(output_nchw + persistence_nchw)
+        # Reshape back to [batch, n_timeslices, C_out, H_out, W_out]
         return output.reshape(batch_size, n_timeslices, *self.data_space_out.chw)
