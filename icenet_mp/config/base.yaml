@@ -1,6 +1,6 @@
 # Base config inherited by all other configs
 defaults:
-  - data: sample
+  - data: sample_south
   - evaluate: default
   - loggers:
     - wandb

@@ -89,6 +89,7 @@ class PlotSpec:
         title_difference: Title above the difference panel.
         n_contour_levels: Number of contour levels per panel.
         colourmap: colourmap used for GT/prediction panels.
+        dpi: Dots per inch for figure rendering (default 300).
         include_difference: Whether to draw a difference panel.
         diff_mode: Difference definition (e.g. "signed", "absolute", "smape").
         diff_strategy: Strategy for animations (precompute, two-pass, per-frame).
@@ -110,6 +111,7 @@ class PlotSpec:
 
     n_contour_levels: int = 51
     colourmap: str = "viridis"
+    dpi: int = 300
 
     # Difference pane
     include_difference: bool = True
