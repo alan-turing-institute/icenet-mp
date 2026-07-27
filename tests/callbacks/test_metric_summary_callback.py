@@ -237,14 +237,14 @@ class TestMetricCalculations:
         daily_result = computed_sie.compute()
 
         # Expected SIEError per day:
-        # Day 1: sie error = |0-1 + 0-1 + 1-1 + 0-0| * 1^2 = 2.0
-        # Day 2: sie error = |0-1 + 1-0 + 1-1 + 0-0| * 1^2 = 0.0
-        # Day 3: sie error = |1-0 + 1-0 + 1-1 + 0-1| * 1^2 = 1.0
-        expected_sie = torch.tensor([2.0, 0.0, 1.0])  # pixel_size=1 -> no scaling
+        # Day 1: sie error = (0-1 + 0-1 + 1-1 + 0-0) * 1^2 = -2.0
+        # Day 2: sie error = (0-1 + 1-0 + 1-1 + 0-0) * 1^2 = 0.0
+        # Day 3: sie error = (1-0 + 1-0 + 1-1 + 0-1) * 1^2 = 1.0
+        expected_sie = torch.tensor([-2.0, 0.0, 1.0])  # pixel_size=1 -> no scaling
 
         assert torch.allclose(daily_result, expected_sie, atol=1e-5)
 
-        assert daily_result.mean().item() == pytest.approx(1.0, abs=1e-5)
+        assert daily_result.mean().item() == pytest.approx(-0.33333, abs=1e-5)
 
     def test_calculates_mean_sieerror_daily_pixel_size(self) -> None:
         """Test that SIEError daily is calculated correctly."""
@@ -264,16 +264,16 @@ class TestMetricCalculations:
         daily_result = computed_sie.compute()
 
         # Expected SIEError per day (before pixel-size scaling):
-        # Day 1: sie error = |0-1 + 0-1 + 1-1 + 0-0| * 1^2 = 2.0
-        # Day 2: sie error = |0-1 + 1-0 + 1-1 + 0-0| * 1^2 = 0.0
-        # Day 3: sie error = |1-0 + 1-0 + 1-1 + 0-1| * 1^2 = 1.0
+        # Day 1: sie error = (0-1 + 0-1 + 1-1 + 0-0) * 1^2 = -2.0
+        # Day 2: sie error = (0-1 + 1-0 + 1-1 + 0-0) * 1^2 = 0.0
+        # Day 3: sie error = (1-0 + 1-0 + 1-1 + 0-1) * 1^2 = 1.0
         expected_sie = torch.tensor(
-            [1250.0, 0.0, 625.0]
+            [-1250.0, 0.0, 625.0]
         )  # default pixel_size=25 -> scaled by 25^2
 
         assert torch.allclose(daily_result, expected_sie, atol=1e-5)
 
-        assert daily_result.mean().item() == pytest.approx(625.0, abs=1e-5)
+        assert daily_result.mean().item() == pytest.approx(-208.33333, abs=1e-5)
 
     def test_calculates_mean_accuracy_daily_correctly(self) -> None:
         """Test that IceNetAccuracy daily is calculated correctly."""
