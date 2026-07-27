@@ -38,32 +38,22 @@ class ModelService:
             os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
             seed_everything(seed, workers=True)
 
-        # If we are in fully deterministic mode, enable deterministic algorithms and
-        # patch any known issues with them. We use warn_only=True to avoid segfaults on
-        # unsupported operations.
+        # Determine whether to enable fully deterministic mode
         self.fully_deterministic = config.get("random", {}).get(
             "fully_deterministic", False
         )
-        if self.fully_deterministic:
-            torch.use_deterministic_algorithms(True, warn_only=True)  # noqa: FBT003
-            patch_interpolate_antialias()
-            log.warning(
-                "Fully deterministic mode enabled and anti-aliasing disabled. This may "
-                "produce different results compared to non-deterministic mode and may "
-                "also impact performance. Ensure this is intended before proceeding."
-            )
 
         # Apply any necessary compatibility patches
-        configured_accelerator = (
+        accelerator = (
             config.get("train", {}).get("trainer", {}).get("accelerator", "auto")
         )
-        if (
-            configured_accelerator in ("mps", "auto")
-            and torch.backends.mps.is_available()
+        if self.fully_deterministic or (
+            torch.backends.mps.is_available() and accelerator in ("mps", "auto")
         ):
             patch_interpolate_antialias()
             log.warning(
-                "Anti-aliasing disabled to avoid known segmentation faults on MPS."
+                "Anti-aliasing disabled for compatibility with deterministic running "
+                "and/or accelerator architecture."
             )
         patch_open_file_limit()
 
@@ -301,26 +291,33 @@ class ModelService:
             hydra.utils.instantiate(
                 config["trainer"],
                 callbacks=extra_callbacks,
-                deterministic=self.fully_deterministic,
+                deterministic="warn" if self.fully_deterministic else False,
                 logger=extra_loggers,
             ),
         )
 
         # Check that fully_deterministic is set correctly
         if self.fully_deterministic != torch.are_deterministic_algorithms_enabled():
-            log.warning(
-                "Fully deterministic mode is %s but torch deterministic algorithms are %s.",
-                ["disabled", "enabled"][self.fully_deterministic],
-                ["disabled", "enabled"][torch.are_deterministic_algorithms_enabled()],
+            actual = (
+                "enabled"
+                if torch.are_deterministic_algorithms_enabled()
+                else "disabled"
             )
+            desired = "enabled" if self.fully_deterministic else "disabled"
+            msg = (
+                f"torch deterministic algorithms are {actual}, but the config file "
+                f"specifies that they should be {desired}."
+            )
+            raise ValueError(msg)
         if (
-            self.fully_deterministic
+            torch.are_deterministic_algorithms_enabled()
             and not torch.is_deterministic_algorithms_warn_only_enabled()
         ):
-            log.warning(
-                "Fully deterministic mode is enabled but torch warn_only is disabled. "
-                "Unsupported operations may cause segmentation faults."
+            msg = (
+                "When running in fully deterministic mode, 'warn_only' must be set to "
+                "avoid segmentation faults from unsupported operations."
             )
+            raise ValueError(msg)
 
         # Assign workers for data loading
         self.data_module.assign_workers(

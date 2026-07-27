@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
 from functools import cached_property
-from typing import Any
+from typing import Any, ClassVar
 
 import hydra
 import torch
@@ -27,6 +27,11 @@ from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
 
 class BaseModel(LightningModule, ABC):
     """A base class for all models used in the IceNet-MP project."""
+
+    # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
+    ignored_hparams: ClassVar[frozenset[str]] = frozenset(
+        ("latitudes_fn", "longitudes_fn")
+    )
 
     def __init__(  # noqa: PLR0913
         self,
@@ -89,10 +94,9 @@ class BaseModel(LightningModule, ABC):
         self.train_metrics = MetricCollection(deepcopy(_common_metrics))
         self.validation_metrics = MetricCollection(deepcopy(_common_metrics))
 
-        # Save all non-ignored arguments to __init__ as hyperparameters
-        # This will also save the parameters of whichever child class is used
-        # Note that W&B will log all hyperparameters
-        self.save_hyperparameters(ignore=["latitudes_fn", "longitudes_fn"])
+        # All arguments to the ultimate child class will be logged as hyperparameters,
+        # and saved to W&B, unless explicitly ignored here.
+        self.save_hyperparameters(ignore=[*self.ignored_hparams])
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:

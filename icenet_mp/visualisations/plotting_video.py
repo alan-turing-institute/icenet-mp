@@ -230,6 +230,7 @@ def plot_video_prediction(
         # Write to BytesIO buffer
         video_buffer = video_from_animation(
             animation_object,
+            dpi=plot_spec.dpi,
             fps=plot_spec.video_fps,
             video_format=plot_spec.video_format,
         )
@@ -388,7 +389,10 @@ def plot_video_single_input(
         )
         # Return a BytesIO video buffer
         return video_from_animation(
-            anim, fps=plot_spec.video_fps, video_format=plot_spec.video_format
+            anim,
+            dpi=plot_spec.dpi,
+            fps=plot_spec.video_fps,
+            video_format=plot_spec.video_format,
         )
     finally:
         # Clean up by closing figure

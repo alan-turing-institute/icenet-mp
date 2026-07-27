@@ -170,8 +170,14 @@ class SingleDataset(Dataset):
 
     @cached_property
     def frequency(self) -> np.timedelta64:
-        """Return the frequency of the dataset."""
-        return np.timedelta64(self.dataslices[0].frequency)
+        """Return the frequency of the dataset.
+
+        Use frequency of the underlying Anemoi dataset, which is read from metadata,
+        rather than the frequency of the dataslices which are recalculated on-the-fly
+        by Anemoi through diff-ing the first two dates in the dataslice, which is
+        incorrect for datasets with missing dates.
+        """
+        return np.timedelta64(self.load_dataset(self._input_files).frequency)
 
     @cached_property
     def latitudes(self) -> list[float]:
