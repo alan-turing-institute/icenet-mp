@@ -13,6 +13,13 @@ class GatedAttention(nn.Module):
     def __init__(self, channels: int, *, kernel_size: int, dilation: int) -> None:
         """Initialise a GatedAttention module."""
         super().__init__()
+        if dilation < 1:
+            msg = f"dilation({dilation}) must be at least 1."
+            raise ValueError(msg)
+        if kernel_size < dilation:
+            msg = f"kernel_size ({kernel_size}) must be >= dilation ({dilation})."
+            raise ValueError(msg)
+
         depthwise_kernel = 2 * dilation - 1
         dilated_kernel = kernel_size // dilation + ((kernel_size // dilation) % 2 - 1)
 

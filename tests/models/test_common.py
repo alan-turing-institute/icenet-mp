@@ -6,6 +6,7 @@ from icenet_mp.models.common import (
     ConvNormActUpsample,
     NormalisedFold,
 )
+from icenet_mp.models.common.gated_attention import GatedAttention
 
 
 class TestConvBlockUpsample:
@@ -38,6 +39,22 @@ class TestConvNormActUpsample:
         x = torch.zeros(1, in_channels, height, width)
         y = layer(x)
         assert y.shape == (1, out_channels, height * 2, width * 2)
+
+
+class TestGatedAttention:
+    @pytest.mark.parametrize("dilation", [0, -1])
+    def test_dilation_below_one_raises(self, dilation: int) -> None:
+        with pytest.raises(ValueError, match=r"dilation\(.*\) must be at least 1."):
+            GatedAttention(channels=4, kernel_size=5, dilation=dilation)
+
+    @pytest.mark.parametrize(("kernel_size", "dilation"), [(1, 2), (2, 3)])
+    def test_kernel_size_below_dilation_raises(
+        self, kernel_size: int, dilation: int
+    ) -> None:
+        with pytest.raises(
+            ValueError, match=r"kernel_size \(.*\) must be >= dilation \(.*\)."
+        ):
+            GatedAttention(channels=4, kernel_size=kernel_size, dilation=dilation)
 
 
 class TestNormalisedFold:
