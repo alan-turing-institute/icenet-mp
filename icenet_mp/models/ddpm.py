@@ -1,4 +1,4 @@
-import warnings
+import logging
 from typing import Any, ClassVar, NoReturn
 
 import torch
@@ -9,6 +9,8 @@ from icenet_mp.models.diffusion import GaussianDiffusion, UNetDiffusion
 from icenet_mp.types import ModelStepOutput, RangeRestriction, TensorNCHW, TensorNTCHW
 
 from .base_model import BaseModel
+
+log = logging.getLogger(__name__)
 
 
 class SimpleEncoder2D(torch.nn.Module):
@@ -368,12 +370,11 @@ class DDPM(BaseModel):
                 next_era5 = era5_forecast[:, step : step + 1]
             else:
                 if not self._warned_missing_era5_forecast:
-                    warnings.warn(
+                    log.warning(
                         "era5_forecast not provided in batch, repeating the last "
                         "observed ERA5 frame for all remaining autoregressive "
                         "forecast steps. This may reduce forecast quality for "
                         "longer horizons.",
-                        stacklevel=2,
                     )
                     self._warned_missing_era5_forecast = True
                 next_era5 = era5[:, -1:]
