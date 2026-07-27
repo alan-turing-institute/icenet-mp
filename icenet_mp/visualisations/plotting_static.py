@@ -138,7 +138,9 @@ def plot_static_prediction(
 
     try:
         return {
-            f"{date.strftime(r'%Y-%m-%d')}-{variable_name}": [image_from_figure(fig)]
+            f"{date.strftime(r'%Y-%m-%d')}-{variable_name}": [
+                image_from_figure(fig, dpi=plot_spec.dpi)
+            ]
         }
     finally:
         plt.close(fig)
@@ -238,7 +240,7 @@ def plot_static_inputs(
             )
 
         try:
-            pil_img = image_from_figure(fig)
+            pil_img = image_from_figure(fig, dpi=plot_spec.dpi)
         finally:
             plt.close(fig)
 

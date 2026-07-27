@@ -34,5 +34,6 @@ decoder:
   kernel_size: 5
   mask_type: active
   n_layers: 1
+  norm_type: groupnorm
   restrict_range: sigmoid
   scale_factor: 3

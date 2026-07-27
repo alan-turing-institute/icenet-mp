@@ -14,8 +14,6 @@ from PIL.ImageFile import ImageFile
 
 from icenet_mp.exceptions import VideoRenderError
 
-DEFAULT_DPI = 200
-
 
 @contextlib.contextmanager
 def _suppress_mpl_animation_logs() -> Iterator[None]:
@@ -29,15 +27,10 @@ def _suppress_mpl_animation_logs() -> Iterator[None]:
         mpl_logger.setLevel(original_level)
 
 
-def image_from_figure(fig: Figure) -> ImageFile:
-    """Convert a matplotlib figure to a PIL image file.
-
-    Uses the same save parameters as save_figure for consistency:
-    - dpi=300 for matching resolution
-    - bbox_inches="tight" to crop to content (matching disk saves)
-    """
+def image_from_figure(fig: Figure, *, dpi: int) -> ImageFile:
+    """Convert a matplotlib figure to a PIL image file."""
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
     buf.seek(0)
     return Image.open(buf)
 
@@ -45,6 +38,7 @@ def image_from_figure(fig: Figure) -> ImageFile:
 def video_from_animation(
     anim: animation.FuncAnimation,
     *,
+    dpi: int = 200,
     fps: int = 2,
     video_format: Literal["mp4", "gif"] = "gif",
 ) -> io.BytesIO:
@@ -75,7 +69,7 @@ def video_from_animation(
                 )
                 # Suppress matplotlib's INFO log message about writer selection
                 with _suppress_mpl_animation_logs():
-                    anim.save(tmp.name, writer=writer, dpi=DEFAULT_DPI)
+                    anim.save(tmp.name, writer=writer, dpi=dpi)
                 # Load tempfile into a BytesIO buffer
                 with Path(tmp.name).open("rb") as fh:
                     buffer = io.BytesIO(fh.read())
