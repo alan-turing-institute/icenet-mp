@@ -86,19 +86,23 @@ class BaseModel(LightningModule, ABC):
         self.loss_cfg = loss
 
         # Metrics
-        _metric_classes: dict[str, type[Metric] | type[MetricCollection]] = {
+        _metric_classes: dict[str, type[Metric]] = {
             "accuracy": IceNetAccuracy,
             "mae": MAEPerForecastDay,
             "rmse": RMSEPerForecastDay,
             "sieerror": SeaIceExtentErrorPerForecastDay,
             "centroid_error": CentroidErrorPerForecastDay,
         }
-        metric_names = metrics if metrics is not None else [
-            "accuracy",
-            "mae",
-            "rmse",
-            "sieerror",
-        ]
+        metric_names = (
+            metrics
+            if metrics is not None
+            else [
+                "accuracy",
+                "mae",
+                "rmse",
+                "sieerror",
+            ]
+        )
         _common_metrics: dict[str, Metric | MetricCollection] = {
             name: _metric_classes[name]() for name in metric_names
         }

@@ -40,22 +40,16 @@ class _BaseErrorMetricDaily(Metric):
         batch_sum_errors, batch_count = self._compute_batch_stats(preds, target)
 
         if self.sum_errors.numel() == 0:
-            # First batch — validate shapes match before accepting
-            if self.sum_errors.shape[0] != batch_sum_errors.shape[0]:
-                msg = (
-                    f"Time dimension mismatch on first batch: expected {self.sum_errors.shape[0]}, "
-                    f"got {batch_sum_errors.shape[0]}"
-                )
-                raise ValueError(msg)
+            # First batch — initialise accumulators from incoming shapes
             self.sum_errors = batch_sum_errors
             self.count = batch_count
+        elif self.sum_errors.shape[0] != batch_sum_errors.shape[0]:
+            msg = (
+                f"Time dimension mismatch: expected {self.sum_errors.shape[0]}, "
+                f"got {batch_sum_errors.shape[0]}"
+            )
+            raise ValueError(msg)
         else:
-            if self.sum_errors.shape[0] != batch_sum_errors.shape[0]:
-                msg = (
-                    f"Time dimension mismatch: expected {self.sum_errors.shape[0]}, "
-                    f"got {batch_sum_errors.shape[0]}"
-                )
-                raise ValueError(msg)
             self.sum_errors += batch_sum_errors
             self.count += batch_count
 

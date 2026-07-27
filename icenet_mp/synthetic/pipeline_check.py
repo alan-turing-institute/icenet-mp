@@ -142,26 +142,22 @@ def _generate_dataset(
     return zarr_path, dataset.frames, dataset.dates, _split_ranges(dataset.spans)
 
 
-def _load_loss_history(history_path: Path) -> dict[str, list[float]]:
-    if not history_path.exists():
+def _load_loss_history(metrics_path: Path) -> dict[str, list[float]]:
+    if not metrics_path.exists():
         msg = (
-            f"Expected loss history at {history_path}, but it does not exist. Does the "
-            f"config include a CSV logger?"
+            f"Expected CSV metrics at {metrics_path}, but it does not exist. "
+            "Check that the config includes a CSVLogger."
         )
         raise FileNotFoundError(msg)
 
-    train_loss: list[float] = []
-    validation_loss: list[float] = []
+    history: dict[str, list[float]] = {"train_loss": [], "validation_loss": []}
+    with metrics_path.open(newline="") as handle:
+        for record in csv.DictReader(handle):
+            for metric_name, losses in history.items():
+                if value := record.get(metric_name):
+                    losses.append(float(value))
 
-    with history_path.open(newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if "train_loss" in row and row["train_loss"]:
-                train_loss.append(float(row["train_loss"]))
-            if "validation_loss" in row and row["validation_loss"]:
-                validation_loss.append(float(row["validation_loss"]))
-
-    return {"train_loss": train_loss, "validation_loss": validation_loss}
+    return history
 
 
 def _check_learning(
@@ -278,7 +274,9 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
             output_path=output_dir / "report" / "debug" / "full_rollout.mp4",
         )
 
-    history = _load_loss_history(output_dir / "report" / "loss_history.json")
+    history = _load_loss_history(
+        output_dir / "training" / "loss_logs" / "version_0" / "metrics.csv"
+    )
     train_loss = history.get("train_loss", [])
     validation_loss = history.get("validation_loss", [])
 

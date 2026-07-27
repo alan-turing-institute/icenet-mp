@@ -1,9 +1,8 @@
 """CentroidError metric: pixel distance between predicted and target centroids."""
 
 import torch
-from torchmetrics import Metric
 
-from .daily_metrics import _BaseErrorMetricDaily
+from .daily_metrics import BaseErrorMetricDaily
 
 # Frames whose target has less total mass than this are treated as empty (undefined
 # centroid) and excluded from the average; it also floors the denominator so the
@@ -11,7 +10,7 @@ from .daily_metrics import _BaseErrorMetricDaily
 _EMPTY_MASS_THRESHOLD = 1e-8
 
 
-class CentroidErrorPerForecastDay(_BaseErrorMetricDaily):
+class CentroidErrorPerForecastDay(BaseErrorMetricDaily):
     """Euclidean distance (in pixels) between the predicted and target centroids.
 
     The centroid of a (batch, time) frame is its value-weighted center of mass over

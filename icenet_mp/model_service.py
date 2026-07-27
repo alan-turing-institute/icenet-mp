@@ -256,7 +256,7 @@ class ModelService:
             / f"run-{get_timestamp()}-{generate_id()}"
         )
 
-    def build_trainer(  # noqa: C901
+    def build_trainer(  # noqa: C901, PLR0912
         self,
         *,
         config: DictConfig,
@@ -282,15 +282,20 @@ class ModelService:
         if not extra_callbacks:
             log.warning("No callbacks have been set for the trainer.")
 
-        # Setup lightning loggers
-        extra_loggers = [
-            hydra.utils.instantiate(
-                logger_config,
-                job_type="multistage" if job_stage else "single-stage",
-                project=project,
-            )
-            for logger_config in self.config.get("loggers", {}).values()
-        ]
+        # Setup Lightning loggers — only pass job_type/project to W&B loggers.
+        extra_loggers = []
+        for logger_config in self.config.get("loggers", {}).values():
+            is_wandb = "wandb" in str(logger_config.get("_target_", "")).lower()
+            if is_wandb:
+                extra_loggers.append(
+                    hydra.utils.instantiate(
+                        logger_config,
+                        job_type="multistage" if job_stage else "single-stage",
+                        project=project,
+                    )
+                )
+            else:
+                extra_loggers.append(hydra.utils.instantiate(logger_config))
         if not extra_loggers:
             log.warning("No loggers have been set for the trainer.")
 
