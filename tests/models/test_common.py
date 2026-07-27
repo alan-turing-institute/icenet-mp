@@ -6,7 +6,7 @@ from icenet_mp.models.common import (
     ConvNormActUpsample,
     NormalisedFold,
 )
-from icenet_mp.models.common.gated_attention import GatedAttention
+from icenet_mp.models.common.gated_attention import GatedAttention, GatedAttentionBlock
 
 
 class TestConvBlockUpsample:
@@ -55,6 +55,42 @@ class TestGatedAttention:
             ValueError, match=r"kernel_size \(.*\) must be >= dilation \(.*\)."
         ):
             GatedAttention(channels=4, kernel_size=kernel_size, dilation=dilation)
+
+
+class TestGatedAttentionBlock:
+    @pytest.mark.parametrize("drop_path_prob", [-0.1, 1.1])
+    def test_drop_path_prob_outside_unit_interval_raises(
+        self, drop_path_prob: float
+    ) -> None:
+        with pytest.raises(
+            ValueError, match=r"drop_path_prob\(.*\) must be between 0 and 1."
+        ):
+            GatedAttentionBlock(
+                4,
+                4,
+                kernel_size=5,
+                dilation=1,
+                mlp_ratio=2.0,
+                drop_path_prob=drop_path_prob,
+                mlp_drop_prob=0.0,
+            )
+
+    @pytest.mark.parametrize("mlp_drop_prob", [-0.1, 1.1])
+    def test_mlp_drop_prob_outside_unit_interval_raises(
+        self, mlp_drop_prob: float
+    ) -> None:
+        with pytest.raises(
+            ValueError, match=r"mlp_drop_prob\(.*\) must be between 0 and 1."
+        ):
+            GatedAttentionBlock(
+                4,
+                4,
+                kernel_size=5,
+                dilation=1,
+                mlp_ratio=2.0,
+                drop_path_prob=0.5,
+                mlp_drop_prob=mlp_drop_prob,
+            )
 
 
 class TestNormalisedFold:

@@ -81,7 +81,13 @@ class GatedAttentionBlock(nn.Module):
     ) -> None:
         """Initialise a GatedAttentionBlock."""
         super().__init__()
+        if drop_path_prob < 0 or drop_path_prob > 1:
+            msg = f"drop_path_prob({drop_path_prob}) must be between 0 and 1."
+            raise ValueError(msg)
         self.drop_path_prob = drop_path_prob
+        if mlp_drop_prob < 0 or mlp_drop_prob > 1:
+            msg = f"mlp_drop_prob({mlp_drop_prob}) must be between 0 and 1."
+            raise ValueError(msg)
 
         self.norm1 = nn.BatchNorm2d(in_channels)
         self.attn = GatedAttention(
@@ -117,6 +123,8 @@ class GatedAttentionBlock(nn.Module):
         """Stochastic depth: zero this residual branch for a random subset of samples."""
         if self.drop_path_prob == 0.0 or not self.training:
             return x
+        if self.drop_path_prob == 1.0:
+            return torch.zeros_like(x)
         keep_prob = 1 - self.drop_path_prob
         mask = x.new_empty(x.shape[0], *([1] * (x.ndim - 1))).bernoulli_(keep_prob)
         return x * mask / keep_prob
