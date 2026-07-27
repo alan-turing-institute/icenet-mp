@@ -1,3 +1,13 @@
 synthetic-sic:
   name: synthetic-sic
   group_as: sic-icenet
+  dates:
+    start: '2020-01-01T00:00:00'
+    end: '2020-06-22T00:00:00'
+    frequency: 24h
+  input:
+    synthetic:
+      dynamics: moving
+      grid_size: 32
+      n_trajectories: 8
+      start_date: '2020-01-01T00:00:00'

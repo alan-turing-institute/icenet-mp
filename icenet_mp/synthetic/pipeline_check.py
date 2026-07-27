@@ -7,7 +7,6 @@ mismatches, broken history/forecast windowing, rollout regressions) and confirm 
 is learning at all, in seconds rather than the hours a real training run takes.
 """
 
-import csv
 import json
 import logging
 from dataclasses import dataclass
@@ -15,6 +14,7 @@ from pathlib import Path
 
 from omegaconf import DictConfig, OmegaConf
 
+from icenet_mp.data_processors import DataDownloaderFactory
 from icenet_mp.model_service import ModelService
 from icenet_mp.types import ArrayTHW
 
@@ -24,9 +24,8 @@ from .trajectories import (
     TrajectorySpan,
     default_grow_shrink_configs,
     default_trajectory_configs,
-    generate_multi_trajectory_dataset,
+    generate_default_dataset,
 )
-from .zarr_writer import write_synthetic_zarr
 
 logger = logging.getLogger(__name__)
 
@@ -122,17 +121,26 @@ def _generate_dataset(
         raise ValueError(msg)
 
     _validate_grid_size(grid_size)
-    trajectories = _make_trajectories(
+    dataset = generate_default_dataset(
         dynamics=dynamics, grid_size=grid_size, n_trajectories=n_trajectories
     )
-    dataset = generate_multi_trajectory_dataset(trajectories)
     zarr_path = output_dir / "data" / "anemoi" / f"{SYNTHETIC_DATASET_NAME}.zarr"
-    write_synthetic_zarr(
-        zarr_path,
-        frames=dataset.frames,
-        variable_name=SYNTHETIC_VARIABLE_NAME,
-        missing_dates=dataset.missing_dates,
-    )
+    dataset_config = config["data"]["datasets"][SYNTHETIC_DATASET_NAME]
+    dataset_config["dates"] = {
+        "start": dataset.dates[0].isoformat(),
+        "end": dataset.dates[-1].isoformat(),
+        "frequency": "24h",
+    }
+    dataset_config["input"] = {
+        "synthetic": {
+            "dynamics": dynamics,
+            "grid_size": grid_size,
+            "n_trajectories": n_trajectories,
+            "start_date": dataset.dates[0].isoformat(),
+            "variable_name": SYNTHETIC_VARIABLE_NAME,
+        }
+    }
+    DataDownloaderFactory(config).downloaders[0].create(overwrite=True)
     logger.info(
         "Wrote %d independent synthetic trajectories (%d days total) to %s.",
         len(dataset.spans),
@@ -145,17 +153,18 @@ def _generate_dataset(
 def _load_loss_history(metrics_path: Path) -> dict[str, list[float]]:
     if not metrics_path.exists():
         msg = (
-            f"Expected CSV metrics at {metrics_path}, but it does not exist. "
-            "Check that the config includes a CSVLogger."
+            f"Expected local metrics at {metrics_path}, but it does not exist. "
+            "Check that the config includes LocalFileLogger."
         )
         raise FileNotFoundError(msg)
 
     history: dict[str, list[float]] = {"train_loss": [], "validation_loss": []}
-    with metrics_path.open(newline="") as handle:
-        for record in csv.DictReader(handle):
+    with metrics_path.open() as handle:
+        for line in handle:
+            record = json.loads(line)
             for metric_name, losses in history.items():
-                if value := record.get(metric_name):
-                    losses.append(float(value))
+                if metric_name in record:
+                    losses.append(float(record[metric_name]))
 
     return history
 
@@ -274,9 +283,7 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
             output_path=output_dir / "report" / "debug" / "full_rollout.mp4",
         )
 
-    history = _load_loss_history(
-        output_dir / "training" / "loss_logs" / "version_0" / "metrics.csv"
-    )
+    history = _load_loss_history(output_dir / "report" / "metrics.jsonl")
     train_loss = history.get("train_loss", [])
     validation_loss = history.get("validation_loss", [])
 

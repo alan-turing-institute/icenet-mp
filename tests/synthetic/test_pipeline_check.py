@@ -1,6 +1,8 @@
 """Tests for the pure pipeline-check helpers (no training involved)."""
 
 import datetime
+import json
+from pathlib import Path
 
 import pytest
 
@@ -8,6 +10,7 @@ from icenet_mp.synthetic.pipeline_check import (
     DYNAMICS_GROW_SHRINK,
     DYNAMICS_MOVING,
     _check_learning,
+    _load_loss_history,
     _make_trajectories,
     _split_ranges,
     _validate_grid_size,
@@ -91,6 +94,29 @@ class TestCheckLearning:
         reasons = _check_learning([0.0, -1.0], min_relative_improvement=0.3)
         assert reasons
         assert "non-positive" in reasons[0]
+
+
+class TestLoadLossHistory:
+    """Loss curves reuse the local metrics logger output."""
+
+    def test_reads_train_and_validation_losses(self, tmp_path: Path) -> None:
+        """Extract epoch losses while ignoring unrelated local metrics."""
+        metrics_path = tmp_path / "metrics.jsonl"
+        metrics_path.write_text(
+            "\n".join(
+                [
+                    json.dumps({"train_loss": 0.8, "step": 1}),
+                    json.dumps({"validation_loss": 0.6, "step": 1}),
+                    json.dumps({"test_loss": 0.5, "step": 2}),
+                ]
+            )
+            + "\n"
+        )
+
+        assert _load_loss_history(metrics_path) == {
+            "train_loss": [0.8],
+            "validation_loss": [0.6],
+        }
 
 
 class TestMakeTrajectories:

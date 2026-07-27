@@ -19,26 +19,26 @@ Two baseline configurations are provided, one per architecture.
 
 ```bash
 # Small (32x32) -- quickest smoke test, ~a few minutes
-uv run imp synthetic-check --config-name baseline/synthetic_unet
+uv run imp check --config-name baseline/synthetic_unet
 
 # Midsize (144x144)
-uv run imp synthetic-check --config-name baseline/synthetic_unet --grid-size 144
+uv run imp check --config-name baseline/synthetic_unet --grid-size 144
 
 # Full size (432x432) -- matches the real-data resolution
-uv run imp synthetic-check --config-name baseline/synthetic_unet --grid-size 432
+uv run imp check --config-name baseline/synthetic_unet --grid-size 432
 ```
 
 ### CNN-ViT-CNN
 
 ```bash
 # Small (48x48) -- the smallest grid this model supports (see notes below)
-uv run imp synthetic-check --config-name baseline/synthetic_cnn_vit --grid-size 48
+uv run imp check --config-name baseline/synthetic_cnn_vit --grid-size 48
 
 # Midsize (144x144)
-uv run imp synthetic-check --config-name baseline/synthetic_cnn_vit --grid-size 144
+uv run imp check --config-name baseline/synthetic_cnn_vit --grid-size 144
 
 # Full size (432x432)
-uv run imp synthetic-check --config-name baseline/synthetic_cnn_vit --grid-size 432
+uv run imp check --config-name baseline/synthetic_cnn_vit --grid-size 432
 ```
 
 Each run writes the generated dataset, checkpoints, loss-curve and prediction plots, and a pass/fail report to `--output-dir` (default `outputs/synthetic_check`).
@@ -49,11 +49,11 @@ The `--dynamics` option selects what the synthetic shapes do, so you can exercis
 
 ```bash
 # Advection: a rigid circle translates and bounces off the edges (the default).
-uv run imp synthetic-check --config-name baseline/synthetic_unet --dynamics moving
+uv run imp check --config-name baseline/synthetic_unet --dynamics moving
 
 # Growth/melt: a stationary blob grows and shrinks in place via a morphological
 # open/close cycle, mimicking sea ice advancing and retreating seasonally.
-uv run imp synthetic-check --config-name baseline/synthetic_unet --dynamics grow-shrink
+uv run imp check --config-name baseline/synthetic_unet --dynamics grow-shrink
 ```
 
 `moving` tests whether the model learns to translate a fixed shape; `grow-shrink` tests whether it learns concentration change in place (the shape never moves, but its extent pulses). Both work with either baseline and at any valid grid size.

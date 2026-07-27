@@ -23,7 +23,6 @@ from .shapes import (
     generate_grow_shrink_frames,
     generate_moving_circle_frames,
 )
-from .zarr_writer import daily_dates
 
 TrajectoryConfig = MovingCircleConfig | GrowShrinkCircleConfig
 
@@ -52,6 +51,14 @@ class MultiTrajectoryDataset:
     dates: list[datetime.datetime]
     missing_dates: list[datetime.datetime]
     spans: list[TrajectorySpan]
+
+
+def daily_dates(
+    n_timesteps: int,
+    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
+) -> list[datetime.datetime]:
+    """Return `n_timesteps` consecutive daily dates starting at `start_date`."""
+    return [start_date + datetime.timedelta(days=step) for step in range(n_timesteps)]
 
 
 def default_trajectory_configs(
@@ -157,6 +164,29 @@ def default_grow_shrink_configs(
             )
         )
     return tuple(configs)
+
+
+def generate_default_dataset(
+    *,
+    dynamics: str,
+    grid_size: int,
+    n_trajectories: int,
+    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
+) -> MultiTrajectoryDataset:
+    """Generate the standard multi-trajectory dataset for the requested dynamics."""
+    trajectories: tuple[TrajectoryConfig, ...]
+    if dynamics == "moving":
+        trajectories = default_trajectory_configs(
+            height=grid_size, width=grid_size, n_trajectories=n_trajectories
+        )
+    elif dynamics == "grow-shrink":
+        trajectories = default_grow_shrink_configs(
+            height=grid_size, width=grid_size, n_trajectories=n_trajectories
+        )
+    else:
+        msg = f"Unknown dynamics {dynamics!r}; expected 'moving' or 'grow-shrink'."
+        raise ValueError(msg)
+    return generate_multi_trajectory_dataset(trajectories, start_date=start_date)
 
 
 def generate_multi_trajectory_dataset(
