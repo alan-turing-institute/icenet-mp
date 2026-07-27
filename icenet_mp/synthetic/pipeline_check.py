@@ -169,6 +169,11 @@ def _load_loss_history(metrics_path: Path) -> dict[str, list[float]]:
     return history
 
 
+def _clear_loss_history(metrics_path: Path) -> None:
+    """Ensure a pipeline check only assesses metrics from its current run."""
+    metrics_path.unlink(missing_ok=True)
+
+
 def _check_learning(
     validation_loss: list[float], *, min_relative_improvement: float
 ) -> list[str]:
@@ -240,6 +245,8 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
     """
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    metrics_path = output_dir / "report" / "metrics.jsonl"
+    _clear_loss_history(metrics_path)
 
     # Work on a detached copy so we never mutate the caller's config in place.
     config = DictConfig(OmegaConf.to_container(config, resolve=False))
@@ -283,7 +290,7 @@ def run_synthetic_pipeline_check(  # noqa: PLR0913
             output_path=output_dir / "report" / "debug" / "full_rollout.mp4",
         )
 
-    history = _load_loss_history(output_dir / "report" / "metrics.jsonl")
+    history = _load_loss_history(metrics_path)
     train_loss = history.get("train_loss", [])
     validation_loss = history.get("validation_loss", [])
 

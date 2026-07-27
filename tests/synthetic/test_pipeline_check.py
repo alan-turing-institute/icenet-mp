@@ -10,6 +10,7 @@ from icenet_mp.synthetic.pipeline_check import (
     DYNAMICS_GROW_SHRINK,
     DYNAMICS_MOVING,
     _check_learning,
+    _clear_loss_history,
     _load_loss_history,
     _make_trajectories,
     _split_ranges,
@@ -117,6 +118,16 @@ class TestLoadLossHistory:
             "train_loss": [0.8],
             "validation_loss": [0.6],
         }
+
+    def test_clears_existing_history(self, tmp_path: Path) -> None:
+        """A reused output directory must not retain metrics from an earlier run."""
+        metrics_path = tmp_path / "metrics.jsonl"
+        metrics_path.write_text('{"validation_loss": 0.9}\n')
+
+        _clear_loss_history(metrics_path)
+
+        assert not metrics_path.exists()
+        _clear_loss_history(metrics_path)  # Missing history is also safe.
 
 
 class TestMakeTrajectories:

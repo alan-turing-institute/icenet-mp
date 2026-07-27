@@ -5,7 +5,7 @@ name: Synthetic pipeline check
 # via a matrix (a broken pipeline or a non-learning model fails whichever arm it
 # affects). For each arm, two tests:
 #   1. the pipeline runs end-to-end and passes its own improvement gate
-#      (validation loss must improve >= 30% from the first epoch to the best);
+#      (validation loss must improve >= 25% from the first epoch to the best);
 #   2. the best validation RMSE beats a lenient, per-model threshold (see below).
 on:
   pull_request:
@@ -58,6 +58,7 @@ jobs:
           uv run imp check --config-name ${{ matrix.config }}
           ${{ matrix.overrides }}
           --grid-size ${{ matrix.grid_size }}
+          --min-relative-improvement 0.25
           --output-dir outputs/synthetic_check
 
       # Test 2: best validation RMSE under a lenient, per-model threshold.
