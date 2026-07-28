@@ -52,7 +52,7 @@ dependencies = [
     "tqdm>=4.68.0",
     "typer>=0.26.8",
     "typing-extensions>=4.16.0",
-    "wandb>=0.28.0",
+    "wandb>=0.28.1",
     "xarray>=2025.3.0",
     "zarr>=2.18", # anemoi-datasets==0.5.37 still depends on zarr<=3
 ]
