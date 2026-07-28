@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-You will need [`uv`](https://docs.astral.sh/uv/getting-started/installation/) to manage the Python environment.
+You will need [`uv`](https://docs.astral.sh/uv/getting-started/installation/) to manage the Python environment (installation instructions can be found [here](https://docs.astral.sh/uv/getting-started/installation/)).
 
 !!! note
     On an HPC system, `uv` installs to `~/.local/bin`, so make sure your home directory has enough free space.
