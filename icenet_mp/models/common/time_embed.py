@@ -11,9 +11,9 @@ class TimeEmbed(nn.Module):
     ) -> None:
         """Initialize the time embedding module.
 
-        This module takes pre-computed sinusoidal time embeddings (from _timestep_embedding())
-        and projects them through fully-connected layers to learn a more useful representation
-        for the diffusion task. The MLP uses a dim→4*dim→dim expansion to provide additional
+        This module takes pre-computed sinusoidal time embeddings and projects them
+        through fully-connected layers to learn a more useful representation for the
+        diffusion task. The MLP uses a dim > 4*dim > dim expansion to provide additional
         flexibility for adapting the fixed sinusoidal embeddings.
 
         Args:

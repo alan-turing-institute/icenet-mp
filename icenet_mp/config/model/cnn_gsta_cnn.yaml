@@ -1,6 +1,6 @@
 _target_: icenet_mp.models.EncodeProcessDecode
 
-name: cnn-vit-cnn
+name: cnn-gsta-cnn
 
 encoders:
   latent_space: [216, 216]
@@ -18,13 +18,9 @@ encoders:
     n_layers: 1
 
 processor:
-  _target_: icenet_mp.models.processors.VitProcessor
-  depth: 6
-  dropout: 0.1
-  emb_dim: 256
-  heads: 8
-  mlp_dim: 1024
-  patch_size: 24
+  _target_: icenet_mp.models.processors.GSTAProcessor
+  hid_channels: 256
+  n_blocks: 8
 
 decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
