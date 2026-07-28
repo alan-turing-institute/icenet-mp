@@ -36,7 +36,7 @@ dependencies = [
     "imageio-ffmpeg>=0.6.0",
     "jaxtyping>=0.3.11",
     "lightning>=2.6.0,!=2.6.2,!=2.6.3", # 2.6.2 and 2.6.3 are compromised https://www.aikido.dev/blog/pytorch-lightning-pypi-compromise-mini-shai-hulud
-    "matplotlib>=3.11.0",
+    "matplotlib>=3.11.1",
     "netcdf4>=1.7.0",
     "numpy>=2.4.6,<2.5", # jaxtyping NDArray[...] syntax raises TypeErrors under numpy>=2.5
     "omegaconf>=2.3.1",
