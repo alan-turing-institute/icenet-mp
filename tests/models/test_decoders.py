@@ -62,7 +62,8 @@ class TestDecoders:
                 test_n_forecast_steps,
                 latent_space.channels,
                 *latent_space.shape,
-            )
+            ),
+            None,
         )
         assert result.shape == (
             test_batch_size,
@@ -128,7 +129,7 @@ class TestDecoderBounded:
             dtype=torch.float32,
         )
         with torch.no_grad():
-            out = decoder.rollout(extreme_input)
+            out = decoder.rollout(extreme_input, None)
 
         assert torch.all(out >= 0.0).item()
         assert torch.all(out <= 1.0).item()
@@ -159,7 +160,8 @@ class TestDecoderMask:
 
         assert decoder.mask.mask.shape == output_space.shape
         out = decoder.rollout(
-            torch.randn(2, 1, latent_space.channels, *latent_space.shape)
+            torch.randn(2, 1, latent_space.channels, *latent_space.shape),
+            None,
         )
         # Every masked (inactive) cell must be exactly zero; active cells are untouched.
         assert torch.all(out[..., :8, :] == 0).item()
@@ -190,7 +192,8 @@ class TestDecoderMask:
 
         assert decoder.mask.mask.shape == output_space.shape
         out = decoder.rollout(
-            torch.randn(2, 1, latent_space.channels, *latent_space.shape)
+            torch.randn(2, 1, latent_space.channels, *latent_space.shape),
+            None,
         )
         # Land cells exactly zero; sea cells (incl. confident-no-ice) left free.
         assert torch.all(out[..., :8, :] == 0).item()
@@ -242,7 +245,8 @@ class TestDecoderMask:
             restrict_range="sigmoid",
         )
         out = decoder.rollout(
-            torch.randn(2, 1, latent_space.channels, *latent_space.shape)
+            torch.randn(2, 1, latent_space.channels, *latent_space.shape),
+            None,
         )
         # Masked cells must be exactly 0 even with bounding on...
         assert torch.all(out[..., :8, :] == 0).item()
@@ -308,7 +312,7 @@ class TestPiecewiseDecoder:
         input_max_val = input_ntchw.max().item()
 
         # Rollout the decoder and check that the output values are in the same range as the input values
-        latent_ntchw = decoder.rollout(input_ntchw)
+        latent_ntchw = decoder.rollout(input_ntchw, None)
         assert latent_ntchw.shape == (1, 1, *output_space.chw)
         assert torch.all(input_min_val < latent_ntchw)
         assert torch.all(latent_ntchw < input_max_val)
@@ -339,7 +343,7 @@ class TestPiecewiseDecoder:
         x = torch.full(
             (1, 1, input_space.channels, *input_space.shape), 1e10, dtype=torch.float32
         )
-        output = decoder.rollout(x)
+        output = decoder.rollout(x, None)
         assert torch.all(output >= 0.0).item()
         assert torch.all(output <= 1.0).item()
 
@@ -381,7 +385,8 @@ class TestDecoderMaskOnRealMask:
         for seed in range(50):
             torch.manual_seed(seed)
             out = decoder.rollout(
-                torch.randn(2, 1, latent_space.channels, *latent_space.shape)
+                torch.randn(2, 1, latent_space.channels, *latent_space.shape),
+                None,
             )
             # out is (N, n_forecast, C=1, H, W); reduce all but the spatial dims
             always_zero &= (out == 0).all(dim=(0, 1, 2))
