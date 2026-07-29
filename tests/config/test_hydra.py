@@ -56,6 +56,8 @@ class TestHydraConfigLoading:
         assert "local_files" in cfg.loggers
         assert "wandb" not in cfg.loggers
         assert cfg.loggers.local_files._target_ == "icenet_mp.loggers.LocalFileLogger"
+        assert "metric_summary" not in cfg.train.callbacks
+        assert "metric_summary" not in cfg.evaluate.callbacks
 
 
 class TestHydraAdaptor:
