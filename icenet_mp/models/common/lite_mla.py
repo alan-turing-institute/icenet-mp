@@ -25,7 +25,7 @@ class LiteMLA(nn.Module):
         *,
         scales: tuple[int, ...] = (5,),
         padding_mode: Literal["zeros", "reflect", "replicate", "circular"] = "zeros",
-        eps: float = 1e-15,
+        eps: float = 1e-4,
     ) -> None:
         """Initialise a LiteMLA.
 
