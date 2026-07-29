@@ -42,14 +42,14 @@ class ResBlock(nn.Module):
             else None
         )
         self.attn: nn.Module | None = (
-            LiteMLA(
+            None
+            if attention_heads is None
+            else LiteMLA(
                 channels,
                 heads=attention_heads,
                 scales=attention_scales,
                 padding_mode=conv_kwargs.get("padding_mode", "zeros"),
             )
-            if attention_heads is not None
-            else None
         )
 
         # Feed-forward sub-block

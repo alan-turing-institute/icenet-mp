@@ -6,6 +6,7 @@ from icenet_mp.models.common import (
     ConvBlockUpsample,
     ConvNormActUpsample,
     NormalisedFold,
+    ResBlock,
     ResidualDownsample,
     ResidualUpsample,
 )
@@ -147,6 +148,42 @@ class TestNormalisedFold:
         )
         output = fold(unfold(input_ones))
         assert torch.allclose(output, input_ones)
+
+
+class TestResBlock:
+    def test_no_attention_path_shape_and_gradient(self) -> None:
+        channels = 8
+        block = ResBlock(channels, kernel_size=3, padding=1)
+        assert block.attn is None
+        assert block.attn_norm is None
+        x = torch.randn(2, channels, 6, 6, requires_grad=True)
+
+        y = block(x)
+
+        assert y.shape == x.shape
+        y.sum().backward()
+        assert x.grad is not None
+        assert torch.isfinite(x.grad).all()
+        assert not torch.equal(x.grad, torch.zeros_like(x.grad))
+        for name, param in block.named_parameters():
+            assert param.grad is not None, f"{name} did not receive a gradient"
+            assert torch.isfinite(param.grad).all(), f"{name} has a non-finite gradient"
+
+    def test_attention_path_shape_and_gradient(self) -> None:
+        channels = 8
+        block = ResBlock(channels, attention_heads=2, kernel_size=3, padding=1)
+        x = torch.randn(2, channels, 6, 6, requires_grad=True)
+
+        y = block(x)
+
+        assert y.shape == x.shape
+        y.sum().backward()
+        assert x.grad is not None
+        assert torch.isfinite(x.grad).all()
+        assert not torch.equal(x.grad, torch.zeros_like(x.grad))
+        for name, param in block.named_parameters():
+            assert param.grad is not None, f"{name} did not receive a gradient"
+            assert torch.isfinite(param.grad).all(), f"{name} has a non-finite gradient"
 
 
 class TestResidualDownsample:
