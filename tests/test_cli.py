@@ -84,8 +84,8 @@ class TestEvaluateCLI:
                 r"Usage: imp evaluate \[OPTIONS\] \[overrides\]...",
                 r"Evaluate a pre-trained model",
                 r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
-                r"--config-name\s+<str>\s+Name of a file to load from the config",
                 r"--checkpoint\s+<str>\s+Path of a trained model checkpoint",
+                r"--config-name\s+<str>\s+Name of a file to load from the config",
                 r"--help\s+-h\s+Show this message and exit.",
                 r"--save-layer\s+<str>\s+Dotted path of a model submodule to hook",
             ],
@@ -103,7 +103,7 @@ class TestTrainCLI:
                 r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
                 r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
                 r"--config-name\s+<str>\s+Name of a file to load from the config",
-                r"--multistage\s+Train an EncodeProcessDecode model in",
                 r"--help\s+-h\s+Show this message and exit.",
+                r"--multistage\s+Train an EncodeProcessDecode model in",
             ],
         )

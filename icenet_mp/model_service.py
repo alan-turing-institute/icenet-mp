@@ -427,14 +427,13 @@ class ModelService:
 
     def train(
         self, *, checkpoint_dir: Path | None = None, multistage: bool = False
-    ) -> None:
+    ) -> Trainer:
         """Train a model."""
         if multistage:
-            self.train_multistage(checkpoint_dir=checkpoint_dir)
-        else:
-            self._fit(config=self.config["train"])
+            return self.train_multistage(checkpoint_dir=checkpoint_dir)
+        return self._fit(config=self.config["train"])
 
-    def train_multistage(self, *, checkpoint_dir: Path | None = None) -> None:
+    def train_multistage(self, *, checkpoint_dir: Path | None = None) -> Trainer:
         """Train an EncodeProcessDecode model in multiple stages.
 
         1. encoders
@@ -481,7 +480,7 @@ class ModelService:
         )
 
         log.info("Preparing to finetune...")
-        self.train_stage_finetune(
+        return self.train_stage_finetune(
             processor_model=processor_model,
             config=self._merged_config("finetune"),
         )
@@ -612,7 +611,7 @@ class ModelService:
 
     def train_stage_finetune(
         self, *, config: DictConfig, processor_model: ProcessorStage
-    ) -> None:
+    ) -> Trainer:
         """Load pretrained weights from all stages into the full model and finetune end-to-end."""
         model = cast("EncodeProcessDecode", self.model)
         pretrained_encoders = {e.name: e for e in processor_model.encoders}
@@ -625,6 +624,7 @@ class ModelService:
         log.info("Loaded pretrained weights for decoder.")
         trainer = self._fit(config=config, job_stage="finetune")
         self._save_stage_checkpoint(trainer, "finetune")
+        return trainer
 
     def train_stage_processor(
         self,
