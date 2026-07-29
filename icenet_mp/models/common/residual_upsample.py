@@ -35,7 +35,8 @@ class ResidualUpsample(nn.Module):
             in_channels: the number of input channels.
             out_channels: the number of output channels.
             factor: the spatial upsampling factor.
-            pixel_shuffle: upsample with PixelShuffle if True, else strided convolution.
+            pixel_shuffle: upsample with PixelShuffle if True, else nearest-neighbour
+                upsampling followed by convolution.
             **kwargs: forwarded to the parametric block convolutional layer
 
         """
