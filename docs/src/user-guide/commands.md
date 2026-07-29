@@ -74,8 +74,6 @@ Checkpoints are saved to `${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints
 uv run imp evaluate --checkpoint PATH_TO_A_CHECKPOINT
 ```
 
-To evaluate a synthetic run, add `--config-name synthetic`.
-
 ### Visualisations
 
 To plot static images or animations of the raw input data, add the following to your local config:
