@@ -96,7 +96,8 @@ class EncoderStage(BaseModel):
         - decode to target space via rollout() so restrict_range applies [NTCHW] [batch, 1, n_output_channels, H_output, W_output],
         """
         latent = self.encoder(inputs["target"].squeeze(1)).unsqueeze(1)
-        return self.decoder.rollout(latent)
+        # Ignore persistence as we want to learn the best autoencoder
+        return self.decoder.rollout(latent, None)
 
     def process_batch(self, batch: dict[str, TensorNTCHW]) -> dict[str, TensorNTCHW]:
         """Extract only the first time step of only the relevant batch element.

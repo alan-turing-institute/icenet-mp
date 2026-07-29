@@ -31,6 +31,11 @@ class DecoderStage(BaseModel):
         """Initialise a DecoderStage with multiple frozen encoders and a trainable decoder."""
         super().__init__(**kwargs)
 
+        # We require at least two history steps to train the decoder
+        if self.n_history_steps < 2:  # noqa: PLR2004
+            msg = f"DecoderStage requires at least two history steps: found {self.n_history_steps}."
+            raise ValueError(msg)
+
         # Copy encoders from EncoderStages, freeze their parameters and register them.
         self.encoder_names = [encoder.dataset_name for encoder in encoders]
         self.encoders = [copy.deepcopy(encoder.encoder) for encoder in encoders]
@@ -51,7 +56,7 @@ class DecoderStage(BaseModel):
 
         # Decode from combined latent space to the configured output space
         self.target_name = target_dataset_name
-        self.target_indices = target_variable_indices
+        self.target_variable_indices = target_variable_indices
         if self.output_space.channels != len(target_variable_indices):
             msg = (
                 f"output_space has {self.output_space.channels} channel(s) but "
@@ -107,23 +112,32 @@ class DecoderStage(BaseModel):
             for name, encoder in zip(self.encoder_names, self.encoders, strict=True)
         ]
         combined = torch.cat(latents, dim=1).unsqueeze(1)
-        return self.decoder.rollout(combined)
+        return self.decoder.rollout(combined, inputs["persistence"])
 
     def process_batch(
         self,
         batch: dict[str, TensorNTCHW],
     ) -> dict[str, TensorNTCHW]:
-        """Extract only the first time step of each relevant batch element.
+        """Extract only the two time steps from each relevant batch element.
 
-        This is because we want the decoder to learn an NCHW -> NCHW mapping and to
-        ensure that each input date is only used once per epoch.
+        Inputs use t=-2 (yesterday) while the target uses t=-1 (today). We also extract
+        a persistence entry using t=-2 but sliced to only the target variables.
+
+        This is because we want the decoder to learn an NCHW -> NCHW mapping but also to
+        include the most recent target value as a skip connection for each forecast so
+        that the decoder will learn to predict residuals. If we use the same time step
+        for both input and target, the model will learn that these residuals are zero.
         """
         return {
-            name: batch[name][:, 0, :, :, :].unsqueeze(1) for name in self.encoder_names
+            name: batch[name][:, -2, :, :, :].unsqueeze(1)
+            for name in self.encoder_names
         } | {
             "target": batch[self.target_name][
-                :, 0, self.target_indices, :, :
-            ].unsqueeze(1)
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1),
+            "persistence": batch[self.target_name][
+                :, -2, self.target_variable_indices, :, :
+            ].unsqueeze(1),
         }
 
     @override
