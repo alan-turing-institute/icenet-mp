@@ -3,7 +3,8 @@
 Implements the subset of the `WandbLogger` interface used by `PlottingCallback`
 (`log_image`/`log_video`) and Lightning's own metric logging (`log_metrics`), so a
 training/evaluation job can produce local, human-inspectable artefacts (loss curves,
-prediction plots) without network access or a W&B account -- e.g. in CI.
+prediction plots) without network access or a W&B account -- e.g. in CI. Enable it
+by selecting the `local_files` logger configuration.
 """
 
 import json

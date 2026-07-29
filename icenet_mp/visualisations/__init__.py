@@ -2,7 +2,6 @@ from imageio_ffmpeg import get_ffmpeg_exe
 from matplotlib import rcParams
 
 from .helpers import DEFAULT_SIC_SPEC
-from .local_file_logger import LocalFileLogger
 from .plotter import Plotter
 
 
@@ -13,6 +12,5 @@ def register_animation_backends() -> None:
 
 __all__ = [
     "DEFAULT_SIC_SPEC",
-    "LocalFileLogger",
     "Plotter",
 ]

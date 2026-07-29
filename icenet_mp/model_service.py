@@ -275,7 +275,7 @@ class ModelService:
         # Setup Lightning loggers — only pass job_type/project to W&B loggers.
         extra_loggers = []
         for logger_config in self.config.get("loggers", {}).values():
-            is_wandb = "wandb" in str(logger_config.get("_target_", "")).lower()
+            is_wandb = logger_config.get("_target_", "").split(".")[-1] == "WandbLogger"
             if is_wandb:
                 extra_loggers.append(
                     hydra.utils.instantiate(

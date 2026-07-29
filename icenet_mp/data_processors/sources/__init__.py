@@ -1,7 +1,6 @@
 import logging
 from typing import Annotated, Union
 
-import anemoi.datasets.create.recipe as _recipe
 import anemoi.datasets.create.recipe.action as _action
 from anemoi.datasets.create.recipe import Recipe
 from anemoi.datasets.create.recipe.action import (
@@ -47,7 +46,8 @@ def register_sources() -> None:
         Union[*_schemas()],
         Discriminator(_discriminator),
     ]
-    _recipe.Action = _action.Action
+    # Recipe captured anemoi's original Action union at import time. Replace its
+    # field annotations so model_rebuild() resolves custom sources.
     Recipe.model_fields["input"].annotation = _action.Action | None
     Recipe.model_fields["data_sources"].annotation = (
         dict[str, _action.Action] | list[_action.Action] | None

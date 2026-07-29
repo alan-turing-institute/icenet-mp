@@ -1,3 +1,3 @@
 local_files:
-  _target_: icenet_mp.visualisations.LocalFileLogger
+  _target_: icenet_mp.loggers.LocalFileLogger
   save_dir: ${base_path}/report
