@@ -44,12 +44,15 @@ class EncoderStage(BaseModel):
             longitudes_fn=self.longitudes_fn,
         )
 
-        # Decode from the latent space back to the original input space
+        # Decode from the latent space back to the original input space. This decoder
+        # is disposable and reconstructs the input (not the forecast target), so masking
+        # and skip connections are disabled here.
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
             data_space_in=self.encoder.data_space_out,
             data_space_out=self.encoder.data_space_in,
             mask_type=None,
+            skip_connection=None,
         )
 
     @property
