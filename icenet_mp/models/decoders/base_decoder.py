@@ -78,25 +78,13 @@ class BaseDecoder(nn.Module):
         msg = "If you are using the default rollout method, you must implement forward."
         raise NotImplementedError(msg)
 
-    def finalise(self, x: TensorNCHW) -> TensorNCHW:
-        """Apply shared output steps: bound if requested, then zero masked cells.
-
-        Masking is applied AFTER the range restriction so masked cells are exactly 0
-        regardless of bounding (applying it before would leak e.g. sigmoid(0)=0.5 into
-        masked cells). Called once by `rollout` after the per-frame `forward`, so every
-        decoder gets it automatically without having to call it themselves.
-
-        RangeRestriction choices are: none/sigmoid/tanh/clamp
-        """
-        return self.mask(self.restrict(x))
-
     def rollout(self, x: TensorNTCHW, persistence: TensorNTCHW | None) -> TensorNTCHW:
         """Decode latent space into output space across multiple timesteps.
 
         The default implementation simply calls `self.forward` on each time slice
         simultaneously by reshaping the input to combine the batch and time dimensions,
-        before reshaping back. The shared last-gating steps are applied
-        in rollout via finalise(), so concrete decoders only implement forward().
+        before reshaping back. The shared restrict-then-mask steps are applied in
+        here, so that concrete decoders only need to implement forward().
 
         Note that this (rollout method) also increases the effective batch size for any batch
         normalisation layers in the encoder.
@@ -114,18 +102,28 @@ class BaseDecoder(nn.Module):
         # the input.
         batch_size, n_timeslices = x.shape[0], x.shape[1]
         # Pass the latents through the decoder to return to output space
-        output_nchw = self(x.reshape(-1, *self.data_space_in.chw))
+        unbounded_output_nchw: TensorNCHW = self(x.reshape(-1, *self.data_space_in.chw))
+        # Apply range restriction to bring the output into the required range
+        bounded_output_nchw: TensorNCHW = self.restrict(unbounded_output_nchw)
 
-        # Add a skip connection if one is configured
         if self.skip_connection:
             if persistence is None:
                 msg = f"Decoder has skip_connection={self.skip_connection.method} but no persistence input was provided."
                 raise ValueError(msg)
-            persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
-            persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
-            output_nchw = self.skip_connection(output_nchw, persistence_nchw)
+            # Repeat the persistence timeslice until we match the decoder output shape
+            persistence_nchw = persistence.expand(-1, n_timeslices, -1, -1, -1).reshape(
+                *unbounded_output_nchw.shape
+            )
+            # Combine the bounded output with the persistence input via skip connection,
+            # then clamp before applying the mask to avoid out-of-bounds values.
+            bounded_output_nchw = self.skip_connection(
+                bounded_output_nchw, persistence_nchw
+            ).clamp(0, 1)
 
-        # Finalise (bound and mask) the result
-        output = self.finalise(output_nchw)
+        # Mask the output to zero out inactive/land cells. This must be applied after
+        # range restriction so that masked cells are exactly 0. If range restriction
+        # followed masking then e.g. sigmoid would give these cells non-zero values.
+        output: TensorNCHW = self.mask(bounded_output_nchw)
+
         # Reshape back to [batch, n_timeslices, C_out, H_out, W_out]
         return output.reshape(batch_size, n_timeslices, *self.data_space_out.chw)
