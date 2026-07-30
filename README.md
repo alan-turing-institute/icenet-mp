@@ -95,7 +95,7 @@
 | icenet\_mp/models/decoders/piecewise\_decoder.py                |       28 |        2 |     93% |     77-82 |
 | icenet\_mp/models/diffusion/\_\_init\_\_.py                     |        3 |        0 |    100% |           |
 | icenet\_mp/models/diffusion/gaussian\_diffusion.py              |       54 |       43 |     20% |39-72, 91-96, 115-135, 151-154, 175-180, 199-220 |
-| icenet\_mp/models/diffusion/unet\_diffusion.py                  |       78 |       68 |     13% |57-179, 201-241, 257-272, 285-288 |
+| icenet\_mp/models/diffusion/unet\_diffusion.py                  |       78 |       68 |     13% |58-180, 202-242, 258-273, 286-289 |
 | icenet\_mp/models/encode\_process\_decode.py                    |       36 |        8 |     78% |48-53, 69-75, 86-90 |
 | icenet\_mp/models/encoders/\_\_init\_\_.py                      |        6 |        0 |    100% |           |
 | icenet\_mp/models/encoders/base\_encoder.py                     |       24 |        2 |     92% |     57-58 |
