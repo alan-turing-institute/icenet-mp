@@ -13,10 +13,10 @@
 | icenet\_mp/callbacks/unconditional\_checkpoint.py               |       26 |       14 |     46% |18-20, 25, 30-31, 35-36, 40-52 |
 | icenet\_mp/cli/\_\_init\_\_.py                                  |        2 |        0 |    100% |           |
 | icenet\_mp/cli/datasets.py                                      |       38 |       20 |     47% |27-34, 47-53, 66-69, 73 |
-| icenet\_mp/cli/evaluate.py                                      |       18 |        5 |     72% | 39-44, 48 |
+| icenet\_mp/cli/evaluate.py                                      |       18 |        5 |     72% | 37-42, 46 |
 | icenet\_mp/cli/hydra.py                                         |       29 |        0 |    100% |           |
 | icenet\_mp/cli/main.py                                          |       23 |        8 |     65% | 40-52, 56 |
-| icenet\_mp/cli/train.py                                         |       16 |        3 |     81% | 46-47, 54 |
+| icenet\_mp/cli/train.py                                         |       16 |        3 |     81% | 45-46, 53 |
 | icenet\_mp/compatibility/\_\_init\_\_.py                        |       17 |        0 |    100% |           |
 | icenet\_mp/compatibility/lightning/\_\_init\_\_.py              |        9 |        0 |    100% |           |
 | icenet\_mp/compatibility/lightning/xpu\_accelerator.py          |       72 |       39 |     46% |35-42, 55, 60-62, 77-111, 125-127, 133, 144-147, 152 |
@@ -40,11 +40,11 @@
 | icenet\_mp/data\_processors/preprocessors/icenet\_sic.py        |       64 |       46 |     28% |21-27, 31, 36-67, 75-132 |
 | icenet\_mp/data\_processors/preprocessors/ipreprocessor.py      |       10 |        2 |     80% |     10-11 |
 | icenet\_mp/data\_processors/preprocessors/null.py               |        5 |        1 |     80% |         9 |
-| icenet\_mp/data\_processors/sources/\_\_init\_\_.py             |       25 |        0 |    100% |           |
+| icenet\_mp/data\_processors/sources/\_\_init\_\_.py             |       24 |        0 |    100% |           |
 | icenet\_mp/data\_processors/sources/argo.py                     |       89 |       12 |     87% |60-61, 105-106, 137-142, 234-240 |
 | icenet\_mp/data\_processors/sources/ftp.py                      |       43 |        0 |    100% |           |
 | icenet\_mp/data\_processors/sources/lazy\_argopy.py             |       13 |        2 |     85% |     29-30 |
-| icenet\_mp/data\_processors/sources/synthetic.py                |       24 |       10 |     58% |32-40, 47-85 |
+| icenet\_mp/data\_processors/sources/synthetic.py                |       26 |       10 |     62% |33-41, 49-87 |
 | icenet\_mp/exceptions.py                                        |        3 |        0 |    100% |           |
 | icenet\_mp/geotools/\_\_init\_\_.py                             |       10 |        0 |    100% |           |
 | icenet\_mp/geotools/geographic\_field.py                        |       37 |       16 |     57% |22, 31, 40, 47, 60-71 |
@@ -136,7 +136,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **5169** | **1540** | **70%** |           |
+| **TOTAL**                                                       | **5170** | **1540** | **70%** |           |
 
 
 ## Setup coverage badge
