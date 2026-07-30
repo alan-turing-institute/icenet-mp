@@ -36,6 +36,7 @@ in a different space (e.g. DDPM v-space) is untested.
 import torch
 from torch import nn
 from torch.nn import functional
+from typing import Literal
 
 # Type alias for the cached per-(H, W, device) binning tensors:
 # (flat mode->bin index, flat mode weights, indices of non-empty bins)
