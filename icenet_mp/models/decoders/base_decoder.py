@@ -1,6 +1,6 @@
-from torch import nn
+from torch import cat, nn
 
-from icenet_mp.models.common import Mask, RestrictRange
+from icenet_mp.models.common import ConvNormAct, Mask, RestrictRange
 from icenet_mp.types import (
     DataSpace,
     RangeRestriction,
@@ -48,6 +48,25 @@ class BaseDecoder(nn.Module):
             output_shape=self.data_space_out.shape,
             mask_dir=mask_dir,
         )
+
+        # A learned fusion of the decoded output with persistence. Start with the two
+        # concatenated on the channel dimension, apply a ConvNormAct block then convolve
+        # back to the desired output channels.
+        if self.skip_connection == SkipConnection.CONVOLUTIONAL:
+            self.fusion = nn.Sequential(
+                ConvNormAct(
+                    2 * self.data_space_out.channels,
+                    self.data_space_out.channels,
+                    kernel_size=3,
+                    norm_type="groupnorm",
+                ),
+                nn.Conv2d(
+                    self.data_space_out.channels,
+                    self.data_space_out.channels,
+                    kernel_size=3,
+                    padding="same",
+                ),
+            )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: decode latent space into output space for a single timestep.
@@ -108,7 +127,13 @@ class BaseDecoder(nn.Module):
             persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
             persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
             output_nchw += persistence_nchw
-        # Add persistence to the output and finalise (bound and mask) the result
+        elif self.skip_connection == SkipConnection.CONVOLUTIONAL:
+            # Expand persistence to match output shape, then fuse it with the
+            # decoded output via a learned concat+conv instead of a plain add
+            persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
+            persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
+            output_nchw = self.fusion(cat([output_nchw, persistence_nchw], dim=1))
+        # Finalise (bound and mask) the result
         output = self.finalise(output_nchw)
         # Reshape back to [batch, n_timeslices, C_out, H_out, W_out]
         return output.reshape(batch_size, n_timeslices, *self.data_space_out.chw)
