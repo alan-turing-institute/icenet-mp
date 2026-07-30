@@ -60,39 +60,39 @@ class DDPM(BaseModel):
 
     def __init__(  # noqa: PLR0913
         self,
-        timesteps: int = 1000,
-        learning_rate: float = 5e-4,
-        start_out_channels: int = 32,
-        kernel_size: int = 3,
-        activation: str = "SiLU",
-        normalization: str = "groupnorm",
-        time_embed_dim: int = 256,
-        dropout_rate: float = 0.1,
         *,
-        use_autoregressive: bool = True,
+        activation: str = "SiLU",
+        dropout_rate: float = 0.1,
+        kernel_size: int = 3,
+        learning_rate: float = 5e-4,
         mask_dir: str | None = None,
         mask_type: str | None = None,
+        normalization: str = "groupnorm",
         restrict_range: str = "clamp",
+        start_out_channels: int = 32,
+        time_embed_dim: int = 256,
+        timesteps: int = 1000,
+        use_autoregressive: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
 
         Args:
-            timesteps (int): Number of diffusion timesteps. Default is 1000.
-            learning_rate (float): Optimizer learning rate for training. Default is 5e-4.
-            start_out_channels (int): Base number of channels in the first UNet block.
-            kernel_size (int): Convolution kernel size used in the UNet.
             activation (str): Activation function used throughout the network (e.g., "SiLU").
-            normalization (str): Normalization layer type (e.g., "groupnorm").
-            time_embed_dim (int): Dimensionality of the timestep embedding.
             dropout_rate (float): Dropout probability applied inside the UNet blocks.
-            use_autoregressive (bool): Whether to use autoregressive prediction. Default is True.
+            kernel_size (int): Convolution kernel size used in the UNet.
+            learning_rate (float): Optimizer learning rate for training. Default is 5e-4.
             mask_dir (str | None): Directory holding `active_mask.npy`/`land_mask.npy`.
                 Required when `mask_type` is "active" or "land".
             mask_type (str | None): Output mask to apply during sampling: "active"
                 (active+land), "land" (land only), or ``None`` to disable.
+            normalization (str): Normalization layer type (e.g., "groupnorm").
             restrict_range (str): How to bound sampled output into [0, 1] before
                 masking: none/sigmoid/clamp/tanh. Default is "clamp".
+            start_out_channels (int): Base number of channels in the first UNet block.
+            time_embed_dim (int): Dimensionality of the timestep embedding.
+            timesteps (int): Number of diffusion timesteps. Default is 1000.
+            use_autoregressive (bool): Whether to use autoregressive prediction. Default is True.
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """

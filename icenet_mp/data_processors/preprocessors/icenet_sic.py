@@ -79,7 +79,7 @@ class IceNetSICPreprocessor(IPreprocessor):
             / ("north" if self.is_north else "south")
             / "siconca"
         )
-        last_filepath: None | Path = None
+        last_filepath: Path | None = None
         ftp_client = FTP("osisaf.met.no", "anonymous")  # noqa: S321
         for mask_month in range(1, 13):
             # Create the directory we will download to
