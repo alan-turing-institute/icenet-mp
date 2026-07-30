@@ -19,9 +19,7 @@ log = logging.getLogger(__name__)
 @hydra_adaptor
 def evaluate(
     config: DictConfig,
-    checkpoint: Annotated[
-        str, typer.Option(help="Specify the path to a trained model checkpoint")
-    ],
+    checkpoint: Annotated[str, typer.Option(help="Path of a trained model checkpoint")],
     save_layer: Annotated[
         list[str] | None,
         typer.Option(

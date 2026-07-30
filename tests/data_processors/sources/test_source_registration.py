@@ -6,9 +6,11 @@ anemoi-datasets reorganises those internals, these tests should fail rather than
 silently breaking dataset creation at runtime.
 """
 
+import datetime
 from typing import ClassVar
 
 from anemoi.datasets.create.recipe import Recipe
+from anemoi.datasets.create.recipe.dates import StartEndDates
 from anemoi.datasets.create.sources import source_registry
 
 from icenet_mp.data_processors.sources import (
@@ -60,13 +62,12 @@ class TestSourceRegistration:
     def test_recipe_accepts_registered_synthetic_source(self) -> None:
         """The rebuilt recipe model accepts the synthetic source configuration."""
         register_sources()
-        Recipe(
-            name="synthetic",
-            dates={
-                "start": "2020-01-01T00:00:00",
-                "end": "2020-01-03T00:00:00",
-                "frequency": "24h",
-            },
+        recipe = Recipe(
+            dates=StartEndDates(
+                start=datetime.datetime(2020, 1, 1, 0, 0, 0),
+                end=datetime.datetime(2020, 1, 3, 0, 0, 0),
+                frequency=datetime.timedelta(hours=24),
+            ),
             input={
                 "synthetic": {
                     "dynamics": "moving",
@@ -76,6 +77,7 @@ class TestSourceRegistration:
                 }
             },
         )
+        assert type(recipe.input).__name__ == "synthetic"
 
     def test_register_sources_is_idempotent(self) -> None:
         """Calling register_sources() twice does not raise or corrupt the registry."""

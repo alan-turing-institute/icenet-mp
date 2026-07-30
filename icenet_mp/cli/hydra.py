@@ -26,12 +26,12 @@ def hydra_adaptor(function: Callable) -> Callable[Param, RetType]:
         overrides: Annotated[
             list[str] | None,
             Argument(
-                help="Apply space-separated Hydra config overrides (https://hydra.cc/docs/advanced/override_grammar/basic/)"
+                help="One or more space-separated Hydra config overrides (https://hydra.cc/docs/advanced/override_grammar/basic/)"
             ),
         ] = None,
         config_name: Annotated[
             str | None,
-            Option(help="Specify the name of a file to load from the config directory"),
+            Option(help="Name of a file to load from the config directory"),
         ] = "sample",
         *args: Param.args,
         **kwargs: Param.kwargs,
