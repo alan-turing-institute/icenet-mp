@@ -31,6 +31,15 @@ class RangeRestriction(StrEnum):
         return cls.NONE
 
 
+class SkipConnection(StrEnum):
+    """Enum for decoder skip connection types."""
+
+    ADDITIVE = "additive"
+    CONVOLUTIONAL = "convolutional"
+    GATED = "gated"
+    NONE = "none"
+
+
 class TensorDimensions(IntEnum):
     """Enum for tensor dimensions."""
 

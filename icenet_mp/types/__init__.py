@@ -1,5 +1,11 @@
 from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
-from .enums import BetaSchedule, MaskType, RangeRestriction, TensorDimensions
+from .enums import (
+    BetaSchedule,
+    MaskType,
+    RangeRestriction,
+    SkipConnection,
+    TensorDimensions,
+)
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
     AnemoiCleanupArgs,
@@ -53,6 +59,7 @@ __all__ = [
     "PlotSpec",
     "ProcessorOutput",
     "RangeRestriction",
+    "SkipConnection",
     "SupportsMetadata",
     "TensorDimensions",
     "TensorNCHW",

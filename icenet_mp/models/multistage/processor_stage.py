@@ -103,13 +103,9 @@ class ProcessorStage(BaseModel):
         combined_latent: TensorNTCHW = self.encode_inputs(inputs)
         processed = self.processor.rollout(combined_latent).prediction
         # Add persistence skip connection if requested
-        persistence: TensorNTCHW | None = (
-            inputs[self.output_space.name][
-                :, -1, self.target_variable_indices, :, :
-            ].unsqueeze(1)
-            if self.decoder.use_skip_connection
-            else None
-        )
+        persistence: TensorNTCHW | None = inputs[self.output_space.name][
+            :, -1, self.target_variable_indices, :, :
+        ].unsqueeze(1)
         return self.decoder.rollout(processed, persistence)
 
     @override
@@ -161,13 +157,9 @@ class ProcessorStage(BaseModel):
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
         # Add persistence skip connection if requested
-        persistence: TensorNTCHW | None = (
-            batch[self.output_space.name][
-                :, -1, self.target_variable_indices, :, :
-            ].unsqueeze(1)
-            if self.decoder.use_skip_connection
-            else None
-        )
+        persistence: TensorNTCHW | None = batch[self.output_space.name][
+            :, -1, self.target_variable_indices, :, :
+        ].unsqueeze(1)
 
         if processor_output.loss is None:
             # Standard path: compare decoded output to target.

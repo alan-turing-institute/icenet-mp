@@ -1,7 +1,13 @@
 from torch import nn
 
 from icenet_mp.models.common import Mask, RestrictRange
-from icenet_mp.types import DataSpace, RangeRestriction, TensorNCHW, TensorNTCHW
+from icenet_mp.types import (
+    DataSpace,
+    RangeRestriction,
+    SkipConnection,
+    TensorNCHW,
+    TensorNTCHW,
+)
 
 
 class BaseDecoder(nn.Module):
@@ -22,14 +28,14 @@ class BaseDecoder(nn.Module):
         mask_dir: str | None = None,
         mask_type: str | None = None,
         restrict_range: str = "none",
-        use_skip_connection: bool = False,
+        skip_connection: SkipConnection = SkipConnection.NONE,
     ) -> None:
         """Initialise a BaseDecoder."""
         super().__init__()
         self.data_space_in = data_space_in
         self.data_space_out = data_space_out
         self.name = data_space_out.name
-        self.use_skip_connection = use_skip_connection
+        self.skip_connection = skip_connection
 
         # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
         self.restrict = RestrictRange(
@@ -93,7 +99,11 @@ class BaseDecoder(nn.Module):
         batch_size, n_timeslices = x.shape[0], x.shape[1]
         # Pass the latents through the decoder to return to output space
         output_nchw = self(x.reshape(-1, *self.data_space_in.chw))
-        if persistence is not None:
+        if persistence is None:
+            if self.skip_connection != SkipConnection.NONE:
+                msg = f"Decoder has skip_connection={self.skip_connection} but no persistence input was provided."
+                raise ValueError(msg)
+        elif self.skip_connection == SkipConnection.ADDITIVE:
             # Expand persistence to match output shape and add to every forecast step
             persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
             persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
