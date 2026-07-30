@@ -120,6 +120,7 @@ exclude = ["notebooks/*ipynb"]
 select = ["ALL"]
 ignore = [
     "COM812", # conflicts with formatter
+    "CPY001", # per-file copyright notice is unnecessary noise
     "D100", # undocumented-public-module
     "D101", # undocumented-public-class
     "D102", # undocumented-public-method
