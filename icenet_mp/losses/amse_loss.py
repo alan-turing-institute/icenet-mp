@@ -68,7 +68,7 @@ class AMSELoss(nn.Module):
 
     def __init__(
         self,
-        mode: str = "hybrid",
+        mode: Literal["hybrid", "pure"] = "hybrid",
         spectral_weight: float = 0.1,
         delta: float = 0.5,
         merge_bins_below: int = 4,
