@@ -32,6 +32,7 @@ class UNetDiffusion(nn.Module):
         self,
         input_channels: int,
         output_channels: int,
+        *,
         timesteps: int = 1000,
         kernel_size: int = 3,
         start_out_channels: int = 64,
