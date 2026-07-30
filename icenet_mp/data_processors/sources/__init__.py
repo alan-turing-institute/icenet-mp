@@ -15,6 +15,7 @@ from pydantic import Discriminator
 
 from .argo import ArgoSource
 from .ftp import FTPSource
+from .synthetic import SyntheticSource
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ def register_sources() -> None:
     sources = {
         "ftp": FTPSource,
         "argo": ArgoSource,
+        "synthetic": SyntheticSource,
     }
     for name, source in sources.items():
         if name not in source_registry.registered:
@@ -44,11 +46,18 @@ def register_sources() -> None:
         Union[*_schemas()],
         Discriminator(_discriminator),
     ]
+    # Recipe captured anemoi's original Action union at import time. Replace its
+    # field annotations so model_rebuild() resolves custom sources.
+    Recipe.model_fields["input"].annotation = _action.Action | None
+    Recipe.model_fields["data_sources"].annotation = (
+        dict[str, _action.Action] | list[_action.Action] | None
+    )
     Recipe.model_rebuild(force=True)
 
 
 __all__ = [
     "ArgoSource",
     "FTPSource",
+    "SyntheticSource",
     "register_sources",
 ]

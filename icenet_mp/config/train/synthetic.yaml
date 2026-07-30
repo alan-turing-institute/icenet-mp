@@ -1,0 +1,12 @@
+defaults:
+  - default
+  - override callbacks:
+    - best_checkpoint
+    - early_stopping
+    - ema_weight_averaging
+    - learning_rate
+    - plotting
+  - _self_
+
+trainer:
+  max_epochs: 30
