@@ -33,10 +33,13 @@ encode-process-decode). Using this loss with models whose training loss lives
 in a different space (e.g. DDPM v-space) is untested.
 """
 
+from typing import Literal
+
 import torch
 from torch import nn
 from torch.nn import functional
-from typing import Literal
+
+AMSEMode = Literal["hybrid", "pure"]
 
 # Type alias for the cached per-(H, W, device) binning tensors:
 # (flat mode->bin index, flat mode weights, indices of non-empty bins)
@@ -69,7 +72,7 @@ class AMSELoss(nn.Module):
 
     def __init__(
         self,
-        mode: Literal["hybrid", "pure"] = "hybrid",
+        mode: AMSEMode = "hybrid",
         spectral_weight: float = 0.1,
         delta: float = 0.5,
         merge_bins_below: int = 4,

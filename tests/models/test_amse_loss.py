@@ -4,7 +4,7 @@ import torch
 from omegaconf import OmegaConf
 from torch.nn import functional
 
-from icenet_mp.losses.amse_loss import AMSELoss
+from icenet_mp.losses.amse_loss import AMSELoss, AMSEMode
 
 
 def make_fields(
@@ -40,12 +40,12 @@ class TestAMSELoss:
 
     def test_unknown_mode_raises(self) -> None:
         with pytest.raises(ValueError, match="mode"):
-            AMSELoss(mode="not-a-mode")
+            AMSELoss(mode="not-a-mode")  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="merge_bins_below"):
             AMSELoss(merge_bins_below=0)
 
     @pytest.mark.parametrize("mode", ["hybrid", "pure"])
-    def test_identity_is_zero(self, mode: str) -> None:
+    def test_identity_is_zero(self, mode: AMSEMode) -> None:
         prediction, _ = make_fields()
         loss_fn = AMSELoss(mode=mode)
         assert loss_fn(prediction, prediction).item() == pytest.approx(0.0, abs=1e-6)
@@ -96,7 +96,7 @@ class TestAMSELoss:
         assert gradient.item() < 0.0
 
     @pytest.mark.parametrize("mode", ["hybrid", "pure"])
-    def test_zero_field_gradients_finite(self, mode: str) -> None:
+    def test_zero_field_gradients_finite(self, mode: AMSEMode) -> None:
         _, target = make_fields(seed=5)
         prediction = torch.zeros_like(target, requires_grad=True)
         loss = AMSELoss(mode=mode)(prediction, target)
@@ -105,7 +105,7 @@ class TestAMSELoss:
         assert torch.isfinite(prediction.grad).all()
 
     @pytest.mark.parametrize("mode", ["hybrid", "pure"])
-    def test_masked_fields(self, mode: str) -> None:
+    def test_masked_fields(self, mode: AMSEMode) -> None:
         """Fields zeroed outside an active region give finite loss and gradients."""
         prediction, target = make_fields(seed=6)
         mask = torch.zeros(32, 32)
