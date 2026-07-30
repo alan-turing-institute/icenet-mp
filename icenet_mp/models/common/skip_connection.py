@@ -18,7 +18,7 @@ class SkipConnection(nn.Module):
         super().__init__()
 
         self.method = method
-        hidden_channels = hidden_channels or output_channels
+        hidden_channels = hidden_channels or 16 * output_channels
 
         if self.method == SkipConnectionType.CONVOLUTIONAL:
             self.fusion = nn.Sequential(
