@@ -1,7 +1,6 @@
 from .conv_block_common import CommonConvBlock
 from .conv_block_downsample import ConvBlockDownsample
 from .conv_block_upsample import ConvBlockUpsample
-from .conv_norm_act import ConvNormAct
 from .conv_norm_act_upsample import ConvNormActUpsample
 from .mask import Mask
 from .normalised_fold import NormalisedFold
@@ -10,6 +9,7 @@ from .permute import Permute
 from .resizing_interpolation import ResizingInterpolation
 from .restrict_range import RestrictRange
 from .shift import Shift
+from .skip_connection import SkipConnection
 from .time_embed import TimeEmbed
 from .transformerblock import TransformerEncoderBlock
 
@@ -17,7 +17,6 @@ __all__ = [
     "CommonConvBlock",
     "ConvBlockDownsample",
     "ConvBlockUpsample",
-    "ConvNormAct",
     "ConvNormActUpsample",
     "Mask",
     "NormalisedFold",
@@ -26,6 +25,7 @@ __all__ = [
     "ResizingInterpolation",
     "RestrictRange",
     "Shift",
+    "SkipConnection",
     "TimeEmbed",
     "TransformerEncoderBlock",
 ]

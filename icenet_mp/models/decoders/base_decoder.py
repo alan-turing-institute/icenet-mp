@@ -1,10 +1,12 @@
-from torch import cat, nn
+from typing import Any
 
-from icenet_mp.models.common import ConvNormAct, Mask, RestrictRange
+from torch import nn
+
+from icenet_mp.models.common import Mask, RestrictRange, SkipConnection
 from icenet_mp.types import (
     DataSpace,
     RangeRestriction,
-    SkipConnection,
+    SkipConnectionType,
     TensorNCHW,
     TensorNTCHW,
 )
@@ -28,14 +30,13 @@ class BaseDecoder(nn.Module):
         mask_dir: str | None = None,
         mask_type: str | None = None,
         restrict_range: str = "none",
-        skip_connection: SkipConnection = SkipConnection.NONE,
+        skip_connection: dict[str, Any] | None = None,
     ) -> None:
         """Initialise a BaseDecoder."""
         super().__init__()
         self.data_space_in = data_space_in
         self.data_space_out = data_space_out
         self.name = data_space_out.name
-        self.skip_connection = skip_connection
 
         # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
         self.restrict = RestrictRange(
@@ -49,36 +50,20 @@ class BaseDecoder(nn.Module):
             mask_dir=mask_dir,
         )
 
-        # A learned fusion of the decoded output with persistence. Start with the two
-        # concatenated on the channel dimension, apply a ConvNormAct block then convolve
-        # back to the desired output channels.
-        if self.skip_connection == SkipConnection.CONVOLUTIONAL:
-            self.fusion = nn.Sequential(
-                ConvNormAct(
-                    2 * self.data_space_out.channels,
-                    self.data_space_out.channels,
-                    kernel_size=3,
-                    norm_type="groupnorm",
-                ),
-                nn.Conv2d(
-                    self.data_space_out.channels,
-                    self.data_space_out.channels,
-                    kernel_size=3,
-                    padding="same",
-                ),
+        # Initialise a skip connection if requested.
+        skip_connection_cfg = dict(skip_connection or {})
+        method = SkipConnectionType(
+            skip_connection_cfg.pop("method", SkipConnectionType.NONE)
+        )
+        self.skip_connection = (
+            SkipConnection(
+                output_channels=self.data_space_out.channels,
+                method=method,
+                **skip_connection_cfg,
             )
-
-        # A learned per-pixel gate in [0, 1] that decides, at every location, how much
-        # to trust the decoded output vs. persistence, rather than fusing the two
-        # through a single conv (CONVOLUTIONAL) or adding them outright (ADDITIVE).
-        if self.skip_connection == SkipConnection.GATED:
-            self.gate = ConvNormAct(
-                2 * self.data_space_out.channels,
-                self.data_space_out.channels,
-                activation="Sigmoid",
-                kernel_size=3,
-                norm_type="groupnorm",
-            )
+            if method != SkipConnectionType.NONE
+            else None
+        )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: decode latent space into output space for a single timestep.
@@ -130,28 +115,16 @@ class BaseDecoder(nn.Module):
         batch_size, n_timeslices = x.shape[0], x.shape[1]
         # Pass the latents through the decoder to return to output space
         output_nchw = self(x.reshape(-1, *self.data_space_in.chw))
-        if persistence is None:
-            if self.skip_connection != SkipConnection.NONE:
-                msg = f"Decoder has skip_connection={self.skip_connection} but no persistence input was provided."
+
+        # Add a skip connection if one is configured
+        if self.skip_connection:
+            if persistence is None:
+                msg = f"Decoder has skip_connection={self.skip_connection.method} but no persistence input was provided."
                 raise ValueError(msg)
-        elif self.skip_connection == SkipConnection.ADDITIVE:
-            # Expand persistence to match output shape and add to every forecast step
             persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
             persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
-            output_nchw += persistence_nchw
-        elif self.skip_connection == SkipConnection.CONVOLUTIONAL:
-            # Expand persistence to match output shape, then fuse it with the
-            # decoded output via a learned concat+conv instead of a plain add
-            persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
-            persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
-            output_nchw = self.fusion(cat([output_nchw, persistence_nchw], dim=1))
-        elif self.skip_connection == SkipConnection.GATED:
-            # Expand persistence to match output shape, then blend it with the decoded
-            # output using a learned per-pixel gate instead of a fixed fusion/add
-            persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
-            persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
-            gate = self.gate(cat([output_nchw, persistence_nchw], dim=1))
-            output_nchw = gate * output_nchw + (1 - gate) * persistence_nchw
+            output_nchw = self.skip_connection(output_nchw, persistence_nchw)
+
         # Finalise (bound and mask) the result
         output = self.finalise(output_nchw)
         # Reshape back to [batch, n_timeslices, C_out, H_out, W_out]

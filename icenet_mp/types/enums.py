@@ -31,7 +31,7 @@ class RangeRestriction(StrEnum):
         return cls.NONE
 
 
-class SkipConnection(StrEnum):
+class SkipConnectionType(StrEnum):
     """Enum for decoder skip connection types."""
 
     ADDITIVE = "additive"

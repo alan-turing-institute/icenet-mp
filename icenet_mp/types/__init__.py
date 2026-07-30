@@ -3,7 +3,7 @@ from .enums import (
     BetaSchedule,
     MaskType,
     RangeRestriction,
-    SkipConnection,
+    SkipConnectionType,
     TensorDimensions,
 )
 from .protocols import SupportsMetadata
@@ -59,7 +59,7 @@ __all__ = [
     "PlotSpec",
     "ProcessorOutput",
     "RangeRestriction",
-    "SkipConnection",
+    "SkipConnectionType",
     "SupportsMetadata",
     "TensorDimensions",
     "TensorNCHW",
