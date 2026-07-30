@@ -22,12 +22,14 @@ class BaseDecoder(nn.Module):
         mask_dir: str | None = None,
         mask_type: str | None = None,
         restrict_range: str = "none",
+        use_skip_connection: bool = False,
     ) -> None:
         """Initialise a BaseDecoder."""
         super().__init__()
         self.data_space_in = data_space_in
         self.data_space_out = data_space_out
         self.name = data_space_out.name
+        self.use_skip_connection = use_skip_connection
 
         # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
         self.restrict = RestrictRange(

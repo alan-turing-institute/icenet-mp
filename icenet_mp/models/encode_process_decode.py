@@ -146,10 +146,14 @@ class EncodeProcessDecode(BaseModel):
             latent_input_combined
         ).prediction
 
-        # Add persistence skip connection (batch_size, 1, n_output_channels, output_height, output_width)
-        persistence: TensorNTCHW = inputs[self.output_space.name][
-            :, -1, self.target_variable_indices, :, :
-        ].unsqueeze(1)
+        # Add persistence skip connection if requested
+        persistence: TensorNTCHW | None = (
+            inputs[self.output_space.name][
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1)
+            if self.decoder.use_skip_connection
+            else None
+        )
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output, persistence)

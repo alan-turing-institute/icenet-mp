@@ -456,6 +456,11 @@ class ModelService:
         checkpoint_dir: Path | None = None,
     ) -> DecoderStage:
         """Train a decoder on the combined latent space of all frozen encoders."""
+        if not isinstance(self.model, EncodeProcessDecode):
+            msg = (
+                "train_stage_decoder is only supported for EncodeProcessDecode models."
+            )
+            raise TypeError(msg)
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
         ):

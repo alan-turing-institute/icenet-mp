@@ -112,7 +112,10 @@ class DecoderStage(BaseModel):
             for name, encoder in zip(self.encoder_names, self.encoders, strict=True)
         ]
         combined = torch.cat(latents, dim=1).unsqueeze(1)
-        return self.decoder.rollout(combined, inputs["persistence"])
+        persistence = (
+            inputs["persistence"] if self.decoder.use_skip_connection else None
+        )
+        return self.decoder.rollout(combined, persistence)
 
     def process_batch(
         self,

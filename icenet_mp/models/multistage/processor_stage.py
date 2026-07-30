@@ -93,7 +93,7 @@ class ProcessorStage(BaseModel):
         return torch.cat(latent_inputs, dim=2)
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Forward step of the model (used for inference and the standard decode path).
+        """Forward step of the model (used for inference).
 
         - encode each input with frozen encoder.rollout() -> NTCHW latents
         - concatenate latents along the channel dimension
@@ -102,10 +102,14 @@ class ProcessorStage(BaseModel):
         """
         combined_latent: TensorNTCHW = self.encode_inputs(inputs)
         processed = self.processor.rollout(combined_latent).prediction
-        # Extract persistence value from the inputs
-        persistence: TensorNTCHW = inputs[self.output_space.name][
-            :, -1, self.target_variable_indices, :, :
-        ].unsqueeze(1)
+        # Add persistence skip connection if requested
+        persistence: TensorNTCHW | None = (
+            inputs[self.output_space.name][
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1)
+            if self.decoder.use_skip_connection
+            else None
+        )
         return self.decoder.rollout(processed, persistence)
 
     @override
@@ -156,10 +160,14 @@ class ProcessorStage(BaseModel):
         target_latent = self.target_encoder.rollout(target)
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
-        # Extract persistence value from the inputs
-        persistence: TensorNTCHW = batch[self.output_space.name][
-            :, -1, self.target_variable_indices, :, :
-        ].unsqueeze(1)
+        # Add persistence skip connection if requested
+        persistence: TensorNTCHW | None = (
+            batch[self.output_space.name][
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1)
+            if self.decoder.use_skip_connection
+            else None
+        )
 
         if processor_output.loss is None:
             # Standard path: compare decoded output to target.
