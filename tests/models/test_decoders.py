@@ -1,8 +1,10 @@
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
 import torch
+from torch import nn
 
 from icenet_mp.models.decoders import (
     BaseDecoder,
@@ -136,7 +138,7 @@ class TestDecoderBounded:
 
 
 class TestDecoderMask:
-    """The active grid cell mask, applied via BaseDecoder.finalise()."""
+    """The active grid cell mask, applied via BaseDecoder.mask() in rollout()."""
 
     @staticmethod
     def _spaces() -> tuple[DataSpace, DataSpace]:
@@ -224,7 +226,7 @@ class TestDecoderMask:
             data_space_in=latent_space,
             data_space_out=output_space,
         )
-        # No mask requested: no dummy buffer is created and finalise() skips the
+        # No mask requested: no dummy buffer is created and decoder.mask() skips the
         # multiply entirely (rather than doing an identity product with ones).
         assert not hasattr(decoder.mask, "mask")
 
@@ -254,15 +256,108 @@ class TestDecoderMask:
         active = out[..., 8:, :]
         assert torch.all((active >= 0) & (active <= 1)).item()
 
-    def test_finalise_is_identity_when_mask_and_bound_off(self) -> None:
-        """Backward compatibility: with both off, finalise() must not touch the tensor."""
+    def test_restrict_then_mask_is_identity_when_both_off(self) -> None:
+        """Backward compatibility: with both off, restrict+mask must not touch the tensor."""
         latent_space, output_space = self._spaces()
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
         )
         x = torch.randn(2, output_space.channels, *output_space.shape)
-        assert torch.equal(decoder.finalise(x), x)
+        assert torch.equal(decoder.mask(decoder.restrict(x)), x)
+
+
+class TestDecoderSkipConnection:
+    """Ensure the skip-connection order in BaseDecoder.rollout() is correct.
+
+    Persistence is already a real, output-scale SIC value, so it must be combined with
+    the decoder output *after* range restriction, not before. Each test sets the decoder
+    contribution to close to 0 and checks that persistence is recovered appropriately.
+    """
+
+    _LATENT_SPACE = DataSpace(name="latent", channels=4, shape=(8, 8))
+    _OUTPUT_SPACE = DataSpace(name="output", channels=1, shape=(8, 8))
+
+    @classmethod
+    def _decoder(cls, method: str) -> NaiveLinearDecoder:
+        decoder = NaiveLinearDecoder(
+            data_space_in=cls._LATENT_SPACE,
+            data_space_out=cls._OUTPUT_SPACE,
+            restrict_range="sigmoid",
+            skip_connection={"method": method},
+        )
+        conv = cast("nn.Conv2d", decoder.model[0])
+        assert conv.bias is not None
+        with torch.no_grad():
+            conv.weight.zero_()
+            conv.bias.fill_(-20.0)
+        return decoder
+
+    @classmethod
+    def _latent(cls, n_forecast_steps: int = 1) -> torch.Tensor:
+        return torch.randn(
+            1, n_forecast_steps, cls._LATENT_SPACE.channels, *cls._LATENT_SPACE.shape
+        )
+
+    @classmethod
+    def _persistence(cls) -> torch.Tensor:
+        """A spatially-varying persistence field in (0, 1), never exactly 0 or 1."""
+        space = cls._OUTPUT_SPACE
+        numel = space.channels * space.shape[0] * space.shape[1]
+        return torch.linspace(0.05, 0.95, numel).reshape(
+            1, 1, space.channels, *space.shape
+        )
+
+    @staticmethod
+    def _zero(conv_module: nn.Module) -> None:
+        conv = cast("nn.Conv2d", conv_module)
+        assert conv.bias is not None
+        with torch.no_grad():
+            conv.weight.zero_()
+            conv.bias.zero_()
+
+    def test_additive_skip_recovers_persistence(self) -> None:
+        decoder = self._decoder("additive")
+        n_forecast_steps = 2
+        persistence = self._persistence()
+
+        out = decoder.rollout(self._latent(n_forecast_steps), persistence)
+
+        assert torch.allclose(
+            out, persistence.expand(-1, n_forecast_steps, -1, -1, -1), atol=1e-4
+        )
+
+    def test_gated_skip_recovers_half_persistence(self) -> None:
+        decoder = self._decoder("gated")
+        # Zero the gate's conv so its pre-activation is 0 everywhere
+        # gate = sigmoid(0) = 0.5, so output will be:
+        # 0.5 * bounded_main + 0.5 * persistence ~= 0.5 * persistence.
+        assert decoder.skip_connection is not None
+        self._zero(decoder.skip_connection.gate.block[0])
+        persistence = self._persistence()
+
+        out = decoder.rollout(self._latent(), persistence)
+
+        assert torch.allclose(out, 0.5 * persistence, atol=1e-4)
+
+    def test_convolutional_skip_is_clamped_to_valid_range(self) -> None:
+        decoder = self._decoder("convolutional")
+        # Force the fusion's final conv to output a large constant, well outside [0, 1].
+        assert decoder.skip_connection is not None
+        final_conv = cast("nn.Conv2d", decoder.skip_connection.fusion[-1])
+        assert final_conv.bias is not None
+        with torch.no_grad():
+            final_conv.weight.zero_()
+            final_conv.bias.fill_(10.0)
+
+        out = decoder.rollout(self._latent(), self._persistence())
+
+        assert torch.allclose(out, torch.ones_like(out))
+
+    def test_skip_connection_without_persistence_raises(self) -> None:
+        decoder = self._decoder("additive")
+        with pytest.raises(ValueError, match="no persistence input was provided"):
+            decoder.rollout(self._latent(), None)
 
 
 class TestPiecewiseDecoder:
