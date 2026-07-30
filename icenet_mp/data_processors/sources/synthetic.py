@@ -10,6 +10,7 @@ from anemoi.datasets.create.sources import source_registry
 from anemoi.datasets.create.sources.xarray import load_one
 from anemoi.datasets.dates.groups import GroupOfDates
 from earthkit.data import FieldList
+from typing_extensions import override
 
 from icenet_mp.synthetic.trajectories import generate_default_dataset
 
@@ -42,10 +43,11 @@ class SyntheticSource(Source):
             for date, frame in zip(self.dataset.dates, self.dataset.frames, strict=True)
         }
 
-    def execute(self, dates: list[datetime] | GroupOfDates) -> FieldList:
+    @override
+    def execute(self, argument: list[datetime] | GroupOfDates) -> FieldList:
         """Return requested available frames as an Anemoi field list."""
         available_dates = sorted(
-            date for date in dates if date.date() in self.frames_by_date
+            date for date in argument if date.date() in self.frames_by_date
         )
         frames = np.stack(
             [self.frames_by_date[date.date()] for date in available_dates]
