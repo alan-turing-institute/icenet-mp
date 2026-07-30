@@ -68,6 +68,18 @@ class BaseDecoder(nn.Module):
                 ),
             )
 
+        # A learned per-pixel gate in [0, 1] that decides, at every location, how much
+        # to trust the decoded output vs. persistence, rather than fusing the two
+        # through a single conv (CONVOLUTIONAL) or adding them outright (ADDITIVE).
+        if self.skip_connection == SkipConnection.GATED:
+            self.gate = ConvNormAct(
+                2 * self.data_space_out.channels,
+                self.data_space_out.channels,
+                activation="Sigmoid",
+                kernel_size=3,
+                norm_type="groupnorm",
+            )
+
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: decode latent space into output space for a single timestep.
 
@@ -133,6 +145,13 @@ class BaseDecoder(nn.Module):
             persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
             persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
             output_nchw = self.fusion(cat([output_nchw, persistence_nchw], dim=1))
+        elif self.skip_connection == SkipConnection.GATED:
+            # Expand persistence to match output shape, then blend it with the decoded
+            # output using a learned per-pixel gate instead of a fixed fusion/add
+            persistence = persistence.expand(-1, n_timeslices, -1, -1, -1)
+            persistence_nchw = persistence.reshape(-1, *self.data_space_out.chw)
+            gate = self.gate(cat([output_nchw, persistence_nchw], dim=1))
+            output_nchw = gate * output_nchw + (1 - gate) * persistence_nchw
         # Finalise (bound and mask) the result
         output = self.finalise(output_nchw)
         # Reshape back to [batch, n_timeslices, C_out, H_out, W_out]
