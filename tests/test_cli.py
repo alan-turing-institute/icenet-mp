@@ -29,7 +29,7 @@ class CustomCliRunner(CliRunner):
         output = self.output(commands)
         for pattern in expected_patterns:
             found_match = any(re.search(pattern, line) for line in output)
-            assert found_match, f"Pattern '{pattern}' not found in output"
+            assert found_match, f"Pattern '{pattern}' not found in output."
 
 
 class TestBaseCLI:
@@ -70,6 +70,7 @@ class TestDatasetsCLI:
                 r"--help\s+-h\s+Show this message and exit.",
                 r"create\s+Create all datasets.",
                 r"inspect\s+Inspect all datasets.",
+                r"masks\s+Create land / active grid cell masks.",
             ],
         )
 
@@ -80,13 +81,13 @@ class TestEvaluateCLI:
         runner.check_output(
             ["evaluate", "--help"],
             expected_patterns=[
-                r"Usage: imp evaluate \[OPTIONS\] \[OVERRIDES\]...",
+                r"Usage: imp evaluate \[OPTIONS\] \[overrides\]...",
                 r"Evaluate a pre-trained model",
-                r"\[overrides\]\.\.\.\s+TEXT\s+Apply space-separated Hydra config",
-                r"--config-name\s+TEXT\s+Specify the name of a file to load from the",
-                r"--checkpoint\s+TEXT\s+Specify the path to a trained model",
-                r"--save-layer\s+TEXT\s+Dotted path of",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
+                r"--config-name\s+<str>\s+Name of a file to load from the config",
+                r"--checkpoint\s+<str>\s+Path of a trained model checkpoint",
                 r"--help\s+-h\s+Show this message and exit.",
+                r"--save-layer\s+<str>\s+Dotted path of a model submodule to hook",
             ],
         )
 
@@ -97,10 +98,12 @@ class TestTrainCLI:
         runner.check_output(
             ["train", "--help"],
             expected_patterns=[
-                r"Usage: imp train \[OPTIONS\] \[OVERRIDES\]...",
+                r"Usage: imp train \[OPTIONS\] \[overrides\]...",
                 r"Train a model",
-                r"\[overrides\]\.\.\.\s+TEXT\s+Apply space-separated Hydra config",
-                r"--config-name\s+TEXT\s+Specify the name of a file to load from the",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
+                r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
+                r"--config-name\s+<str>\s+Name of a file to load from the config",
+                r"--multistage\s+Train an EncodeProcessDecode model in",
                 r"--help\s+-h\s+Show this message and exit.",
             ],
         )

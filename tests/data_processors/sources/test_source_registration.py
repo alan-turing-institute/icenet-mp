@@ -6,12 +6,19 @@ anemoi-datasets reorganises those internals, these tests should fail rather than
 silently breaking dataset creation at runtime.
 """
 
+import datetime
 from typing import ClassVar
 
 from anemoi.datasets.create.recipe import Recipe
+from anemoi.datasets.create.recipe.dates import StartEndDates
 from anemoi.datasets.create.sources import source_registry
 
-from icenet_mp.data_processors.sources import ArgoSource, FTPSource, register_sources
+from icenet_mp.data_processors.sources import (
+    ArgoSource,
+    FTPSource,
+    SyntheticSource,
+    register_sources,
+)
 
 
 class TestSourceRegistration:
@@ -20,6 +27,7 @@ class TestSourceRegistration:
     EXPECTED_SOURCES: ClassVar[dict] = {
         "ftp": FTPSource,
         "argo": ArgoSource,
+        "synthetic": SyntheticSource,
     }
 
     def test_register_sources_with_real_registry(self) -> None:
@@ -50,6 +58,26 @@ class TestSourceRegistration:
             "Recipe.model_fields is empty after register_sources() — "
             "model_rebuild() may have failed silently."
         )
+
+    def test_recipe_accepts_registered_synthetic_source(self) -> None:
+        """The rebuilt recipe model accepts the synthetic source configuration."""
+        register_sources()
+        recipe = Recipe(
+            dates=StartEndDates(
+                start=datetime.datetime(2020, 1, 1, 0, 0, 0),
+                end=datetime.datetime(2020, 1, 3, 0, 0, 0),
+                frequency=datetime.timedelta(hours=24),
+            ),
+            input={
+                "synthetic": {
+                    "dynamics": "moving",
+                    "grid_size": 32,
+                    "n_trajectories": 3,
+                    "start_date": "2020-01-01T00:00:00",
+                }
+            },
+        )
+        assert type(recipe.input).__name__ == "synthetic"
 
     def test_register_sources_is_idempotent(self) -> None:
         """Calling register_sources() twice does not raise or corrupt the registry."""

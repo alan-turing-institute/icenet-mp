@@ -35,9 +35,8 @@ def train(
         typer.Option(
             "--multistage",
             help=(
-                "Train an EncodeProcessDecode model in multiple stages (encoders, then "
-                "decoder, then processor, then finetune). Default is single-stage "
-                "training."
+                "Train an EncodeProcessDecode model in multiple stages (encoders, "
+                "decoder, processor, then finetune). Default is single-stage training."
             ),
         ),
     ] = False,
