@@ -203,6 +203,7 @@ class TestResidualDownsample:
             p.data.zero_()
 
         x = torch.randn(2, in_channels, 8, 8)
+        assert block.shortcut is not None
         assert torch.allclose(block(x), block.shortcut(x))
         assert block(x).shape == (2, out_channels, 4, 4)
 
@@ -224,5 +225,6 @@ class TestResidualUpsample:
             p.data.zero_()
 
         x = torch.randn(2, in_channels, 4, 4)
+        assert block.shortcut is not None
         assert torch.allclose(block(x), block.shortcut(x))
         assert block(x).shape == (2, out_channels, 8, 8)

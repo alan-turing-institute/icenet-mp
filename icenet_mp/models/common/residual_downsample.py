@@ -16,13 +16,8 @@ class ResidualDownsample(nn.Module):
     - Conv2d + (PixelUnshuffle + ChannelAdaptor)
     - strided Conv2d + ChannelAdaptor
 
-    The shortcut block is one of:
-    - PixelUnshuffle + ChannelAdaptor
-    - AvgPool2d + ChannelAdaptor
-
-    chosen to match the spatial downsampling used in the parametric block. In all cases,
-    the non-parametric ChannelAdaptor is used to set the number of output channels.
-
+    The non-parametric shortcut block is a PixelUnshuffle followed by a channel adaptor
+    to set the correct number of output channels.
     """
 
     def __init__(
@@ -32,6 +27,7 @@ class ResidualDownsample(nn.Module):
         out_channels: int,
         factor: int,
         pixel_shuffle: bool,
+        shortcut: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialise a ResidualDownsample.
@@ -41,6 +37,7 @@ class ResidualDownsample(nn.Module):
             out_channels: the number of output channels.
             factor: the spatial downsampling factor.
             pixel_shuffle: downsample with PixelUnshuffle if True, else strided convolution.
+            shortcut: whether to include the non-parametric residual shortcut.
             **kwargs: forwarded to the parametric block convolutional layer
 
         """
@@ -60,19 +57,21 @@ class ResidualDownsample(nn.Module):
             else:
                 msg = f"factor must be >= 1, got {factor}"
                 raise ValueError(msg)
-            self.shortcut = nn.Sequential(
-                nn.PixelUnshuffle(factor) if factor > 1 else nn.Identity(),
-                ChannelAdaptor(in_channels * factor**2, out_channels),
-            )
         else:
             self.parametric = nn.Conv2d(
                 in_channels, out_channels, stride=factor, **kwargs
             )
-            self.shortcut = nn.Sequential(
-                nn.AvgPool2d(factor) if factor > 1 else nn.Identity(),
-                ChannelAdaptor(in_channels, out_channels),
+        self.shortcut = (
+            nn.Sequential(
+                nn.PixelUnshuffle(factor) if factor > 1 else nn.Identity(),
+                ChannelAdaptor(in_channels * factor**2, out_channels),
             )
+            if shortcut
+            else None
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         """Apply the parametric block plus its residual shortcut to x."""
+        if self.shortcut is None:
+            return self.parametric(x)
         return self.parametric(x) + self.shortcut(x)

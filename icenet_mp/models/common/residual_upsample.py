@@ -14,10 +14,8 @@ class ResidualUpsample(nn.Module):
     Mirror of :class:`ResidualDownsample` for the decoder side.
 
     The parametric block is either WeightedUpsample or Upsample + Conv2d.
-    The shortcut block is a channel adaptor that matches the number of output channels.
-    plus a non-parametric operation that matches the type of spatial upsampling used in
-    the parametric block (PixelShuffle or Upsample).
-
+    The non-parametric shortcut block is a channel adaptor to set the correct number of
+    output channels plus a PixelShuffle.
     """
 
     def __init__(
@@ -27,6 +25,7 @@ class ResidualUpsample(nn.Module):
         out_channels: int,
         factor: int,
         pixel_shuffle: bool,
+        shortcut: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialise a ResidualUpsample.
@@ -37,6 +36,7 @@ class ResidualUpsample(nn.Module):
             factor: the spatial upsampling factor.
             pixel_shuffle: upsample with PixelShuffle if True, else nearest-neighbour
                 upsampling followed by convolution.
+            shortcut: whether to include the non-parametric residual shortcut.
             **kwargs: forwarded to the parametric block convolutional layer
 
         """
@@ -45,10 +45,6 @@ class ResidualUpsample(nn.Module):
             self.parametric: nn.Module = WeightedUpsample(
                 in_channels, out_channels=out_channels, upsample_factor=factor, **kwargs
             )
-            self.shortcut = nn.Sequential(
-                ChannelAdaptor(in_channels, out_channels * factor**2),
-                nn.PixelShuffle(factor) if factor > 1 else nn.Identity(),
-            )
         else:
             self.parametric = nn.Sequential(
                 nn.Upsample(scale_factor=factor, mode="nearest")
@@ -56,13 +52,17 @@ class ResidualUpsample(nn.Module):
                 else nn.Identity(),
                 nn.Conv2d(in_channels, out_channels, **kwargs),
             )
-            self.shortcut = nn.Sequential(
-                ChannelAdaptor(in_channels, out_channels),
-                nn.Upsample(scale_factor=factor, mode="nearest")
-                if factor > 1
-                else nn.Identity(),
+        self.shortcut = (
+            nn.Sequential(
+                ChannelAdaptor(in_channels, out_channels * factor**2),
+                nn.PixelShuffle(factor) if factor > 1 else nn.Identity(),
             )
+            if shortcut
+            else None
+        )
 
     def forward(self, x: Tensor) -> Tensor:
         """Apply the parametric block plus its residual shortcut to x."""
+        if self.shortcut is None:
+            return self.parametric(x)
         return self.parametric(x) + self.shortcut(x)
