@@ -1788,11 +1788,11 @@ full-sicsouth-osisaf-25p0km-1979-2025-24h-v3:
           ftp:
             url: ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc-amsr/v3p0/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_icdr-v3p0-amsr_{date:strftime(%Y%m%d)}1200.nc
 
+      # Drop unnecessary variables
+      - drop:
+          param: [algorithm_standard_uncertainty, raw_ice_conc_values, smearing_standard_uncertainty]
+
       # Rescale concentration variables and uncertainties from percent to fraction
-      - rescale:
-          scale: 0.01
-          offset: 0.0
-          param: algorithm_standard_uncertainty
       - rescale:
           scale: 0.01
           offset: 0.0
@@ -1800,23 +1800,12 @@ full-sicsouth-osisaf-25p0km-1979-2025-24h-v3:
       - rescale:
           scale: 0.01
           offset: 0.0
-          param: raw_ice_conc_values
-      - rescale:
-          scale: 0.01
-          offset: 0.0
-          param: smearing_standard_uncertainty
-      - rescale:
-          scale: 0.01
-          offset: 0.0
           param: total_standard_uncertainty
 
-      # Replace NaNs with 0 for concentration variables and 99 for uncertainty variables
+      # Replace NaNs with 0 throughout
       - nan-to-num:
-          variables: [ice_conc, raw_ice_conc_values]
+          variables: [ice_conc, total_standard_uncertainty]
           replace_with: 0.0
-      - nan-to-num:
-          variables: [algorithm_standard_uncertainty, smearing_standard_uncertainty, total_standard_uncertainty]
-          replace_with: 99
 
       # Set the geography to EASE2 25km grid
       - set-geography:
