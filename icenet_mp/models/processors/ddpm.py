@@ -95,6 +95,18 @@ class DDPMProcessor(BaseProcessor):
     def _flatten_history(self, x: TensorNTCHW) -> TensorNCHW:
         b, t, c, h, w = x.shape
         return x.reshape(b, t * c, h, w)
+
+    def _slice_target(self, x: TensorNCHW) -> TensorNCHW:
+            s = self.target_slice_start
+            return x[:, s : s + self.c_target]
+        
+    def _insert_target(
+            self, base_frame: TensorNCHW, target: TensorNCHW
+        ) -> TensorNCHW:
+            result = base_frame.clone()
+            s = self.target_slice_start
+            result[:, s : s + self.c_target] = target
+            return result
     
     def _training_rollout(
         self, x: TensorNTCHW, y: TensorNTCHW
@@ -162,6 +174,35 @@ class DDPMProcessor(BaseProcessor):
         return combined
 
     def _sample_autoregressive(self, x: TensorNTCHW) -> TensorNTCHW:
-        raise NotImplementedError("Autoregressive sampling not yet implemented")
+        history = x.clone()  # (B, T_hist, C_combined, H, W)
+        b, _, _, h, w = x.shape
+        device = x.device
+        all_predictions: list[TensorNCHW] = []
 
+        for _ in range(self.n_forecast_steps):
+            cond_window = history[:, -self.n_history_steps :]
+            cond = self._flatten_history(cond_window)  # (B, T_hist * C_combined, H, W)
+
+            y = torch.randn((b, self.c_target, h, w), device=device)
+
+            for t_step in reversed(range(self.timesteps)):
+                t = torch.full((b,), t_step, dtype=torch.long, device=device)
+                pred_v = self.model(y, t, cond)
+                y = self.diffusion.p_sample(y, t, pred_v)
+
+            all_predictions.append(y)
+
+            last_frame = history[:, -1]  # (B, C_combined, H, W)
+            new_frame = self._insert_target(last_frame, y).unsqueeze(1)
+            history = torch.cat([history, new_frame], dim=1)
+
+        target_ntchw = torch.stack(all_predictions, dim=1)  # (B, T_fcst, C_target, H, W)
+        last_frame = x[:, -1]
+        combined = last_frame.unsqueeze(1).expand(
+            b, self.n_forecast_steps, self.c_combined, h, w
+        ).clone()
+
+        s = self.target_slice_start
+        combined[:, :, s : s + self.c_target] = target_ntchw
+        return combined
     
