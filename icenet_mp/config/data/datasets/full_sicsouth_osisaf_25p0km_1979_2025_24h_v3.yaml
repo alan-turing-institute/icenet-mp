@@ -1721,44 +1721,72 @@ full-sicsouth-osisaf-25p0km-1979-2025-24h-v3:
     - '1990-12-25T12:00:00'
     - '1990-12-26T12:00:00'
     - '2000-12-01T12:00:00'
-    - '2021-02-20T12:00:00'
-    - '2022-11-09T12:00:00'
-    - '2024-09-12T12:00:00'
-    - '2024-09-13T12:00:00'
-    - '2024-09-14T12:00:00'
-    - '2024-09-15T12:00:00'
-    - '2024-09-16T12:00:00'
-    - '2024-09-17T12:00:00'
+    - '2003-10-30T12:00:00'
+    - '2003-10-31T12:00:00'
+    - '2003-11-01T12:00:00'
+    - '2003-11-02T12:00:00'
+    - '2003-11-03T12:00:00'
+    - '2003-11-04T12:00:00'
+    - '2003-11-05T12:00:00'
+    - '2003-11-19T12:00:00'
+    - '2004-11-19T12:00:00'
+    - '2005-11-17T12:00:00'
+    - '2006-11-18T12:00:00'
+    - '2007-11-27T12:00:00'
+    - '2007-11-28T12:00:00'
+    - '2010-02-03T12:00:00'
+    - '2010-02-04T12:00:00'
+    - '2013-05-11T12:00:00'
+    - '2013-05-12T12:00:00'
+    - '2013-05-13T12:00:00'
 
   input:
     pipe:
       - concat:
-        # OSI-450-a1 (1978-2020)
+        # OSI-450-a1 [SMMR, SSM/I, SSMIS] (1978-2002)
         # https://osi-saf.eumetsat.int/products/osi-450-a1
         - dates:
             start: '1978-10-25T12:00:00'
-            end: '2020-12-31T12:00:00'
+            end: '2002-12-31T12:00:00'
             frequency: 24h
           ftp:
             url: ftp://osisaf.met.no/reprocessed/ice/conc/v3p1/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_cdr-v3p1_{date:strftime(%Y%m%d)}1200.nc
 
-        # OSI-430-a (2021-2024)
-        # https://osi-saf.eumetsat.int/products/osi-430-a
+        # OSI-458 [ASMR-E] (2003-2011)
+        # https://osi-saf.eumetsat.int/products/osi-458
         - dates:
-            start: '2021-01-01T12:00:00'
-            end: '2024-12-31T12:00:00'
+            start: '2003-01-01T12:00:00'
+            end: '2011-10-04T12:00:00'
             frequency: 24h
           ftp:
-            url: ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc/v3p0/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_icdr-v3p0_{date:strftime(%Y%m%d)}1200.nc
+            url: ftp://osisaf.met.no/reprocessed/ice/conc_amsr/v3p0/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_cdr-v3p0-amsr_{date:strftime(%Y%m%d)}1200.nc
 
-        # OSI-438 (2025-)
+        # OSI-450-a1 [SMMR, SSM/I, SSMIS] (2011-2012)
+        # https://osi-saf.eumetsat.int/products/osi-450-a1
+        - dates:
+            start: '2011-10-05T12:00:00'
+            end: '2012-07-23T12:00:00'
+            frequency: 24h
+          ftp:
+            url: ftp://osisaf.met.no/reprocessed/ice/conc/v3p1/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_cdr-v3p1_{date:strftime(%Y%m%d)}1200.nc
+
+        # OSI-458 [AMSR-2] (2012-2020)
+        # https://osi-saf.eumetsat.int/products/osi-458
+        - dates:
+            start: '2012-07-24T12:00:00'
+            end: '2020-12-31T12:00:00'
+            frequency: 24h
+          ftp:
+            url: ftp://osisaf.met.no/reprocessed/ice/conc_amsr/v3p0/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_cdr-v3p0-amsr_{date:strftime(%Y%m%d)}1200.nc
+
+        # OSI-438 [AMSR2] (2021-2025)
         # https://osi-saf.eumetsat.int/products/osi-438
         - dates:
-            start: '2025-01-01T12:00:00'
+            start: '2021-01-01T12:00:00'
             end: '2025-12-31T12:00:00'
             frequency: 24h
           ftp:
-            url: ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc-amsr/v3p0/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_icdr-v3p0_{date:strftime(%Y%m%d)}1200.nc
+            url: ftp://osisaf.met.no/reprocessed/ice/conc-cont-reproc-amsr/v3p0/{date:strftime(%Y)}/{date:strftime(%m)}/ice_conc_sh_ease2-250_icdr-v3p0-amsr_{date:strftime(%Y%m%d)}1200.nc
 
       # Rescale concentration variables and uncertainties from percent to fraction
       - rescale:
