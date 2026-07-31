@@ -202,7 +202,7 @@ class DataDownloader:
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for supported datasets."""
-        if self.name.startswith("synthetic-"):
+        if "-synthetic-" in self.name:
             self.path_masks.mkdir(parents=True, exist_ok=True)
             land_mask_path = self.path_masks / "land_mask.npy"
             active_mask_path = self.path_masks / "active_mask.npy"
