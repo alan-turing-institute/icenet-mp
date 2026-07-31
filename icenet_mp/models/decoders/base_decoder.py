@@ -21,7 +21,7 @@ class BaseDecoder(nn.Module):
         data_space_out: DataSpace,
         mask_dir: str | None = None,
         mask_type: str | None = None,
-        restrict_range: str = "none",
+        restrict_range: str | None = None,
     ) -> None:
         """Initialise a BaseDecoder."""
         super().__init__()
@@ -31,7 +31,9 @@ class BaseDecoder(nn.Module):
 
         # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
         self.restrict = RestrictRange(
-            RangeRestriction(restrict_range), min_val=0, max_val=1
+            RangeRestriction(restrict_range or "none"),
+            min_val=0,
+            max_val=1,
         )
 
         # Load the requested mask (ACTIVE/LAND/NONE)

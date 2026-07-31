@@ -20,7 +20,7 @@ class Mask(nn.Module):
         self,
         *,
         mask_type: MaskType | str | None,
-        output_shape: tuple[int, ...],
+        output_shape: tuple[int, int],
         mask_dir: str | Path | None = None,
     ) -> None:
         """Initialise a Mask.
@@ -28,8 +28,8 @@ class Mask(nn.Module):
         Args:
             mask_type: MaskType.ACTIVE (active+land), MaskType.LAND (land only), or
                 MaskType.NONE/None/"" to disable. Any other value raises ValueError.
-            output_shape: Expected (channels, height, width) shape of the tensor this
-                mask will be applied to, used to validate the mask loaded from disk.
+            output_shape: Expected (height, width) shape of the tensor this mask will be
+                applied to, used to validate the mask loaded from disk.
             mask_dir: Directory holding `active_mask.npy`/`land_mask.npy`, generated for
                 SSMIS datasets by `datasets create`. Required when `mask_type` is
                 MaskType.ACTIVE or MaskType.LAND.
