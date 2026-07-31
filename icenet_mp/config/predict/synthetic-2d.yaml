@@ -1,6 +1,6 @@
 # Name of the dataset group containing our prediction target
 target:
-  group_name: sic-icenet
+  group_name: sic-ssmis
   variables:
     - ice_conc
 
