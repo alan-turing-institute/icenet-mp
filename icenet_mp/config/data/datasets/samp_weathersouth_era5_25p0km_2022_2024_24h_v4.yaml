@@ -1,5 +1,5 @@
-samp-weathersouth-era5-25p0km-2022-2024-24h-v3:
-  name: samp-weathersouth-era5-25p0km-2022-2024-24h-v3
+samp-weathersouth-era5-25p0km-2022-2024-24h-v4:
+  name: samp-weathersouth-era5-25p0km-2022-2024-24h-v4
   group_as: era5
   description: Weather from ERA5 for partial southern hemisphere
   attribution: ECMWF/C3S

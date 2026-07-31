@@ -1,5 +1,5 @@
-samp-sicnorth-ssmis-25p0km-2022-2024-24h-v2:
-  name: samp-sicnorth-ssmis-25p0km-2022-2024-24h-v2
+samp-sicnorth-ssmis-25p0km-2022-2024-24h-v3:
+  name: samp-sicnorth-ssmis-25p0km-2022-2024-24h-v3
   group_as: sic-ssmis
   description: Sea ice concentration from SMMR/SSMI/SSMIS for northern hemisphere
   attribution: EUMETSAT/OSISAF
