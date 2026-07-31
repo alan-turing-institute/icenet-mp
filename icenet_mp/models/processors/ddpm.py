@@ -137,7 +137,29 @@ class DDPMProcessor(BaseProcessor):
         return ProcessorOutput(prediction=self._sample_parallel(x))
 
     def _sample_parallel(self, x: TensorNTCHW) -> TensorNTCHW:
-        raise NotImplementedError("Parallel sampling not yet implemented")
+        cond = self._flatten_history(x)
+
+        b, _, h, w = cond.shape
+        device = cond.device
+
+        y = torch.randn(
+            (b, self.n_forecast_steps * self.c_target, h, w), device=device
+        )
+
+        for t_step in reversed(range(self.timesteps)):
+            t = torch.full((b,), t_step, dtype=torch.long, device=device)
+            pred_v = self.model(y, t, cond)
+            y = self.diffusion.p_sample(y, t, pred_v)
+
+        y_ntchw = y.reshape(b, self.n_forecast_steps, self.c_target, h, w)
+        last_frame = x[:, -1]  # (B, C_combined, H, W)
+        combined = last_frame.unsqueeze(1).expand(
+            b, self.n_forecast_steps, self.c_combined, h, w
+        ).clone()
+        
+        s = self.target_slice_start
+        combined[:, :, s : s + self.c_target] = y_ntchw
+        return combined
 
     def _sample_autoregressive(self, x: TensorNTCHW) -> TensorNTCHW:
         raise NotImplementedError("Autoregressive sampling not yet implemented")
