@@ -97,16 +97,16 @@ class DDPMProcessor(BaseProcessor):
         return x.reshape(b, t * c, h, w)
 
     def _slice_target(self, x: TensorNCHW) -> TensorNCHW:
-            s = self.target_slice_start
-            return x[:, s : s + self.c_target]
+        s = self.target_slice_start
+        return x[:, s : s + self.c_target]
         
     def _insert_target(
-            self, base_frame: TensorNCHW, target: TensorNCHW
-        ) -> TensorNCHW:
-            result = base_frame.clone()
-            s = self.target_slice_start
-            result[:, s : s + self.c_target] = target
-            return result
+        self, base_frame: TensorNCHW, target: TensorNCHW
+    ) -> TensorNCHW:
+        result = base_frame.clone()
+        s = self.target_slice_start
+        result[:, s : s + self.c_target] = target
+        return result
     
     def _training_rollout(
         self, x: TensorNTCHW, y: TensorNTCHW
