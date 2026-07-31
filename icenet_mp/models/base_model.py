@@ -17,6 +17,7 @@ from omegaconf import DictConfig
 from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
+    CentroidErrorPerForecastDay,
     IceNetAccuracy,
     MAEPerForecastDay,
     RMSEPerForecastDay,
@@ -47,6 +48,7 @@ class BaseModel(LightningModule, ABC):
         output_space: DictConfig,
         scheduler: DictConfig,
         loss: DictConfig,
+        metrics: list[str] | None = None,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
@@ -55,6 +57,11 @@ class BaseModel(LightningModule, ABC):
         of forecast and history steps.
 
         Optimizer configuration is also set here.
+
+        The ``metrics`` parameter controls which metrics are computed during training,
+        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror"]``;
+        pass ``"centroid_error"`` to add the value-weighted centre-of-mass distance
+        metric (only meaningful for synthetic checks where the field is a single blob).
         """
         super().__init__()
 
@@ -84,11 +91,25 @@ class BaseModel(LightningModule, ABC):
         self.loss_cfg = loss
 
         # Metrics
+        _metric_classes: dict[str, type[Metric]] = {
+            "accuracy": IceNetAccuracy,
+            "mae": MAEPerForecastDay,
+            "rmse": RMSEPerForecastDay,
+            "sieerror": SeaIceExtentErrorPerForecastDay,
+            "centroid_error": CentroidErrorPerForecastDay,
+        }
+        metric_names = (
+            metrics
+            if metrics is not None
+            else [
+                "accuracy",
+                "mae",
+                "rmse",
+                "sieerror",
+            ]
+        )
         _common_metrics: dict[str, Metric | MetricCollection] = {
-            "accuracy": IceNetAccuracy(),
-            "mae": MAEPerForecastDay(),
-            "rmse": RMSEPerForecastDay(),
-            "sieerror": SeaIceExtentErrorPerForecastDay(),
+            name: _metric_classes[name]() for name in metric_names
         }
         self.test_metrics = MetricCollection(deepcopy(_common_metrics))
         self.train_metrics = MetricCollection(deepcopy(_common_metrics))

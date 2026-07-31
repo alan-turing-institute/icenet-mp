@@ -14,6 +14,12 @@ uv run imp datasets create
 
 Anemoi tracks which date groups have been downloaded, so an interrupted download can be resumed by simply rerunning this command.
 
+To create the synthetic dataset, use:
+
+```bash
+uv run imp datasets create --config-name synthetic
+```
+
 ## `datasets inspect`
 
 ```bash
@@ -25,7 +31,7 @@ With the `--verbose` option it will also print statistical summaries of the vari
 
 ## `train`
 
-You will need a [Weights & Biases account](https://docs.wandb.ai/models/quickstart).
+Standard (non-synthetic) runs use [Weights & Biases](https://docs.wandb.ai/models/quickstart).
 Generate an API key, then authenticate:
 
 ```bash
@@ -37,6 +43,13 @@ Trains the model end-to-end:
 
 ```bash
 uv run imp train
+```
+
+Synthetic experiments do not use W&B. Use the synthetic configuration, which
+saves metrics and plotting artefacts locally under `${BASE_DIR}/report`:
+
+```bash
+uv run imp train --config-name synthetic
 ```
 
 For `EncodeProcessDecode` models, pass `--multistage` to train each component separately before finetuning.
