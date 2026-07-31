@@ -1,0 +1,31 @@
+samp-floatsouth-argo-25p0km-2022-2024-24h-v2:
+  name: samp-floatsouth-argo-25p0km-2022-2024-24h-v2
+  group_as: float-argo
+  description: ARGO float data for southern hemisphere
+  attribution: ARGO
+  licence: CC-BY-4.0
+
+  dates:
+    start: '2022-01-01T12:00:00'
+    end: '2024-02-29T12:00:00'
+    frequency: 24h
+
+  input:
+    pipe:
+      # Get the ARGO data
+      - argo:
+          area: "0/-180/-90/180"  # southern hemisphere
+          crs: "EPSG:6932"
+          param:
+            - TEMP # temperature
+            - PSAL # salinity
+          resolution: "25p0km"
+          shape: [432, 432]
+      # Replace NaNs with a fill value
+      - nan-to-num:
+          variables: [TEMP, PSAL]
+          replace_with: 99
+      # Set the geography to EASE2 25km grid
+      - set-geography:
+          crs: ${...0.argo.crs}
+          resolution: ${...0.argo.resolution}
