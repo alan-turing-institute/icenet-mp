@@ -1,7 +1,7 @@
-full-sicsouth-ssmis-25p0km-1979-2025-24h-v3:
-  name: full-sicsouth-ssmis-25p0km-1979-2025-24h-v3
-  group_as: sic-ssmis
-  description: Sea ice concentration from SMMR/SSMI/SSMIS for southern hemisphere
+full-sicsouth-osisaf-25p0km-1979-2025-24h-v3:
+  name: full-sicsouth-osisaf-25p0km-1979-2025-24h-v3
+  group_as: sic-osisaf
+  description: Sea ice concentration from SMMR/SSMI/SSMIS + AMSR-E/AMSR-2 + AMSR2 for southern hemisphere
   attribution: EUMETSAT/OSISAF
   licence: CC-BY-4.0
 
