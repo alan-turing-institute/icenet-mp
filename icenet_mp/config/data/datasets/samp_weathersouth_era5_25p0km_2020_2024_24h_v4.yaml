@@ -1,24 +1,29 @@
-samp-weathernorth-era5-25p0km-2022-2024-24h-v4:
-  name: samp-weathernorth-era5-25p0km-2022-2024-24h-v4
+samp-weathersouth-era5-25p0km-2020-2024-24h-v4:
+  name: samp-weathersouth-era5-25p0km-2020-2024-24h-v4
   group_as: era5
-  description: Weather from ERA5 for partial northern hemisphere
+  description: Weather from ERA5 for partial southern hemisphere
   attribution: ECMWF/C3S
   licence: CC-BY-4.0
 
   dates:
-    start: '2022-01-01T12:00:00'
+    start: '2020-01-01T12:00:00'
     end: '2024-02-29T12:00:00'
     frequency: 24h
+    missing:
+    - start: 2022-01-01T12:00:00
+      end: 2022-06-30T12:00:00
+    - start: 2022-08-01T12:00:00
+      end: 2022-12-31T12:00:00
+    - start: 2023-02-01T12:00:00
+      end: 2023-12-31T12:00:00
 
   input:
     pipe:
       - join:
         - mars:
             use_cdsapi_dataset: "reanalysis-era5-complete"
-            class: ea
-            expver: "0001"
+            area: "-15/-180/-90/180"  # southern hemisphere
             grid: "0.25 / 0.25"
-            area: "90/-180/15/180"  # northern hemisphere
             levtype: sfc
             param:
             - 2t # 2-metre air temperature
@@ -28,10 +33,8 @@ samp-weathernorth-era5-25p0km-2022-2024-24h-v4:
             - msl # Sea level pressure
         - mars:
             use_cdsapi_dataset: "reanalysis-era5-complete"
-            class: ea
-            expver: "0001"
+            area: "-15/-180/-90/180"  # southern hemisphere
             grid: "0.25 / 0.25"
-            area: "90/-180/15/180"  # northern hemisphere
             level:
             - 10 # hPa
             - 250 # hPa
@@ -52,6 +55,6 @@ samp-weathernorth-era5-25p0km-2022-2024-24h-v4:
             template: \${input.pipe.0.join.0.mars}
       # Reproject to EASE2 25km grid
       - reproject:
-          crs: "EPSG:6931"
+          crs: "EPSG:6932"
           resolution: "25p0km"
           shape: [432, 432]

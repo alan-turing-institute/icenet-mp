@@ -1,14 +1,21 @@
-samp-sicsouth-ssmis-25p0km-2022-2024-24h-v3:
-  name: samp-sicsouth-ssmis-25p0km-2022-2024-24h-v3
+samp-sicsouth-ssmis-25p0km-2020-2024-24h-v3:
+  name: samp-sicsouth-ssmis-25p0km-2020-2024-24h-v3
   group_as: sic-ssmis
   description: Sea ice concentration from SMMR/SSMI/SSMIS for southern hemisphere
   attribution: EUMETSAT/OSISAF
   licence: CC-BY-4.0
 
   dates:
-    start: '2022-01-01T12:00:00'
+    start: '2020-01-01T12:00:00'
     end: '2024-02-29T12:00:00'
     frequency: 24h
+    missing:
+    - start: 2022-01-01T12:00:00
+      end: 2022-06-30T12:00:00
+    - start: 2022-08-01T12:00:00
+      end: 2022-12-31T12:00:00
+    - start: 2023-02-01T12:00:00
+      end: 2023-12-31T12:00:00
 
   input:
     pipe:

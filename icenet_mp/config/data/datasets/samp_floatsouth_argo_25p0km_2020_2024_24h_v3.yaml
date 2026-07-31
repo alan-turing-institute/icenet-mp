@@ -1,21 +1,28 @@
-samp-floatnorth-argo-25p0km-2022-2024-24h-v3:
-  name: samp-floatnorth-argo-25p0km-2022-2024-24h-v3
+samp-floatsouth-argo-25p0km-2020-2024-24h-v3:
+  name: samp-floatsouth-argo-25p0km-2020-2024-24h-v3
   group_as: float-argo
-  description: ARGO float data for northern hemisphere
+  description: ARGO float data for southern hemisphere
   attribution: ARGO
   licence: CC-BY-4.0
 
   dates:
-    start: '2022-01-01T12:00:00'
+    start: '2020-01-01T12:00:00'
     end: '2024-02-29T12:00:00'
     frequency: 24h
+    missing:
+    - start: 2022-01-01T12:00:00
+      end: 2022-06-30T12:00:00
+    - start: 2022-08-01T12:00:00
+      end: 2022-12-31T12:00:00
+    - start: 2023-02-01T12:00:00
+      end: 2023-12-31T12:00:00
 
   input:
     pipe:
       # Get the ARGO data
       - argo:
-          area: "90/-180/0/180"  # northern hemisphere
-          crs: "EPSG:6931"
+          area: "0/-180/-90/180"  # southern hemisphere
+          crs: "EPSG:6932"
           param:
             - TEMP # temperature
             - PSAL # salinity
