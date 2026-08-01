@@ -44,7 +44,7 @@
 | icenet\_mp/data\_processors/sources/argo.py                     |       89 |       12 |     87% |60-61, 105-106, 137-142, 234-240 |
 | icenet\_mp/data\_processors/sources/ftp.py                      |       43 |        0 |    100% |           |
 | icenet\_mp/data\_processors/sources/lazy\_argopy.py             |       13 |        2 |     85% |     29-30 |
-| icenet\_mp/data\_processors/sources/synthetic.py                |       26 |       10 |     62% |33-41, 49-87 |
+| icenet\_mp/data\_processors/sources/synthetic.py                |       27 |       10 |     63% |33-42, 50-88 |
 | icenet\_mp/exceptions.py                                        |        3 |        0 |    100% |           |
 | icenet\_mp/geotools/\_\_init\_\_.py                             |       10 |        0 |    100% |           |
 | icenet\_mp/geotools/geographic\_field.py                        |       37 |       16 |     57% |22, 31, 40, 47, 60-71 |
@@ -125,7 +125,7 @@
 | icenet\_mp/synthetic/\_\_init\_\_.py                            |        2 |        0 |    100% |           |
 | icenet\_mp/synthetic/debug\_video.py                            |       47 |       47 |      0% |     9-122 |
 | icenet\_mp/synthetic/shapes.py                                  |       81 |        0 |    100% |           |
-| icenet\_mp/synthetic/trajectories.py                            |       75 |        7 |     91% |   178-189 |
+| icenet\_mp/synthetic/trajectories.py                            |       77 |        9 |     88% |180-191, 207-211 |
 | icenet\_mp/types/\_\_init\_\_.py                                |        6 |        0 |    100% |           |
 | icenet\_mp/types/complex\_datatypes.py                          |       76 |        9 |     88% |63-64, 74, 163-169 |
 | icenet\_mp/types/enums.py                                       |       20 |        1 |     95% |        31 |
@@ -144,7 +144,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **5411** | **1577** | **71%** |           |
+| **TOTAL**                                                       | **5414** | **1579** | **71%** |           |
 
 
 ## Setup coverage badge
