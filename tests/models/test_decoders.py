@@ -9,6 +9,7 @@ from torch import nn
 from icenet_mp.models.decoders import (
     BaseDecoder,
     CNNDecoder,
+    DeepCompressionDecoder,
     NaiveLinearDecoder,
     PiecewiseDecoder,
 )
@@ -358,6 +359,68 @@ class TestDecoderSkipConnection:
         decoder = self._decoder("additive")
         with pytest.raises(ValueError, match="no persistence input was provided"):
             decoder.rollout(self._latent(), None)
+
+
+class TestDeepCompressionDecoder:
+    @pytest.mark.parametrize("pixel_shuffle", [True, False])
+    @pytest.mark.parametrize(
+        ("patch_size", "stride", "hid_channels"),
+        [
+            (1, 2, (16, 8, 4)),
+            (2, 2, (16, 8, 4)),
+            (1, 3, (8, 4)),
+            (2, 1, (4,)),
+        ],
+    )
+    @pytest.mark.parametrize("latent_hw", [(4, 4), (2, 6), (5, 3)])
+    def test_forward_shape(
+        self,
+        *,
+        pixel_shuffle: bool,
+        patch_size: int,
+        stride: int,
+        hid_channels: tuple[int, ...],
+        latent_hw: tuple[int, int],
+    ) -> None:
+        hid_blocks = [1] * len(hid_channels)
+        spatial_factor = patch_size * stride ** (len(hid_channels) - 1)
+        latent_space = DataSpace(name="latent", channels=16, shape=latent_hw)
+        output_space = DataSpace(
+            name="output",
+            channels=2,
+            shape=(spatial_factor * latent_hw[0], spatial_factor * latent_hw[1]),
+        )
+
+        decoder = DeepCompressionDecoder(
+            data_space_in=latent_space,
+            data_space_out=output_space,
+            hid_channels=hid_channels,
+            hid_blocks=hid_blocks,
+            patch_size=patch_size,
+            pixel_shuffle=pixel_shuffle,
+            stride=stride,
+        )
+        result = decoder.rollout(torch.randn(2, 3, *latent_space.chw))
+        assert result.shape == (2, 3, *output_space.chw)
+
+    def test_shape_mismatch_raises(self) -> None:
+        stride = 2
+        hid_channels = [16, 8, 4]
+        hid_blocks = [1, 1, 1]
+        spatial_factor = stride ** (len(hid_channels) - 1)
+        latent_space = DataSpace(name="latent", channels=16, shape=(4, 4))
+        output_hw = spatial_factor * 4
+        output_space = DataSpace(
+            name="output", channels=2, shape=(output_hw, output_hw + stride)
+        )
+        with pytest.raises(ValueError, match="will decode latents of shape"):
+            DeepCompressionDecoder(
+                data_space_in=latent_space,
+                data_space_out=output_space,
+                hid_channels=hid_channels,
+                hid_blocks=hid_blocks,
+                stride=stride,
+            )
 
 
 class TestPiecewiseDecoder:

@@ -35,7 +35,7 @@ class TestHydraConfigLoading:
     def test_model_group_overridden_by_sample(self) -> None:
         # sample.yaml uses `override /model: quick_test`, replacing the base default
         cfg = self.load_config()
-        assert cfg.model.name == "quick_test"
+        assert cfg.model.name == "quick-test"
         assert cfg.model._target_ == "icenet_mp.models.EncodeProcessDecode"
 
     def test_loss_defaults_resolved_from_base(self) -> None:

@@ -29,7 +29,7 @@ from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
 class BaseModel(LightningModule, ABC):
     """A base class for all models used in the IceNet-MP project."""
 
-    # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
+    # Parameters that should be excluded from hyperparameter logging
     ignored_hparams: ClassVar[frozenset[str]] = frozenset(
         ("latitudes_fn", "longitudes_fn")
     )

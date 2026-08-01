@@ -78,13 +78,13 @@ def mock_data_downloader(tmp_path: Path) -> DataDownloader:
 @pytest.fixture
 def mock_data_downloader_ssmis(tmp_path: Path) -> DataDownloader:
     """A DataDownloader for an SSMIS dataset, used to test mask generation."""
-    return _make_data_downloader(tmp_path, "sic-ssmis")
+    return _make_data_downloader(tmp_path, "samp-sic-ssmis")
 
 
 @pytest.fixture
 def mock_data_downloader_synthetic(tmp_path: Path) -> DataDownloader:
     """A DataDownloader for synthetic data, used to test dummy mask generation."""
-    return _make_data_downloader(tmp_path, "synthetic-sic")
+    return _make_data_downloader(tmp_path, "samp-synthetic-sic")
 
 
 @pytest.fixture
