@@ -54,11 +54,14 @@ class MultiTrajectoryDataset:
 
 
 def daily_dates(
-    n_timesteps: int,
-    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
+    start_date: datetime.datetime,
+    end_date: datetime.datetime,
 ) -> list[datetime.datetime]:
-    """Return `n_timesteps` consecutive daily dates starting at `start_date`."""
-    return [start_date + datetime.timedelta(days=step) for step in range(n_timesteps)]
+    """Return consecutive daily dates between `start_date` and `end_date`."""
+    return [
+        start_date + datetime.timedelta(days=step)
+        for step in range((end_date - start_date).days + 1)
+    ]
 
 
 def default_trajectory_configs(
@@ -170,64 +173,64 @@ def generate_default_dataset(
     *,
     dynamics: str,
     grid_size: int,
-    n_trajectories: int,
-    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
+    start_dates: Sequence[datetime.datetime],
 ) -> MultiTrajectoryDataset:
     """Generate the standard multi-trajectory dataset for the requested dynamics."""
     trajectories: tuple[TrajectoryConfig, ...]
     if dynamics == "moving":
         trajectories = default_trajectory_configs(
-            height=grid_size, width=grid_size, n_trajectories=n_trajectories
+            height=grid_size, width=grid_size, n_trajectories=len(start_dates)
         )
     elif dynamics == "grow-shrink":
         trajectories = default_grow_shrink_configs(
-            height=grid_size, width=grid_size, n_trajectories=n_trajectories
+            height=grid_size, width=grid_size, n_trajectories=len(start_dates)
         )
     else:
         msg = f"Unknown dynamics {dynamics!r}; expected 'moving' or 'grow-shrink'."
         raise ValueError(msg)
-    return generate_multi_trajectory_dataset(trajectories, start_date=start_date)
+    return generate_multi_trajectory_dataset(trajectories, start_dates)
 
 
 def generate_multi_trajectory_dataset(
     trajectories: Sequence[TrajectoryConfig],
-    *,
-    gap_days: int = 2,
-    start_date: datetime.datetime = datetime.datetime(2020, 1, 1),  # noqa: DTZ001
+    start_dates: Sequence[datetime.datetime],
 ) -> MultiTrajectoryDataset:
     """Concatenate independent trajectories end-to-end, with gap days between them."""
     frame_chunks: list[ArrayTHW] = []
     spans: list[TrajectorySpan] = []
     missing_dates: list[datetime.datetime] = []
 
-    n_total = sum(t.n_timesteps for t in trajectories) + gap_days * (
-        len(trajectories) - 1
-    )
-    all_dates = daily_dates(n_total, start_date)
-
-    cursor = 0
-    for index, traj_config in enumerate(trajectories):
-        frame_chunks.append(generate_frames(traj_config))
-        spans.append(
-            TrajectorySpan(
-                start_date=all_dates[cursor],
-                end_date=all_dates[cursor + traj_config.n_timesteps - 1],
+    cursor: datetime.datetime | None = None
+    for trajectory, start_date in zip(trajectories, start_dates, strict=True):
+        if cursor is not None:
+            gap_dates = daily_dates(
+                cursor + datetime.timedelta(days=1),
+                start_date - datetime.timedelta(days=1),
             )
-        )
-        cursor += traj_config.n_timesteps
-
-        if index < len(trajectories) - 1:
-            missing_dates.extend(all_dates[cursor : cursor + gap_days])
+            missing_dates.extend(gap_dates)
             frame_chunks.append(
                 np.zeros(
-                    (gap_days, traj_config.height, traj_config.width), dtype=np.float32
+                    (len(gap_dates), trajectory.height, trajectory.width),
+                    dtype=np.float32,
                 )
             )
-            cursor += gap_days
+
+        frame_chunks.append(generate_frames(trajectory))
+        end_date = start_date + datetime.timedelta(days=trajectory.n_timesteps - 1)
+        spans.append(
+            TrajectorySpan(
+                start_date=start_date,
+                end_date=end_date,
+            )
+        )
+        cursor = spans[-1].end_date
 
     return MultiTrajectoryDataset(
         frames=np.concatenate(frame_chunks, axis=0),
-        dates=all_dates,
+        dates=daily_dates(
+            min(span.start_date for span in spans),
+            max(span.end_date for span in spans),
+        ),
         missing_dates=missing_dates,
         spans=spans,
     )

@@ -92,31 +92,62 @@ class TestMultiTrajectoryDataset:
 
     def test_total_length_and_spans(self) -> None:
         """Total days = sum of trajectory lengths + gap days between each pair."""
-        configs = default_trajectory_configs(n_trajectories=4, n_timesteps=10)
         gap = 2
-        dataset = generate_multi_trajectory_dataset(configs, gap_days=gap)
-        expected_days = 4 * 10 + gap * (4 - 1)
+        n_timesteps = 10
+        n_trajectories = 4
+        configs = default_trajectory_configs(
+            n_trajectories=n_trajectories, n_timesteps=n_timesteps
+        )
+        start_dates = [
+            datetime.datetime(2021, 1, 1)
+            + datetime.timedelta(days=idx * (n_timesteps + gap))
+            for idx in range(n_trajectories)
+        ]
+        dataset = generate_multi_trajectory_dataset(configs, start_dates)
+        expected_days = n_trajectories * n_timesteps + gap * (n_trajectories - 1)
         assert dataset.frames.shape[0] == expected_days
         assert len(dataset.dates) == expected_days
-        assert len(dataset.spans) == 4
-        assert len(dataset.missing_dates) == gap * (4 - 1)
+        assert len(dataset.spans) == n_trajectories
+        assert len(dataset.missing_dates) == gap * (n_trajectories - 1)
 
     def test_missing_dates_are_the_gaps(self) -> None:
         """Gap days are marked missing and fall between (not inside) trajectories."""
-        configs = default_trajectory_configs(n_trajectories=3, n_timesteps=8)
-        dataset = generate_multi_trajectory_dataset(configs, gap_days=2)
+        gap = 2
+        n_timesteps = 8
+        n_trajectories = 3
+        configs = default_trajectory_configs(
+            n_trajectories=n_trajectories, n_timesteps=n_timesteps
+        )
+        start_dates = [
+            datetime.datetime(2021, 1, 1)
+            + datetime.timedelta(days=idx * (n_timesteps + gap))
+            for idx in range(n_trajectories)
+        ]
+        dataset = generate_multi_trajectory_dataset(configs, start_dates)
         span_days = {
             span.start_date + datetime.timedelta(days=offset)
             for span in dataset.spans
-            for offset in range(8)
+            for offset in range(n_timesteps)
         }
         assert not span_days.intersection(dataset.missing_dates)
 
     def test_works_for_grow_shrink(self) -> None:
         """The same stitching works for grow-shrink trajectories."""
+        gap = 2
+        n_timesteps = 8
+        n_trajectories = 3
         configs = default_grow_shrink_configs(
-            height=48, width=48, n_trajectories=3, n_timesteps=12
+            height=48, width=48, n_trajectories=n_trajectories, n_timesteps=n_timesteps
         )
-        dataset = generate_multi_trajectory_dataset(configs, gap_days=2)
-        assert dataset.frames.shape == (3 * 12 + 2 * 2, 48, 48)
-        assert len(dataset.spans) == 3
+        start_dates = [
+            datetime.datetime(2021, 1, 1)
+            + datetime.timedelta(days=idx * (n_timesteps + gap))
+            for idx in range(n_trajectories)
+        ]
+        dataset = generate_multi_trajectory_dataset(configs, start_dates)
+        assert dataset.frames.shape == (
+            n_trajectories * n_timesteps + (n_trajectories - 1) * gap,
+            48,
+            48,
+        )
+        assert len(dataset.spans) == n_trajectories
