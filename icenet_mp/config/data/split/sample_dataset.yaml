@@ -9,7 +9,9 @@ predict:
 # Data from 2024 (2 months) [strict subset of full]
 test:
   - start: 2024-01-01
-    end: 2024-02-29
+    end: 2024-01-31
+  - start: 2024-07-01
+    end: 2024-07-31
 
 # This data is used for training the model
 # Data from 2020-2021 (24 months) [strict subset of full]
