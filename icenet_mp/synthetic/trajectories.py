@@ -200,11 +200,17 @@ def generate_multi_trajectory_dataset(
     spans: list[TrajectorySpan] = []
     missing_dates: list[datetime.datetime] = []
 
-    cursor: datetime.datetime | None = None
+    last_end_date: datetime.datetime | None = None
     for trajectory, start_date in zip(trajectories, start_dates, strict=True):
-        if cursor is not None:
+        if last_end_date is not None:
+            if start_date <= last_end_date:
+                msg = (
+                    f"start_dates must be strictly increasing, but {start_date} "
+                    f"follows {last_end_date}"
+                )
+                raise ValueError(msg)
             gap_dates = daily_dates(
-                cursor + datetime.timedelta(days=1),
+                last_end_date + datetime.timedelta(days=1),
                 start_date - datetime.timedelta(days=1),
             )
             missing_dates.extend(gap_dates)
@@ -223,7 +229,7 @@ def generate_multi_trajectory_dataset(
                 end_date=end_date,
             )
         )
-        cursor = spans[-1].end_date
+        last_end_date = spans[-1].end_date
 
     return MultiTrajectoryDataset(
         frames=np.concatenate(frame_chunks, axis=0),
