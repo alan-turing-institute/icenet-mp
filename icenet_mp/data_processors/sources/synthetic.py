@@ -1,5 +1,6 @@
 """Anemoi source for deterministic synthetic sea-ice trajectories."""
 
+from collections.abc import Sequence
 from datetime import datetime
 
 import numpy as np
@@ -25,8 +26,7 @@ class SyntheticSource(Source):
         *,
         dynamics: str,
         grid_size: int,
-        n_trajectories: int,
-        start_date: str,
+        trajectory_start_dates: Sequence[str],
         variable_name: str = "ice_conc",
     ) -> None:
         """Configure a synthetic dataset source."""
@@ -35,8 +35,9 @@ class SyntheticSource(Source):
         self.dataset = generate_default_dataset(
             dynamics=dynamics,
             grid_size=grid_size,
-            n_trajectories=n_trajectories,
-            start_date=datetime.fromisoformat(start_date),
+            start_dates=(
+                [datetime.fromisoformat(date) for date in trajectory_start_dates]
+            ),
         )
         self.frames_by_date = {
             date.date(): frame

@@ -1,5 +1,5 @@
 defaults:
   - datasets:
-    - samp_sicglobal_synthetic_5p625_2022_2022_24h_v1
+    - samp_sicglobal_synthetic_5p625_2021_2024_24h_v2
   - split: synthetic
   - _self_
