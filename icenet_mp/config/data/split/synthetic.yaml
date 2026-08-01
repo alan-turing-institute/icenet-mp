@@ -1,6 +1,11 @@
 # The first six trajectories train; the final two are held out for validation and test.
 batch_size: 4
 
+# Holdout set is not applicable for synthetic data
+predict:
+  - start: null
+    end: null
+
 # Synthetic data for 2024 [strict subset of full]
 test:
   - start: 2024-01-01

@@ -1,6 +1,6 @@
 batch_size: 2
 
-# This data is a holdout set not to be used until we are ready to produce final outputs (e.g. a paper)
+# Holdout set is not applicable for sample data
 predict:
   - start: null
     end: null
