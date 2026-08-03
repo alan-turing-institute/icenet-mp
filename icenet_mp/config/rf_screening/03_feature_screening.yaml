@@ -1,7 +1,7 @@
 # @package _global_
 # Opt-in advisory feature screening. RF skill is context, not an importance gate.
 defaults:
-  - /baseline/05_feature_evidence_suite
+  - /rf_screening/02_feature_evidence_suite
   - _self_
 
 rf:

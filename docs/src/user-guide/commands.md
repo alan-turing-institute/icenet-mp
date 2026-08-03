@@ -96,7 +96,7 @@ valid-ocean locations stratified by the latest historical SIC map, then fits a
 separate temporally validated model for each forecast lead:
 
 ```bash
-uv run imp rf --config-name baseline/04_spatial_rf_screening
+uv run imp rf --config-name rf_screening/01_spatial_rf_screening
 ```
 
 Results are written to `outputs/rf/` by default. For every lead, compare the RF

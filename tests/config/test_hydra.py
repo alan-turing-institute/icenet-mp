@@ -61,7 +61,7 @@ class TestHydraConfigLoading:
 
     def test_isolated_checkpoint_evaluation_requires_named_local_run(self) -> None:
         cfg = self.load_config(
-            config_name="evaluation/isolated_checkpoint",
+            config_name="isolated_checkpoint_evaluation",
             overrides=["evaluation.run_name=checkpoint-a"],
         )
 
@@ -71,8 +71,8 @@ class TestHydraConfigLoading:
 
     def test_feature_screening_policy_is_opt_in(self) -> None:
         """The screening baseline retains importance without changing older baselines."""
-        existing = self.load_config(config_name="baseline/05_feature_evidence_suite")
-        screening = self.load_config(config_name="baseline/06_feature_screening")
+        existing = self.load_config(config_name="rf_screening/02_feature_evidence_suite")
+        screening = self.load_config(config_name="rf_screening/03_feature_screening")
 
         assert existing.rf.get("importance_policy", "qualified") == "qualified"
         assert screening.rf.importance_policy == "always"
@@ -80,9 +80,9 @@ class TestHydraConfigLoading:
 
     def test_feature_screening_backend_selection_is_opt_in(self) -> None:
         """Default backend is RandomForest; HistGradientBoosting is opt-in via a new baseline."""
-        existing = self.load_config(config_name="baseline/06_feature_screening")
+        existing = self.load_config(config_name="rf_screening/03_feature_screening")
         hgb = self.load_config(
-            config_name="baseline/07_feature_screening_hist_gradient_boosting"
+            config_name="rf_screening/04_feature_screening_hist_gradient_boosting"
         )
 
         assert existing.rf.backend == "random_forest"

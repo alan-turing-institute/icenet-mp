@@ -3,7 +3,7 @@
 # HistGradientBoostingRegressor as the regressor backend while retaining every
 # other setting from the existing feature-screening baseline.
 defaults:
-  - /baseline/06_feature_screening
+  - /rf_screening/03_feature_screening
   - _self_
 
 rf:
