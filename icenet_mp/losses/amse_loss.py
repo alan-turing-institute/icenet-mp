@@ -93,6 +93,7 @@ class AMSELoss(nn.Module):
 
     def __init__(  # noqa: PLR0913 - flat config-driven knobs, all defaulted
         self,
+        *,
         mode: AMSEMode = "hybrid",
         spectral_weight: float = 0.1,
         delta: float = 0.5,
