@@ -67,6 +67,37 @@ class BaseDecoder(nn.Module):
             else None
         )
 
+    def finalise(self, x: TensorNCHW, persistence: TensorNCHW | None) -> TensorNCHW:
+        """Apply shared output steps: range restriction, skip connection, and masking.
+
+        Range restriction (none/sigmoid/tanh/clamp) must be applied first, so that all
+        cells are at the same scale as the persistence and the mask. Without this, some
+        masking methods would convert zeros into non-zero values (e.g. sigmoid(0)=0.5).
+
+        This function is called once by `rollout` after the per-frame `forward`, so
+        every decoder gets it automatically without having to call it themselves.
+
+        RangeRestriction choices are: none/sigmoid/tanh/clamp
+        """
+        # Apply range restriction to bring the output into the required range
+        bounded: TensorNCHW = self.restrict(x)
+
+        if self.skip_connection:
+            if persistence is None:
+                msg = (
+                    f"Decoder has skip_connection={self.skip_connection.method.value} "
+                    "but no persistence input was provided."
+                )
+                raise ValueError(msg)
+            # Combine the bounded output with the persistence input via skip connection,
+            # then clamp before applying the mask to avoid out-of-bounds values.
+            bounded = self.skip_connection(bounded, persistence).clamp(0, 1)
+
+        # Mask the output to zero out inactive/land cells. This must be applied after
+        # range restriction so that masked cells are exactly 0. If range restriction
+        # followed masking then e.g. sigmoid would give these cells non-zero values.
+        return self.mask(bounded)
+
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: decode latent space into output space for a single timestep.
 
@@ -103,32 +134,18 @@ class BaseDecoder(nn.Module):
         # make the decoder more generic by simply reading the number of timeslices from
         # the input.
         batch_size, n_timeslices = x.shape[0], x.shape[1]
+
         # Pass the latents through the decoder to return to output space
         unbounded_output_nchw: TensorNCHW = self(x.reshape(-1, *self.data_space_in.chw))
-        # Apply range restriction to bring the output into the required range
-        bounded_output_nchw: TensorNCHW = self.restrict(unbounded_output_nchw)
 
-        if self.skip_connection:
-            if persistence is None:
-                msg = (
-                    f"Decoder has skip_connection={self.skip_connection.method.value} "
-                    "but no persistence input was provided."
-                )
-                raise ValueError(msg)
-            # Repeat the persistence timeslice until we match the decoder output shape
-            persistence_nchw = persistence.expand(-1, n_timeslices, -1, -1, -1).reshape(
+        # Repeat the persistence timeslice until we match the decoder output shape
+        if persistence is not None:
+            persistence = persistence.expand(-1, n_timeslices, -1, -1, -1).reshape(
                 *unbounded_output_nchw.shape
             )
-            # Combine the bounded output with the persistence input via skip connection,
-            # then clamp before applying the mask to avoid out-of-bounds values.
-            bounded_output_nchw = self.skip_connection(
-                bounded_output_nchw, persistence_nchw
-            ).clamp(0, 1)
 
-        # Mask the output to zero out inactive/land cells. This must be applied after
-        # range restriction so that masked cells are exactly 0. If range restriction
-        # followed masking then e.g. sigmoid would give these cells non-zero values.
-        output: TensorNCHW = self.mask(bounded_output_nchw)
+        # Apply the shared finalisation steps (range restriction, skip connection, masking)
+        output = self.finalise(unbounded_output_nchw, persistence)
 
         # Reshape back to [batch, n_timeslices, C_out, H_out, W_out]
         return output.reshape(batch_size, n_timeslices, *self.data_space_out.chw)
