@@ -139,7 +139,7 @@ class TestDecoderBounded:
 
 
 class TestDecoderMask:
-    """The active grid cell mask, applied via BaseDecoder.mask() in rollout()."""
+    """The active grid cell mask, applied via BaseDecoder.finalise()."""
 
     @staticmethod
     def _spaces() -> tuple[DataSpace, DataSpace]:
@@ -227,8 +227,8 @@ class TestDecoderMask:
             data_space_in=latent_space,
             data_space_out=output_space,
         )
-        # No mask requested: no dummy buffer is created and decoder.mask() skips the
-        # multiply entirely (rather than doing an identity product with ones).
+        # No mask requested: no dummy buffer is created and masking skips the multiply
+        # entirely (rather than doing an identity product with ones).
         assert not hasattr(decoder.mask, "mask")
 
     def test_use_mask_with_bounded_keeps_masked_cells_exactly_zero(
@@ -257,15 +257,15 @@ class TestDecoderMask:
         active = out[..., 8:, :]
         assert torch.all((active >= 0) & (active <= 1)).item()
 
-    def test_restrict_then_mask_is_identity_when_both_off(self) -> None:
-        """Backward compatibility: with both off, restrict+mask must not touch the tensor."""
+    def test_finalise_is_identity_when_mask_skip_and_bound_off(self) -> None:
+        """Finalise makes no changes when masking/skip connection/bounding are off."""
         latent_space, output_space = self._spaces()
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
             data_space_out=output_space,
         )
         x = torch.randn(2, output_space.channels, *output_space.shape)
-        assert torch.equal(decoder.mask(decoder.restrict(x)), x)
+        assert torch.equal(decoder.finalise(x, None), x)
 
 
 class TestDecoderSkipConnection:
