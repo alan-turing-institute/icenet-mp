@@ -4,7 +4,6 @@ from .enums import (
     MaskType,
     RangeRestriction,
     SkipConnectionType,
-    TensorDimensions,
 )
 from .protocols import SupportsMetadata
 from .simple_datatypes import (
@@ -61,7 +60,6 @@ __all__ = [
     "RangeRestriction",
     "SkipConnectionType",
     "SupportsMetadata",
-    "TensorDimensions",
     "TensorNCHW",
     "TensorNTCHW",
 ]
