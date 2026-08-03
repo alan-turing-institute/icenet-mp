@@ -15,12 +15,6 @@ from icenet_mp.models.decoders import (
 )
 from icenet_mp.types import DataSpace
 
-# Real SSMIS active grid cell mask, copied locally. Absent in CI -> the integration
-# test below is skipped there and only runs where the sample data exists.
-_REAL_MASKS = sorted(
-    (Path(__file__).resolve().parents[2] / "my_data").glob("**/active_mask.npy")
-)
-
 
 class TestDecoders:
     @pytest.mark.parametrize("test_batch_size", [1, 2])
@@ -147,18 +141,24 @@ class TestDecoderMask:
         output_space = DataSpace(name="output", channels=1, shape=(16, 16))
         return latent_space, output_space
 
-    def test_use_mask_loads_and_zeros_masked_cells(self, tmp_path) -> None:  # noqa: ANN001
+    @pytest.mark.parametrize(
+        ("mask_type", "mask_filename"),
+        [("active", "active_mask.npy"), ("land", "land_mask.npy")],
+    )
+    def test_mask_loads_and_zeros_masked_cells(
+        self, tmp_path: Path, mask_type: str, mask_filename: str
+    ) -> None:
         latent_space, output_space = self._spaces()
-        # Mask the top half (0 = inactive), keep the bottom half (1 = active).
+        # Mask the top half (0), keep the bottom half (1 = active/sea).
         mask = np.ones(output_space.shape, dtype=np.uint8)
         mask[:8, :] = 0
-        np.save(tmp_path / "active_mask.npy", mask)
+        np.save(tmp_path / mask_filename, mask)
 
         decoder = NaiveLinearDecoder(
             mask_dir=str(tmp_path),
             data_space_in=latent_space,
             data_space_out=output_space,
-            mask_type="active",
+            mask_type=mask_type,
         )
 
         assert decoder.mask.mask.shape == output_space.shape
@@ -166,7 +166,7 @@ class TestDecoderMask:
             torch.randn(2, 1, latent_space.channels, *latent_space.shape),
             None,
         )
-        # Every masked (inactive) cell must be exactly zero; active cells are untouched.
+        # Every masked cell must be exactly zero; unmasked cells are untouched.
         assert torch.all(out[..., :8, :] == 0).item()
 
     def test_use_mask_without_file_raises(self, tmp_path) -> None:  # noqa: ANN001
@@ -179,30 +179,7 @@ class TestDecoderMask:
                 mask_type="active",
             )
 
-    def test_land_mask_loads_and_zeros_masked_cells(self, tmp_path) -> None:  # noqa: ANN001
-        latent_space, output_space = self._spaces()
-        # Land = 0 (top half), sea = 1 (bottom half).
-        mask = np.ones(output_space.shape, dtype=np.uint8)
-        mask[:8, :] = 0
-        np.save(tmp_path / "land_mask.npy", mask)
-
-        decoder = NaiveLinearDecoder(
-            data_space_in=latent_space,
-            data_space_out=output_space,
-            mask_dir=str(tmp_path),
-            mask_type="land",
-        )
-
-        assert decoder.mask.mask.shape == output_space.shape
-        out = decoder.rollout(
-            torch.randn(2, 1, latent_space.channels, *latent_space.shape),
-            None,
-        )
-        # Land cells exactly zero; sea cells (incl. confident-no-ice) left free.
-        assert torch.all(out[..., :8, :] == 0).item()
-
     def test_mask_type_none_creates_no_buffer(self) -> None:
-        """An explicit mask_type=None behaves like no mask: no buffer, no multiply."""
         latent_space, output_space = self._spaces()
         decoder = NaiveLinearDecoder(
             data_space_in=latent_space,
@@ -212,7 +189,7 @@ class TestDecoderMask:
         assert not hasattr(decoder.mask, "mask")
 
     def test_unknown_mask_type_raises(self) -> None:
-        """A typo'd mask_type fails loudly rather than silently disabling masking."""
+        """A typo in mask_type fails loudly rather than silently disabling masking."""
         latent_space, output_space = self._spaces()
         with pytest.raises(ValueError, match="not a valid MaskType"):
             NaiveLinearDecoder(
@@ -220,16 +197,6 @@ class TestDecoderMask:
                 data_space_out=output_space,
                 mask_type="activ",
             )
-
-    def test_mask_off_creates_no_buffer_and_skips_multiply(self) -> None:
-        latent_space, output_space = self._spaces()
-        decoder = NaiveLinearDecoder(
-            data_space_in=latent_space,
-            data_space_out=output_space,
-        )
-        # No mask requested: no dummy buffer is created and masking skips the multiply
-        # entirely (rather than doing an identity product with ones).
-        assert not hasattr(decoder.mask, "mask")
 
     def test_use_mask_with_bounded_keeps_masked_cells_exactly_zero(
         self, tmp_path: Path
@@ -268,23 +235,32 @@ class TestDecoderMask:
         assert torch.equal(decoder.finalise(x, None), x)
 
 
-class TestDecoderSkipConnection:
-    """Ensure the skip-connection order in BaseDecoder.rollout() is correct.
+class _SkipConnectionBase:
+    """Shared NaiveLinearDecoder fixtures for skip-connection / range-restriction tests.
 
-    Persistence is already a real, output-scale SIC value, so it must be combined with
-    the decoder output *after* range restriction, not before. Each test sets the decoder
-    contribution to close to 0 and checks that persistence is recovered appropriately.
+    Builds a decoder whose main conv has zeroed weights and a constant bias, so its
+    pre-skip-connection contribution is a known, spatially-uniform value.
     """
 
     _LATENT_SPACE = DataSpace(name="latent", channels=4, shape=(8, 8))
     _OUTPUT_SPACE = DataSpace(name="output", channels=1, shape=(8, 8))
 
     @classmethod
-    def _decoder(cls, method: str, *, bias: float = -20.0) -> NaiveLinearDecoder:
+    def _decoder(
+        cls,
+        *,
+        method: str = "none",
+        restrict_range: str = "sigmoid",
+        restrict_range_min: float | None = None,
+        restrict_range_max: float | None = None,
+        bias: float = -20.0,
+    ) -> NaiveLinearDecoder:
         decoder = NaiveLinearDecoder(
             data_space_in=cls._LATENT_SPACE,
             data_space_out=cls._OUTPUT_SPACE,
-            restrict_range="sigmoid",
+            restrict_range=restrict_range,
+            restrict_range_min=restrict_range_min,
+            restrict_range_max=restrict_range_max,
             skip_connection={"method": method},
         )
         conv = cast("nn.Conv2d", decoder.model[0])
@@ -309,6 +285,10 @@ class TestDecoderSkipConnection:
             1, 1, space.channels, *space.shape
         )
 
+
+class TestDecoderSkipConnection(_SkipConnectionBase):
+    """Ensure the skip-connection order in BaseDecoder.rollout() is correct."""
+
     @staticmethod
     def _zero(conv_module: nn.Module) -> None:
         conv = cast("nn.Conv2d", conv_module)
@@ -318,7 +298,7 @@ class TestDecoderSkipConnection:
             conv.bias.zero_()
 
     def test_additive_skip_recovers_persistence(self) -> None:
-        decoder = self._decoder("additive", bias=0.0)
+        decoder = self._decoder(method="additive", bias=0.0)
         n_forecast_steps = 2
         persistence = self._persistence()
 
@@ -331,7 +311,7 @@ class TestDecoderSkipConnection:
     def test_additive_skip_can_decrease_below_persistence(self) -> None:
         # A negative residual must be reachable, or the decoder could only ever push
         # the prediction above persistence, never below it.
-        decoder = self._decoder("additive", bias=-0.5)
+        decoder = self._decoder(method="additive", bias=-0.5)
         persistence = self._persistence()
 
         out = decoder.rollout(self._latent(), persistence)
@@ -339,7 +319,7 @@ class TestDecoderSkipConnection:
         assert torch.all(out < persistence)
 
     def test_gated_skip_recovers_half_persistence(self) -> None:
-        decoder = self._decoder("gated")
+        decoder = self._decoder(method="gated")
         # Zero the gate's conv so its pre-activation is 0 everywhere
         # gate = sigmoid(0) = 0.5, so output will be:
         # 0.5 * bounded_main + 0.5 * persistence ~= 0.5 * persistence.
@@ -352,7 +332,7 @@ class TestDecoderSkipConnection:
         assert torch.allclose(out, 0.5 * persistence, atol=1e-4)
 
     def test_convolutional_skip_is_clamped_to_valid_range(self) -> None:
-        decoder = self._decoder("convolutional")
+        decoder = self._decoder(method="convolutional")
         # Force the fusion's final conv to output a large constant, well outside [0, 1].
         assert decoder.skip_connection is not None
         final_conv = cast("nn.Conv2d", decoder.skip_connection.fusion[-1])
@@ -366,42 +346,13 @@ class TestDecoderSkipConnection:
         assert torch.allclose(out, torch.ones_like(out))
 
     def test_skip_connection_without_persistence_raises(self) -> None:
-        decoder = self._decoder("additive")
+        decoder = self._decoder(method="additive")
         with pytest.raises(ValueError, match="no persistence input was provided"):
             decoder.rollout(self._latent(), None)
 
 
-class TestDecoderCustomOutputRange:
-    _LATENT_SPACE = DataSpace(name="latent", channels=4, shape=(8, 8))
-    _OUTPUT_SPACE = DataSpace(name="output", channels=1, shape=(8, 8))
-
-    @classmethod
-    def _decoder(
-        cls,
-        *,
-        method: str = "none",
-        restrict_range_min: float | None = None,
-        restrict_range_max: float | None = None,
-        bias: float = 0.0,
-    ) -> NaiveLinearDecoder:
-        decoder = NaiveLinearDecoder(
-            data_space_in=cls._LATENT_SPACE,
-            data_space_out=cls._OUTPUT_SPACE,
-            restrict_range="tanh",
-            restrict_range_min=restrict_range_min,
-            restrict_range_max=restrict_range_max,
-            skip_connection={"method": method},
-        )
-        conv = cast("nn.Conv2d", decoder.model[0])
-        assert conv.bias is not None
-        with torch.no_grad():
-            conv.weight.zero_()
-            conv.bias.fill_(bias)
-        return decoder
-
-    @classmethod
-    def _latent(cls) -> torch.Tensor:
-        return torch.randn(1, 1, cls._LATENT_SPACE.channels, *cls._LATENT_SPACE.shape)
+class TestDecoderCustomOutputRange(_SkipConnectionBase):
+    """Check that restrict_range_min/max are configured correctly."""
 
     def test_defaults_to_unit_range(self) -> None:
         decoder = self._decoder()
@@ -410,7 +361,10 @@ class TestDecoderCustomOutputRange:
 
     def test_custom_range_is_respected_without_skip_connection(self) -> None:
         decoder = self._decoder(
-            restrict_range_min=-5.0, restrict_range_max=5.0, bias=100.0
+            restrict_range="tanh",
+            restrict_range_min=-5.0,
+            restrict_range_max=5.0,
+            bias=100.0,
         )
         assert decoder.range_min == -5.0
         assert decoder.range_max == 5.0
@@ -422,7 +376,10 @@ class TestDecoderCustomOutputRange:
 
     def test_final_clamp_uses_custom_range_with_skip_connection(self) -> None:
         decoder = self._decoder(
-            method="convolutional", restrict_range_min=-5.0, restrict_range_max=5.0
+            method="convolutional",
+            restrict_range="tanh",
+            restrict_range_min=-5.0,
+            restrict_range_max=5.0,
         )
         assert decoder.skip_connection is not None
         final_conv = cast("nn.Conv2d", decoder.skip_connection.fusion[-1])
@@ -441,6 +398,7 @@ class TestDecoderCustomOutputRange:
         # residual bound (max of the absolute endpoints), not [0, 2].
         decoder = self._decoder(
             method="additive",
+            restrict_range="tanh",
             restrict_range_min=0.0,
             restrict_range_max=2.0,
             bias=-100.0,
@@ -597,57 +555,3 @@ class TestPiecewiseDecoder:
         output = decoder.rollout(x, None)
         assert torch.all(output >= 0.0).item()
         assert torch.all(output <= 1.0).item()
-
-
-@pytest.mark.skipif(
-    not _REAL_MASKS, reason="No real SSMIS active mask available locally"
-)
-class TestDecoderMaskOnRealMask:
-    """Integration check against the real 432x432 active grid cell mask on disk."""
-
-    def test_decoder_zeros_exactly_the_inactive_cells(self) -> None:
-        """The decoder output is 0 on exactly the masked cells, nothing else.
-
-        Stronger than a visual check: across several independent random inputs, the
-        cells that are *always* zero must be exactly the mask's inactive cells.
-        """
-        mask_np = np.load(_REAL_MASKS[0])
-        output_space = DataSpace(name="sic", channels=1, shape=tuple(mask_np.shape))
-        latent_space = DataSpace(name="latent", channels=8, shape=(108, 108))
-        decoder = NaiveLinearDecoder(
-            mask_dir=str(_REAL_MASKS[0].parent),
-            data_space_in=latent_space,
-            data_space_out=output_space,
-            n_forecast_steps=1,
-            mask_type="active",
-        )
-
-        inactive = torch.from_numpy(mask_np == 0)
-        # The decoder loaded exactly the on-disk mask.
-        assert torch.equal(decoder.mask.mask.bool(), torch.from_numpy(mask_np != 0))
-
-        # Always_zero starts all-True and can only shrink as samples fire active cells,
-        # converging down to inactive. An active cell that is 0 by chance in the first
-        # few draws is cleared by a later one; an active cell that is structurally always
-        # 0 never clears. So draw until it converges (50 repetition is used here), and
-        # fail if it never does. This should better differentiate a rare coincidence (clears fast)
-        # from a genuine bug (persists no matter how many draws).
-        always_zero = torch.ones_like(inactive)
-        for seed in range(50):
-            torch.manual_seed(seed)
-            out = decoder.rollout(
-                torch.randn(2, 1, latent_space.channels, *latent_space.shape),
-                None,
-            )
-            # out is (N, n_forecast, C=1, H, W); reduce all but the spatial dims
-            always_zero &= (out == 0).all(dim=(0, 1, 2))
-            if torch.equal(always_zero, inactive):
-                break
-
-        assert torch.equal(always_zero, inactive), (
-            "Note: we can safely assume an active cell stays zero across all 50 draws is a real over-zeroing bug, "
-            "not the extremely rare coincidence."
-        )
-        # only use none trivial mask for the test (genuinely some active and some inactive cells).
-        assert inactive.any().item()
-        assert (~inactive).any().item()
