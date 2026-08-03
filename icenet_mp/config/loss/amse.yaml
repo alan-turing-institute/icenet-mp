@@ -35,3 +35,14 @@ spectral_weight: 0.1 # Weight of the spectral excess term in hybrid mode
 delta: 0.5 # Huber transition point for the hybrid base term (matches loss/huber.yaml)
 merge_bins_below: 4 # Annuli with rounded |k| <= this value share one bin
 eps: 1.0e-12 # Guard inside sqrt(P*T); keeps gradients finite for zero fields
+
+# Per-bin wavenumber upweighting of the spectral terms.
+#   null / "none" : unweighted annular sum (Subich reference) - DEFAULT, and
+#                   bit-for-bit identical to the loss before this option existed
+#   "fastnet"     : gamma_k = max(N_k * k^sqrt(3), 1) (FastNet, arXiv:2509.17601),
+#                   N_k = number of 2D-DFT modes in bin k. Rescaled by a detached
+#                   scalar so the batch total penalty is unchanged, i.e. the
+#                   penalty is REDISTRIBUTED towards fine scales at fixed
+#                   magnitude, keeping spectral_weight and the lr comparable
+#                   with the unweighted arm.
+wavenumber_weight: null
