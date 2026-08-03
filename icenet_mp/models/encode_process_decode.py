@@ -26,11 +26,23 @@ class EncodeProcessDecode(BaseModel):
         encoders: DictConfig,
         processor: DictConfig,
         decoder: DictConfig,
+        target_variable_indices: list[int],
         mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
         super().__init__(**kwargs)
+
+        # Check that the number of variable indices provided matches the number of
+        # channels in the output space.
+        if self.output_space.channels != len(target_variable_indices):
+            msg = (
+                f"output_space has {self.output_space.channels} channel(s) but "
+                f"target_variable_indices selects {len(target_variable_indices)}; "
+                f"check that predict.target.variables is set correctly."
+            )
+            raise ValueError(msg)
+        self.target_variable_indices = target_variable_indices
 
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
@@ -118,6 +130,7 @@ class EncodeProcessDecode(BaseModel):
         - concatenate inputs in [NTCHW] latent space [batch, n_history_steps, n_latent_channels_total, H_latent, W_latent]
         - process in latent space [NTCHW] [batch, n_forecast_steps, n_latent_channels_total, H_latent, W_latent]
         - decode back to [NTCHW] output space [batch, n_forecast_steps, n_output_channels, H_output, W_output]
+        - add a skip connection from the most recent target value to every forecast step
         """
         # Encode inputs into latent space: list of tensors with (batch_size, n_history_steps, n_latent_channels, latent_height, latent_width)
         latent_inputs: list[TensorNTCHW] = [
@@ -133,8 +146,17 @@ class EncodeProcessDecode(BaseModel):
             latent_input_combined
         ).prediction
 
+        # Add persistence skip connection if requested
+        persistence: TensorNTCHW | None = (
+            inputs[self.output_space.name][
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1)
+            if self.decoder.skip_connection
+            else None
+        )
+
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
-        output: TensorNTCHW = self.decoder.rollout(latent_output)
+        output: TensorNTCHW = self.decoder.rollout(latent_output, persistence)
 
         # Return
         return output
