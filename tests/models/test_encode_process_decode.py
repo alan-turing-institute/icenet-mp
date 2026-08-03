@@ -32,6 +32,7 @@ class TestEncodeProcessDecode:
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
             loss=cfg_loss,
+            target_variable_indices=[0],
         )
 
         assert model.name == "encode-null-decode"
@@ -70,6 +71,7 @@ class TestEncodeProcessDecode:
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
             loss=cfg_loss,
+            target_variable_indices=[0],
         )
         result: torch.Tensor = model(
             {
@@ -79,7 +81,14 @@ class TestEncodeProcessDecode:
                     cfg_input_space["channels"],
                     cfg_input_space["shape"][0],
                     cfg_input_space["shape"][1],
-                )
+                ),
+                cfg_output_space["name"]: torch.rand(
+                    test_batch_size,
+                    test_n_history_steps,
+                    cfg_output_space["channels"],
+                    cfg_output_space["shape"][0],
+                    cfg_output_space["shape"][1],
+                ),
             }
         )
         assert result.shape == (
