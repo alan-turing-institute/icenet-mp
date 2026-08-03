@@ -1,5 +1,5 @@
-full-sicsouth-osisaf-25k-1979-2024-24h-v1:
-  name: full-sicsouth-osisaf-25k-1979-2024-24h-v1
+full-sicsouth-icenet-25k-1979-2024-24h-v1:
+  name: full-sicsouth-icenet-25k-1979-2024-24h-v1
   group_as: sic-icenet
   description: OSISAF sea ice concentration for southern hemisphere
   attribution: EUMETSAT
