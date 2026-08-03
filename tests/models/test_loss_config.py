@@ -5,6 +5,7 @@ import torch
 from hydra.errors import InstantiationException
 from omegaconf import DictConfig, OmegaConf
 
+from icenet_mp.losses.amse_loss import AMSELoss
 from icenet_mp.losses.rmse_loss import RMSELoss
 from icenet_mp.models import BaseModel
 from icenet_mp.types import TensorNTCHW
@@ -27,6 +28,7 @@ LOSS_CONFIGS = {
     "huber": OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5}),
     "smooth_l1": OmegaConf.create({"_target_": "torch.nn.SmoothL1Loss", "beta": 0.5}),
     "rmse": OmegaConf.create({"_target_": "icenet_mp.losses.rmse_loss.RMSELoss"}),
+    "amse": OmegaConf.create({"_target_": "icenet_mp.losses.amse_loss.AMSELoss"}),
 }
 
 LOSS_TYPES = {
@@ -35,6 +37,7 @@ LOSS_TYPES = {
     "huber": torch.nn.HuberLoss,
     "smooth_l1": torch.nn.SmoothL1Loss,
     "rmse": RMSELoss,
+    "amse": AMSELoss,
 }
 
 
