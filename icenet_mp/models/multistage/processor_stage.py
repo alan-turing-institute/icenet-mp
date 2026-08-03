@@ -108,11 +108,15 @@ class ProcessorStage(BaseModel):
         """
         combined_latent: TensorNTCHW = self.encode_inputs(inputs)
         processed = self.processor.rollout(combined_latent).prediction
-        # Add persistence skip connection if requested
-        persistence: TensorNTCHW | None = inputs[self.output_space.name][
+        return self.decoder.rollout(processed, self.get_persistence(inputs))
+
+    def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
+        """Extract persistence if needed for a skip connection."""
+        if self.decoder.skip_connection:
+            return None
+        return inputs[self.output_space.name][
             :, -1, self.target_variable_indices, :, :
         ].unsqueeze(1)
-        return self.decoder.rollout(processed, persistence)
 
     @override
     def train(self, mode: bool = True) -> "ProcessorStage":
@@ -125,6 +129,7 @@ class ProcessorStage(BaseModel):
             self.decoder.eval()
         return self
 
+    @override
     def training_step(
         self,
         batch: dict[str, TensorNTCHW],
@@ -163,9 +168,7 @@ class ProcessorStage(BaseModel):
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
         # Add persistence skip connection if requested
-        persistence: TensorNTCHW | None = batch[self.output_space.name][
-            :, -1, self.target_variable_indices, :, :
-        ].unsqueeze(1)
+        persistence = self.get_persistence(batch)
 
         if processor_output.loss is None:
             # Standard path: compare decoded output to target.

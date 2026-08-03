@@ -400,7 +400,7 @@ class TestDeepCompressionDecoder:
             pixel_shuffle=pixel_shuffle,
             stride=stride,
         )
-        result = decoder.rollout(torch.randn(2, 3, *latent_space.chw))
+        result = decoder.rollout(torch.randn(2, 3, *latent_space.chw), None)
         assert result.shape == (2, 3, *output_space.chw)
 
     def test_shape_mismatch_raises(self) -> None:
