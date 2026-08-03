@@ -60,6 +60,7 @@ class ProcessorStage(BaseModel):
         self.decoder = copy.deepcopy(decoder_model.decoder)
         for param in self.decoder.parameters():
             param.requires_grad = False
+        self.target_variable_indices = decoder_model.target_variable_indices
 
         # Trainable processor
         self.processor: BaseProcessor = hydra.utils.instantiate(
@@ -102,7 +103,7 @@ class ProcessorStage(BaseModel):
         return torch.cat(latent_inputs, dim=2)
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Forward step of the model (used for inference and the standard decode path).
+        """Forward step of the model (used for inference).
 
         - encode each input with frozen encoder.rollout() -> NTCHW latents
         - concatenate latents along the channel dimension
@@ -110,7 +111,16 @@ class ProcessorStage(BaseModel):
         - decode with frozen decoder.rollout() -> output space NTCHW
         """
         combined_latent: TensorNTCHW = self.encode_inputs(inputs)
-        return self.decoder.rollout(self.processor.rollout(combined_latent).prediction)
+        processed = self.processor.rollout(combined_latent).prediction
+        return self.decoder.rollout(processed, self.get_persistence(inputs))
+
+    def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
+        """Extract persistence if needed for a skip connection."""
+        if self.decoder.skip_connection:
+            return None
+        return inputs[self.output_space.name][
+            :, -1, self.target_variable_indices, :, :
+        ].unsqueeze(1)
 
     @override
     def train(self, mode: bool = True) -> "ProcessorStage":
@@ -123,6 +133,7 @@ class ProcessorStage(BaseModel):
             self.decoder.eval()
         return self
 
+    @override
     def training_step(
         self,
         batch: dict[str, TensorNTCHW],
@@ -160,16 +171,21 @@ class ProcessorStage(BaseModel):
         target_latent = self.target_encoder.rollout(target)
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
+        # Add persistence skip connection if requested
+        persistence = self.get_persistence(batch)
+
         if processor_output.loss is None:
             # Standard path: compare decoded output to target.
-            prediction = self.decoder.rollout(processor_output.prediction)
+            prediction = self.decoder.rollout(processor_output.prediction, persistence)
             loss = self.loss(prediction, target)
         else:
             # Custom loss path: processor owns the training signal.
             # Decode under no_grad for metrics/callbacks only.
             loss = processor_output.loss
             with torch.no_grad():
-                prediction = self.decoder.rollout(processor_output.prediction)
+                prediction = self.decoder.rollout(
+                    processor_output.prediction, persistence
+                )
 
         # Log metrics; computation will be done at epoch end
         self.log(

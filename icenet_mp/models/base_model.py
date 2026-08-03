@@ -41,14 +41,14 @@ class BaseModel(LightningModule, ABC):
         input_spaces: list[DictConfig],
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        loss: DictConfig,
+        metrics: list[str] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
         optimizer: DictConfig,
         output_space: DictConfig,
         scheduler: DictConfig,
-        loss: DictConfig,
-        metrics: list[str] | None = None,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.

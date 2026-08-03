@@ -1,7 +1,15 @@
+from typing import Any
+
 from torch import nn
 
-from icenet_mp.models.common import Mask, RestrictRange
-from icenet_mp.types import DataSpace, RangeRestriction, TensorNCHW, TensorNTCHW
+from icenet_mp.models.common import Mask, RestrictRange, SkipConnection
+from icenet_mp.types import (
+    DataSpace,
+    RangeRestriction,
+    SkipConnectionType,
+    TensorNCHW,
+    TensorNTCHW,
+)
 
 
 class BaseDecoder(nn.Module):
@@ -14,14 +22,17 @@ class BaseDecoder(nn.Module):
         TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         data_space_in: DataSpace,
         data_space_out: DataSpace,
         mask_dir: str | None = None,
         mask_type: str | None = None,
+        restrict_range_max: float | None = None,
+        restrict_range_min: float | None = None,
         restrict_range: str | None = None,
+        skip_connection: dict[str, Any] | None = None,
     ) -> None:
         """Initialise a BaseDecoder."""
         super().__init__()
@@ -29,11 +40,36 @@ class BaseDecoder(nn.Module):
         self.data_space_out = data_space_out
         self.name = data_space_out.name
 
-        # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
+        # The valid output range, used when finalising outputs
+        self.range_min = restrict_range_min or 0
+        self.range_max = restrict_range_max or 1
+
+        # Initialise a skip connection if requested.
+        skip_connection_cfg = dict(skip_connection or {})
+        method = SkipConnectionType(
+            skip_connection_cfg.pop("method", SkipConnectionType.NONE)
+        )
+        self.skip_connection = (
+            SkipConnection(
+                output_channels=self.data_space_out.channels,
+                method=method,
+                **skip_connection_cfg,
+            )
+            if method != SkipConnectionType.NONE
+            else None
+        )
+
+        # An additive skip connection treats the model prediction as a residual to apply
+        # on top of persistence. This means that the model predictions must be allowed
+        # to be negative. We therefore bound to [-max, max] rather than [min, max].
+        is_signed_residual = method == SkipConnectionType.ADDITIVE
+        residual_bound = max(abs(self.range_min), abs(self.range_max))
+
+        # Bound (none/sigmoid/clamp/tanh) the output into [min, max]
         self.restrict = RestrictRange(
             RangeRestriction(restrict_range or "none"),
-            min_val=0,
-            max_val=1,
+            min_val=-residual_bound if is_signed_residual else self.range_min,
+            max_val=residual_bound if is_signed_residual else self.range_max,
         )
 
         # Load the requested mask (ACTIVE/LAND/NONE)
@@ -42,6 +78,39 @@ class BaseDecoder(nn.Module):
             output_shape=self.data_space_out.shape,
             mask_dir=mask_dir,
         )
+
+    def finalise(self, x: TensorNCHW, persistence: TensorNCHW | None) -> TensorNCHW:
+        """Apply shared output steps: range restriction, skip connection, and masking.
+
+        Range restriction (none/sigmoid/tanh/clamp) must be applied first, so that all
+        cells are at the same scale as the persistence and the mask. Without this, some
+        masking methods would convert zeros into non-zero values (e.g. sigmoid(0)=0.5).
+
+        This function is called once by `rollout` after the per-frame `forward`, so
+        every decoder gets it automatically without having to call it themselves.
+
+        RangeRestriction choices are: none/sigmoid/tanh/clamp
+        """
+        # Apply range restriction to bring the output into the required range
+        bounded: TensorNCHW = self.restrict(x)
+
+        if self.skip_connection:
+            if persistence is None:
+                msg = (
+                    f"Decoder has skip_connection={self.skip_connection.method.value} "
+                    "but no persistence input was provided."
+                )
+                raise ValueError(msg)
+            # Combine the bounded output with the persistence input via skip connection,
+            # then clamp before applying the mask to avoid out-of-bounds values.
+            bounded = self.skip_connection(bounded, persistence).clamp(
+                self.range_min, self.range_max
+            )
+
+        # Mask the output to zero out inactive/land cells. This must be applied after
+        # range restriction so that masked cells are exactly 0. If range restriction
+        # followed masking then e.g. sigmoid would give these cells non-zero values.
+        return self.mask(bounded)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: decode latent space into output space for a single timestep.
@@ -56,31 +125,20 @@ class BaseDecoder(nn.Module):
         msg = "If you are using the default rollout method, you must implement forward."
         raise NotImplementedError(msg)
 
-    def finalise(self, x: TensorNCHW) -> TensorNCHW:
-        """Apply shared output steps: bound if requested, then zero masked cells.
-
-        Masking is applied AFTER the range restriction so masked cells are exactly 0
-        regardless of bounding (applying it before would leak e.g. sigmoid(0)=0.5 into
-        masked cells). Called once by `rollout` after the per-frame `forward`, so every
-        decoder gets it automatically without having to call it themselves.
-
-        RangeRestriction choices are: none/sigmoid/tanh/clamp
-        """
-        return self.mask(self.restrict(x))
-
-    def rollout(self, x: TensorNTCHW) -> TensorNTCHW:
+    def rollout(self, x: TensorNTCHW, persistence: TensorNTCHW | None) -> TensorNTCHW:
         """Decode latent space into output space across multiple timesteps.
 
         The default implementation simply calls `self.forward` on each time slice
         simultaneously by reshaping the input to combine the batch and time dimensions,
-        before reshaping back. The shared last-gating steps are applied
-        in rollout via finalise(), so concrete decoders only implement forward().
+        before reshaping back. The shared restrict-skip-mask steps are applied in here,
+        so that concrete decoders only need to implement forward().
 
-        Note that this (rollout method) also increases the effective batch size for any batch
-        normalisation layers in the encoder.
+        Note that this (rollout method) also increases the effective batch size for any
+        batch normalisation layers in the encoder.
 
         Args:
             x: TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
+            persistence: TensorNTCHW with (batch_size, 1, output_channels, output_height, output_width) to add to every forecast step
 
         Returns:
             TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
@@ -90,5 +148,18 @@ class BaseDecoder(nn.Module):
         # make the decoder more generic by simply reading the number of timeslices from
         # the input.
         batch_size, n_timeslices = x.shape[0], x.shape[1]
-        output = self.finalise(self(x.reshape(-1, *self.data_space_in.chw)))
+
+        # Pass the latents through the decoder to return to output space
+        unbounded_output_nchw: TensorNCHW = self(x.reshape(-1, *self.data_space_in.chw))
+
+        # Repeat the persistence timeslice until we match the decoder output shape
+        if persistence is not None:
+            persistence = persistence.expand(-1, n_timeslices, -1, -1, -1).reshape(
+                *unbounded_output_nchw.shape
+            )
+
+        # Apply the shared finalisation steps (range restriction, skip connection, masking)
+        output = self.finalise(unbounded_output_nchw, persistence)
+
+        # Reshape back to [batch, n_timeslices, C_out, H_out, W_out]
         return output.reshape(batch_size, n_timeslices, *self.data_space_out.chw)

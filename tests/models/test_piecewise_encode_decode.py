@@ -69,5 +69,5 @@ class TestPiecewiseEncodeDecode:
             use_final_normalisation=False,
             use_hann_window=False,
         )
-        output_ntchw = decoder.rollout(latent_ntchw)
+        output_ntchw = decoder.rollout(latent_ntchw, None)
         assert torch.equal(input_ntchw, output_ntchw)

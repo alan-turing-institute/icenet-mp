@@ -15,6 +15,7 @@ from .residual_upsample import ResidualUpsample
 from .resizing_interpolation import ResizingInterpolation
 from .restrict_range import RestrictRange
 from .shift import Shift
+from .skip_connection import SkipConnection
 from .time_embed import TimeEmbed
 from .transformerblock import TransformerEncoderBlock
 from .weighted_upsample import WeightedUpsample
@@ -37,6 +38,7 @@ __all__ = [
     "ResizingInterpolation",
     "RestrictRange",
     "Shift",
+    "SkipConnection",
     "TimeEmbed",
     "TransformerEncoderBlock",
     "WeightedUpsample",
