@@ -1,5 +1,3 @@
-from unittest.mock import MagicMock
-
 import pytest
 import torch
 
@@ -210,58 +208,52 @@ class TestVerifyOutputChannels:
         declared_channels: int,
         actual_channels: int,
         name: str = "input",
-    ) -> MagicMock:
-        latent_space = (4, 4)
-        encoder = MagicMock(spec=BaseEncoder)
-        encoder.name = name
-        encoder.training = True
-        encoder.data_space_in = DataSpace(name=name, channels=3, shape=(8, 8))
-        encoder.data_space_out = DataSpace(
-            name=f"latent_space_{name}",
-            channels=declared_channels,
-            shape=latent_space,
-        )
-        # Return value from __call__()
-        encoder.return_value = torch.zeros(1, actual_channels, *latent_space)
+    ) -> NaiveLinearEncoder:
+        input_space = DataSpace(name=name, channels=actual_channels, shape=(8, 8))
+        encoder = NaiveLinearEncoder(data_space_in=input_space, latent_space=(4, 4))
+        # Override the declared output channels to simulate a mismatch with reality
+        encoder.data_space_out.channels = declared_channels
         return encoder
 
     def test_passes_when_declaration_matches_forward(self) -> None:
         encoder = self._make_encoder(declared_channels=5, actual_channels=5)
-        BaseEncoder.verify_output_channels(encoder)
+        encoder.verify_output_channels()
 
-    def test_raises_when_declaration_does_not_match_forward(self) -> None:
-        encoder = self._make_encoder(declared_channels=5, actual_channels=3)
-        with pytest.raises(
-            ValueError,
-            match=r"declared 5 output channel\(s\) but forward\(\) actually produced 3",
-        ):
-            BaseEncoder.verify_output_channels(encoder)
-
-    def test_raises_error_names_the_offending_encoder(self) -> None:
+    def test_raises_with_channel_counts_and_encoder_name(self) -> None:
         encoder = self._make_encoder(
             declared_channels=5, actual_channels=3, name="my-dataset"
         )
-        with pytest.raises(ValueError, match=r"MagicMock \('my-dataset'\)"):
-            BaseEncoder.verify_output_channels(encoder)
+        with pytest.raises(ValueError, match="declared 5") as excinfo:
+            encoder.verify_output_channels()
+        assert "declared 5 output channel(s) but forward() actually produced 3" in str(
+            excinfo.value
+        )
+        assert "NaiveLinearEncoder ('my-dataset')" in str(excinfo.value)
 
     @pytest.mark.parametrize("initial_training_mode", [True, False])
     def test_restores_training_mode(self, *, initial_training_mode: bool) -> None:
         encoder = self._make_encoder(declared_channels=5, actual_channels=5)
-        encoder.training = initial_training_mode
-        BaseEncoder.verify_output_channels(encoder)
-        encoder.eval.assert_called_once()
-        encoder.train.assert_called_once_with(initial_training_mode)
+        encoder.train(initial_training_mode)
+        encoder.verify_output_channels()
+        assert encoder.training is initial_training_mode
 
     @pytest.mark.parametrize("initial_training_mode", [True, False])
     def test_restores_training_mode_even_when_it_raises(
         self, *, initial_training_mode: bool
     ) -> None:
         encoder = self._make_encoder(declared_channels=5, actual_channels=3)
-        encoder.training = initial_training_mode
+        encoder.train(initial_training_mode)
         with pytest.raises(ValueError, match="declared 5"):
-            BaseEncoder.verify_output_channels(encoder)
-        encoder.eval.assert_called_once()
-        encoder.train.assert_called_once_with(initial_training_mode)
+            encoder.verify_output_channels()
+        assert encoder.training is initial_training_mode
+
+    @staticmethod
+    def _running_stats(
+        batch_norm: torch.nn.BatchNorm2d,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        assert batch_norm.running_mean is not None
+        assert batch_norm.running_var is not None
+        return batch_norm.running_mean.clone(), batch_norm.running_var.clone()
 
     def test_does_not_mutate_batchnorm_running_stats(self) -> None:
         # verify_output_channels feeds a zero probe through the encoder; it must not
@@ -273,14 +265,10 @@ class TestVerifyOutputChannels:
             for module in encoder.modules()
             if isinstance(module, torch.nn.BatchNorm2d)
         )
-        assert batch_norm.running_mean is not None
-        assert batch_norm.running_var is not None
-        running_mean_before = batch_norm.running_mean.clone()
-        running_var_before = batch_norm.running_var.clone()
+        running_mean_before, running_var_before = self._running_stats(batch_norm)
 
         encoder.verify_output_channels()
 
-        assert batch_norm.running_mean is not None
-        assert batch_norm.running_var is not None
-        assert torch.equal(batch_norm.running_mean, running_mean_before)
-        assert torch.equal(batch_norm.running_var, running_var_before)
+        running_mean_after, running_var_after = self._running_stats(batch_norm)
+        assert torch.equal(running_mean_after, running_mean_before)
+        assert torch.equal(running_var_after, running_var_before)
