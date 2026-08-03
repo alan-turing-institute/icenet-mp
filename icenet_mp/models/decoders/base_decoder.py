@@ -130,11 +130,11 @@ class BaseDecoder(nn.Module):
 
         The default implementation simply calls `self.forward` on each time slice
         simultaneously by reshaping the input to combine the batch and time dimensions,
-        before reshaping back. The shared restrict-then-mask steps are applied in
-        here, so that concrete decoders only need to implement forward().
+        before reshaping back. The shared restrict-skip-mask steps are applied in here,
+        so that concrete decoders only need to implement forward().
 
-        Note that this (rollout method) also increases the effective batch size for any batch
-        normalisation layers in the encoder.
+        Note that this (rollout method) also increases the effective batch size for any
+        batch normalisation layers in the encoder.
 
         Args:
             x: TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
