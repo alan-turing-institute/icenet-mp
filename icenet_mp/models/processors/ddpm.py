@@ -90,7 +90,25 @@ class DDPMProcessor(BaseProcessor):
     def _build_metrics_prediction(
         self, pred_x0: TensorNCHW, last_frame: TensorNCHW
         ) -> TensorNTCHW:
-        raise NotImplementedError("Build metrics prediction not yet implemented")
+        b = pred_x0.shape[0]
+        h, w = last_frame.shape[-2:]
+
+        if self.use_autoregressive:
+            per_step = self._insert_target(last_frame, pred_x0)
+            return per_step.unsqueeze(1).expand(
+                b, self.n_forecast_steps, self.c_combined, h, w
+            )
+
+        pred_x0_ntchw = pred_x0.reshape(
+            b, self.n_forecast_steps, self.c_target, h, w
+        )
+
+        expanded_last = last_frame.unsqueeze(1).expand(
+            b, self.n_forecast_steps, self.c_combined, h, w
+        ).clone()
+        s = self.target_slice_start
+        expanded_last[:, :, s : s + self.c_target] = pred_x0_ntchw
+        return expanded_last
 
     def _flatten_history(self, x: TensorNTCHW) -> TensorNCHW:
         b, t, c, h, w = x.shape
