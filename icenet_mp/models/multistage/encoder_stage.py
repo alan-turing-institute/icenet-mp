@@ -44,6 +44,9 @@ class EncoderStage(BaseModel):
             longitudes_fn=self.longitudes_fn,
         )
 
+        # Verify the output channels for the encoder
+        self.encoder.verify_output_channels()
+
         # Decode from the latent space back to the original input space
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
