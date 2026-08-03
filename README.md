@@ -54,7 +54,8 @@
 | icenet\_mp/geotools/reproject.py                                |       26 |        4 |     85% |36-37, 40-41 |
 | icenet\_mp/loggers/\_\_init\_\_.py                              |        2 |        2 |      0% |       3-5 |
 | icenet\_mp/loggers/local\_file\_logger.py                       |       53 |       53 |      0% |    10-118 |
-| icenet\_mp/losses/\_\_init\_\_.py                               |        4 |        0 |    100% |           |
+| icenet\_mp/losses/\_\_init\_\_.py                               |        5 |        0 |    100% |           |
+| icenet\_mp/losses/amse\_loss.py                                 |      136 |       17 |     88% |278-282, 284-287, 292-313 |
 | icenet\_mp/losses/rmse\_loss.py                                 |        9 |        1 |     89% |        15 |
 | icenet\_mp/losses/weighted\_bce\_loss.py                        |       17 |       10 |     41% |26-33, 52-57 |
 | icenet\_mp/losses/weighted\_l1\_loss.py                         |       17 |       10 |     41% |25-32, 51-56 |
@@ -144,7 +145,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **5414** | **1579** | **71%** |           |
+| **TOTAL**                                                       | **5551** | **1596** | **71%** |           |
 
 
 ## Setup coverage badge
