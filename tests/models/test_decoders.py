@@ -280,7 +280,7 @@ class TestDecoderSkipConnection:
     _OUTPUT_SPACE = DataSpace(name="output", channels=1, shape=(8, 8))
 
     @classmethod
-    def _decoder(cls, method: str) -> NaiveLinearDecoder:
+    def _decoder(cls, method: str, *, bias: float = -20.0) -> NaiveLinearDecoder:
         decoder = NaiveLinearDecoder(
             data_space_in=cls._LATENT_SPACE,
             data_space_out=cls._OUTPUT_SPACE,
@@ -291,7 +291,7 @@ class TestDecoderSkipConnection:
         assert conv.bias is not None
         with torch.no_grad():
             conv.weight.zero_()
-            conv.bias.fill_(-20.0)
+            conv.bias.fill_(bias)
         return decoder
 
     @classmethod
@@ -318,7 +318,7 @@ class TestDecoderSkipConnection:
             conv.bias.zero_()
 
     def test_additive_skip_recovers_persistence(self) -> None:
-        decoder = self._decoder("additive")
+        decoder = self._decoder("additive", bias=0.0)
         n_forecast_steps = 2
         persistence = self._persistence()
 
@@ -327,6 +327,16 @@ class TestDecoderSkipConnection:
         assert torch.allclose(
             out, persistence.expand(-1, n_forecast_steps, -1, -1, -1), atol=1e-4
         )
+
+    def test_additive_skip_can_decrease_below_persistence(self) -> None:
+        # A negative residual must be reachable, or the decoder could only ever push
+        # the prediction above persistence, never below it.
+        decoder = self._decoder("additive", bias=-0.5)
+        persistence = self._persistence()
+
+        out = decoder.rollout(self._latent(), persistence)
+
+        assert torch.all(out < persistence)
 
     def test_gated_skip_recovers_half_persistence(self) -> None:
         decoder = self._decoder("gated")
@@ -359,6 +369,89 @@ class TestDecoderSkipConnection:
         decoder = self._decoder("additive")
         with pytest.raises(ValueError, match="no persistence input was provided"):
             decoder.rollout(self._latent(), None)
+
+
+class TestDecoderCustomOutputRange:
+    _LATENT_SPACE = DataSpace(name="latent", channels=4, shape=(8, 8))
+    _OUTPUT_SPACE = DataSpace(name="output", channels=1, shape=(8, 8))
+
+    @classmethod
+    def _decoder(
+        cls,
+        *,
+        method: str = "none",
+        restrict_range_min: float | None = None,
+        restrict_range_max: float | None = None,
+        bias: float = 0.0,
+    ) -> NaiveLinearDecoder:
+        decoder = NaiveLinearDecoder(
+            data_space_in=cls._LATENT_SPACE,
+            data_space_out=cls._OUTPUT_SPACE,
+            restrict_range="tanh",
+            restrict_range_min=restrict_range_min,
+            restrict_range_max=restrict_range_max,
+            skip_connection={"method": method},
+        )
+        conv = cast("nn.Conv2d", decoder.model[0])
+        assert conv.bias is not None
+        with torch.no_grad():
+            conv.weight.zero_()
+            conv.bias.fill_(bias)
+        return decoder
+
+    @classmethod
+    def _latent(cls) -> torch.Tensor:
+        return torch.randn(1, 1, cls._LATENT_SPACE.channels, *cls._LATENT_SPACE.shape)
+
+    def test_defaults_to_unit_range(self) -> None:
+        decoder = self._decoder()
+        assert decoder.range_min == 0
+        assert decoder.range_max == 1
+
+    def test_custom_range_is_respected_without_skip_connection(self) -> None:
+        decoder = self._decoder(
+            restrict_range_min=-5.0, restrict_range_max=5.0, bias=100.0
+        )
+        assert decoder.range_min == -5.0
+        assert decoder.range_max == 5.0
+
+        out = decoder.rollout(self._latent(), None)
+
+        # tanh saturates towards +1, rescaled into [-5, 5] -> +5 everywhere.
+        assert torch.allclose(out, 5.0 * torch.ones_like(out), atol=1e-3)
+
+    def test_final_clamp_uses_custom_range_with_skip_connection(self) -> None:
+        decoder = self._decoder(
+            method="convolutional", restrict_range_min=-5.0, restrict_range_max=5.0
+        )
+        assert decoder.skip_connection is not None
+        final_conv = cast("nn.Conv2d", decoder.skip_connection.fusion[-1])
+        assert final_conv.bias is not None
+        with torch.no_grad():
+            final_conv.weight.zero_()
+            final_conv.bias.fill_(100.0)  # Far outside [-5, 5]
+
+        persistence = torch.zeros(1, 1, *self._OUTPUT_SPACE.chw)
+        out = decoder.rollout(self._latent(), persistence)
+
+        assert torch.allclose(out, 5.0 * torch.ones_like(out))
+
+    def test_additive_residual_bound_covers_asymmetric_configured_range(self) -> None:
+        # An asymmetric configured range [0, 2] should still give a symmetric [-2, 2]
+        # residual bound (max of the absolute endpoints), not [0, 2].
+        decoder = self._decoder(
+            method="additive",
+            restrict_range_min=0.0,
+            restrict_range_max=2.0,
+            bias=-100.0,
+        )
+        persistence = torch.full((1, 1, *self._OUTPUT_SPACE.chw), 1.0)
+
+        out = decoder.rollout(self._latent(), persistence)
+
+        # tanh(-100) ~= -1, rescaled by the residual bound of 2 -> residual ~= -2.
+        # persistence (1.0) + residual (-2) clamped to the configured [0, 2] -> 0.
+        assert torch.allclose(out, torch.zeros_like(out), atol=1e-3)
 
 
 class TestDeepCompressionDecoder:

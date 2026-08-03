@@ -22,13 +22,15 @@ class BaseDecoder(nn.Module):
         TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         data_space_in: DataSpace,
         data_space_out: DataSpace,
         mask_dir: str | None = None,
         mask_type: str | None = None,
+        restrict_range_max: float | None = None,
+        restrict_range_min: float | None = None,
         restrict_range: str | None = None,
         skip_connection: dict[str, Any] | None = None,
     ) -> None:
@@ -38,19 +40,9 @@ class BaseDecoder(nn.Module):
         self.data_space_out = data_space_out
         self.name = data_space_out.name
 
-        # Bound (or not) the output into [0, 1], select: none/sigmoid/clamp/tanh.
-        self.restrict = RestrictRange(
-            RangeRestriction(restrict_range or "none"),
-            min_val=0,
-            max_val=1,
-        )
-
-        # Load the requested mask (ACTIVE/LAND/NONE)
-        self.mask = Mask(
-            mask_type=mask_type,
-            output_shape=self.data_space_out.shape,
-            mask_dir=mask_dir,
-        )
+        # The valid output range, used when finalising outputs
+        self.range_min = restrict_range_min or 0
+        self.range_max = restrict_range_max or 1
 
         # Initialise a skip connection if requested.
         skip_connection_cfg = dict(skip_connection or {})
@@ -65,6 +57,26 @@ class BaseDecoder(nn.Module):
             )
             if method != SkipConnectionType.NONE
             else None
+        )
+
+        # An additive skip connection treats the model prediction as a residual to apply
+        # on top of persistence. This means that the model predictions must be allowed
+        # to be negative. We therefore bound to [-max, max] rather than [min, max].
+        is_signed_residual = method == SkipConnectionType.ADDITIVE
+        residual_bound = max(abs(self.range_min), abs(self.range_max))
+
+        # Bound (none/sigmoid/clamp/tanh) the output into [min, max]
+        self.restrict = RestrictRange(
+            RangeRestriction(restrict_range or "none"),
+            min_val=-residual_bound if is_signed_residual else self.range_min,
+            max_val=residual_bound if is_signed_residual else self.range_max,
+        )
+
+        # Load the requested mask (ACTIVE/LAND/NONE)
+        self.mask = Mask(
+            mask_type=mask_type,
+            output_shape=self.data_space_out.shape,
+            mask_dir=mask_dir,
         )
 
     def finalise(self, x: TensorNCHW, persistence: TensorNCHW | None) -> TensorNCHW:
@@ -91,7 +103,9 @@ class BaseDecoder(nn.Module):
                 raise ValueError(msg)
             # Combine the bounded output with the persistence input via skip connection,
             # then clamp before applying the mask to avoid out-of-bounds values.
-            bounded = self.skip_connection(bounded, persistence).clamp(0, 1)
+            bounded = self.skip_connection(bounded, persistence).clamp(
+                self.range_min, self.range_max
+            )
 
         # Mask the output to zero out inactive/land cells. This must be applied after
         # range restriction so that masked cells are exactly 0. If range restriction
