@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 import torch
@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 
 class DecoderStage(BaseModel):
+    # Parameters that should be excluded from hyperparameter logging
+    ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"encoders"}
+
     def __init__(
         self,
         decoder: DictConfig,

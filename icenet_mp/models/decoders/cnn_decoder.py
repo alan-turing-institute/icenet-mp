@@ -19,11 +19,11 @@ class CNNDecoder(BaseDecoder):
     - Decrease size with interpolation (if needed)
     - Convolve to number of output channels (if needed)
 
-    Input space:
-        TensorNTCHW with (batch_size, n_timeslices, input_channels, input_height, input_width)
-
     Latent space:
-        TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
+        TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
+
+    Output space:
+        TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
     def __init__(
@@ -33,6 +33,7 @@ class CNNDecoder(BaseDecoder):
         kernel_size: int = 3,
         n_layers: int = 3,
         n_subblocks: int = 2,
+        norm_type: str = "batchnorm",
         scale_factor: int = 2,
         **kwargs: Any,
     ) -> None:
@@ -86,6 +87,7 @@ class CNNDecoder(BaseDecoder):
                     activation=activation,
                     kernel_size=kernel_size,
                     n_subblocks=n_subblocks,
+                    norm_type=norm_type,
                     scale_factor=scale_factor,
                 )
             )

@@ -1,6 +1,6 @@
 _target_: icenet_mp.models.EncodeProcessDecode
 
-name: quick_test
+name: quick-test
 
 encoders:
   latent_space: [128, 128]

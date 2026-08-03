@@ -12,6 +12,7 @@ content:
   - floatsouth: float data (southern hemisphere)
   - sicnorth: sea ice concentration (northern hemisphere)
   - sicsouth: sea ice concentration (southern hemisphere)
+  - sicglobal: sea ice concentration (both hemispheres)
   - weathernorth: weather data (northern hemisphere)
   - weathersouth: weather data (southern hemisphere)
 source:
@@ -19,9 +20,11 @@ source:
   - era5: ERA5 weather data
   - osisaf: SSMIS sea ice data from OSISAF via IceNet v1
   - ssmis: SSMIS sea ice data from OSISAF
+  - synthetic: Synthetic data
 resolution:
   - 0p25: 0.25 degree
   - 0p5: 0.5 degree
+  - 5p625: 32x32 global grid
   - 25k: 25km grid (deprecated)
   - 25p0km: 25km grid
 start-year:

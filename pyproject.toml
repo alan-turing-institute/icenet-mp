@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.11.28,<0.12.0"]
+requires = ["uv_build>=0.11.30,<0.12.0"]
 build-backend = "uv_build"
 
 [project]
@@ -36,7 +36,7 @@ dependencies = [
     "imageio-ffmpeg>=0.6.0",
     "jaxtyping>=0.3.11",
     "lightning>=2.6.0,!=2.6.2,!=2.6.3", # 2.6.2 and 2.6.3 are compromised https://www.aikido.dev/blog/pytorch-lightning-pypi-compromise-mini-shai-hulud
-    "matplotlib>=3.11.0",
+    "matplotlib>=3.11.1",
     "netcdf4>=1.7.0",
     "numpy>=2.4.6,<2.5", # jaxtyping NDArray[...] syntax raises TypeErrors under numpy>=2.5
     "omegaconf>=2.3.1",
@@ -50,9 +50,9 @@ dependencies = [
     "torch>=2.8.0,!=2.10.0", # uv will constantly reinstall torch 2.10.0 due to incorrect metadata https://github.com/astral-sh/uv/issues/17711
     "torchmetrics>=1.9.0",
     "tqdm>=4.68.0",
-    "typer>=0.26.8",
+    "typer>=0.27.0",
     "typing-extensions>=4.16.0",
-    "wandb>=0.28.0",
+    "wandb>=0.28.1",
     "xarray>=2025.3.0",
     "zarr>=2.18", # anemoi-datasets==0.5.37 still depends on zarr<=3
 ]
@@ -120,6 +120,7 @@ exclude = ["notebooks/*ipynb"]
 select = ["ALL"]
 ignore = [
     "COM812", # conflicts with formatter
+    "CPY001", # per-file copyright notice is unnecessary noise
     "D100", # undocumented-public-module
     "D101", # undocumented-public-class
     "D102", # undocumented-public-method

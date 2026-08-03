@@ -1,3 +1,5 @@
+from typing import Literal
+
 import torch
 from torch import Tensor, nn
 from torch.nn.init import kaiming_normal_
@@ -18,6 +20,9 @@ class WeightedUpsample(nn.Module):
         *,
         out_channels: int | None = None,
         upsample_factor: int = 2,
+        kernel_size: int = 1,
+        padding: int = 0,
+        padding_mode: Literal["zeros", "reflect", "replicate", "circular"] = "zeros",
     ) -> None:
         """Initialise a WeightedUpsample module.
 
@@ -25,13 +30,22 @@ class WeightedUpsample(nn.Module):
             in_channels: the number of input channels.
             out_channels: the number of output channels.
             upsample_factor: the spatial upsampling factor.
+            kernel_size: the size of the pre-shuffle convolutional kernel.
+            padding: padding for the pre-shuffle convolution.
+            padding_mode: padding mode for the pre-shuffle convolution.
 
         """
         super().__init__()
 
         # Initial convolution to produce the required channels for PixelShuffle
         out_channels = out_channels if out_channels is not None else in_channels
-        initial_conv = nn.Conv2d(in_channels, out_channels * upsample_factor**2, 1)
+        initial_conv = nn.Conv2d(
+            in_channels,
+            out_channels * upsample_factor**2,
+            kernel_size,
+            padding=padding,
+            padding_mode=padding_mode,
+        )
 
         # ICNR initialisation from https://arxiv.org/abs/1707.02937.
         # Set all sub-channel groups to a common Kaiming-normal kernel so the initial

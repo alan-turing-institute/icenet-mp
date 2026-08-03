@@ -50,6 +50,7 @@ class EncoderStage(BaseModel):
             data_space_in=self.encoder.data_space_out,
             data_space_out=self.encoder.data_space_in,
             mask_type=None,
+            restrict_range=None,
         )
 
     @property

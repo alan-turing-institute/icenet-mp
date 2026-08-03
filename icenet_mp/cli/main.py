@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 # Configure external libraries
 configure_external_libraries()
 
+
 # Create the typer app
 app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},

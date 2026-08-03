@@ -1,0 +1,5 @@
+defaults:
+  - default
+  - override callbacks:
+    - plotting
+  - _self_
