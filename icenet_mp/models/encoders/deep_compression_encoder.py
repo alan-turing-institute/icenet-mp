@@ -39,6 +39,7 @@ class DeepCompressionEncoder(BaseEncoder):
         self,
         *,
         data_space_in: DataSpace,
+        latent_space: tuple[int, int],
         attention_heads: dict[int, int] = {},  # noqa: B006
         attention_scales: tuple[int, ...] = (5,),
         ffn_factor: int = 1,
@@ -67,14 +68,14 @@ class DeepCompressionEncoder(BaseEncoder):
         # Validate the output shape is correct.
         spatial_factor = patch_size * stride ** (len(hid_channels) - 1)
         output_shape = (
-            self.data_space_in.shape[0] // spatial_factor,
-            self.data_space_in.shape[1] // spatial_factor,
+            data_space_in.shape[0] // spatial_factor,
+            data_space_in.shape[1] // spatial_factor,
         )
-        if output_shape != self.data_space_out.shape:
+        if output_shape != tuple(latent_space):
             msg = (
                 f"Stride {stride} and number of layers {len(hid_channels)} will encode "
-                f"inputs of shape {self.data_space_in.shape} to shape {output_shape} "
-                f"but the required latent space shape is {self.data_space_out.shape}"
+                f"inputs of shape {data_space_in.shape} to shape {output_shape} "
+                f"but the required latent space shape is {latent_space}"
             )
             raise ValueError(msg)
 
@@ -84,6 +85,7 @@ class DeepCompressionEncoder(BaseEncoder):
         # Initialise the base class with the correct number of output channels
         super().__init__(
             data_space_in=data_space_in,
+            latent_space=latent_space,
             output_channels=latent_channels,
             **kwargs,
         )

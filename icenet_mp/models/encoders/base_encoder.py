@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from functools import cached_property
 
+import torch
 from torch import nn
 
 from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
@@ -82,3 +83,25 @@ class BaseEncoder(nn.Module):
         return self(x.reshape(-1, *self.data_space_in.chw)).reshape(
             batch_size, n_timeslices, *self.data_space_out.chw
         )
+
+    def verify_output_channels(self) -> None:
+        """Cross-check that `forward` actually produces `data_space_out.channels`.
+
+        Runs a single real forward pass on a zero input at construction time, so a
+        wrong or stale channel declaration fails immediately.
+        """
+        was_training = self.training
+        self.eval()
+        try:
+            with torch.no_grad():
+                dummy_input = torch.zeros(1, *self.data_space_in.chw)
+                actual_channels = self(dummy_input).shape[1]
+        finally:
+            self.train(was_training)
+        if actual_channels != self.data_space_out.channels:
+            msg = (
+                f"{type(self).__name__} ('{self.name}') declared "
+                f"{self.data_space_out.channels} output channel(s) but forward() "
+                f"actually produced {actual_channels}."
+            )
+            raise ValueError(msg)

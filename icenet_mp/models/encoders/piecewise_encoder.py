@@ -26,6 +26,7 @@ class PiecewiseEncoder(BaseEncoder):
         self,
         *,
         data_space_in: DataSpace,
+        latent_space: tuple[int, int],
         conv_activation: str = "SiLU",
         conv_kernel_size: int = 3,
         conv_subblocks_initial: int = 3,
@@ -33,30 +34,16 @@ class PiecewiseEncoder(BaseEncoder):
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseEncoder."""
-        super().__init__(**kwargs)
-
         # Calculate the number of patches required
         # We set the stride to be half the patch size to ensure overlap, which will
         # capture more of the spatial structure of the data.
-        strides = tuple(
-            max(1, patch_size // 2) for patch_size in self.data_space_out.shape
-        )
+        strides = tuple(max(1, patch_size // 2) for patch_size in latent_space)
         n_patches = (
-            (
-                self.data_space_in.shape[0]
-                + 2 * strides[0]
-                - 1 * (self.data_space_out.shape[0] - 1)
-                - 1
-            )
+            (data_space_in.shape[0] + 2 * strides[0] - 1 * (latent_space[0] - 1) - 1)
             // strides[0]
             + 1
         ) * (
-            (
-                self.data_space_in.shape[1]
-                + 2 * strides[1]
-                - 1 * (self.data_space_out.shape[1] - 1)
-                - 1
-            )
+            (data_space_in.shape[1] + 2 * strides[1] - 1 * (latent_space[1] - 1) - 1)
             // strides[1]
             + 1
         )
@@ -65,6 +52,7 @@ class PiecewiseEncoder(BaseEncoder):
         output_channels = data_space_in.channels * n_patches
         super().__init__(
             data_space_in=data_space_in,
+            latent_space=latent_space,
             output_channels=output_channels,
             **kwargs,
         )
