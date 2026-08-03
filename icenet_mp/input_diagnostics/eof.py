@@ -226,7 +226,7 @@ def print_eof_table(result: EOFResult) -> None:
         f"\nEOF Variable-Space Covariance Decomposition (samples={result.n_samples}, features={result.n_features})"
     )
     print("-" * 70)  # noqa: T201
-    print(
+    print(  # noqa: T201
         "Spatial means are centered but not standardised; this is not a spatial EOF and is excluded as independent feature-selection evidence."
     )
 
@@ -239,11 +239,11 @@ def print_eof_table(result: EOFResult) -> None:
             result.cumulative_explained_variance,
             _VARIANCE_THRESHOLD,
         ):
-            print(
+            print(  # noqa: T201
                 f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)   <-- 90% threshold reached"
             )
         else:
-            print(
+            print(  # noqa: T201
                 f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)"
             )
 

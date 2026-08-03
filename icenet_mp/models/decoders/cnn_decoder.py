@@ -26,7 +26,9 @@ class CNNDecoder(BaseDecoder):
         TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
-    def __init__(
+    # Each keyword is a distinct Hydra-configured hyperparameter logged verbatim into
+    # checkpoints; bundling them into a config object would break existing checkpoints.
+    def __init__(  # noqa: PLR0913
         self,
         *,
         activation: str = "ReLU",

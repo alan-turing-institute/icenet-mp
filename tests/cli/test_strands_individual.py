@@ -30,15 +30,13 @@ class TestVIFStrand:
         assert (tmp_path / "vif" / "vif_report.txt").exists()
 
     def test_single_variable_skips_gracefully(
-        self, capsys: pytest.CaptureFixture[str]
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Single-variable input should skip VIF with a warning."""
         rng = np.random.default_rng(42)
         matrix = rng.standard_normal((100, 1))
 
-        _run_vif_strand(
-            matrix, ["only_var"], threshold=5.0, output_dir=Path("/tmp/test")
-        )
+        _run_vif_strand(matrix, ["only_var"], threshold=5.0, output_dir=tmp_path)
 
         captured = capsys.readouterr()
         assert (

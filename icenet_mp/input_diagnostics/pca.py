@@ -195,7 +195,7 @@ def print_pca_table(result: PCAResult) -> None:
             result.cumulative_explained_variance,
             VARIANCE_THRESHOLD,
         ):
-            print(
+            print(  # noqa: T201
                 f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)   <-- 90% threshold reached"
             )
         else:

@@ -20,7 +20,9 @@ class EncodeProcessDecode(BaseModel):
     # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
     ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
 
-    def __init__(
+    # Each keyword is a distinct Hydra-configured hyperparameter logged verbatim into
+    # checkpoints; bundling them into a config object would break existing checkpoints.
+    def __init__(  # noqa: C901, PLR0913
         self,
         *,
         encoders: DictConfig,
@@ -78,6 +80,7 @@ class EncodeProcessDecode(BaseModel):
                 patch bottleneck. The target's group must be one of the input datasets.
                 Pair this with ``decoder.restrict_range: none`` -- the delta must be
                 allowed to go negative; the [0, 1] clamp here bounds the final sum.
+            **kwargs: forwarded to ``BaseModel``.
 
         """
         super().__init__(**kwargs)

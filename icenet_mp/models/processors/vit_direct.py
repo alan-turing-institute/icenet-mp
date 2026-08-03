@@ -27,7 +27,9 @@ from .base_processor import BaseProcessor
 class VitDirectProcessor(BaseProcessor):
     """Vision Transformer processor that predicts all forecast steps in one pass."""
 
-    def __init__(
+    # Each keyword is a distinct Hydra-configured hyperparameter logged verbatim into
+    # checkpoints; bundling them into a config object would break existing checkpoints.
+    def __init__(  # noqa: PLR0913
         self,
         *,
         depth: int = 3,
