@@ -24,7 +24,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def resolve_datasets(config: DictConfig) -> tuple[dict[str, list[Path]], dict[str, list[str]]]:
+def resolve_datasets(
+    config: DictConfig,
+) -> tuple[dict[str, list[Path]], dict[str, list[str]]]:
     """Resolve dataset group names to zarr paths and variable selections from config.
 
     Mirrors the path-resolution logic in ``CommonDataModule`` but does not require a
@@ -65,7 +67,11 @@ def resolve_datasets(config: DictConfig) -> tuple[dict[str, list[Path]], dict[st
         variables = dataset.get("variables")
         if variables is not None:
             # Handle ListConfig from Hydra overrides.
-            var_list = list(variables) if isinstance(variables, (list, ListConfig)) else [str(variables)]
+            var_list = (
+                list(variables)
+                if isinstance(variables, (list, ListConfig))
+                else [str(variables)]
+            )
             group_variables[group_as] = sorted(var_list)
 
     logger.info(
@@ -74,7 +80,11 @@ def resolve_datasets(config: DictConfig) -> tuple[dict[str, list[Path]], dict[st
         list(group_paths.keys()),
     )
     for idx, (group_name, paths) in enumerate(group_paths.items(), start=1):
-        vars_str = f" (variables: {', '.join(group_variables.get(group_name, []))})" if group_variables.get(group_name) else ""
+        vars_str = (
+            f" (variables: {', '.join(group_variables.get(group_name, []))})"
+            if group_variables.get(group_name)
+            else ""
+        )
         logger.info("%d) %s%s:", idx, group_name, vars_str)
         for path in paths:
             logger.info("   - %s", path)
@@ -85,12 +95,15 @@ def resolve_datasets(config: DictConfig) -> tuple[dict[str, list[Path]], dict[st
 def build_datasets(
     group_paths: dict[str, list[Path]],
     group_variables: dict[str, list[str]],
+    *,
+    normalise: bool = True,
 ) -> dict[str, SingleDataset]:
     """Build ``SingleDataset`` instances for each dataset group.
 
     Args:
         group_paths: Mapping of group name to zarr paths (from :func:`resolve_datasets`).
         group_variables: Mapping of group name to variable lists (from :func:`resolve_datasets`).
+        normalise: Whether to apply the dataset's stored normalisation statistics.
 
     Returns:
         Mapping of group name to ``SingleDataset`` instance.
@@ -103,20 +116,26 @@ def build_datasets(
     for group_name, paths in group_paths.items():
         vars_list = group_variables.get(group_name)
         if vars_list is not None and len(vars_list) > 0:
-            logger.info("Loading dataset group %r (%d paths, variables: %s).",
-                         group_name, len(paths), vars_list)
+            logger.info(
+                "Loading dataset group %r (%d paths, variables: %s).",
+                group_name,
+                len(paths),
+                vars_list,
+            )
             datasets[group_name] = SingleDataset(
                 group_name,
                 paths,
+                normalise=normalise,
                 variables=vars_list,
             )
         else:
             logger.warning(
                 "Dataset group %r has no variable filter — loading all variables (%d paths). "
                 "Consider specifying 'variables' to limit data loaded.",
-                group_name, len(paths),
+                group_name,
+                len(paths),
             )
-            datasets[group_name] = SingleDataset(group_name, paths)
+            datasets[group_name] = SingleDataset(group_name, paths, normalise=normalise)
 
     return datasets
 
@@ -166,7 +185,9 @@ def build_sample_matrix(
 
     """
     # Intersect dates across all datasets — same logic as CombinedDataset.dates.
-    common_dates = sorted(set.intersection(*(set(ds.dates) for ds in datasets.values())))
+    common_dates = sorted(
+        set.intersection(*(set(ds.dates) for ds in datasets.values()))
+    )
 
     if not common_dates:
         msg = (

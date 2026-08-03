@@ -49,6 +49,7 @@ class ActivationSaver(Callback):
     """
 
     BATCH_FILE_TEMPLATE = "batch_{batch_idx:05d}.pt"
+    DISTRIBUTED_BATCH_FILE_TEMPLATE = "rank_{global_rank:03d}_dataloader_{dataloader_idx:03d}_batch_{batch_idx:05d}.pt"
     METADATA_FILE = "metadata.json"
 
     def __init__(
@@ -180,12 +181,12 @@ class ActivationSaver(Callback):
 
     def on_test_batch_end(
         self,
-        trainer: Trainer,  # noqa: ARG002
+        trainer: Trainer,
         pl_module: LightningModule,  # noqa: ARG002
         outputs: Any,  # noqa: ARG002, ANN401
         batch: Any,  # noqa: ARG002, ANN401
         batch_idx: int,
-        dataloader_idx: int = 0,  # noqa: ARG002
+        dataloader_idx: int = 0,
     ) -> None:
         """Persist captured activations for this batch to a single `.pt` file."""
         if self._enabled:
@@ -204,14 +205,23 @@ class ActivationSaver(Callback):
 
             payload: dict[str, Any] = {
                 "batch_idx": batch_idx,
+                "dataloader_idx": dataloader_idx,
+                "global_rank": trainer.global_rank,
                 "layer_paths": self.layer_paths,
                 "activations": self._current_activations,
             }
             if self.save_inputs:
                 payload["inputs"] = self._current_inputs
 
-            out_path = self.output_dir / self.BATCH_FILE_TEMPLATE.format(
-                batch_idx=batch_idx
+            template = (
+                self.DISTRIBUTED_BATCH_FILE_TEMPLATE
+                if trainer.world_size > 1 or dataloader_idx > 0
+                else self.BATCH_FILE_TEMPLATE
+            )
+            out_path = self.output_dir / template.format(
+                batch_idx=batch_idx,
+                dataloader_idx=dataloader_idx,
+                global_rank=trainer.global_rank,
             )
             torch.save(payload, out_path)
             logger.debug(
@@ -223,24 +233,26 @@ class ActivationSaver(Callback):
 
     def on_test_end(
         self,
-        trainer: Trainer,  # noqa: ARG002
+        trainer: Trainer,
         pl_module: LightningModule,  # noqa: ARG002
     ) -> None:
         """Write a metadata file and remove forward hooks when the test loop ends."""
         if self._enabled:
-            metadata_path = self.output_dir / self.METADATA_FILE
-            metadata_path.write_text(
-                json.dumps(
-                    {
-                        "layer_paths": self.layer_paths,
-                        "save_inputs": self.save_inputs,
-                        "batch_file_template": self.BATCH_FILE_TEMPLATE,
-                        "note": "Only activations from the first processor rollout step are saved.",
-                    },
-                    indent=2,
+            if trainer.is_global_zero:
+                metadata_path = self.output_dir / self.METADATA_FILE
+                metadata_path.write_text(
+                    json.dumps(
+                        {
+                            "layer_paths": self.layer_paths,
+                            "save_inputs": self.save_inputs,
+                            "batch_file_template": self.BATCH_FILE_TEMPLATE,
+                            "distributed_batch_file_template": self.DISTRIBUTED_BATCH_FILE_TEMPLATE,
+                            "note": "Only activations from the first processor rollout step are saved.",
+                        },
+                        indent=2,
+                    )
                 )
-            )
-            logger.info("ActivationSaver metadata written to %s", metadata_path)
+                logger.info("ActivationSaver metadata written to %s", metadata_path)
             self.detach()
 
     def on_test_start(

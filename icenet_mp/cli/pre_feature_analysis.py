@@ -18,15 +18,17 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
-import numpy as np
 import typer
 from omegaconf import (
     DictConfig,  # noqa: TC002 — needed at runtime for @hydra_adaptor annotation resolution
 )
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from icenet_mp.data_loaders.single_dataset import SingleDataset
 
+from icenet_mp.cli.plotting import maybe_plot_spatial_rf_results
 from icenet_mp.input_diagnostics.data import (
     _get_max_samples,
     build_datasets,
@@ -69,6 +71,7 @@ def _run_vif_strand(
     var_names: list[str],
     threshold: float,
     output_dir: Path,
+    qualification: dict[str, object] | None = None,
 ) -> None:
     """Run VIF analysis and save results."""
     from icenet_mp.input_diagnostics.vif import (  # noqa: PLC0415
@@ -78,7 +81,22 @@ def _run_vif_strand(
     )
 
     logger.info("Running VIF analysis...")
-    result = compute_vif(sample_matrix, var_names, threshold=threshold)
+    try:
+        q = qualification or {}
+        result = compute_vif(
+            sample_matrix,
+            var_names,
+            threshold=threshold,
+            qualification_enabled=bool(q.get("enabled", False)),
+            minimum_sample_feature_ratio=float(
+                str(q.get("minimum_sample_feature_ratio", 10.0))
+            ),
+            date_range=q.get("date_range"),  # type: ignore[arg-type]
+            sampling_limit=q.get("sampling_limit"),  # type: ignore[arg-type]
+        )
+    except ValueError as exc:
+        typer.echo(f"VIF skipped: {exc}", err=True)
+        return
     print_vif_table(result)
     json_path = save_vif_results(result, output_dir / "vif")
     typer.echo(f"VIF results written to {json_path}")
@@ -97,7 +115,11 @@ def _run_pca_strand(
     )
 
     logger.info("Running PCA analysis...")
-    result = compute_pca(sample_matrix, var_names)
+    try:
+        result = compute_pca(sample_matrix, var_names)
+    except ValueError as exc:
+        typer.echo(f"PCA skipped: {exc}", err=True)
+        return
     print_pca_table(result)
     json_path = save_pca_results(result, output_dir / "pca")
     typer.echo(f"PCA results written to {json_path}")
@@ -107,6 +129,7 @@ def _run_eof_strand(
     sample_matrix: np.ndarray,
     var_names: list[str],
     output_dir: Path,
+    qualification: dict[str, object] | None = None,
 ) -> None:
     """Run EOF analysis and save results."""
     from icenet_mp.input_diagnostics.eof import (  # noqa: PLC0415
@@ -116,19 +139,24 @@ def _run_eof_strand(
     )
 
     logger.info("Running EOF analysis...")
-    result = compute_eof(sample_matrix, var_names)
+    q = qualification or {}
+    result = compute_eof(
+        sample_matrix,
+        var_names,
+        qualification_enabled=bool(q.get("enabled", False)),
+        date_range=q.get("date_range"),  # type: ignore[arg-type]
+        sampling_limit=q.get("sampling_limit"),  # type: ignore[arg-type]
+    )
     print_eof_table(result)
     json_path = save_eof_results(result, output_dir / "eof")
     typer.echo(f"EOF results written to {json_path}")
 
 
-def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + RF pipeline
+def _run_rf_strand(
     datasets: dict[str, SingleDataset],
-    group_paths: dict[str, list[Path]],
     config: DictConfig,
     output_dir: Path,
 ) -> None:
-    """Run Random Forest feature importance using temporal windows and save results."""
     from icenet_mp.input_explainability.rf import (  # noqa: PLC0415
         _get_rf_window_params,
         _windows_to_arrays,
@@ -139,13 +167,29 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
     )
 
     rf_config = config.get("rf", {}) or {}
+    if rf_config.get("mode", "scalar") == "spatial":
+        from icenet_mp.input_explainability.rf import run_rf_analysis  # noqa: PLC0415
+        from icenet_mp.input_explainability.spatial_rf import (  # noqa: PLC0415
+            SpatialRFResult,
+            save_spatial_rf_results,
+        )
+
+        result = run_rf_analysis(config)
+        if not isinstance(result, SpatialRFResult):
+            msg = "Spatial RF configuration did not produce a sampled-map result."
+            raise RuntimeError(msg)
+        spatial_json_path, _ = save_spatial_rf_results(result, output_dir / "rf")
+        typer.echo(f"Sampled-map screening results written to {spatial_json_path}")
+        maybe_plot_spatial_rf_results(config, result, output_dir / "rf")
+        return
     n_jobs = int(rf_config.get("n_jobs", -1))
 
     # Resolve temporal window parameters.
     n_history_steps, n_forecast_steps = _get_rf_window_params(config)
     logger.info(
         "RF temporal windows: history=%d steps, forecast=%d steps.",
-        n_history_steps, n_forecast_steps,
+        n_history_steps,
+        n_forecast_steps,
     )
 
     max_samples = _get_max_samples(config, "rf")
@@ -157,34 +201,35 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
 
     logger.info(
         "Loading target variable %r from group %r.",
-        target_variable, target_group_as,
+        target_variable,
+        target_group_as,
     )
 
-    # Find the zarr file for this group — look up by resolved group name first.
-    target_path: Path | None = None
-    if target_group_as in group_paths:
-        paths_for_group = group_paths[target_group_as]
-        if paths_for_group:
-            target_path = paths_for_group[0]
+    # The configured target group must be explicitly present; approximate name matching
+    # could silently select the wrong physical dataset.
+    target_ds = datasets.get(target_group_as)
+    if target_ds is None:
+        msg = (
+            f"Configured RF target group {target_group_as!r} is not included in the "
+            "resolved datasets."
+        )
+        raise ValueError(msg)
 
-    # Fallback: scan for any zarr whose path contains the target group name.
-    if target_path is None:
-        for paths in group_paths.values():
-            for p in paths:
-                if target_group_as in str(p):
-                    target_path = p
-                    break
-            if target_path is not None:
-                break
+    train_ranges = config.get("data", {}).get("split", {}).get("train")
+    if not train_ranges:
+        msg = "RF analysis requires configured data.split.train date ranges."
+        raise ValueError(msg)
+    datasets = {
+        name: ds.subset(date_ranges=list(train_ranges)) for name, ds in datasets.items()
+    }
+    target_ds = datasets[target_group_as]
 
-    if target_path is None:
-        logger.warning("Target dataset %r not found; skipping RF strand.", target_group_as)
-        return
-
-    # Build temporal windows — no explicit target path means first dataset is used.
+    # Build temporal windows — target_ds ensures the correct variable is used for the target.
     try:
         windows, var_names = build_rf_windows(
             datasets,
+            target_ds=target_ds,
+            target_variable=target_variable,
             n_history_steps=n_history_steps,
             n_forecast_steps=n_forecast_steps,
             max_samples=max_samples,
@@ -198,39 +243,24 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
         return
 
     # Convert windows to feature matrix and target vector.
-    X, y = _windows_to_arrays(windows, var_names, n_history_steps)  # noqa: N806 — standard ML convention for feature matrix
+    X, y, expanded_names = _windows_to_arrays(windows, var_names, n_history_steps)  # noqa: N806 — standard ML convention for feature matrix
 
     logger.info(
-        "Final arrays — features: %s, target (%s): %s", X.shape, target_variable, y.shape,
+        "Final arrays — features: %s, target (%s): %s",
+        X.shape,
+        target_variable,
+        y.shape,
     )
 
-    # Prevent data leakage: if the target variable is also present as a feature column,
-    # remove all columns corresponding to it across all history steps.
-    target_label = f"{target_group_as}/{target_variable}"
-    leak_indices: list[int] = []
-    new_var_names: list[str] = []
+    # Historical target observations are valid inputs, not leakage.
 
-    n_vars_per_step = len(var_names)  # variables per history step
-    total_feature_cols = n_vars_per_step * n_history_steps
-
-    for col in range(total_feature_cols):
-        var_idx_in_step = col % n_vars_per_step
-        candidate_name = var_names[var_idx_in_step] if var_idx_in_step < len(var_names) else ""
-        if candidate_name == target_label:
-            leak_indices.append(col)
-        else:
-            new_var_names.append(candidate_name)
-
-    if leak_indices:
-        logger.info(
-            "Removing %d data-leakage column(s) for feature %r across all history steps.",
-            len(leak_indices), target_label,
-        )
-        X = np.delete(X, leak_indices, axis=1)  # noqa: N806 — standard ML convention for feature matrix
-
+    interaction_enabled = (rf_config.get("interaction") or {}).get("enabled", True)
     logger.info("Running Random Forest feature importance...")
     result = compute_rf_importance(
-        X, y, new_var_names, target_name=f"{target_group_as}/{target_variable}",
+        X,
+        y,
+        expanded_names,
+        target_name=f"{target_group_as}/{target_variable}",
         n_estimators=rf_config.get("n_estimators", 500),
         max_depth=rf_config.get("max_depth", 15),
         min_samples_leaf=rf_config.get("min_samples_leaf", 5),
@@ -238,6 +268,7 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
         max_features=rf_config.get("max_features", "sqrt"),
         random_state=rf_config.get("random_state", 42),
         n_jobs=n_jobs,
+        interaction_enabled=interaction_enabled,
     )
     print_rf_table(result)
     json_path = save_rf_results(result, output_dir / "rf")
@@ -276,32 +307,68 @@ def _run_all_strands(
         output_dir: Root directory for all outputs (subdirs created automatically).
 
     """
-    max_samples = _get_max_samples(config, "vif")
-    # Each module can override via its own namespace (e.g. pca.max_samples).
-    # Use the most restrictive value across all modules to ensure no strand
-    # receives more data than any configured limit.
-    for mod in ("pca", "eof", "rf"):
-        ms = _get_max_samples(config, mod)
-        if ms is not None:
-            max_samples = min(max_samples, ms) if max_samples is not None else ms
-
     threshold = float(config.get("vif", {}).get("threshold", 5.0))
 
     logger.info("Building dataset instances for pre-feature analysis...")
-    group_paths, _ = resolve_datasets(config)
-    datasets = build_datasets(group_paths, {})
+    group_paths, group_variables = resolve_datasets(config)
+    datasets = build_datasets(group_paths, group_variables)
 
-    sample_matrix, var_names = build_sample_matrix(datasets, max_samples=max_samples)
-    logger.info("Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names))
+    registry = None
+    if (config.get("feature_evidence", {}) or {}).get("registry", {}).get("entries"):
+        from icenet_mp.feature_evidence.registry import (  # noqa: PLC0415
+            load_feature_registry,
+        )
 
-    # Run each strand; failures in one do not prevent others from running.
+        registry = load_feature_registry(config)
+        registry.validate_available(
+            {group: dataset.variable_names for group, dataset in datasets.items()}
+        )
+
+    matrices = {
+        module: build_sample_matrix(
+            datasets, max_samples=_get_max_samples(config, module)
+        )
+        for module in ("vif", "pca", "eof")
+    }
+    sample_matrix, var_names = matrices["vif"]
+    logger.info(
+        "Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names)
+    )
+
+    # Run each strand; retain failures so a sampled-map screening failure cannot be
+    # mistaken for a successful completed analysis.
+    failures: list[str] = []
+    vif_cfg = config.get("vif", {}) or {}
+    qualification_cfg = dict(vif_cfg.get("qualification", {}) or {})
+    if qualification_cfg.get("enabled", False):
+        common_dates = sorted(
+            set.intersection(*(set(ds.dates) for ds in datasets.values()))
+        )
+        qualification_cfg.update(
+            {
+                "date_range": (str(common_dates[0]), str(common_dates[-1])),
+                "sampling_limit": _get_max_samples(config, "vif"),
+            }
+        )
+    pca_matrix, pca_names = matrices["pca"]
+    eof_matrix, eof_names = matrices["eof"]
     for name, fn in [
-        ("VIF", lambda: _run_vif_strand(sample_matrix, var_names, threshold, output_dir)),
-        ("PCA", lambda: _run_pca_strand(sample_matrix, var_names, output_dir)),
-        ("EOF", lambda: _run_eof_strand(sample_matrix, var_names, output_dir)),
+        (
+            "VIF",
+            lambda: _run_vif_strand(
+                sample_matrix, var_names, threshold, output_dir, qualification_cfg
+            ),
+        ),
+        ("PCA", lambda: _run_pca_strand(pca_matrix, pca_names, output_dir)),
+        (
+            "EOF",
+            lambda: _run_eof_strand(
+                eof_matrix, eof_names, output_dir, qualification_cfg
+            ),
+        ),
         (
             "RF",
-            lambda: _run_rf_strand(datasets, group_paths, config, output_dir),
+            lambda: _run_rf_strand(datasets, config, output_dir),
         ),
         (
             "Correlation heatmap",
@@ -312,7 +379,36 @@ def _run_all_strands(
             fn()
         except Exception:
             logger.exception("%s analysis failed", name)
+            failures.append(name)
 
+    if failures:
+        typer.echo(
+            f"\nAnalyses completed with failures ({', '.join(failures)}). Results in {output_dir}/"
+        )
+        if (config.get("rf", {}) or {}).get(
+            "mode", "scalar"
+        ) == "spatial" and "RF" in failures:
+            msg = "Sampled-map RF screening failed; no feature-selection result is available."
+            raise RuntimeError(msg)
+        return
+    if registry is not None:
+        from icenet_mp.feature_evidence.report import (  # noqa: PLC0415
+            build_evidence_rows,
+            save_evidence_report,
+        )
+
+        evidence_paths = save_evidence_report(
+            build_evidence_rows(
+                registry,
+                vif_path=output_dir / "vif" / "vif_results.json",
+                pca_path=output_dir / "pca" / "pca_results.json",
+                eof_path=output_dir / "eof" / "eof_results.json",
+                correlation_path=output_dir / "correlations" / "correlations.csv",
+                spatial_rf_path=output_dir / "rf" / "spatial_rf_results.json",
+            ),
+            output_dir / "evidence",
+        )
+        typer.echo(f"Feature evidence report written to {evidence_paths[0]}")
     typer.echo(f"\nAll analyses complete. Results in {output_dir}/")
 
 

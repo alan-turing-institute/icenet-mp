@@ -203,7 +203,9 @@ def plot_interaction_heatmap(
     interactions = result.interaction_scores[np.ix_(sub_idx, sub_idx)]
 
     fig, ax = plt.subplots(figsize=(max(8, n * 0.5), max(6, n * 0.4)))
-    im = ax.imshow(interactions, cmap="RdBu_r", vmin=-interactions.max(), vmax=interactions.max())
+    im = ax.imshow(
+        interactions, cmap="RdBu_r", vmin=-interactions.max(), vmax=interactions.max()
+    )
 
     ax.set_xticks(range(n))
     ax.set_yticks(range(n))
@@ -218,7 +220,9 @@ def plot_interaction_heatmap(
         for j in range(n):
             val = interactions[i, j]
             color = "white" if abs(val) > interactions.max() * 0.5 else "black"
-            ax.text(j, i, f"{val:.3f}", ha="center", va="center", fontsize=6, color=color)
+            ax.text(
+                j, i, f"{val:.3f}", ha="center", va="center", fontsize=6, color=color
+            )
 
     fig.colorbar(im, ax=ax, shrink=0.8, label="Interaction Strength")
     fig.tight_layout()

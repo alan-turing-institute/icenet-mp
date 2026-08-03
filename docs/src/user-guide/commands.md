@@ -87,3 +87,20 @@ evaluate:
 
 Output directories, styling, and animation parameters can be altered by changing `config.evaluate.callbacks.plotting.plot_spec`.
 Any of these can be overridden at the command line.
+
+## `rf`
+
+The opt-in sampled-map Random Forest screening configuration uses SIC, ERA5, and
+Argo inputs restricted to their configured shared training-date ranges. It samples
+valid-ocean locations stratified by the latest historical SIC map, then fits a
+separate temporally validated model for each forecast lead:
+
+```bash
+uv run imp rf --config-name baseline/04_spatial_rf_screening
+```
+
+Results are written to `outputs/rf/` by default. For every lead, compare the RF
+metrics with the persistence metrics in the report. Interpret grouped permutation
+importance only when the RF beats persistence on held-out data. Importance is
+predictive and model-specific, not causal: correlated predictors can substitute
+for one another, so a low score does not establish that a variable is unimportant.

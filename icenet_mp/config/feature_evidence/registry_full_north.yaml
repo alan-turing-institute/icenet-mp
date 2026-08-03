@@ -1,0 +1,40 @@
+# @package _global_
+feature_evidence:
+  registry:
+    entries:
+      - {source: sic-ssmis, variable: ice_conc, family: sea_ice_concentration, included: true}
+      - {source: sic-ssmis, variable: algorithm_standard_uncertainty, family: sic_uncertainty, included: true}
+      - {source: sic-ssmis, variable: raw_ice_conc_values, family: sic_observation, included: true}
+      - {source: sic-ssmis, variable: smearing_standard_uncertainty, family: sic_uncertainty, included: true}
+      - {source: sic-ssmis, variable: status_flag, family: sic_quality, included: true}
+      - {source: sic-ssmis, variable: total_standard_uncertainty, family: sic_uncertainty, included: true}
+      - {source: float-argo, variable: TEMP, family: ocean_temperature, included: true, correlated_alternatives: [float-argo/PSAL]}
+      - {source: float-argo, variable: PSAL, family: ocean_salinity, included: true, correlated_alternatives: [float-argo/TEMP]}
+      - {source: era5, variable: 2t, family: surface_temperature}
+      - {source: era5, variable: sp, family: surface_pressure}
+      - {source: era5, variable: msl, family: sea_level_pressure}
+      - {source: era5, variable: 10u, family: surface_wind}
+      - {source: era5, variable: 10v, family: surface_wind}
+      - {source: era5, variable: insolation, family: radiation}
+      - {source: era5, variable: sin_julian_day, family: calendar}
+      - {source: era5, variable: cos_julian_day, family: calendar}
+      - {source: era5, variable: q_10, family: humidity}
+      - {source: era5, variable: q_250, family: humidity}
+      - {source: era5, variable: q_500, family: humidity}
+      - {source: era5, variable: q_1000, family: humidity}
+      - {source: era5, variable: t_10, family: air_temperature}
+      - {source: era5, variable: t_250, family: air_temperature}
+      - {source: era5, variable: t_500, family: air_temperature}
+      - {source: era5, variable: t_1000, family: air_temperature}
+      - {source: era5, variable: u_10, family: zonal_wind}
+      - {source: era5, variable: u_250, family: zonal_wind}
+      - {source: era5, variable: u_500, family: zonal_wind}
+      - {source: era5, variable: u_1000, family: zonal_wind}
+      - {source: era5, variable: v_10, family: meridional_wind}
+      - {source: era5, variable: v_250, family: meridional_wind}
+      - {source: era5, variable: v_500, family: meridional_wind}
+      - {source: era5, variable: v_1000, family: meridional_wind}
+      - {source: era5, variable: z_10, family: geopotential_height}
+      - {source: era5, variable: z_250, family: geopotential_height}
+      - {source: era5, variable: z_500, family: geopotential_height}
+      - {source: era5, variable: z_1000, family: geopotential_height}

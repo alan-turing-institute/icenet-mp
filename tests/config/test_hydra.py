@@ -59,6 +59,42 @@ class TestHydraConfigLoading:
         assert "metric_summary" not in cfg.train.callbacks
         assert "metric_summary" not in cfg.evaluate.callbacks
 
+    def test_isolated_checkpoint_evaluation_requires_named_local_run(self) -> None:
+        cfg = self.load_config(
+            config_name="evaluation/isolated_checkpoint",
+            overrides=["evaluation.run_name=checkpoint-a"],
+        )
+
+        assert list(cfg.loggers) == ["isolated_evaluation"]
+        assert list(cfg.evaluate.callbacks) == ["isolated_evaluation"]
+        assert cfg.evaluate.run_directory.endswith("/evaluation/checkpoint-a")
+
+    def test_feature_screening_policy_is_opt_in(self) -> None:
+        """The screening baseline retains importance without changing older baselines."""
+        existing = self.load_config(config_name="baseline/05_feature_evidence_suite")
+        screening = self.load_config(config_name="baseline/06_feature_screening")
+
+        assert existing.rf.get("importance_policy", "qualified") == "qualified"
+        assert screening.rf.importance_policy == "always"
+        assert screening.rf.target_mode == "absolute"
+
+    def test_feature_screening_backend_selection_is_opt_in(self) -> None:
+        """Default backend is RandomForest; HistGradientBoosting is opt-in via a new baseline."""
+        existing = self.load_config(config_name="baseline/06_feature_screening")
+        hgb = self.load_config(
+            config_name="baseline/07_feature_screening_hist_gradient_boosting"
+        )
+
+        assert existing.rf.backend == "random_forest"
+        assert hgb.rf.backend == "hist_gradient_boosting"
+        # The opt-in baseline inherits every other screening setting verbatim.
+        assert hgb.rf.importance_policy == existing.rf.importance_policy
+        assert hgb.rf.target_mode == existing.rf.target_mode
+        assert (
+            hgb.rf.spatial.locations_per_stratum
+            == existing.rf.spatial.locations_per_stratum
+        )
+
 
 class TestHydraAdaptor:
     """Regression tests for icenet-mp's hydra_adaptor signature rewriter."""

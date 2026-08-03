@@ -1,0 +1,54 @@
+# @package _global_
+# Opt-in feature-evidence and ablation-suite settings. Existing baselines are unchanged.
+defaults:
+  - /base
+  - /feature_evidence: registry_full_north
+  - override /data: full_north_from_1999
+  - _self_
+
+rf:
+  mode: spatial
+  n_estimators: 300
+  max_depth: 15
+  min_samples_leaf: 5
+  min_samples_split: 8
+  max_features: sqrt
+  random_state: 42
+  n_jobs: 1
+  n_history_steps: 3
+  n_forecast_steps: 14
+  target: {group_as: sic-ssmis, variable: ice_conc}
+  spatial:
+    mask_dataset_name: full-sicnorth-ssmis-25p0km-1979-2024-24h-v2
+    seed: 42
+    locations_per_stratum: 32
+    max_initialisations: 500
+    max_rows: 48000
+    row_batch_size: 1024
+    open_water_max: 0.15
+    pack_ice_min: 0.8
+    permutation_repeats: 10
+    confirmation_groups: []
+
+vif:
+  qualification:
+    enabled: true
+    minimum_sample_feature_ratio: 10.0
+
+feature_evidence:
+  suite:
+    output_root: outputs/feature_evidence_suite
+    seeds: [42]
+    # Fixed, explicit source combinations. They are not selected from RF output.
+    source_matrix:
+      - {id: sic_only, sources: [sic-ssmis]}
+      - {id: era5_only, sources: [era5]}
+      - {id: argo_only, sources: [float-argo]}
+      - {id: sic_era5, sources: [sic-ssmis, era5]}
+      - {id: sic_argo, sources: [sic-ssmis, float-argo]}
+      - {id: era5_argo, sources: [era5, float-argo]}
+      - {id: full_inputs, sources: [sic-ssmis, era5, float-argo]}
+      - {id: no_inputs, sources: []}
+    # Add-one, leave-one-out, pair and subset candidates must be declared here before a run.
+    variants: []
+    fractional_subsets: []

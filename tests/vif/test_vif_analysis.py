@@ -49,6 +49,21 @@ class TestComputeVIF:
         # Independent variable should have low VIF
         assert result.vif_scores[2] < 2.0
 
+    def test_single_variable_raises(self) -> None:
+        """VIF should raise ValueError when given only one variable."""
+        rng = np.random.default_rng(42)
+        matrix = rng.standard_normal((100, 1))
+
+        with pytest.raises(ValueError, match="at least 2 variables"):
+            compute_vif(matrix, ["x"])
+
+    def test_empty_variables_raises(self) -> None:
+        """VIF should raise ValueError when given zero variables."""
+        matrix = np.empty((100, 0))
+
+        with pytest.raises(ValueError, match="at least 2 variables"):
+            compute_vif(matrix, [])
+
     def test_highly_correlated_variables(self) -> None:
         """VIF should be elevated for highly correlated variables."""
         rng = np.random.default_rng(42)
@@ -97,6 +112,51 @@ class TestComputeVIF:
         result = compute_vif(matrix, names, threshold=10.0)
         assert result.threshold == 10.0
 
+    def test_opt_in_evidence_qualification_requires_ten_to_one(self) -> None:
+        rng = np.random.default_rng(42)
+        result = compute_vif(
+            rng.standard_normal((19, 2)), ["x", "y"], qualification_enabled=True
+        )
+
+        assert result.evidence_qualified is False
+        assert result.qualification is not None
+        assert result.qualification["sample_to_feature_ratio"] == 9.5
+        assert "Temporal autocorrelation" in str(
+            result.qualification["independence_warning"]
+        )
+
+    def test_qualification_standardises_columns_and_reports_deficiencies(self) -> None:
+        rng = np.random.default_rng(42)
+        x = rng.standard_normal(100)
+        matrix = np.column_stack([x, x * 1.0e9, np.ones(100)])
+
+        default_result = compute_vif(matrix, ["x", "scaled_x", "constant"])
+        result = compute_vif(
+            matrix, ["x", "scaled_x", "constant"], qualification_enabled=True
+        )
+
+        np.testing.assert_equal(result.vif_scores, default_result.vif_scores)
+        assert result.qualification is not None
+        assert result.qualification["constant_columns"] == ["constant"]
+        assert result.qualification["diagnostic_predictor_count"] == 2
+        assert result.qualification["exact_rank_deficient"] is True
+        assert result.qualification["near_rank_deficient"] is True
+        assert result.evidence_qualified is False
+
+    def test_qualification_condition_number_is_scale_invariant(self) -> None:
+        rng = np.random.default_rng(42)
+        matrix = rng.standard_normal((100, 2))
+        scaled = matrix.copy()
+        scaled[:, 1] *= 1.0e12
+
+        result = compute_vif(scaled, ["x", "large_units"], qualification_enabled=True)
+
+        assert result.qualification is not None
+        condition_number = result.qualification["condition_number"]
+        assert isinstance(condition_number, float)
+        assert condition_number < 2.0
+        assert result.evidence_qualified is True
+
 
 class TestPrintVIFTable:
     """Tests for the print_vif_table function."""
@@ -120,11 +180,12 @@ class TestVIFResult:
 
     def test_frozen(self) -> None:
         """VIFResult should be immutable."""
+        rng = np.random.default_rng(42)
         result = compute_vif(
-            np.column_stack([np.random.default_rng(42).standard_normal(100)]),
-            ["x"],
+            np.column_stack([rng.standard_normal(100), rng.standard_normal(100)]),
+            ["x", "y"],
             threshold=5.0,
         )
         # frozen dataclass should reject mutation — mypy flags this but it's intentional
         with pytest.raises(dataclasses.FrozenInstanceError):
-            setattr(result, "threshold", 10.0)  # type: ignore[func-returns-value]
+            result.threshold = 10.0  # type: ignore[misc]

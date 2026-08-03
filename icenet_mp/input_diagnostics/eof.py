@@ -1,20 +1,19 @@
-"""EOF (Empirical Orthogonal Function) analysis for input variable structure.
+"""Variable-space covariance decomposition retained under the EOF command name.
 
-Centers the data and performs SVD to decompose variance into orthogonal modes.
-In geoscience, EOFs represent dominant spatiotemporal patterns of variability —
-the first mode captures the largest fraction of total variance, the second captures
-the largest remaining fraction orthogonal to the first, and so on.
+This implementation spatially averages each variable, centers those time series without
+standardising them, and performs SVD. Its modes are directions across variables, not
+spatial EOF patterns. The first mode captures the largest fraction of variable-space
+covariance, followed by orthogonal directions of decreasing variance.
 
 **Interpretation:**
 - Each **EOF mode** (component) is a direction in variable space that explains
   a portion of total input variance.
-- A variable with high loading on an EOF mode co-varies strongly with other variables
-  in that mode — they are part of the same physical/statistical pattern.
+- A variable with high loading on a mode contributes strongly to that variable-space
+  covariance direction; this alone does not establish a physical pattern or usefulness.
 - The explained variance fraction tells you how important each mode is overall.
 
-EOF is mathematically equivalent to PCA (both use SVD on the covariance structure) but
-uses geoscience terminology and conventions. Use it when you want to interpret modes as
-physical patterns (e.g., "this EOF represents the NAO pressure dipole").
+The calculation is mathematically equivalent to unstandardised PCA on the spatial means.
+It is retained for compatibility and is excluded as independent feature-selection evidence.
 
 Like all diagnostics, EOF is **unsupervised** — it does not use the target (SIC).
 High-loading variables are those that vary together in structured ways across timesteps.
@@ -40,8 +39,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Minimum dimensions for SVD to be meaningful.
-_MIN_ROWS = 2   # at least 2 timesteps
-_MIN_COLS = 2   # at least 2 variables
+_MIN_ROWS = 2  # at least 2 timesteps
+_MIN_COLS = 2  # at least 2 variables
 
 # Threshold for cumulative explained variance (modes needed to capture 90%).
 _VARIANCE_THRESHOLD = 0.90
@@ -58,21 +57,31 @@ class EOFResult:
     feature_importance: np.ndarray  # variance-weighted absolute loadings per variable
     n_samples: int
     n_features: int
+    analysis_space: str = "variable-space covariance decomposition over spatial means"
+    independent_feature_selection_evidence: bool = False
+    qualification: dict[str, object] | None = None
 
 
 def compute_eof(
     sample_matrix: np.ndarray,
     variable_names: list[str],
+    *,
+    qualification_enabled: bool = False,
+    date_range: tuple[str, str] | None = None,
+    sampling_limit: int | None = None,
 ) -> EOFResult:
-    """Compute EOF analysis via SVD and derive per-variable importance.
+    """Decompose variable-space covariance via SVD and derive loading summaries.
 
     Args:
         sample_matrix: Array of shape ``(n_samples, n_variables)`` — already spatially
             aggregated, one row per timestep.
         variable_names: One name per column.
+        qualification_enabled: Whether to attach evidence-suite diagnostic metadata.
+        date_range: First and last available common dates, when known.
+        sampling_limit: Configured timestep cap, when set.
 
     Returns:
-        EOFResult with modes, explained variance, and metadata.
+        EOFResult with variable-space modes, explained variance, and metadata.
 
     Raises:
         ValueError: If the matrix has fewer than 2 rows or columns (SVD undefined).
@@ -94,8 +103,8 @@ def compute_eof(
     _, s, vt = np.linalg.svd(centered, full_matrices=False)
 
     # Explained variance: proportional to squared singular values.
-    total_var = np.sum(s ** 2)
-    explained_variance_ratio = (s ** 2) / total_var
+    total_var = np.sum(s**2)
+    explained_variance_ratio = (s**2) / total_var
     cumulative_explained_variance = np.cumsum(explained_variance_ratio)
 
     # EOF modes are rows of Vt — each row is a loading vector across variables.
@@ -112,6 +121,30 @@ def compute_eof(
         explained_variance_ratio[0] * 100,
     )
 
+    qualification: dict[str, object] | None = None
+    if qualification_enabled:
+        qualification = {
+            "date_range": list(date_range) if date_range is not None else None,
+            "sample_count": n_rows,
+            "predictor_count": n_cols,
+            "sample_to_feature_ratio": n_rows / n_cols,
+            "matrix_rank": int(np.linalg.matrix_rank(centered)),
+            "condition_number": float(np.linalg.cond(centered)),
+            "sampling_limit": sampling_limit,
+            "sampling_limitation": (
+                "Timesteps are evenly sampled from available common dates when a limit "
+                "is set; spatial means discard within-grid variation."
+            ),
+            "independence_warning": (
+                "Temporal autocorrelation reduces the effective number of independent samples."
+            ),
+            "qualified": False,
+            "exclusion_reason": (
+                "Variable-space covariance decomposition is not independent "
+                "feature-selection evidence."
+            ),
+        }
+
     return EOFResult(
         variable_names=variable_names,
         explained_variance_ratio=explained_variance_ratio,
@@ -120,14 +153,15 @@ def compute_eof(
         feature_importance=feature_importance,
         n_samples=sample_matrix.shape[0],
         n_features=len(variable_names),
+        qualification=qualification,
     )
 
 
 def run_eof_analysis(config: DictConfig) -> EOFResult:
-    """Run a full EOF analysis from a Hydra-composed config.
+    """Run the compatibility-named EOF variable-space decomposition from config.
 
     Resolves dataset paths and variable selections directly from the config, loads raw
-    data via SingleDataset, spatially aggregates, and computes per-variable importance.
+    data via SingleDataset, spatially aggregates, and computes per-variable loading summaries.
 
     Args:
         config: Hydra-composed config (from ``imp eof``).
@@ -136,7 +170,9 @@ def run_eof_analysis(config: DictConfig) -> EOFResult:
         EOFResult with computed modes.
 
     """
-    max_samples = config.get("vif", {}).get("max_samples", None)  # reuse vif.max_samples key
+    max_samples = config.get("vif", {}).get(
+        "max_samples", None
+    )  # reuse vif.max_samples key
 
     group_paths, group_variables = resolve_datasets(config)
 
@@ -146,8 +182,12 @@ def run_eof_analysis(config: DictConfig) -> EOFResult:
     for group_name, paths in group_paths.items():
         vars_list = group_variables.get(group_name)
         if vars_list is not None and len(vars_list) > 0:
-            logger.info("Loading dataset group %r (%d paths, variables: %s).",
-                         group_name, len(paths), vars_list)
+            logger.info(
+                "Loading dataset group %r (%d paths, variables: %s).",
+                group_name,
+                len(paths),
+                vars_list,
+            )
             datasets[group_name] = SingleDataset(
                 group_name,
                 paths,
@@ -157,13 +197,16 @@ def run_eof_analysis(config: DictConfig) -> EOFResult:
             logger.warning(
                 "Dataset group %r has no variable filter — loading all variables (%d paths). "
                 "Consider specifying 'variables' to limit data loaded.",
-                group_name, len(paths),
+                group_name,
+                len(paths),
             )
             datasets[group_name] = SingleDataset(group_name, paths)
 
     sample_matrix, var_names = build_sample_matrix(datasets, max_samples=max_samples)
 
-    logger.info("Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names))
+    logger.info(
+        "Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names)
+    )
 
     return compute_eof(sample_matrix, var_names)
 
@@ -180,21 +223,34 @@ def print_eof_table(result: EOFResult) -> None:
     importance = result.feature_importance
 
     print(  # noqa: T201
-        f"\nEOF Mode Analysis (samples={result.n_samples}, features={result.n_features})"
+        f"\nEOF Variable-Space Covariance Decomposition (samples={result.n_samples}, features={result.n_features})"
     )
     print("-" * 70)  # noqa: T201
+    print(
+        "Spatial means are centered but not standardised; this is not a spatial EOF and is excluded as independent feature-selection evidence."
+    )
 
     # Explained variance summary.
     print("\nExplained Variance:")  # noqa: T201
-    for i, (ratio, cum) in enumerate(zip(evr, result.cumulative_explained_variance, strict=True)):
+    for i, (ratio, cum) in enumerate(
+        zip(evr, result.cumulative_explained_variance, strict=True)
+    ):
         if cum >= _VARIANCE_THRESHOLD and i == np.searchsorted(
-            result.cumulative_explained_variance, _VARIANCE_THRESHOLD,
+            result.cumulative_explained_variance,
+            _VARIANCE_THRESHOLD,
         ):
-            print(f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)   <-- 90% threshold reached")  # noqa: T201
+            print(
+                f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)   <-- 90% threshold reached"
+            )
         else:
-            print(f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)")  # noqa: T201
+            print(
+                f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)"
+            )
 
-    n_modes_90 = int(np.searchsorted(result.cumulative_explained_variance, _VARIANCE_THRESHOLD)) + 1
+    n_modes_90 = (
+        int(np.searchsorted(result.cumulative_explained_variance, _VARIANCE_THRESHOLD))
+        + 1
+    )
     print(f"\nModes needed for 90% variance: {n_modes_90}")  # noqa: T201
 
     # Feature importance ranking.
@@ -235,6 +291,10 @@ def save_eof_results(result: EOFResult, output_dir: Path) -> Path:
         "feature_importance": result.feature_importance.tolist(),
         "n_samples": result.n_samples,
         "n_features": result.n_features,
+        "analysis_space": result.analysis_space,
+        "standardised": False,
+        "independent_feature_selection_evidence": result.independent_feature_selection_evidence,
+        "qualification": result.qualification,
     }
     with json_path.open("w", encoding="utf-8") as fh:
         json.dump(serialisable, fh, indent=2)
@@ -243,9 +303,22 @@ def save_eof_results(result: EOFResult, output_dir: Path) -> Path:
     txt_path = output_dir / "eof_report.txt"
     lines: list[str] = []
     lines.append(
-        f"EOF Mode Analysis (samples={result.n_samples}, features={result.n_features})"
+        f"EOF Variable-Space Covariance Decomposition (samples={result.n_samples}, features={result.n_features})"
     )
     lines.append("-" * 70)
+    lines.append(
+        "Spatial means are centered but not standardised; this is not a spatial EOF and is excluded as independent feature-selection evidence."
+    )
+    if result.qualification is not None:
+        q = result.qualification
+        lines.append(
+            f"Dates: {q['date_range']}; samples/predictors: {q['sample_count']}/{q['predictor_count']}; ratio: {q['sample_to_feature_ratio']:.2f}:1"
+        )
+        lines.append(
+            f"Centered matrix rank: {q['matrix_rank']}; condition number: {q['condition_number']}"
+        )
+        lines.append(str(q["sampling_limitation"]))
+        lines.append(str(q["independence_warning"]))
 
     evr = result.explained_variance_ratio
     cum = result.cumulative_explained_variance
@@ -255,9 +328,13 @@ def save_eof_results(result: EOFResult, output_dir: Path) -> Path:
     lines.append("\nExplained Variance:")
     for i, (ratio, c) in enumerate(zip(evr, cum, strict=True)):
         if c >= _VARIANCE_THRESHOLD and i == np.searchsorted(cum, _VARIANCE_THRESHOLD):
-            lines.append(f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)   <-- 90% threshold reached")
+            lines.append(
+                f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)   <-- 90% threshold reached"
+            )
         else:
-            lines.append(f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)")
+            lines.append(
+                f"  Mode {i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)"
+            )
 
     n_modes_90 = int(np.searchsorted(cum, _VARIANCE_THRESHOLD)) + 1
     lines.append(f"\nModes needed for 90% variance: {n_modes_90}")
@@ -269,9 +346,7 @@ def save_eof_results(result: EOFResult, output_dir: Path) -> Path:
     lines.append("-" * 70)
 
     for rank, idx in enumerate(order, start=1):
-        lines.append(
-            f"{rank:<5} {names[idx]:<45} {importance[idx]:>8.4f}"
-        )
+        lines.append(f"{rank:<5} {names[idx]:<45} {importance[idx]:>8.4f}")
 
     with txt_path.open("w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))

@@ -61,7 +61,9 @@ class TestComputeEOF:
         result = compute_eof(matrix, names)
 
         # Correlated pair should have similar importance.
-        np.testing.assert_allclose(result.feature_importance[0], result.feature_importance[1], rtol=0.05)
+        np.testing.assert_allclose(
+            result.feature_importance[0], result.feature_importance[1], rtol=0.05
+        )
         assert result.feature_importance[0] > result.feature_importance[2]
 
     def test_explained_variance_sums_to_one(self) -> None:
@@ -72,7 +74,9 @@ class TestComputeEOF:
 
         result = compute_eof(matrix, names)
 
-        np.testing.assert_allclose(result.explained_variance_ratio.sum(), 1.0, atol=1e-6)
+        np.testing.assert_allclose(
+            result.explained_variance_ratio.sum(), 1.0, atol=1e-6
+        )
         assert abs(result.cumulative_explained_variance[-1] - 1.0) < 1e-6
 
     def test_eof_modes_shape(self) -> None:
@@ -170,6 +174,12 @@ class TestSaveEOFResults:
         assert "eof_modes" in data
         assert "feature_importance" in data
         assert data["n_samples"] == 100
+        assert (
+            data["analysis_space"]
+            == "variable-space covariance decomposition over spatial means"
+        )
+        assert data["standardised"] is False
+        assert data["independent_feature_selection_evidence"] is False
 
 
 class TestPrintEOFTable:
@@ -185,7 +195,8 @@ class TestPrintEOFTable:
         print_eof_table(result)
         captured = capsys.readouterr()
 
-        assert "EOF Mode Analysis" in captured.out
+        assert "EOF Variable-Space Covariance Decomposition" in captured.out
+        assert "not a spatial EOF" in captured.out
         assert "Explained Variance:" in captured.out
         assert "Feature Importance" in captured.out
         assert "a" in captured.out

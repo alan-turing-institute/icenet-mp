@@ -3,8 +3,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import torch
 from omegaconf import DictConfig, OmegaConf
 
+from icenet_mp import model_service
 from icenet_mp.model_service import ModelService
 from icenet_mp.types import DataSpace
 
@@ -48,6 +50,35 @@ class MockModel:
 
 
 class TestModelService:
+    def test_recovers_legacy_vit_decode_head(self, tmp_path: Path) -> None:
+        """Legacy enhanced ViT checkpoints retain their omitted constructor defaults."""
+        checkpoint_path = tmp_path / "legacy.ckpt"
+        torch.save(
+            {
+                "hyper_parameters": {
+                    "processor": {
+                        "_target_": "icenet_mp.models.processors.VitProcessor",
+                        "patch_size": 4,
+                    }
+                },
+                "state_dict": {
+                    "processor.patch_to_pixels.weight": torch.empty(128, 8),
+                    "processor.refine.0.block.0.block.0.weight": torch.empty(
+                        8, 8, 5, 5
+                    ),
+                },
+            },
+            checkpoint_path,
+        )
+
+        overrides = model_service._checkpoint_constructor_overrides(checkpoint_path)
+
+        processor = overrides["processor"]
+        assert isinstance(processor, DictConfig)
+        assert processor.decode_head == "conv_refine"
+        assert processor.refine_channels == 8
+        assert processor.refine_kernel_size == 5
+
     def test_from_config_loads_model(self, cfg_model_service: DictConfig) -> None:
         mock_instantiate = MagicMock()
         mock_instantiate.return_value = MockModel()
@@ -128,3 +159,51 @@ class TestModelService:
             expected_config["loggers"] = "will_overwrite"
             assert service.config == expected_config
             assert service.config["model"]["name"] != "will_not_overwrite"
+
+    def test_isolated_evaluation_replaces_saved_callbacks_and_loggers(
+        self, cfg_model_service: DictConfig, tmp_path: Path
+    ) -> None:
+        """Do not resurrect stale checkpoint integrations for isolated evaluation."""
+        checkpoints_dir = tmp_path / "checkpoints"
+        checkpoints_dir.mkdir(parents=True)
+        checkpoint_path = checkpoints_dir / "model.ckpt"
+        checkpoint_path.write_text("checkpoint")
+        saved_config = cfg_model_service.copy()
+        saved_config.evaluate.callbacks = {
+            "activation_saver": {"_target_": "saved.ActivationSaver"},
+            "metric_summary": {"_target_": "saved.MetricSummaryCallback"},
+            "plotting": {"_target_": "saved.PlottingCallback"},
+        }
+        saved_config.loggers = {
+            "wandb": {"_target_": "lightning.pytorch.loggers.WandbLogger"}
+        }
+        files_dir = tmp_path / "files"
+        files_dir.mkdir()
+        OmegaConf.save(saved_config, files_dir / "model_config.yaml")
+        current_config = DictConfig(
+            {
+                "evaluate": {
+                    "callbacks": {
+                        "isolated_evaluation": {
+                            "_target_": "icenet_mp.callbacks.IsolatedEvaluationCallback"
+                        }
+                    }
+                },
+                "loggers": {
+                    "isolated_evaluation": {
+                        "_target_": "icenet_mp.loggers.LocalFileLogger"
+                    }
+                },
+            }
+        )
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.model_service.CommonDataModule", MockCommonDataModule)
+            mp.setattr(
+                "icenet_mp.model_service.hydra.utils.get_class",
+                lambda _target: MockModel,
+            )
+            service = ModelService.from_checkpoint(current_config, checkpoint_path)
+
+        assert list(service.config.evaluate.callbacks) == ["isolated_evaluation"]
+        assert list(service.config.loggers) == ["isolated_evaluation"]

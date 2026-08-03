@@ -26,19 +26,22 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
-import numpy as np
 import typer
 from omegaconf import DictConfig  # noqa: TC002
 
-from icenet_mp.data_loaders.single_dataset import SingleDataset
+from icenet_mp.cli.plotting import maybe_plot_spatial_rf_results
 from icenet_mp.input_diagnostics.data import (
     _get_max_samples,
+    build_datasets,
     resolve_datasets,
 )
 
 from .hydra import hydra_adaptor
+
+if TYPE_CHECKING:
+    from icenet_mp.data_loaders.single_dataset import SingleDataset
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +52,8 @@ input_exp_app = typer.Typer(
 )
 
 
-def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + RF pipeline
+def _run_rf_strand(
     datasets: dict[str, SingleDataset],
-    group_paths: dict[str, list[Path]],
     config: DictConfig,
     output_dir: Path,
 ) -> None:
@@ -66,13 +68,29 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
     )
 
     rf_config = config.get("rf", {}) or {}
+    if rf_config.get("mode", "scalar") == "spatial":
+        from icenet_mp.input_explainability.rf import run_rf_analysis  # noqa: PLC0415
+        from icenet_mp.input_explainability.spatial_rf import (  # noqa: PLC0415
+            SpatialRFResult,
+            save_spatial_rf_results,
+        )
+
+        result = run_rf_analysis(config)
+        if not isinstance(result, SpatialRFResult):
+            msg = "Spatial RF configuration did not produce a sampled-map result."
+            raise RuntimeError(msg)
+        spatial_json_path, _ = save_spatial_rf_results(result, output_dir / "rf")
+        typer.echo(f"Sampled-map screening results written to {spatial_json_path}")
+        maybe_plot_spatial_rf_results(config, result, output_dir / "rf")
+        return
     n_jobs = int(rf_config.get("n_jobs", -1))
 
     # Resolve temporal window parameters.
     n_history_steps, n_forecast_steps = _get_rf_window_params(config)
     logger.info(
         "RF temporal windows: history=%d steps, forecast=%d steps.",
-        n_history_steps, n_forecast_steps,
+        n_history_steps,
+        n_forecast_steps,
     )
 
     max_samples = _get_max_samples(config, "rf")
@@ -84,34 +102,33 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
 
     logger.info(
         "Loading target variable %r from group %r.",
-        target_variable, target_group_as,
+        target_variable,
+        target_group_as,
     )
 
-    # Find the zarr file for this group — look up by resolved group name first.
-    target_path: Path | None = None
-    if target_group_as in group_paths:
-        paths_for_group = group_paths[target_group_as]
-        if paths_for_group:
-            target_path = paths_for_group[0]
+    target_ds = datasets.get(target_group_as)
+    if target_ds is None:
+        msg = (
+            f"Configured RF target group {target_group_as!r} is not included in the "
+            "resolved datasets."
+        )
+        raise ValueError(msg)
 
-    # Fallback: scan for any zarr whose path contains the target group name.
-    if target_path is None:
-        for paths in group_paths.values():
-            for p in paths:
-                if target_group_as in str(p):
-                    target_path = p
-                    break
-            if target_path is not None:
-                break
-
-    if target_path is None:
-        logger.warning("Target dataset %r not found; skipping RF strand.", target_group_as)
-        return
+    train_ranges = config.get("data", {}).get("split", {}).get("train")
+    if not train_ranges:
+        msg = "RF analysis requires configured data.split.train date ranges."
+        raise ValueError(msg)
+    datasets = {
+        name: ds.subset(date_ranges=list(train_ranges)) for name, ds in datasets.items()
+    }
+    target_ds = datasets[target_group_as]
 
     # Build temporal windows.
     try:
         windows, var_names = build_rf_windows(
-            datasets, target_path=target_path, target_variable=target_variable,
+            datasets,
+            target_ds=target_ds,
+            target_variable=target_variable,
             n_history_steps=n_history_steps,
             n_forecast_steps=n_forecast_steps,
             max_samples=max_samples,
@@ -125,39 +142,24 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
         return
 
     # Convert windows to feature matrix and target vector.
-    X, y = _windows_to_arrays(windows, var_names, n_history_steps)  # noqa: N806 — standard ML convention for feature matrix
+    X, y, expanded_names = _windows_to_arrays(windows, var_names, n_history_steps)  # noqa: N806 — standard ML convention for feature matrix
 
     logger.info(
-        "Final arrays — features: %s, target (%s): %s", X.shape, target_variable, y.shape,
+        "Final arrays — features: %s, target (%s): %s",
+        X.shape,
+        target_variable,
+        y.shape,
     )
 
-    # Prevent data leakage: if the target variable is also present as a feature column,
-    # remove all columns corresponding to it across all history steps.
-    target_label = f"{target_group_as}/{target_variable}"
-    leak_indices: list[int] = []
-    new_var_names: list[str] = []
-
-    n_vars_per_step = len(var_names)  # variables per history step
-    total_feature_cols = n_vars_per_step * n_history_steps
-
-    for col in range(total_feature_cols):
-        var_idx_in_step = col % n_vars_per_step
-        candidate_name = var_names[var_idx_in_step] if var_idx_in_step < len(var_names) else ""
-        if candidate_name == target_label:
-            leak_indices.append(col)
-        else:
-            new_var_names.append(candidate_name)
-
-    if leak_indices:
-        logger.info(
-            "Removing %d data-leakage column(s) for feature %r across all history steps.",
-            len(leak_indices), target_label,
-        )
-        X = np.delete(X, leak_indices, axis=1)  # noqa: N806 — standard ML convention for feature matrix
+    # Historical target observations are valid inputs, not leakage.
 
     logger.info("Running Random Forest feature importance...")
+    interaction_enabled = (rf_config.get("interaction") or {}).get("enabled", True)
     result = compute_rf_importance(
-        X, y, new_var_names, target_name=f"{target_group_as}/{target_variable}",
+        X,
+        y,
+        expanded_names,
+        target_name=f"{target_group_as}/{target_variable}",
         n_estimators=rf_config.get("n_estimators", 500),
         max_depth=rf_config.get("max_depth", 15),
         min_samples_leaf=rf_config.get("min_samples_leaf", 5),
@@ -165,6 +167,7 @@ def _run_rf_strand(  # noqa: C901, PLR0912, PLR0915 — complex data-loading + R
         max_features=rf_config.get("max_features", "sqrt"),
         random_state=rf_config.get("random_state", 42),
         n_jobs=n_jobs,
+        interaction_enabled=interaction_enabled,
     )
     print_rf_table(result)
     json_path = save_rf_results(result, output_dir / "rf")
@@ -185,28 +188,11 @@ def _run_all_strands(
     logger.info("Building dataset instances for input explainability...")
     group_paths, group_variables = resolve_datasets(config)
 
-    datasets: dict[str, SingleDataset] = {}
-    for group_name, paths in group_paths.items():
-        vars_list = group_variables.get(group_name)
-        if vars_list is not None and len(vars_list) > 0:
-            logger.info("Loading dataset group %r (%d paths, variables: %s).",
-                         group_name, len(paths), vars_list)
-            datasets[group_name] = SingleDataset(
-                group_name,
-                paths,
-                variables=vars_list,
-            )
-        else:
-            logger.warning(
-                "Dataset group %r has no variable filter — loading all variables (%d paths). "
-                "Consider specifying 'variables' to limit data loaded.",
-                group_name, len(paths),
-            )
-            datasets[group_name] = SingleDataset(group_name, paths)
+    datasets = build_datasets(group_paths, group_variables)
 
     # Run RF strand (uses temporal windows internally).
     try:
-        _run_rf_strand(datasets, group_paths, config, output_dir)
+        _run_rf_strand(datasets, config, output_dir)
     except Exception:
         logger.exception("RF explainability failed")
 

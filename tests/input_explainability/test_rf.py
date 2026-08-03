@@ -5,20 +5,41 @@ from __future__ import annotations
 import dataclasses
 import json
 from pathlib import Path
-from typing import Any, cast
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from sklearn.ensemble import RandomForestRegressor
 
 from icenet_mp.input_explainability.rf import (
+    RFWindow,
     _compute_interaction_scores,
     _get_rf_window_params,
     _windows_to_arrays,
     build_rf_windows,
     compute_rf_importance,
+    print_rf_table,
     save_rf_results,
 )
+
+
+class FakeSingleDataset:
+    """Minimal in-memory dataset for RF window tests."""
+
+    def __init__(
+        self,
+        name: str,
+        variables: list[str],
+        values: dict[np.datetime64, np.ndarray],
+    ) -> None:
+        """Initialise a dataset from a date-to-array mapping."""
+        self.name = name
+        self.variable_names = variables
+        self._values = values
+        self.dates = sorted(values)
+        self.frequency = np.timedelta64(1, "D")
+
+    def get_tchw(self, dates: list[np.datetime64]) -> np.ndarray:
+        return np.stack([self._values[date] for date in dates])
 
 
 class TestComputeRFImportance:
@@ -32,7 +53,9 @@ class TestComputeRFImportance:
         y = X[:, 0] * 2 + X[:, 1] * 0.5 + rng.standard_normal(n_samples) * 0.1
         names = [f"feat_{i}" for i in range(n_features)]
 
-        result = compute_rf_importance(X, y, names, target_name="target", n_estimators=50, random_state=42)
+        result = compute_rf_importance(
+            X, y, names, target_name="target", n_estimators=50, random_state=42
+        )
 
         assert result.n_samples == n_samples
         assert result.n_features == n_features
@@ -63,7 +86,7 @@ class TestComputeRFImportance:
         assert result.target_name == "sic-ssmis/ice_conc"
 
     def test_high_signal_feature_ranked_first(self) -> None:
-        """A feature with strong signal should rank higher."""
+        """A feature with strong signal should rank highest."""
         rng = np.random.default_rng(42)
         n_samples = 300
         X = rng.standard_normal((n_samples, 5))
@@ -71,10 +94,14 @@ class TestComputeRFImportance:
         y = X[:, 0] * 10 + rng.standard_normal(n_samples) * 0.1
         names = [f"feat_{i}" for i in range(5)]
 
-        result = compute_rf_importance(X, y, names, target_name="target", n_estimators=100, random_state=42)
+        result = compute_rf_importance(
+            X, y, names, target_name="target", n_estimators=100, random_state=42
+        )
 
-        # First feature should have highest importance (or tied).
-        assert result.permutation_importance[0] >= result.permutation_importance[1:].max() * 0.5
+        # First feature should have strictly highest importance.
+        assert (
+            result.permutation_importance[0] > result.permutation_importance[1:].max()
+        )
 
     def test_interaction_scores_computed_for_few_features(self) -> None:
         """Interaction scores should be computed when features <= limit."""
@@ -84,10 +111,64 @@ class TestComputeRFImportance:
         y = X[:, 0] + X[:, 1] * 0.5 + rng.standard_normal(n_samples) * 0.1
         names = [f"f{i}" for i in range(n_features)]
 
-        result = compute_rf_importance(X, y, names, target_name="target", n_estimators=50, random_state=42)
+        result = compute_rf_importance(
+            X, y, names, target_name="target", n_estimators=50, random_state=42
+        )
 
         assert result.interaction_scores is not None
         assert result.interaction_scores.shape == (n_features, n_features)
+
+    def test_interaction_disabled(self) -> None:
+        """When interaction_enabled=False, interaction_scores should be None."""
+        rng = np.random.default_rng(42)
+        X = rng.standard_normal((100, 3))
+        y = X[:, 0] + rng.standard_normal(100) * 0.1
+
+        result = compute_rf_importance(
+            X,
+            y,
+            ["a", "b", "c"],
+            target_name="target",
+            interaction_enabled=False,
+        )
+
+        assert result.interaction_scores is None
+
+    def test_print_rf_table_shows_interaction_section(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """print_rf_table should show pairwise interaction section when scores exist."""
+        rng = np.random.default_rng(42)
+        X = rng.standard_normal((100, 3))
+        y = X[:, 0] + X[:, 1] * 0.5 + rng.standard_normal(100) * 0.1
+
+        result = compute_rf_importance(X, y, ["a", "b", "c"], target_name="target")
+
+        print_rf_table(result)
+        captured = capsys.readouterr()
+
+        assert "Pairwise Interaction Scores (Friedman H-statistic)" in captured.out
+
+    def test_print_rf_table_no_interaction_when_disabled(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """print_rf_table should omit interaction section when scores are None."""
+        rng = np.random.default_rng(42)
+        X = rng.standard_normal((100, 3))
+        y = X[:, 0] + rng.standard_normal(100) * 0.1
+
+        result = compute_rf_importance(
+            X,
+            y,
+            ["a", "b", "c"],
+            target_name="target",
+            interaction_enabled=False,
+        )
+
+        print_rf_table(result)
+        captured = capsys.readouterr()
+
+        assert "Pairwise Interaction Scores (Friedman H-statistic)" not in captured.out
 
 
 class TestComputeInteractionScores:
@@ -98,8 +179,6 @@ class TestComputeInteractionScores:
         rng = np.random.default_rng(42)
         X = rng.standard_normal((200, 4))
         y = X[:, 0] + X[:, 1] * 0.5 + rng.standard_normal(200) * 0.1
-
-        from sklearn.ensemble import RandomForestRegressor  # noqa: PLC0415
 
         model = RandomForestRegressor(n_estimators=30, random_state=42)
         model.fit(X, y)
@@ -115,8 +194,6 @@ class TestComputeInteractionScores:
         X = rng.standard_normal((200, 3))
         y = X[:, 0] + rng.standard_normal(200) * 0.1
 
-        from sklearn.ensemble import RandomForestRegressor  # noqa: PLC0415
-
         model = RandomForestRegressor(n_estimators=30, random_state=42)
         model.fit(X, y)
 
@@ -131,12 +208,12 @@ class TestComputeInteractionScores:
         X = rng.standard_normal((200, 25))
         y = X[:, 0] + rng.standard_normal(200) * 0.1
 
-        from sklearn.ensemble import RandomForestRegressor  # noqa: PLC0415
-
         model = RandomForestRegressor(n_estimators=30, random_state=42)
         model.fit(X, y)
 
-        interactions = _compute_interaction_scores(model, X, y, [f"f{i}" for i in range(25)])
+        interactions = _compute_interaction_scores(
+            model, X, y, [f"f{i}" for i in range(25)]
+        )
 
         assert interactions is None
 
@@ -146,9 +223,11 @@ class TestComputeInteractionScores:
         n_samples, n_features = 500, 3
         X = rng.standard_normal((n_samples, n_features))
         # Target driven by feature 0 and a synergy between 0 and 1.
-        y = X[:, 0] * 2 + (X[:, 0] * X[:, 1]) * 1.5 + rng.standard_normal(n_samples) * 0.3
-
-        from sklearn.ensemble import RandomForestRegressor  # noqa: PLC0415
+        y = (
+            X[:, 0] * 2
+            + (X[:, 0] * X[:, 1]) * 1.5
+            + rng.standard_normal(n_samples) * 0.3
+        )
 
         model = RandomForestRegressor(n_estimators=100, random_state=42)
         model.fit(X, y)
@@ -219,9 +298,11 @@ class TestGetRFWindowParams:
         """Should read n_history_steps and n_forecast_steps from predict config."""
         from omegaconf import OmegaConf  # noqa: PLC0415
 
-        cfg = OmegaConf.create({
-            "predict": {"n_history_steps": 3, "n_forecast_steps": 14},
-        })
+        cfg = OmegaConf.create(
+            {
+                "predict": {"n_history_steps": 3, "n_forecast_steps": 14},
+            }
+        )
 
         history, forecast = _get_rf_window_params(cfg)
 
@@ -232,10 +313,12 @@ class TestGetRFWindowParams:
         """RF config values should override predict config."""
         from omegaconf import OmegaConf  # noqa: PLC0415
 
-        cfg = OmegaConf.create({
-            "predict": {"n_history_steps": 3, "n_forecast_steps": 14},
-            "rf": {"n_history_steps": 5, "n_forecast_steps": 7},
-        })
+        cfg = OmegaConf.create(
+            {
+                "predict": {"n_history_steps": 3, "n_forecast_steps": 14},
+                "rf": {"n_history_steps": 5, "n_forecast_steps": 7},
+            }
+        )
 
         history, forecast = _get_rf_window_params(cfg)
 
@@ -246,9 +329,11 @@ class TestGetRFWindowParams:
         """Should use hardcoded defaults when predict config lacks n_steps."""
         from omegaconf import OmegaConf  # noqa: PLC0415
 
-        cfg = OmegaConf.create({
-            "predict": {},
-        })
+        cfg = OmegaConf.create(
+            {
+                "predict": {},
+            }
+        )
 
         history, forecast = _get_rf_window_params(cfg)
 
@@ -261,8 +346,6 @@ class TestWindowsToArray:
 
     def test_basic_conversion(self) -> None:
         """Should convert windows to correct X and y shapes."""
-        from icenet_mp.input_explainability.rf import RFWindow  # noqa: PLC0415
-
         rng = np.random.default_rng(42)
         n_windows, n_history, n_vars = 10, 3, 4
 
@@ -273,19 +356,55 @@ class TestWindowsToArray:
                 "group_a": rng.standard_normal((n_history, n_vars)),
             }
             target_value = float(rng.integers(0, 100))
-            windows.append(RFWindow(start_date=base_date + i, history_features=history_features, target_value=target_value))
+            windows.append(
+                RFWindow(
+                    start_date=base_date + i,
+                    history_features=history_features,
+                    target_value=target_value,
+                )
+            )
 
         feature_names = [f"v{i}" for i in range(n_vars)]
 
-        X, y = _windows_to_arrays(windows, feature_names, n_history)
+        X, y, expanded_names = _windows_to_arrays(windows, feature_names, n_history)
 
         assert X.shape == (n_windows, n_history * n_vars)
         assert y.shape == (n_windows,)
+        # Expanded names should have one unique label per column.
+        assert len(expanded_names) == n_history * n_vars
+        for day_idx in range(n_history):
+            for i in range(n_vars):
+                suffix = f"t-{n_history - 1 - day_idx}"
+                expected = f"{feature_names[i]}_{suffix}"
+                assert expanded_names[day_idx * n_vars + i] == expected
+
+    def test_sentinel_values_match_group_variable_and_lag_labels(self) -> None:
+        """Every day-major feature value must retain its exact column label."""
+        window = RFWindow(
+            start_date=np.datetime64("2020-01-01", "D"),
+            history_features={
+                "sic": np.array([[11.0], [21.0]]),
+                "era5": np.array([[12.0, 13.0], [22.0, 23.0]]),
+            },
+            target_value=0.0,
+        )
+
+        X, _, names = _windows_to_arrays(
+            [window], ["sic/ice_conc", "era5/t2m", "era5/msl"], 2
+        )
+
+        assert names == [
+            "sic/ice_conc_t-1",
+            "sic/ice_conc_t-0",
+            "era5/t2m_t-1",
+            "era5/msl_t-1",
+            "era5/t2m_t-0",
+            "era5/msl_t-0",
+        ]
+        np.testing.assert_array_equal(X, [[11.0, 21.0, 12.0, 13.0, 22.0, 23.0]])
 
     def test_target_values_preserved(self) -> None:
         """Target values should match input windows."""
-        from icenet_mp.input_explainability.rf import RFWindow  # noqa: PLC0415
-
         rng = np.random.default_rng(42)
         n_windows, n_history, n_vars = 5, 2, 3
 
@@ -296,189 +415,65 @@ class TestWindowsToArray:
             history_features = {
                 "g": rng.standard_normal((n_history, n_vars)),
             }
-            windows.append(RFWindow(start_date=base_date + tv_idx, history_features=history_features, target_value=tv))
+            windows.append(
+                RFWindow(
+                    start_date=base_date + tv_idx,
+                    history_features=history_features,
+                    target_value=tv,
+                )
+            )
 
         feature_names = [f"v{i}" for i in range(n_vars)]
 
-        _X, y = _windows_to_arrays(windows, feature_names, n_history)
+        _, y, expanded_names = _windows_to_arrays(windows, feature_names, n_history)
 
         np.testing.assert_array_almost_equal(y, target_values)
+        assert len(expanded_names) == n_history * n_vars
+
+    def test_empty_windows_raises(self) -> None:
+        """Should raise when no windows provided."""
+        with pytest.raises(ValueError, match="No windows"):
+            _windows_to_arrays([], [], n_history_steps=3)
 
 
 class TestBuildRFWindows:
-    """Tests for the build_rf_windows function."""
+    """Tests for build_rf_windows — synthetic data exercises the window logic."""
 
-    def test_no_valid_windows_raises(self) -> None:
-        """Should raise when no valid windows exist (target missing forecast dates)."""
-        # Mock dataset with 10 consecutive dates.
-        mock_ds = MagicMock()
-        mock_ds.variable_names = ["var_a"]
-        mock_ds.frequency = np.timedelta64(1, "D")
-        base_date = np.datetime64("2020-01-01", "D")
-        mock_ds.dates = {base_date + i for i in range(10)}
+    def test_empty_datasets_raises(self) -> None:
+        """Should raise when no input datasets provided."""
+        with pytest.raises(ValueError, match="No input datasets"):
+            build_rf_windows({}, None, "ice_conc")  # type: ignore[arg-type]
 
-        datasets = {"group_a": mock_ds}  # type: ignore[assignment]
+    def test_missing_history_timestamp_rejects_window(self) -> None:
+        """A calendar gap must not be replaced by the next positional sample."""
+        dates = [
+            np.datetime64("2020-01-01"),
+            np.datetime64("2020-01-03"),
+            np.datetime64("2020-01-04"),
+        ]
+        values = {date: np.full((1, 1, 1), index) for index, date in enumerate(dates)}
+        dataset = FakeSingleDataset("sic", ["ice_conc"], values)
 
-        # Mock target zarr with dates that don't overlap forecast window.
-        class _MockZarrRoot:
-            def __contains__(self, key: str) -> bool:
-                return True
-
-            @property
-            def attrs(self) -> MagicMock:
-                m = MagicMock()
-                m.get.return_value = [f"2020-01-{i+1:02d}" for i in range(5)]
-                return m
-
-        with patch("zarr.DirectoryStore"), \
-             patch("zarr.group", return_value=_MockZarrRoot()), \
-             pytest.raises(ValueError, match="No valid windows found"):
-            build_rf_windows(  # type: ignore[arg-type]
-                cast("dict[str, Any]", datasets), Path("/fake/target.zarr"), "ice_conc",
-                n_history_steps=3, n_forecast_steps=5, max_samples=None,
+        with pytest.raises(ValueError, match="No valid windows"):
+            build_rf_windows(
+                {"sic": dataset},  # type: ignore[dict-item]
+                dataset,  # type: ignore[arg-type]
+                "ice_conc",
+                n_history_steps=2,
+                n_forecast_steps=1,
             )
 
-    def test_window_count_matches_valid_starts(self) -> None:
-        """Number of windows should equal number of valid start dates."""
-        # Mock dataset with 100 consecutive dates.
-        mock_ds = MagicMock()
-        mock_ds.variable_names = ["var_a", "var_b"]
-        mock_ds.frequency = np.timedelta64(1, "D")
-        base_date = np.datetime64("2020-01-01", "D")
-        all_dates = {base_date + i for i in range(100)}
-        mock_ds.dates = all_dates
+    def test_absent_target_variable_raises_clearly(self) -> None:
+        """The RF target must never fall back to another channel or their mean."""
+        dates = [np.datetime64("2020-01-01") + offset for offset in range(3)]
+        values = {date: np.ones((1, 1, 1)) for date in dates}
+        dataset = FakeSingleDataset("sic", ["other"], values)
 
-        datasets = {"group_a": mock_ds}  # type: ignore[assignment]
-
-        # Mock target zarr with dates covering the full range.
-        class _MockZarrRoot:
-            def __contains__(self, key: str) -> bool:
-                return True
-
-            @property
-            def attrs(self) -> MagicMock:
-                m = MagicMock()
-                m.get.return_value = [str(base_date + i) for i in range(100)]
-                return m
-
-            def __getitem__(self, key: str) -> _MockVarGroup:
-                return _MockVarGroup()
-
-        class _MockVarGroup:
-            def __contains__(self, date_str: str) -> bool:
-                try:
-                    d = np.datetime64(date_str[:10], "D")
-                    diff_days = int(((d - base_date) / np.timedelta64(1, "D")).item())
-                    return diff_days in range(100)
-                except ValueError:
-                    return False
-
-            def __getitem__(self, date_str: str) -> _MockDataArray:
-                return _MockDataArray()
-
-        class _MockDataArray:
-            ndim = 2
-
-            def mean(self, _axis: tuple[int, int] | None = None) -> float:
-                return 1.0
-
-            def __getitem__(self, idx: slice) -> _MockDataArray:
-                return self
-
-        with patch("zarr.DirectoryStore"), patch("zarr.group", return_value=_MockZarrRoot()):
-            windows, var_names = build_rf_windows(  # type: ignore[arg-type]
-                cast("dict[str, Any]", datasets), Path("/fake/target.zarr"), "ice_conc",
-                n_history_steps=3, n_forecast_steps=2, max_samples=None,
+        with pytest.raises(ValueError, match="Configured target variable 'ice_conc'"):
+            build_rf_windows(
+                {"sic": dataset},  # type: ignore[dict-item]
+                dataset,  # type: ignore[arg-type]
+                "ice_conc",
+                n_history_steps=1,
+                n_forecast_steps=1,
             )
-
-        # Valid starts: dates where start+3+2-1 <= 99, i.e., start + n_forecast_steps - 1 <= 99.
-        # Forecast dates for start at index i: i+n_history_steps .. i+n_history_steps+n_forecast_steps-1
-        # So we need i+3+2-1 = i+4 <= 99, meaning i <= 95. That's 96 valid starts (indices 0..95).
-        assert len(windows) == 96
-        assert var_names == ["group_a/var_a", "group_a/var_b"]
-
-    def test_max_samples_limits_windows(self) -> None:
-        """max_samples should limit the number of windows returned."""
-        mock_ds = MagicMock()
-        mock_ds.variable_names = ["var_a"]
-        mock_ds.frequency = np.timedelta64(1, "D")
-        base_date = np.datetime64("2020-01-01", "D")
-        all_dates = {base_date + i for i in range(50)}
-        mock_ds.dates = all_dates
-
-        datasets = {"group_a": mock_ds}  # type: ignore[assignment]
-
-        class _MockZarrRoot:
-            def __contains__(self, key: str) -> bool:
-                return True
-
-            @property
-            def attrs(self) -> MagicMock:
-                m = MagicMock()
-                m.get.return_value = [str(base_date + i) for i in range(50)]
-                return m
-
-            def __getitem__(self, key: str) -> _MockVarGroup:
-                return _MockVarGroup()
-
-        class _MockVarGroup:
-            def __contains__(self, date_str: str) -> bool:
-                try:
-                    d = np.datetime64(date_str[:10], "D")
-                    diff_days = int(((d - base_date) / np.timedelta64(1, "D")).item())
-                    return diff_days in range(50)
-                except ValueError:
-                    return False
-
-            def __getitem__(self, date_str: str) -> _MockDataArray:
-                return _MockDataArray()
-
-        class _MockDataArray:
-            ndim = 2
-
-            def mean(self, _axis: tuple[int, int] | None = None) -> float:
-                return 1.0
-
-            def __getitem__(self, idx: slice) -> _MockDataArray:
-                return self
-
-        with patch("zarr.DirectoryStore"), patch("zarr.group", return_value=_MockZarrRoot()):
-            windows, _ = build_rf_windows(  # type: ignore[arg-type]
-                cast("dict[str, Any]", datasets), Path("/fake/target.zarr"), "ice_conc",
-                n_history_steps=1, n_forecast_steps=1, max_samples=5,
-            )
-
-        assert len(windows) == 5
-
-
-class TestTimeSeriesCV:
-    """Tests that compute_rf_importance uses TimeSeriesSplit (no shuffling)."""
-
-    def test_temporal_ordering_in_folds(self) -> None:
-        """Test folds should be temporally ordered (later dates in later folds)."""
-        rng = np.random.default_rng(42)
-        n_samples, n_features = 100, 3
-        X = rng.standard_normal((n_samples, n_features))
-        y = X[:, 0] + rng.standard_normal(n_samples) * 0.1
-
-        result = compute_rf_importance(X, y, ["a", "b", "c"], target_name="target")
-
-        # With TimeSeriesSplit, the last fold's test set should contain
-        # the highest-indexed samples (later in time).
-        assert result.n_samples == n_samples
-        assert result.r2_score is not None
-
-
-class TestInteractionScores:
-    """Additional tests for interaction score edge cases."""
-
-    def test_interaction_scores_none_when_features_exceed_limit(self) -> None:
-        """Interaction scores should be None when features exceed the limit."""
-        rng = np.random.default_rng(42)
-        n_samples, n_features = 100, 30  # exceeds _MAX_INTERACTION_FEATURES (25)
-        X = rng.standard_normal((n_samples, n_features))
-        y = X[:, 0] + rng.standard_normal(n_samples) * 0.1
-
-        result = compute_rf_importance(X, y, [f"f{i}" for i in range(n_features)], target_name="target")
-
-        assert result.interaction_scores is None

@@ -39,6 +39,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_MINIMUM_VARIABLES = 2
+
 # Threshold for cumulative explained variance (components needed to capture 90%).
 VARIANCE_THRESHOLD = 0.90
 
@@ -70,7 +72,17 @@ def compute_pca(
     Returns:
         PCAResult with scores, components, and metadata.
 
+    Raises:
+        ValueError: If fewer than 2 variables are provided (PCA requires at least two
+            variables to compute principal components).
+
     """
+    n_vars = sample_matrix.shape[1]
+    if n_vars < _MINIMUM_VARIABLES:
+        msg = f"PCA requires at least 2 variables to compute principal components; got {n_vars}."
+        logger.warning(msg)
+        raise ValueError(msg)
+
     scaler = StandardScaler()
     x_scaled = scaler.fit_transform(sample_matrix)
 
@@ -117,7 +129,9 @@ def run_pca_analysis(config: DictConfig) -> PCAResult:
         PCAResult with computed scores.
 
     """
-    max_samples = config.get("vif", {}).get("max_samples", None)  # reuse vif.max_samples key
+    max_samples = config.get("vif", {}).get(
+        "max_samples", None
+    )  # reuse vif.max_samples key
 
     group_paths, group_variables = resolve_datasets(config)
 
@@ -127,8 +141,12 @@ def run_pca_analysis(config: DictConfig) -> PCAResult:
     for group_name, paths in group_paths.items():
         vars_list = group_variables.get(group_name)
         if vars_list is not None and len(vars_list) > 0:
-            logger.info("Loading dataset group %r (%d paths, variables: %s).",
-                         group_name, len(paths), vars_list)
+            logger.info(
+                "Loading dataset group %r (%d paths, variables: %s).",
+                group_name,
+                len(paths),
+                vars_list,
+            )
             datasets[group_name] = SingleDataset(
                 group_name,
                 paths,
@@ -138,13 +156,16 @@ def run_pca_analysis(config: DictConfig) -> PCAResult:
             logger.warning(
                 "Dataset group %r has no variable filter — loading all variables (%d paths). "
                 "Consider specifying 'variables' to limit data loaded.",
-                group_name, len(paths),
+                group_name,
+                len(paths),
             )
             datasets[group_name] = SingleDataset(group_name, paths)
 
     sample_matrix, var_names = build_sample_matrix(datasets, max_samples=max_samples)
 
-    logger.info("Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names))
+    logger.info(
+        "Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names)
+    )
 
     return compute_pca(sample_matrix, var_names)
 
@@ -167,15 +188,23 @@ def print_pca_table(result: PCAResult) -> None:
 
     # Explained variance summary.
     print("\nExplained Variance:")  # noqa: T201
-    for i, (ratio, cum) in enumerate(zip(evr, result.cumulative_explained_variance, strict=True)):
+    for i, (ratio, cum) in enumerate(
+        zip(evr, result.cumulative_explained_variance, strict=True)
+    ):
         if cum >= VARIANCE_THRESHOLD and i == np.searchsorted(
-            result.cumulative_explained_variance, VARIANCE_THRESHOLD,
+            result.cumulative_explained_variance,
+            VARIANCE_THRESHOLD,
         ):
-            print(f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)   <-- 90% threshold reached" )  # noqa: T201
+            print(
+                f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)   <-- 90% threshold reached"
+            )
         else:
             print(f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {cum * 100:5.1f}%)")  # noqa: T201
 
-    n_components_90 = int(np.searchsorted(result.cumulative_explained_variance, VARIANCE_THRESHOLD)) + 1
+    n_components_90 = (
+        int(np.searchsorted(result.cumulative_explained_variance, VARIANCE_THRESHOLD))
+        + 1
+    )
     print(f"\nComponents needed for 90% variance: {n_components_90}")  # noqa: T201
 
     # Feature importance ranking.
@@ -236,9 +265,13 @@ def save_pca_results(result: PCAResult, output_dir: Path) -> Path:
     lines.append("\nExplained Variance:")
     for i, (ratio, c) in enumerate(zip(evr, cum, strict=True)):
         if c >= VARIANCE_THRESHOLD and i == np.searchsorted(cum, VARIANCE_THRESHOLD):
-            lines.append(f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)   <-- 90% threshold reached")
+            lines.append(
+                f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)   <-- 90% threshold reached"
+            )
         else:
-            lines.append(f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)")
+            lines.append(
+                f"  PC{i + 1}: {ratio * 100:5.1f}% (cumulative: {c * 100:5.1f}%)"
+            )
 
     n_components_90 = int(np.searchsorted(cum, VARIANCE_THRESHOLD)) + 1
     lines.append(f"\nComponents needed for 90% variance: {n_components_90}")
@@ -250,9 +283,7 @@ def save_pca_results(result: PCAResult, output_dir: Path) -> Path:
     lines.append("-" * 70)
 
     for rank, idx in enumerate(order, start=1):
-        lines.append(
-            f"{rank:<5} {names[idx]:<45} {importance[idx]:>8.4f}"
-        )
+        lines.append(f"{rank:<5} {names[idx]:<45} {importance[idx]:>8.4f}")
 
     with txt_path.open("w", encoding="utf-8") as fh:
         fh.write("\n".join(lines))

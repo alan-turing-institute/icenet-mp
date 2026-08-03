@@ -64,7 +64,11 @@ def _run_vif_strand(
     )
 
     logger.info("Running VIF analysis...")
-    result = compute_vif(sample_matrix, var_names, threshold=threshold)
+    try:
+        result = compute_vif(sample_matrix, var_names, threshold=threshold)
+    except ValueError as exc:
+        typer.echo(f"VIF skipped: {exc}", err=True)
+        return
     print_vif_table(result)
     json_path = save_vif_results(result, output_dir / "vif")
     typer.echo(f"VIF results written to {json_path}")
@@ -83,7 +87,11 @@ def _run_pca_strand(
     )
 
     logger.info("Running PCA analysis...")
-    result = compute_pca(sample_matrix, var_names)
+    try:
+        result = compute_pca(sample_matrix, var_names)
+    except ValueError as exc:
+        typer.echo(f"PCA skipped: {exc}", err=True)
+        return
     print_pca_table(result)
     json_path = save_pca_results(result, output_dir / "pca")
     typer.echo(f"PCA results written to {json_path}")
@@ -137,8 +145,12 @@ def _run_all_strands(
     for group_name, paths in group_paths.items():
         vars_list = group_variables.get(group_name)
         if vars_list is not None and len(vars_list) > 0:
-            logger.info("Loading dataset group %r (%d paths, variables: %s).",
-                         group_name, len(paths), vars_list)
+            logger.info(
+                "Loading dataset group %r (%d paths, variables: %s).",
+                group_name,
+                len(paths),
+                vars_list,
+            )
             datasets[group_name] = SingleDataset(
                 group_name,
                 paths,
@@ -148,16 +160,22 @@ def _run_all_strands(
             logger.warning(
                 "Dataset group %r has no variable filter — loading all variables (%d paths). "
                 "Consider specifying 'variables' to limit data loaded.",
-                group_name, len(paths),
+                group_name,
+                len(paths),
             )
             datasets[group_name] = SingleDataset(group_name, paths)
 
     sample_matrix, var_names = build_sample_matrix(datasets, max_samples=max_samples)
-    logger.info("Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names))
+    logger.info(
+        "Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names)
+    )
 
     # Run each strand; failures in one do not prevent others from running.
     for name, fn in [
-        ("VIF", lambda: _run_vif_strand(sample_matrix, var_names, threshold, output_dir)),
+        (
+            "VIF",
+            lambda: _run_vif_strand(sample_matrix, var_names, threshold, output_dir),
+        ),
         ("PCA", lambda: _run_pca_strand(sample_matrix, var_names, output_dir)),
         ("EOF", lambda: _run_eof_strand(sample_matrix, var_names, output_dir)),
     ]:

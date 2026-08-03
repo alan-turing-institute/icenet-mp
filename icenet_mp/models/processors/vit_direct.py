@@ -14,7 +14,11 @@ from typing import Any
 import torch
 from torch import nn
 
-from icenet_mp.models.common import CommonConvBlock, PatchEmbedding, TransformerEncoderBlock
+from icenet_mp.models.common import (
+    CommonConvBlock,
+    PatchEmbedding,
+    TransformerEncoderBlock,
+)
 from icenet_mp.types import ProcessorOutput, TensorNCHW, TensorNTCHW
 
 from .base_processor import BaseProcessor

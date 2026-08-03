@@ -1,0 +1,7 @@
+defaults:
+  - default
+  - override callbacks:
+    - isolated_evaluation
+  - _self_
+
+run_directory: ${base_path}/evaluation/${evaluation.run_name}

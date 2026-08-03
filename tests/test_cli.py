@@ -1,6 +1,9 @@
 import re
 from collections.abc import Sequence
+from importlib import import_module
 
+import pytest
+import typer
 from typer.testing import CliRunner
 
 from icenet_mp.cli.main import app
@@ -59,6 +62,23 @@ class TestBaseCLI:
             expected_patterns=self.expected_patterns_help,
         )
 
+    def test_mps_failure_exits_unsuccessfully(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unsupported MPS operation must not be reported as a successful command."""
+        cli_main = import_module("icenet_mp.cli.main")
+
+        def raise_mps_error() -> None:
+            message = "not currently implemented for the MPS device"
+            raise NotImplementedError(message)
+
+        monkeypatch.setattr(cli_main, "app", raise_mps_error)
+
+        with pytest.raises(typer.Exit) as exc_info:
+            cli_main.main()
+
+        assert exc_info.value.exit_code == 1
+
 
 class TestDatasetsCLI:
     def test_help(self) -> None:
@@ -116,10 +136,10 @@ class TestVIFCLI:
         runner.check_output(
             ["vif", "--help"],
             expected_patterns=[
-                r"Usage: imp vif \[OPTIONS\] \[OVERRIDES\]...",
+                r"Usage: imp vif \[OPTIONS\] \[overrides\]...",
                 r"Run VIF analysis on the configured dataset variables.",
-                r"\[overrides\]\.\.\.\s+TEXT\s+Apply space-separated Hydra config",
-                r"--config-name\s+TEXT\s+Specify the name of a file to load from the",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config",
+                r"--config-name\s+<str>\s+Name of a file to load from the config",
                 r"--help\s+-h\s+Show this message and exit.",
             ],
         )

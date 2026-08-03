@@ -8,7 +8,7 @@ from icenet_mp.models import EncodeProcessDecode
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
 @pytest.mark.parametrize("test_n_history_steps", [1, 2, 5])
 class TestEncodeProcessDecode:
-    def test_init(  # noqa: PLR0917
+    def test_init(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -46,7 +46,7 @@ class TestEncodeProcessDecode:
         assert model.output_space.shape == cfg_output_space["shape"]
 
     @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
-    def test_forward(  # noqa: PLR0917
+    def test_forward(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,

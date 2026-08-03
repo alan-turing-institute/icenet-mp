@@ -63,7 +63,9 @@ class TestComputePCA:
         result = compute_pca(matrix, names)
 
         # Correlated pair should have similar importance.
-        np.testing.assert_allclose(result.feature_importance[0], result.feature_importance[1], rtol=0.05)
+        np.testing.assert_allclose(
+            result.feature_importance[0], result.feature_importance[1], rtol=0.05
+        )
         assert result.feature_importance[0] > result.feature_importance[2]
 
     def test_explained_variance_sums_to_one(self) -> None:
@@ -74,7 +76,9 @@ class TestComputePCA:
 
         result = compute_pca(matrix, names)
 
-        np.testing.assert_allclose(result.explained_variance_ratio.sum(), 1.0, atol=1e-6)
+        np.testing.assert_allclose(
+            result.explained_variance_ratio.sum(), 1.0, atol=1e-6
+        )
         # Cumulative should end at 1.0.
         assert abs(result.cumulative_explained_variance[-1] - 1.0) < 1e-6
 
@@ -99,6 +103,21 @@ class TestComputePCA:
         result = compute_pca(matrix, names)
 
         assert result.variable_names == names
+
+    def test_single_variable_raises(self) -> None:
+        """PCA should raise ValueError when given only one variable."""
+        rng = np.random.default_rng(42)
+        matrix = rng.standard_normal((100, 1))
+
+        with pytest.raises(ValueError, match="at least 2 variables"):
+            compute_pca(matrix, ["x"])
+
+    def test_empty_variables_raises(self) -> None:
+        """PCA should raise ValueError when given zero variables."""
+        matrix = np.empty((100, 0))
+
+        with pytest.raises(ValueError, match="at least 2 variables"):
+            compute_pca(matrix, [])
 
 
 class TestPCAResult:

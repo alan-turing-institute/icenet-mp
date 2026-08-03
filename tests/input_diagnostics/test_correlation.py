@@ -87,7 +87,13 @@ class TestPrintCorrelationSummary:
         """Output should contain top correlation pairs."""
         rng = np.random.default_rng(42)
         col1 = rng.standard_normal(100)
-        matrix = np.column_stack([col1, col1 * 0.95 + rng.standard_normal(100) * 0.3, rng.standard_normal(100)])
+        matrix = np.column_stack(
+            [
+                col1,
+                col1 * 0.95 + rng.standard_normal(100) * 0.3,
+                rng.standard_normal(100),
+            ]
+        )
         names = ["x", "y", "z"]
 
         corr_df = compute_correlation_matrix(matrix, names)

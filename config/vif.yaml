@@ -1,9 +1,0 @@
-# Default configuration for VIF (Variance Inflation Factor) analysis.
-# Usage: imp vif --config-name vif 'data/datasets=[...]'
-#
-# VIF measures multicollinearity among input variables — high values indicate
-# redundant variables that can be predicted from others in the set.
-
-vif:
-  threshold: 5.0  # VIF above this value is flagged as multicollinear
-  max_samples: null  # null = use all common dates; int = sample evenly

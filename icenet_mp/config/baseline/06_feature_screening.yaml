@@ -1,0 +1,17 @@
+# @package _global_
+# Opt-in advisory feature screening. RF skill is context, not an importance gate.
+defaults:
+  - /baseline/05_feature_evidence_suite
+  - _self_
+
+rf:
+  backend: random_forest
+  importance_policy: always
+  target_mode: absolute
+  spatial:
+    reliability:
+      # "stable" means positive importance in at least four of five folds and
+      # normalised rank stability of at least 0.5.
+      stable_positive_fraction: 0.8
+      stable_rank_stability: 0.5
+    plot_results: false

@@ -31,7 +31,7 @@ def build_zarr(
     lats: list[float] = data_dict["coords"]["lat"]["data"]
     lons: list[float] = data_dict["coords"]["lon"]["data"]
 
-    T, C, H, W = len(full_dates), len(variables), len(lats), len(lons)  # noqa: N806
+    T, C, H, W = len(full_dates), len(variables), len(lats), len(lons)
 
     # Build (T, C, 1, H * W) data array; missing timesteps stay zero.
     available_dates = {d.date() for d in data_dates}

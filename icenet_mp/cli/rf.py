@@ -28,8 +28,13 @@ from icenet_mp.input_explainability.rf import (
     run_rf_analysis,
     save_rf_results,
 )
+from icenet_mp.input_explainability.spatial_rf import (
+    SpatialRFResult,
+    save_spatial_rf_results,
+)
 
 from .hydra import hydra_adaptor
+from .plotting import maybe_plot_spatial_rf_results
 
 rf_app = typer.Typer(
     help="Random Forest feature importance for input variable analysis.",
@@ -49,6 +54,11 @@ def rf(
 ) -> None:
     """Run Random Forest feature importance analysis on the configured dataset variables."""
     result = run_rf_analysis(config)
+    if isinstance(result, SpatialRFResult):
+        spatial_json_path, _ = save_spatial_rf_results(result, Path(output_dir))
+        typer.echo(f"Sampled-map screening results written to {spatial_json_path}")
+        maybe_plot_spatial_rf_results(config, result, Path(output_dir))
+        return
     print_rf_table(result)
 
     json_path = save_rf_results(result, Path(output_dir))

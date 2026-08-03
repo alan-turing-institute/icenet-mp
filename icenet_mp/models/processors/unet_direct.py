@@ -58,6 +58,8 @@ class UNetDirectProcessor(UNetProcessor):
         # Equivalent to BaseProcessor.rollout's `cat(list(window), dim=1)`: history
         # steps ordered oldest to newest, each contributing `channels` channels.
         window_cat = x.reshape(batch, n_history * channels, height, width)
-        output: TensorNCHW = self(window_cat)  # (batch, n_forecast_steps * channels, height, width)
+        output: TensorNCHW = self(
+            window_cat
+        )  # (batch, n_forecast_steps * channels, height, width)
         output = output.reshape(batch, self.n_forecast_steps, channels, height, width)
         return ProcessorOutput(prediction=output)

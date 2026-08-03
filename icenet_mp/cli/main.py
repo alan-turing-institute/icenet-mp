@@ -63,7 +63,7 @@ def main() -> None:
                 "It will be slower than running natively on MPS."
             )
             log.error(msg)  # noqa: TRY400
-            typer.Exit(1)
+            raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":
