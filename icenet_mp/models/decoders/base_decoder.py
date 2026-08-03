@@ -93,7 +93,7 @@ class BaseDecoder(nn.Module):
 
         Args:
             x: TensorNTCHW with (batch_size, n_timeslices, n_latent_channels_total, latent_height, latent_width)
-            persistence: TensorNCHW with (batch_size, 1, output_channels, output_height, output_width) to add to every forecast step
+            persistence: TensorNTCHW with (batch_size, 1, output_channels, output_height, output_width) to add to every forecast step
 
         Returns:
             TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
