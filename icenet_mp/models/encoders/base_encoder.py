@@ -21,6 +21,7 @@ class BaseEncoder(nn.Module):
         *,
         data_space_in: DataSpace,
         latent_space: tuple[int, int],
+        output_channels: int,
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
     ) -> None:
@@ -29,7 +30,7 @@ class BaseEncoder(nn.Module):
         self.data_space_in = data_space_in
         self.data_space_out = DataSpace(
             name=f"latent_space_{data_space_in.name}",
-            channels=self.data_space_in.channels,
+            channels=output_channels,
             shape=latent_space,
         )
         self.latitudes_fn = latitudes_fn
