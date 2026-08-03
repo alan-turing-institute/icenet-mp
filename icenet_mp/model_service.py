@@ -315,6 +315,7 @@ class ModelService:
                         logger_config,
                         job_type="multistage" if job_stage else "single-stage",
                         project=project,
+                        _convert_="all",
                     )
                 )
             else:

@@ -12,7 +12,7 @@ from optuna import Study, create_study
 from optuna.samplers import BaseSampler, QMCSampler, RandomSampler, TPESampler
 from optuna.trial import FrozenTrial, Trial, TrialState
 
-from .parameters import build_parameter
+from .parameters import Parameter, build_parameter
 
 log = logging.getLogger(__name__)
 
@@ -121,6 +121,42 @@ class OptunaSampler:
         self._save_sampler()
         return trial
 
+    def generate_parameter_overrides(
+        self, trial: Trial
+    ) -> list[tuple[Parameter, int | float | str]]:
+        """Get a suggested value for each parameter in the sweep."""
+        overrides: list[tuple[Parameter, int | float | str]] = []
+        for name, param_spec in self.parameters.items():
+            parameter = build_parameter(name, param_spec)
+            overrides.append((parameter, parameter.suggest(trial)))
+        return overrides
+
+    def generate_trial_config(
+        self, overrides: list[tuple[Parameter, int | float | str]]
+    ) -> DictConfig:
+        """Generate a trial config from a list of parameter overrides."""
+        base_config = DictConfig(OmegaConf.load(self.study_path / "model_config.yaml"))
+        parameter_overrides = OmegaConf.from_dotlist(
+            [f"{parameter.name}={value}" for parameter, value in overrides]
+        )
+        # Also add the sampled values to the W&B config under the sanitised key names,
+        # so they show up as columns in the sweep GUI.
+        wandb_overrides = OmegaConf.create(
+            {
+                "loggers": {
+                    "wandb": {
+                        "config": {
+                            parameter.sanitised_name: value
+                            for parameter, value in overrides
+                        }
+                    }
+                }
+            }
+        )
+        return DictConfig(
+            OmegaConf.merge(base_config, parameter_overrides, wandb_overrides)
+        )
+
     def initialise_study(self, model_cfg: DictConfig, sweep_id: str) -> None:
         """Create an Optuna study and save the sampled trials to a JSON file."""
         # Generate study and storage paths
@@ -165,14 +201,6 @@ class OptunaSampler:
         )
         # Start the sweep
         return wandb.sweep(sweep_config, entity=self.entity, project="train")
-
-    def generate_trial_config(self, trial: Trial) -> DictConfig:
-        return OmegaConf.from_dotlist(
-            [
-                f"{name}={build_parameter(name, param_spec).suggest(trial)}"
-                for name, param_spec in self.parameters.items()
-            ]
-        )
 
     def tell(
         self,

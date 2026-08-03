@@ -5,7 +5,7 @@ from typing import Annotated
 
 import typer
 from lightning.pytorch.callbacks import ModelCheckpoint
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from icenet_mp.model_service import ModelService
 from icenet_mp.sweep import OptunaSampler
@@ -81,20 +81,18 @@ def run(
     sampler = OptunaSampler.from_path(sweep_path)
     trial = sampler.ask()
 
-    # Override the base config with the trial config
-    base_config = DictConfig(OmegaConf.load(sampler.study_path / "model_config.yaml"))
-    trial_cfg = sampler.generate_trial_config(trial)
-    config = DictConfig(OmegaConf.merge(base_config, trial_cfg))
+    # Generate parameter overrides and a merged config for this trial
+    overrides = sampler.generate_parameter_overrides(trial)
     log.info("Running trial %d with overrides:", trial.number)
-    for line in OmegaConf.to_yaml(trial_cfg).splitlines():
-        log.info(line)
+    for parameter, value in overrides:
+        log.info("  %s = %s", parameter.name, value)
+    config = sampler.generate_trial_config(overrides)
 
     # Set W&B environment variables to ensure we are connected to the correct sweep
     os.environ["WANDB_SWEEP_ID"] = sampler.study_name
     os.environ["WANDB_ENTITY"] = sampler.entity
     os.environ["WANDB_PROJECT"] = "train"
 
-    # Run the trial
     model = ModelService.from_config(config)
     trainer = model.train(
         checkpoint_dir=Path(checkpoint_dir).resolve() if checkpoint_dir else None,
