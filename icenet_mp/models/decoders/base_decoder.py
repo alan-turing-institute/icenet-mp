@@ -110,7 +110,10 @@ class BaseDecoder(nn.Module):
 
         if self.skip_connection:
             if persistence is None:
-                msg = f"Decoder has skip_connection={self.skip_connection.method} but no persistence input was provided."
+                msg = (
+                    f"Decoder has skip_connection={self.skip_connection.method.value} "
+                    "but no persistence input was provided."
+                )
                 raise ValueError(msg)
             # Repeat the persistence timeslice until we match the decoder output shape
             persistence_nchw = persistence.expand(-1, n_timeslices, -1, -1, -1).reshape(
