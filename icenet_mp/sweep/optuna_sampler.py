@@ -9,7 +9,13 @@ import wandb
 import yaml
 from omegaconf import DictConfig, OmegaConf
 from optuna import Study, create_study
-from optuna.samplers import BaseSampler, QMCSampler, RandomSampler, TPESampler
+from optuna.samplers import (
+    BaseSampler,
+    GPSampler,
+    QMCSampler,
+    RandomSampler,
+    TPESampler,
+)
 from optuna.trial import FrozenTrial, Trial, TrialState
 
 from .parameters import Parameter, build_parameter
@@ -19,9 +25,10 @@ log = logging.getLogger(__name__)
 
 class OptunaSampler:
     sampler_map: ClassVar[dict[str, type[BaseSampler]]] = {
+        "gp": GPSampler,
         "qmc": QMCSampler,
-        "tpe": TPESampler,
         "random": RandomSampler,
+        "tpe": TPESampler,
     }
 
     def __init__(self, config: dict[str, Any]) -> None:
