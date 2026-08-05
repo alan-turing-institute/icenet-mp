@@ -136,6 +136,9 @@ ignore = [
 [tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true
 
+[tool.ruff.lint.pep8-naming]
+extend-ignore-names = ["F"] # allow `import torch.nn.functional as F`
+
 [tool.ruff.lint.isort]
 known-third-party = ["wandb"]
 

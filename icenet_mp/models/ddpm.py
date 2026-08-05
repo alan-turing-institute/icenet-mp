@@ -2,7 +2,7 @@ import logging
 from typing import Any, ClassVar, NoReturn
 
 import torch
-import torch.nn.functional as F  # noqa: N812
+import torch.nn.functional as F
 
 from icenet_mp.models.common import Mask, RestrictRange
 from icenet_mp.models.diffusion import GaussianDiffusion, UNetDiffusion

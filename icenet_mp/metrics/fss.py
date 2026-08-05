@@ -51,7 +51,9 @@ class FractionsSkillScorePerForecastDay(Metric):
 
         # States initialized lazily on first update
         self.add_state(
-            "sum_mse", default=torch.tensor([], dtype=torch.float32), dist_reduce_fx="sum"
+            "sum_mse",
+            default=torch.tensor([], dtype=torch.float32),
+            dist_reduce_fx="sum",
         )
         self.add_state(
             "sum_mse_ref",
@@ -78,7 +80,10 @@ class FractionsSkillScorePerForecastDay(Metric):
         left = padded[:, 1:-1, :-2]
         right = padded[:, 1:-1, 2:]
         return ice_mask & (
-            (ice_mask != up) | (ice_mask != down) | (ice_mask != left) | (ice_mask != right)
+            (ice_mask != up)
+            | (ice_mask != down)
+            | (ice_mask != left)
+            | (ice_mask != right)
         )
 
     def _neighborhood_fraction(self, edge: torch.Tensor) -> torch.Tensor:

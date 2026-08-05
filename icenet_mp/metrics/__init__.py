@@ -5,9 +5,9 @@ from .icenet_accuracy import IceNetAccuracyPerForecastDay
 from .sie_error import SeaIceExtentErrorPerForecastDay
 
 __all__ = [
+    "CentroidErrorPerForecastDay",
     "FractionsSkillScorePerForecastDay",
     "IceNetAccuracyPerForecastDay",
-    "CentroidErrorPerForecastDay",
     "MAEPerForecastDay",
     "RMSEPerForecastDay",
     "SeaIceExtentErrorPerForecastDay",

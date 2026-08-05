@@ -55,7 +55,7 @@ class SeaIceExtentErrorPerForecastDay(Metric):
         true_sie = torch.sum(target, dim=(2, 3, 4))  # Shape: (B, T)
 
         # Per-sample SIE error (B, T)
-        error = (pred_sie - true_sie).float() 
+        error = (pred_sie - true_sie).float()
 
         # Initialize states on first update
         if self.sum_errors.numel() == 0:

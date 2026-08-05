@@ -92,7 +92,7 @@ class BaseModel(LightningModule, ABC):
 
         # Metrics
         _metric_classes: dict[str, type[Metric]] = {
-            "accuracy": IceNetAccuracy,
+            "accuracy": IceNetAccuracyPerForecastDay,
             "mae": MAEPerForecastDay,
             "rmse": RMSEPerForecastDay,
             "sieerror": SeaIceExtentErrorPerForecastDay,
