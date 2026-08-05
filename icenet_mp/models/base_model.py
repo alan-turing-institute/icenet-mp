@@ -106,6 +106,7 @@ class BaseModel(LightningModule, ABC):
                 "mae",
                 "rmse",
                 "sieerror",
+                "centroid_error",
             ]
         )
         _common_metrics: dict[str, Metric | MetricCollection] = {
