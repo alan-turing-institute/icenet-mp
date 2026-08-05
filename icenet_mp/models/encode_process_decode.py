@@ -130,9 +130,19 @@ class EncodeProcessDecode(BaseModel):
 
         # Process in latent space:
         # combined input tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        latent_output: TensorNTCHW = self.processor.rollout(
-            latent_input_combined
-        ).prediction
+        # latent_output: TensorNTCHW = self.processor.rollout(
+        #     latent_input_combined
+        # ).prediction
+        ###########
+        latent_target = None
+        if self.training and "target" in inputs:
+            latent_target = self.target_encoder.rollout(inputs["target"])
+
+        processor_out = self.processor.rollout(latent_input_combined, latent_target)
+        self._last_processor_loss = processor_out.loss
+
+        latent_output: TensorNTCHW = processor_out.prediction
+        ###########
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output)
