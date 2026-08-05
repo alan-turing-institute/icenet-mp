@@ -4,9 +4,7 @@ from typing import Annotated, Union
 import anemoi.datasets.create.recipe.action as _action
 from anemoi.datasets.create.recipe import Recipe
 from anemoi.datasets.create.recipe.action import (
-    _action_discriminator as _discriminator,
-)
-from anemoi.datasets.create.recipe.action import (
+    _action_discriminator,
     _factories,
     _schemas,
 )
@@ -15,6 +13,7 @@ from pydantic import Discriminator
 
 from .argo import ArgoSource
 from .ftp import FTPSource
+from .synthetic import SyntheticSource
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +29,7 @@ def register_sources() -> None:
     sources = {
         "ftp": FTPSource,
         "argo": ArgoSource,
+        "synthetic": SyntheticSource,
     }
     for name, source in sources.items():
         if name not in source_registry.registered:
@@ -42,13 +42,21 @@ def register_sources() -> None:
     _schemas.cache_clear()
     _action.Action = Annotated[
         Union[*_schemas()],
-        Discriminator(_discriminator),
+        Discriminator(_action_discriminator),
     ]
+    # Update the `input` field of Recipe to use the updated Action type
+    Recipe.model_fields["input"].annotation = _action.Action | None  # type: ignore[assignment]
+    # Update the `data_sources` field of Recipe to use the updated Action type
+    Recipe.model_fields["data_sources"].annotation = (
+        dict[str, _action.Action] | list[_action.Action] | None  # type: ignore[assignment, valid-type]
+    )
+    # Force a rebuild of the Recipe model to use the updated Action type
     Recipe.model_rebuild(force=True)
 
 
 __all__ = [
     "ArgoSource",
     "FTPSource",
+    "SyntheticSource",
     "register_sources",
 ]

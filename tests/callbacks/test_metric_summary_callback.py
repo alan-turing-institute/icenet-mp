@@ -165,6 +165,14 @@ class TestOnTestEnd:
 class TestMetricCalculations:
     """Tests for per-forecast-day metric calculation correctness."""
 
+    def test_accumulates_multiple_batches(self) -> None:
+        """Accumulate daily errors across batches with matching lead times."""
+        metric = MAEPerForecastDay()
+        metric.update(torch.zeros(1, 1, 1, 1, 1), torch.ones(1, 1, 1, 1, 1))
+        metric.update(torch.zeros(1, 1, 1, 1, 1), torch.full((1, 1, 1, 1, 1), 3.0))
+
+        assert torch.allclose(metric.compute(), torch.tensor([2.0]))
+
     def test_calculates_mean_mae_daily_correctly(self) -> None:
         """Test that MAE daily is calculated correctly."""
         # Convert 2D tensor to 5D tensor: (batch, channels, height, width, time)

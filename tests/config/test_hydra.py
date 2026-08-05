@@ -20,10 +20,12 @@ class TestHydraConfigLoading:
     def teardown_method(self) -> None:
         GlobalHydra.instance().clear()
 
-    def load_config(self, overrides: list[str] | None = None) -> DictConfig:
-        """Compose the sample config from the icenet-mp config directory with any overrides."""
+    def load_config(
+        self, config_name: str = "sample", overrides: list[str] | None = None
+    ) -> DictConfig:
+        """Compose a config from the icenet-mp config directory with any overrides."""
         with initialize_config_dir(config_dir=self.CONFIG_DIR, version_base=None):
-            return compose(config_name="sample", overrides=overrides or [])
+            return compose(config_name=config_name, overrides=overrides or [])
 
     def test_sample_config_has_expected_top_level_keys(self) -> None:
         cfg = self.load_config()
@@ -33,7 +35,7 @@ class TestHydraConfigLoading:
     def test_model_group_overridden_by_sample(self) -> None:
         # sample.yaml uses `override /model: quick_test`, replacing the base default
         cfg = self.load_config()
-        assert cfg.model.name == "quick_test"
+        assert cfg.model.name == "quick-test"
         assert cfg.model._target_ == "icenet_mp.models.EncodeProcessDecode"
 
     def test_loss_defaults_resolved_from_base(self) -> None:
@@ -48,6 +50,14 @@ class TestHydraConfigLoading:
     def test_config_group_override_swaps_loss(self) -> None:
         cfg = self.load_config(overrides=["loss=mse"])
         assert cfg.loss._target_ == "torch.nn.MSELoss"
+
+    def test_synthetic_config_uses_local_logger(self) -> None:
+        cfg = self.load_config(config_name="synthetic")
+        assert "local_files" in cfg.loggers
+        assert "wandb" not in cfg.loggers
+        assert cfg.loggers.local_files._target_ == "icenet_mp.loggers.LocalFileLogger"
+        assert "metric_summary" not in cfg.train.callbacks
+        assert "metric_summary" not in cfg.evaluate.callbacks
 
 
 class TestHydraAdaptor:

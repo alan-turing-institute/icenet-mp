@@ -44,12 +44,16 @@ class EncoderStage(BaseModel):
             longitudes_fn=self.longitudes_fn,
         )
 
-        # Decode from the latent space back to the original input space
+        # Decode from the latent space back to the original input space. This decoder
+        # is disposable and reconstructs the input (not the forecast target), so masking
+        # and skip connections are disabled here.
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
             data_space_in=self.encoder.data_space_out,
             data_space_out=self.encoder.data_space_in,
             mask_type=None,
+            restrict_range=None,
+            skip_connection=None,
         )
 
     @property
@@ -96,7 +100,8 @@ class EncoderStage(BaseModel):
         - decode to target space via rollout() so restrict_range applies [NTCHW] [batch, 1, n_output_channels, H_output, W_output],
         """
         latent = self.encoder(inputs["target"].squeeze(1)).unsqueeze(1)
-        return self.decoder.rollout(latent)
+        # Ignore persistence as we want to learn the best autoencoder
+        return self.decoder.rollout(latent, None)
 
     def process_batch(self, batch: dict[str, TensorNTCHW]) -> dict[str, TensorNTCHW]:
         """Extract only the first time step of only the relevant batch element.

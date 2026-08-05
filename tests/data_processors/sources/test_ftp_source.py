@@ -28,7 +28,7 @@ class TestFTPSource:
     def test_ftp_source_registration(self) -> None:
         """Test that FTPSource is properly registered."""
         # Mock source registry
-        mock_registry = Registry("anemoi.datasets.create.sources")
+        mock_registry: Registry = Registry("anemoi.datasets.create.sources")
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(

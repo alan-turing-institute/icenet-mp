@@ -1,39 +1,25 @@
 batch_size: 2
 
 # This data is a holdout set not to be used until we are ready to produce final outputs (e.g. a paper)
-# Data from 2013 and 2023
+# Data from 2025 (1 year)
 predict:
-  - start: 2013-01-01
-    end: 2013-12-31
-  - start: 2023-01-01
-    end: 2023-12-31
+  - start: 2025-01-01
+    end: 2025-12-31
 
-# This data is a test set used to compare fully-trained models (e.g. on the project leaderboard)
-# Data from 2019
+# This data is an evaluation set used to compare fully-trained models (e.g. for releases)
+# Data from 2024 (1 year)
 test:
-  - start: 2019-01-01
-    end: 2019-12-31
-
-# This data is used for training the model
-# Data from 1979-1999, 2001-2012, 2014-2018, 2020, 2022 and 2024
-train:
-  - start: null
-    end: 1999-12-31
-  - start: 2001-01-01
-    end: 2012-12-31
-  - start: 2014-01-01
-    end: 2018-12-31
-  - start: 2020-01-01
-    end: 2020-12-31
-  - start: 2022-01-01
-    end: 2022-12-31
   - start: 2024-01-01
     end: 2024-12-31
 
-# This data is used for validation during training (e.g. for early stopping etc.)
-# Data from 2000 and 2021
-validate:
-  - start: 2000-01-01
-    end: 2000-12-31
-  - start: 2021-01-01
+# This data is used for training the model
+# Data from 1979-2021 (43 years)
+train:
+  - start: null
     end: 2021-12-31
+
+# This data is used for validation during training (e.g. for early stopping etc.)
+# Data from 2022 and 2023 (2 years)
+validate:
+  - start: 2022-01-01
+    end: 2023-12-31

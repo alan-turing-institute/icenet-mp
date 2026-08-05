@@ -1,6 +1,7 @@
 import gc
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import cast
 
@@ -220,16 +221,48 @@ class ModelService:
             ),
         )
 
-    def _save_checkpoint(self, trainer: Trainer, stage_name: str) -> None:
-        """Save a stage checkpoint at a predictable path."""
-        checkpoint_path = (
-            self.build_run_directory(trainer)
-            / "checkpoints"
-            / f"{stage_name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+    def _save_stage_checkpoint(self, trainer: Trainer, stage_name: str) -> Path:
+        """Save a stage checkpoint at a predictable path.
+
+        Args:
+            trainer: The trainer that was used to train the model.
+            stage_name: Name of the training stage (e.g. "encoder-era5").
+
+        Returns:
+            The path to the saved checkpoint.
+
+        If a best checkpoint is available, it will be moved to the desired path.
+
+        """
+        ckpt_dir = self.build_run_directory(trainer) / "checkpoints"
+        ckpt_name = f"{stage_name}.epoch={trainer.current_epoch}-step={trainer.global_step}.ckpt"
+        # Check for existing best checkpoints
+        best_model_paths = set(
+            filter(
+                None,
+                (
+                    str(getattr(callback, "best_model_path", ""))
+                    for callback in trainer.checkpoint_callbacks
+                ),
+            )
         )
-        trainer.save_checkpoint(checkpoint_path)
+        if not best_model_paths:
+            # Save a new checkpoint at the desired path
+            trainer.save_checkpoint(ckpt_dir / ckpt_name, weights_only=False)
+        elif len(best_model_paths) == 1:
+            # Move a checkpoint that already exists to the desired path
+            best_model_path = Path(best_model_paths.pop())
+            ckpt_name = f"{stage_name}.{best_model_path.name}"
+            if trainer.is_global_zero:
+                shutil.move(best_model_path, ckpt_dir / ckpt_name)
+            # Ensure all ranks see the moved file before proceeding
+            trainer.strategy.barrier()
+        else:
+            msg = f"Cannot determine which of {len(best_model_paths)} checkpoints to save."
+            raise ValueError(msg)
         if trainer.is_global_zero:
-            log.info("Saved %s checkpoint to %s.", stage_name, checkpoint_path)
+            log.info("Saved %s checkpoint to %s.", stage_name, ckpt_dir / ckpt_name)
+        return ckpt_dir / ckpt_name
 
     def build_run_directory(self, trainer: Trainer) -> Path:
         """Get run directory from Wandb or generate one in the same format."""
@@ -246,7 +279,7 @@ class ModelService:
             / f"run-{get_timestamp()}-{generate_id()}"
         )
 
-    def build_trainer(  # noqa: C901
+    def build_trainer(  # noqa: C901, PLR0912
         self,
         *,
         config: DictConfig,
@@ -272,15 +305,20 @@ class ModelService:
         if not extra_callbacks:
             log.warning("No callbacks have been set for the trainer.")
 
-        # Setup lightning loggers
-        extra_loggers = [
-            hydra.utils.instantiate(
-                logger_config,
-                job_type="multistage" if job_stage else "single-stage",
-                project=project,
-            )
-            for logger_config in self.config.get("loggers", {}).values()
-        ]
+        # Setup Lightning loggers — only pass job_type/project to W&B loggers.
+        extra_loggers = []
+        for logger_config in self.config.get("loggers", {}).values():
+            is_wandb = logger_config.get("_target_", "").split(".")[-1] == "WandbLogger"
+            if is_wandb:
+                extra_loggers.append(
+                    hydra.utils.instantiate(
+                        logger_config,
+                        job_type="multistage" if job_stage else "single-stage",
+                        project=project,
+                    )
+                )
+            else:
+                extra_loggers.append(hydra.utils.instantiate(logger_config))
         if not extra_loggers:
             log.warning("No loggers have been set for the trainer.")
 
@@ -456,6 +494,11 @@ class ModelService:
         checkpoint_dir: Path | None = None,
     ) -> DecoderStage:
         """Train a decoder on the combined latent space of all frozen encoders."""
+        if not isinstance(self.model, EncodeProcessDecode):
+            msg = (
+                "train_stage_decoder is only supported for EncodeProcessDecode models."
+            )
+            raise TypeError(msg)
         if checkpoint_dir is not None and (
             matches := sorted(checkpoint_dir.glob("decoder.epoch=*-step=*.ckpt"))
         ):
@@ -488,7 +531,11 @@ class ModelService:
             decoder_model.decoder.data_space_out.chw,
         )
         trainer = self._fit(model=decoder_model, config=config, job_stage="decoder")
-        self._save_checkpoint(trainer, "decoder")
+        ckpt_path = self._save_stage_checkpoint(trainer, "decoder")
+        # Reload the best weights into the decoder model
+        decoder_model.load_state_dict(
+            torch.load(ckpt_path, weights_only=False)["state_dict"]
+        )
         return decoder_model
 
     def train_stage_encoders(
@@ -554,7 +601,11 @@ class ModelService:
                 config=config,
                 job_stage=f"encoder-{encoder.name}",
             )
-            self._save_checkpoint(trainer, f"encoder-{encoder.name}")
+            ckpt_path = self._save_stage_checkpoint(trainer, f"encoder-{encoder.name}")
+            # Reload the best weights into the encoder model
+            encoder_model.load_state_dict(
+                torch.load(ckpt_path, weights_only=False)["state_dict"]
+            )
             encoder_models.append(encoder_model)
 
         return encoder_models
@@ -573,7 +624,7 @@ class ModelService:
         model.decoder.load_state_dict(processor_model.decoder.state_dict())
         log.info("Loaded pretrained weights for decoder.")
         trainer = self._fit(config=config, job_stage="finetune")
-        self._save_checkpoint(trainer, "finetune")
+        self._save_stage_checkpoint(trainer, "finetune")
 
     def train_stage_processor(
         self,
@@ -607,12 +658,16 @@ class ModelService:
             target_encoder=target_encoder,
         )
         log.info(
-            "Training processor: (%d, %d, %d, %d) -> (%d, %d, %d, %d)",
+            "Training processor: history (%d, %d, %d, %d) -> forecast (%d, %d, %d, %d)",
             processor_model.processor.n_history_steps,
             *processor_model.processor.data_space.chw,
             processor_model.processor.n_forecast_steps,
             *processor_model.processor.data_space.chw,
         )
         trainer = self._fit(model=processor_model, config=config, job_stage="processor")
-        self._save_checkpoint(trainer, "processor")
+        ckpt_path = self._save_stage_checkpoint(trainer, "processor")
+        # Reload the best weights into the processor model
+        processor_model.load_state_dict(
+            torch.load(ckpt_path, weights_only=False)["state_dict"]
+        )
         return processor_model

@@ -1,3 +1,4 @@
+import logging
 from typing import Any, ClassVar, NoReturn
 
 import torch
@@ -8,6 +9,8 @@ from icenet_mp.models.diffusion import GaussianDiffusion, UNetDiffusion
 from icenet_mp.types import ModelStepOutput, RangeRestriction, TensorNCHW, TensorNTCHW
 
 from .base_model import BaseModel
+
+log = logging.getLogger(__name__)
 
 
 class SimpleEncoder2D(torch.nn.Module):
@@ -52,46 +55,50 @@ class DDPM(BaseModel):
         - Forecasted outputs per timestep and channel, flattened along the channel dimension
     """
 
-    # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
+    # Parameters that should be excluded from hyperparameter logging
     ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
 
     def __init__(  # noqa: PLR0913
         self,
-        timesteps: int = 1000,
-        learning_rate: float = 5e-4,
-        start_out_channels: int = 32,
-        kernel_size: int = 3,
+        *,
         activation: str = "SiLU",
-        normalization: str = "groupnorm",
-        time_embed_dim: int = 256,
         dropout_rate: float = 0.1,
+        kernel_size: int = 3,
+        learning_rate: float = 5e-4,
         mask_dir: str | None = None,
         mask_type: str | None = None,
+        normalization: str = "groupnorm",
         restrict_range: str = "clamp",
+        start_out_channels: int = 32,
+        time_embed_dim: int = 256,
+        timesteps: int = 1000,
+        use_autoregressive: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialize the DDPM processor.
 
         Args:
-            timesteps (int): Number of diffusion timesteps. Default is 1000.
-            learning_rate (float): Optimizer learning rate for training. Default is 5e-4.
-            start_out_channels (int): Base number of channels in the first UNet block.
-            kernel_size (int): Convolution kernel size used in the UNet.
             activation (str): Activation function used throughout the network (e.g., "SiLU").
-            normalization (str): Normalization layer type (e.g., "groupnorm").
-            time_embed_dim (int): Dimensionality of the timestep embedding.
             dropout_rate (float): Dropout probability applied inside the UNet blocks.
+            kernel_size (int): Convolution kernel size used in the UNet.
+            learning_rate (float): Optimizer learning rate for training. Default is 5e-4.
             mask_dir (str | None): Directory holding `active_mask.npy`/`land_mask.npy`.
                 Required when `mask_type` is "active" or "land".
             mask_type (str | None): Output mask to apply during sampling: "active"
                 (active+land), "land" (land only), or ``None`` to disable.
+            normalization (str): Normalization layer type (e.g., "groupnorm").
             restrict_range (str): How to bound sampled output into [0, 1] before
                 masking: none/sigmoid/clamp/tanh. Default is "clamp".
+            start_out_channels (int): Base number of channels in the first UNet block.
+            time_embed_dim (int): Dimensionality of the timestep embedding.
+            timesteps (int): Number of diffusion timesteps. Default is 1000.
+            use_autoregressive (bool): Whether to use autoregressive prediction. Default is True.
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """
         super().__init__(**kwargs)
 
+        self.use_autoregressive = use_autoregressive
         self.osisaf_key = self.output_space.name
 
         # Bound sampled output into [0, 1] before masking.
@@ -134,7 +141,12 @@ class DDPM(BaseModel):
         else:
             self.base_output_channels = self.output_space.channels
 
-        self.output_channels = self.n_forecast_steps * self.base_output_channels
+        # For autoregressive, we predict one step at a time
+        if self.use_autoregressive:
+            self.output_channels = self.base_output_channels
+        else:
+            self.output_channels = self.n_forecast_steps * self.base_output_channels
+
         self.timesteps = timesteps
         self.cond_channels = 64
         self.input_channels = self.cond_channels
@@ -182,18 +194,87 @@ class DDPM(BaseModel):
         self.diffusion = GaussianDiffusion(timesteps=timesteps)
         self.learning_rate = learning_rate
 
+        # Only emit the ERA5-forecast-missing warning once per model instance
+        self._warned_missing_era5_forecast = False
+
     def forward(self, *args: Any, **kwargs: Any) -> NoReturn:
         msg = "This model uses `training_step`, `validation_step`, and `test_step` instead of `forward()`"
         raise NotImplementedError(msg)
 
-    def sample(self, x: TensorNCHW) -> TensorNCHW:
-        """Perform reverse diffusion sampling starting from noise.
+    def sample(
+        self,
+        batch: dict[str, TensorNTCHW],
+    ) -> TensorNCHW:
+        """Generate forecasts using a reverse diffusion process.
+
+        This method selects between two diffusion sampling strategies:
+
+        1. Non-autoregressive (parallel) sampling:
+        - The model generates the entire future sequence in a single diffusion process.
+        - No temporal dependency exists between forecast steps.
+
+        2. Autoregressive sampling:
+        - Forecast steps are generated sequentially.
+        - Each step is produced via an independent diffusion process.
+        - The conditioning tensor is updated after each step to incorporate
+            previously generated outputs.
 
         Args:
-            x (TensorNCHW): Conditioning input [B, C, H, W].
+            batch (dict[str, TensorNTCHW]):
+                Dictionary containing the input data.
 
         Returns:
-            TensorNCHW: Denoised output of shape [B, C, H, W].
+            torch.Tensor:
+                Forecast tensor of shape:
+                [B, n_forecast_steps * base_output_channels, H, W]
+
+                The output format is identical in both modes.
+
+                - Parallel mode:
+                    Produced in a single reverse diffusion process.
+
+                - Autoregressive mode:
+                    Constructed by concatenating step-wise diffusion outputs.
+
+        Notes:
+            - The diffusion process follows v-parameterization.
+            - Sampling begins from standard Gaussian noise.
+
+        """
+        if self.use_autoregressive:
+            return self._sample_autoregressive(batch)
+        x = self.prepare_inputs(batch)
+        return self._sample_parallel(x)
+
+    def _sample_parallel(self, x: TensorNCHW) -> TensorNCHW:
+        """Non-autoregressive (parallel) reverse diffusion sampling.
+
+        This method generates the entire forecast sequence in a single
+        diffusion process applied to one joint output tensor.
+
+        The forecast steps are encoded as channels in a single tensor:
+
+            [B, n_forecast_steps * base_output_channels, H, W]
+
+        There is no sequential dependency between forecast steps because:
+            - all steps are represented simultaneously in the same tensor
+            - the diffusion process operates on the full tensor jointly
+
+        Args:
+            x (TensorNCHW):
+                Conditioning tensor of shape [B, C, H, W].
+
+        Returns:
+            TensorNCHW:
+                Denoised forecast tensor of shape:
+                [B, n_forecast_steps * base_output_channels, H, W]
+
+                Produced by a single reverse diffusion process.
+
+        Notes:
+            - Sampling starts from Gaussian noise.
+            - The model predicts v-parameterization at each diffusion step.
+            - All forecast steps are denoised together as a single object.
 
         """
         shape = (
@@ -205,20 +286,102 @@ class DDPM(BaseModel):
         # Start from pure noise
         y = torch.randn(shape, device=self.device)
 
-        dim_threshold = 3
-
         for t in reversed(range(self.timesteps)):
             t_batch = torch.full_like(
                 x[:, 0, 0, 0], t, dtype=torch.long, device=self.device
             )
             pred_v: TensorNCHW = self.model(y, t_batch, x)
-            pred_v = (
-                pred_v.squeeze(3) if pred_v.dim() > dim_threshold else pred_v.squeeze()
-            )
             y = self.diffusion.p_sample(y, t_batch, pred_v)
 
         # Bound into [0, 1] then apply masking
         return self.mask(self.restrict(y))
+
+    def _sample_autoregressive(
+        self,
+        batch: dict[str, TensorNTCHW],
+    ) -> torch.Tensor:
+        """Autoregressive reverse diffusion sampling (one forecast step at a time).
+
+        Each forecast step is generated sequentially via an independent reverse
+        diffusion process. After each step, the conditioning window is updated:
+        the predicted SIC frame is appended to the OSISAF history, and either the
+        corresponding ERA5 forecast frame (if provided) or a repetition of the last
+        observed ERA5 frame is appended to the ERA5 history.
+
+        Args:
+            batch (dict[str, TensorNTCHW]):
+                Dictionary containing:
+                    - self.osisaf_key: OSISAF SIC history tensor of shape
+                    [B, T, 1, H, W].
+                    - era5: ERA5 input tensor of shape [B, T, C, H2, W2].
+                    - era5_forecast (optional): ERA5 forecast tensor of shape
+                    [B, n_forecast_steps, C, H2, W2]. When absent, the last
+                    observed ERA5 frame is repeated for each step.
+
+        Returns:
+            torch.Tensor:
+                Forecast tensor of shape
+                [B, n_forecast_steps * base_output_channels, H, W],
+                formed by concatenating all per-step predictions along the
+                channel dimension.
+
+        Notes:
+            - Sampling at each step starts from standard Gaussian noise.
+            - The model predicts v-parameterization at every diffusion timestep.
+            - The OSISAF conditioning window slides forward by one frame per step,
+            using the model's own prediction as the new observation.
+
+        """
+        all_predictions = []
+        osisaf = batch[self.osisaf_key].clone()  # [B, T, 1, H, W]
+        era5 = batch["era5"].clone()  # [B, T, C, H2, W2]
+        era5_forecast = batch.get("era5_forecast")
+
+        for step in range(self.n_forecast_steps):
+            current_batch = {
+                self.osisaf_key: osisaf[:, -self.n_history_steps :],
+                "era5": era5[:, -self.n_history_steps :],
+            }
+            x = self.prepare_inputs(current_batch)  # [B, cond_channels, H, W]
+
+            B, _, H, W = x.shape  # noqa: N806
+            y = torch.randn((B, self.base_output_channels, H, W), device=self.device)
+
+            # Diffusion reverse process
+            for t in reversed(range(self.timesteps)):
+                t_batch = torch.full((B,), t, dtype=torch.long, device=self.device)
+                pred_v: torch.Tensor = self.model(y, t_batch, x)
+                y = self.diffusion.p_sample(y, t_batch, pred_v)
+
+            # Clamp and store prediction
+            y_step = self.mask(self.restrict(y))
+            all_predictions.append(y_step)
+
+            # Slide OSISAF window: append prediction as new frame.
+            # SSMIS input has multiple channels per step but the model only
+            # predicts base_output_channels (SIC). Carry the auxiliary channels
+            # forward from the last observed frame and overwrite the SIC slot.
+            new_frame = osisaf[:, -1:].clone()  # [B, 1, C_in, H, W]
+            new_frame[:, :, : self.base_output_channels] = y_step.unsqueeze(1)
+            osisaf = torch.cat([osisaf, new_frame], dim=1)
+
+            # Slide ERA5 window: use forecast if available, else repeat last frame
+            if era5_forecast is not None:
+                next_era5 = era5_forecast[:, step : step + 1]
+            else:
+                if not self._warned_missing_era5_forecast:
+                    log.warning(
+                        "era5_forecast not provided in batch, repeating the last "
+                        "observed ERA5 frame for all remaining autoregressive "
+                        "forecast steps. This may reduce forecast quality for "
+                        "longer horizons.",
+                    )
+                    self._warned_missing_era5_forecast = True
+                next_era5 = era5[:, -1:]
+            era5 = torch.cat([era5, next_era5], dim=1)
+
+        # Concatenate all predictions along channel dimension
+        return torch.cat(all_predictions, dim=1)
 
     def prepare_inputs(self, batch: dict[str, TensorNTCHW]) -> TensorNCHW:
         """Encode OSISAF and ERA5 separately, then concatenate.
@@ -295,29 +458,38 @@ class DDPM(BaseModel):
             ModelStepOutput:
             - prediction: reconstructed noisy SIC (pred_v)
             - target: generated noisy SIC (target_v)
-            - loss: test loss value
+            - loss: training loss value
 
         """
         # Prepare input tensor by combining osisaf-south and era5
         x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
 
         # Extract target
-        y = batch["target"].squeeze(2)  # B, T, H, W
+        if self.use_autoregressive:
+            y = batch["target"][
+                :, 0, :, :, :
+            ]  # [B, C, H, W] — one step at a time (AR trains on t=0 only)
+        else:
+            y = batch["target"].flatten(1, 2)  # [B, T*C, H, W] — all steps at once
 
         # Sample random timesteps
-        t = torch.randint(
-            0, self.timesteps, (x.shape[0],), device=self.device
-        ).long()  # look into this
+        t = torch.randint(0, self.timesteps, (x.shape[0],), device=self.device).long()
 
         # Create noisy version
-        noise = torch.randn_like(y)  # B, T, H, W
-        noisy_y = self.diffusion.q_sample(y, t, noise)  # B, T, H, W
+        noise = torch.randn_like(y)  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
+        noisy_y = self.diffusion.q_sample(
+            y, t, noise
+        )  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
 
         # Predict v
-        pred_v: torch.Tensor = self.model(noisy_y, t, x)  # B, T, H, W
+        pred_v: torch.Tensor = self.model(
+            noisy_y, t, x
+        )  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
 
         # Compute target v
-        target_v = self.diffusion.calculate_v(y, noise, t)  # B, T, H, W
+        target_v = self.diffusion.calculate_v(
+            y, noise, t
+        )  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
 
         # Compute loss
         loss = self.loss(pred_v, target_v)
@@ -330,11 +502,15 @@ class DDPM(BaseModel):
             sync_dist=True,
         )
 
-        # Convert to NTCHW format to update metrics and return
-        prediction = pred_v.unsqueeze(2)  # B, T, 1, H, W
-        target = target_v.unsqueeze(2)  # B, T, 1, H, W
-        # Note that metrics like IceNetAccuracy and SIE Error might not be meaningful
-        # for the v-prediction space
+        # Convert to NTCHW format to update metrics
+        if self.use_autoregressive:
+            prediction = pred_v.unsqueeze(1)  # [B, 1, C, H, W]
+            target = target_v.unsqueeze(1)  # [B, 1, C, H, W]
+        else:
+            T, C = self.n_forecast_steps, self.base_output_channels  # noqa: N806
+            prediction = pred_v.unflatten(1, (T, C))  # [B, T, C, H, W]
+            target = target_v.unflatten(1, (T, C))  # [B, T, C, H, W]
+
         self.train_metrics.update(prediction, target)
 
         return ModelStepOutput(prediction, target, loss)
@@ -353,23 +529,19 @@ class DDPM(BaseModel):
                 Dictionary containing:
                     - input tensors (used to prepare conditioning inputs)
                     - "target": groundtruth SIC tensor
-                    - optional "sample_weight": weighting tensor
 
         Returns:
             ModelStepOutput:
             - prediction: reconstructed SIC (y_hat)
             - target: groundtruth SIC (y)
-            - loss: test loss value
+            - loss: validation loss value
 
         """
-        # Prepare input tensor
-        x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
-
         # Extract target and optional weights
-        y = batch["target"].squeeze(2)  # [B, T, H, W]
+        y = batch["target"].flatten(1, 2)  # [B, T*C, H, W]
 
         # Generate samples
-        y_hat = self.sample(x)
+        y_hat = self.sample(batch)  # [B, T*C, H, W]
 
         # Calculate loss
         loss = self.loss(y_hat, y)
@@ -383,8 +555,10 @@ class DDPM(BaseModel):
         )
 
         # Convert to NTCHW format to update metrics and return
-        prediction = y_hat.unsqueeze(2)  # [B, C_out, 1, H, W]
-        target = y.unsqueeze(2)  # [B, C_out, 1, H, W]
+        T, C = self.n_forecast_steps, self.base_output_channels  # noqa: N806
+        prediction = y_hat.unflatten(1, (T, C))  # [B, T, C, H, W]
+        target = y.unflatten(1, (T, C))  # [B, T, C, H, W]
+
         self.validation_metrics.update(prediction, target)
 
         return ModelStepOutput(prediction, target, loss)
@@ -406,7 +580,6 @@ class DDPM(BaseModel):
                 Dictionary containing:
                     - input tensors (used to prepare conditioning inputs)
                     - "target": groundtruth SIC tensor
-                    - optional "sample_weight": weighting tensor
 
         Returns:
             ModelStepOutput:
@@ -415,9 +588,8 @@ class DDPM(BaseModel):
             - loss: test loss value
 
         """
-        x = self.prepare_inputs(batch)  # [B, C_cond, H, W]
-        y = batch["target"]  # [B, T, 1, H, W]
-        y_hat = self.sample(x).unsqueeze(2)  # [B, C_cond, 1, H, W]
+        y = batch["target"].flatten(1, 2)  # [B, T*C, H, W]
+        y_hat = self.sample(batch)  # [B, T*C, H, W]
 
         loss = self.loss(y_hat, y)
         self.log(
@@ -430,6 +602,10 @@ class DDPM(BaseModel):
         )
 
         # Convert to NTCHW format to update metrics and return
-        self.test_metrics.update(y_hat, y)
+        T, C = self.n_forecast_steps, self.base_output_channels  # noqa: N806
+        prediction = y_hat.unflatten(1, (T, C))  # [B, T, C, H, W]
+        target = y.unflatten(1, (T, C))  # [B, T, C, H, W]
 
-        return ModelStepOutput(prediction=y_hat, target=y, loss=loss)
+        self.test_metrics.update(prediction, target)
+
+        return ModelStepOutput(prediction, target, loss)
