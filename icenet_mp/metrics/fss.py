@@ -1,4 +1,4 @@
-"""Fractions Skill Score (FSS) metric.
+"""FractionalSkill Score (FSS) metric.
 
 Computes the FSS of the sea-ice edge at a fixed neighbourhood size, following
 Roberts and Lean (2008) and its application to sea-ice edge position by
@@ -13,8 +13,8 @@ from torchmetrics import Metric
 SEA_ICE_THRESHOLD = 0.15  # Threshold for defining ice/no-ice, and hence the ice edge
 
 
-class FractionsSkillScorePerForecastDay(Metric):
-    """Fractions Skill Score (FSS) of the sea-ice edge, for use at multiple lead times.
+class FractionalSkillScorePerForecastDay(Metric):
+    """FractionalSkill Score (FSS) of the sea-ice edge, for use at multiple lead times.
 
     Each field is first reduced to a binary ice-edge map (cells that are ice but
     border a non-ice cell). The local fraction of edge cells is then computed within

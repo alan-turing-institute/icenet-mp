@@ -1,12 +1,12 @@
 from .centroid_error import CentroidErrorPerForecastDay
 from .daily_metrics import MAEPerForecastDay, RMSEPerForecastDay
-from .fss import FractionsSkillScorePerForecastDay
+from .fss import FractionalSkillScorePerForecastDay
 from .icenet_accuracy import IceNetAccuracyPerForecastDay
 from .sie_error import SeaIceExtentErrorPerForecastDay
 
 __all__ = [
     "CentroidErrorPerForecastDay",
-    "FractionsSkillScorePerForecastDay",
+    "FractionalSkillScorePerForecastDay",
     "IceNetAccuracyPerForecastDay",
     "MAEPerForecastDay",
     "RMSEPerForecastDay",
