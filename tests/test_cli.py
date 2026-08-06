@@ -41,6 +41,7 @@ class TestBaseCLI:
         r"--help\s+-h\s+Show this message and exit.",
         r"datasets\s+Manage datasets",
         r"evaluate\s+Evaluate a pre-trained model",
+        r"sweep\s+Generate W&B sweeps with Optuna-sampled",
         r"train\s+Train a model",
     )
 
@@ -88,6 +89,49 @@ class TestEvaluateCLI:
                 r"--config-name\s+<str>\s+Name of a file to load from the config",
                 r"--help\s+-h\s+Show this message and exit.",
                 r"--save-layer\s+<str>\s+Dotted path of a model submodule to hook",
+            ],
+        )
+
+
+class TestSweepCLI:
+    def test_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["sweep", "--help"],
+            expected_patterns=[
+                r"Usage: imp sweep \[OPTIONS\] COMMAND \[ARGS\]...",
+                r"Generate W&B sweeps with Optuna-sampled hyperparameters",
+                r"--help\s+-h\s+Show this message and exit.",
+                r"initialise\s+Initialise a W&B sweep with Optuna-sampled",
+                r"run\s+Run a single trial from a W&B sweep.",
+            ],
+        )
+
+    def test_initialise_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["sweep", "initialise", "--help"],
+            expected_patterns=[
+                r"Usage: imp sweep initialise \[OPTIONS\] \[overrides\]...",
+                r"Initialise a W&B sweep with Optuna-sampled hyperparameters.",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
+                r"--sweep-yaml\s+<path>\s+Path to a sweep search-space YAML file",
+                r"--config-name\s+<str>\s+Name of a file to load from the config",
+                r"--help\s+-h\s+Show this message and exit.",
+            ],
+        )
+
+    def test_run_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["sweep", "run", "--help"],
+            expected_patterns=[
+                r"Usage: imp sweep run \[OPTIONS\]",
+                r"Run a single trial from a W&B sweep.",
+                r"--sweep-path\s+<path>\s+The path to the local sweep directory",
+                r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
+                r"--multistage\s+Train an EncodeProcessDecode model in",
+                r"--help\s+-h\s+Show this message and exit.",
             ],
         )
 
