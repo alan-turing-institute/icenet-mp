@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from omegaconf import DictConfig
 
-from icenet_mp.data_loaders.common_data_module import CommonDataModule
+from icenet_mp.data.common_data_module import CommonDataModule
 from icenet_mp.utils import mask_dir
 
 
