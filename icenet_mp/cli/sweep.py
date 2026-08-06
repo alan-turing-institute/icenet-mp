@@ -6,6 +6,7 @@ from typing import Annotated
 import typer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig
+from optuna.trial import TrialState
 
 from icenet_mp.model_service import ModelService
 from icenet_mp.sweep import OptunaSampler
@@ -103,8 +104,10 @@ def run(
 
     # Record the trial result and log the best trial
     if not isinstance(ckpt := trainer.checkpoint_callback, ModelCheckpoint):
+        sampler.tell(trial, state=TrialState.FAIL)
         return
     if ckpt.best_model_score is None:
+        sampler.tell(trial, state=TrialState.FAIL)
         return
     result = sampler.tell(trial, ckpt.best_model_score.item())
     log.info("Trial %d completed with value %f", result.number, result.value)
