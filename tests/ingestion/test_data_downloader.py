@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from icenet_mp.data_processors.data_downloader import DataDownloader
+from icenet_mp.ingestion.data_downloader import DataDownloader
 from icenet_mp.types import AnemoiDatasetStatus, AnemoiInspectArgs
 from tests.conftest import build_zarr
 
@@ -105,7 +105,7 @@ def mock_inspect_zarr(monkeypatch: pytest.MonkeyPatch) -> MockInspectZarr:
     """Patch InspectZarr with MockInspectZarr; returns the instance for per-test configuration."""
     instance = MockInspectZarr()
     monkeypatch.setattr(
-        "icenet_mp.data_processors.data_downloader.InspectZarr",
+        "icenet_mp.ingestion.data_downloader.InspectZarr",
         lambda: instance,
     )
     return instance
@@ -518,7 +518,7 @@ class TestDataDownloader:
         mock_dataset.__len__.return_value = 3
         mock_dataset.__getitem__.side_effect = _getitem
         monkeypatch.setattr(
-            "icenet_mp.data_processors.data_downloader.open_dataset",
+            "icenet_mp.ingestion.data_downloader.open_dataset",
             lambda _: mock_dataset,
         )
         with pytest.raises(

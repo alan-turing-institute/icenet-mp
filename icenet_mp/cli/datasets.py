@@ -4,7 +4,7 @@ from typing import Annotated
 import typer
 from omegaconf import DictConfig
 
-from icenet_mp.data_processors import DataDownloaderFactory
+from icenet_mp.ingestion import DataDownloaderFactory
 
 from .hydra import hydra_adaptor
 

@@ -8,8 +8,8 @@ Select a module from the navigation to view its full API.
 | [callbacks](callbacks.md) | Training callbacks (activation saving, etc.) |
 | [compatibility](compatibility.md) | Compatibility functions for external libraries |
 | [data_loaders](data_loaders.md) | PyTorch data loaders and datasets |
-| [data_processors](data_processors.md) | Data pre- and post-processing utilities |
 | [geotools](geotools.md) | Geospatial helpers (projections, grids) |
+| [ingestion](ingestion.md) | Data ingestion utilities |
 | [losses](losses.md) | Custom loss functions |
 | [metrics](metrics.md) | Evaluation metrics |
 | [models](models.md) | Neural network architectures |

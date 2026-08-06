@@ -15,8 +15,8 @@ from haversine import Unit, haversine_vector
 from pandas import DataFrame
 from typing_extensions import override
 
-from icenet_mp.data_processors.sources import lazy_argopy as argopy
 from icenet_mp.geotools import grid_factory
+from icenet_mp.ingestion.sources import lazy_argopy as argopy
 
 logger = logging.getLogger(__name__)
 

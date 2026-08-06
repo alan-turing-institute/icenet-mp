@@ -11,7 +11,7 @@ from anemoi.datasets.create.recipe.dates import StartEndDates
 from anemoi.datasets.dates.groups import GroupOfDates
 from anemoi.utils.registry import Registry
 
-from icenet_mp.data_processors.sources import FTPSource, register_sources
+from icenet_mp.ingestion.sources import FTPSource, register_sources
 
 
 class TestFTPSource:
@@ -32,7 +32,7 @@ class TestFTPSource:
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(
-                "icenet_mp.data_processors.sources.source_registry",
+                "icenet_mp.ingestion.sources.source_registry",
                 mock_registry,
             )
             assert "ftp" not in mock_registry.registered
@@ -53,8 +53,8 @@ class TestFTPSource:
         mock_load_one.return_value = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
-            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.load_one", mock_load_one)
 
             # Execute
             source = FTPSource(
@@ -85,8 +85,8 @@ class TestFTPSource:
         mock_load_one.return_value = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
-            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.load_one", mock_load_one)
 
             # Execute without providing user/passwd
             source = FTPSource(
@@ -118,10 +118,10 @@ class TestFTPSource:
         mock_multi_field_list = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
-            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.load_one", mock_load_one)
             mp.setattr(
-                "icenet_mp.data_processors.sources.ftp.MultiFieldList",
+                "icenet_mp.ingestion.sources.ftp.MultiFieldList",
                 mock_multi_field_list,
             )
 
@@ -159,8 +159,8 @@ class TestFTPSource:
         mock_load_one.return_value = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
-            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.load_one", mock_load_one)
 
             source = FTPSource(
                 context=self.mock_context,
@@ -215,7 +215,7 @@ class TestFTPSource:
         context = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
 
             source = FTPSource(context=context, url="ftp://example.com/data/file.nc")
             result = source.execute(argument=real_dates)
@@ -237,8 +237,8 @@ class TestFTPSource:
         mock_load_one.return_value = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
-            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.load_one", mock_load_one)
 
             source = FTPSource(
                 context=self.mock_context,
@@ -263,8 +263,8 @@ class TestFTPSource:
         mock_load_one.return_value = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
-            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.load_one", mock_load_one)
 
             source = FTPSource(
                 context=self.mock_context,
@@ -292,8 +292,8 @@ class TestFTPSource:
         mock_load_one.return_value = MagicMock()
 
         with pytest.MonkeyPatch.context() as mp:
-            mp.setattr("icenet_mp.data_processors.sources.ftp.FTP", mock_ftp_class)
-            mp.setattr("icenet_mp.data_processors.sources.ftp.load_one", mock_load_one)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.FTP", mock_ftp_class)
+            mp.setattr("icenet_mp.ingestion.sources.ftp.load_one", mock_load_one)
 
             source = FTPSource(
                 context=self.mock_context,
