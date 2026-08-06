@@ -74,7 +74,7 @@ Checkpoints are saved to `${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints
 uv run imp sweep initialise --sweep-yaml example.sweep.yaml --config-name baseline/02_cnn_unet_cnn
 ```
 
-Samples a batch of hyperparameter combinations with Optuna and writes configuration files to a local directory.
+Creates a W&B sweep and initialises a local Optuna study directory; hyperparameters are sampled per trial at runtime.
 See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
 
 ## `sweep run`

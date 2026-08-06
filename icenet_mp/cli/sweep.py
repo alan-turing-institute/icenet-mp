@@ -27,10 +27,11 @@ def initialise(
         typer.Option("--sweep-yaml", help="Path to a sweep search-space YAML file"),
     ],
 ) -> None:
-    """Sample a batch of hyperparameter combinations and write a W&B sweep config.
+    """Initialise a W&B sweep with Optuna-sampled hyperparameters.
 
-    Writes `trials.json` (the sampled overrides for each trial) and `wandb_sweep.yaml`
-    (a real W&B `method: grid` sweep over those trials) alongside the input file.
+    Create a W&B sweep with a grid search over a set of hyperparameter combinations
+    specified by Optuna. Create the Optuna study directory and save the model and sweep
+    configs.
     """
     # Initialise Optuna sampler
     sampler = OptunaSampler.from_yaml(sweep_yaml)

@@ -165,7 +165,7 @@ class OptunaSampler:
         )
 
     def initialise_study(self, model_cfg: DictConfig, sweep_id: str) -> None:
-        """Create an Optuna study and save the sampled trials to a JSON file."""
+        """Create the Optuna study directory and save the model and sweep configs."""
         # Generate study and storage paths
         sweep_base = (Path(model_cfg.get("base_path"))).resolve() / "sweeps"
         self._study_name = sweep_id
