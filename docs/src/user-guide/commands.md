@@ -68,6 +68,24 @@ Checkpoints are saved to `${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints
     PYTORCH_ENABLE_MPS_FALLBACK=1 uv run imp train
     ```
 
+## `sweep initialise`
+
+```bash
+uv run imp sweep initialise --sweep-yaml example.sweep.yaml --config-name baseline/02_cnn_unet_cnn
+```
+
+Samples a batch of hyperparameter combinations with Optuna and writes configuration files to a local directory.
+See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
+
+## `sweep run`
+
+```bash
+uv run imp sweep run --sweep-path <path to sweep directory created above>
+```
+
+Runs a single hyperparameter trial as part of a W&B sweep.
+See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
+
 ## `evaluate`
 
 ```bash

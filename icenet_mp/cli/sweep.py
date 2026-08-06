@@ -93,6 +93,7 @@ def run(
     os.environ["WANDB_ENTITY"] = sampler.entity
     os.environ["WANDB_PROJECT"] = "train"
 
+    # Train the model for this trial
     model = ModelService.from_config(config)
     trainer = model.train(
         checkpoint_dir=Path(checkpoint_dir).resolve() if checkpoint_dir else None,
@@ -107,10 +108,11 @@ def run(
     result = sampler.tell(trial, ckpt.best_model_score.item())
     log.info("Trial %d completed with value %f", result.number, result.value)
     log.info(
-        "Best trial %d completed with value %f",
+        "Best trial (%d) completed with value %f.",
         sampler.study.best_trial.number,
         sampler.study.best_trial.value,
     )
+    log.info("Best trial parameters: %s", sampler.study.best_trial.params)
 
 
 if __name__ == "__main__":
