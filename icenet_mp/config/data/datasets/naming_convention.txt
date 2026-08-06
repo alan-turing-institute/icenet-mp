@@ -18,8 +18,9 @@ content:
 source:
   - argo: Argo float data
   - era5: ERA5 weather data
-  - osisaf: SSMIS sea ice data from OSISAF via IceNet v1
+  - icenet: SSMIS sea ice data from OSISAF via IceNet v1
   - ssmis: SSMIS sea ice data from OSISAF
+  - osisaf: Multi-satellite sea ice data from OSISAF
   - synthetic: Synthetic data
 resolution:
   - 0p25: 0.25 degree
