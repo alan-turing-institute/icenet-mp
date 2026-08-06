@@ -8,6 +8,7 @@ from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
 from icenet_mp.metrics import (
+    FractionalSkillScorePerForecastDay,
     IceNetAccuracyPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
@@ -136,6 +137,91 @@ class TestOnTestEnd:
         mock_run.log.assert_called_once()
         log_call_args = mock_run.log.call_args[0][0]
         assert "mae_daily_per_forecast_day" in log_call_args
+
+    def test_on_test_end_with_wandb_logger_grouped_vector_metrics(
+        self,
+        callback: MetricSummaryCallback,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """FSS at different neighbourhood sizes combines onto a single plot."""
+        mock_wandb = MagicMock()
+        mock_get_wandb_run = MagicMock()
+        monkeypatch.setattr(
+            "icenet_mp.callbacks.metric_summary_callback.wandb", mock_wandb
+        )
+        monkeypatch.setattr(
+            "icenet_mp.callbacks.metric_summary_callback.get_wandb_run",
+            mock_get_wandb_run,
+        )
+
+        # Mock wandb.Run for isinstance check
+        class MockWandbRun:
+            def __init__(self) -> None:
+                self.log = MagicMock()
+
+        mock_wandb.Run = MockWandbRun
+
+        # Create a trainer with WandbLogger
+        trainer = MagicMock(spec=Trainer)
+        trainer.sanity_checking = False
+        wandb_logger = MagicMock(spec=WandbLogger)
+        trainer.loggers = [wandb_logger]
+
+        # Mock get_wandb_run to return a MockWandbRun instance
+        mock_run = MockWandbRun()
+        mock_get_wandb_run.return_value = mock_run
+
+        # FSS at two neighbourhood sizes, plus an unrelated daily metric that
+        # should stay on its own plot
+        metric_collection = MetricCollection(
+            {
+                "fss_1": FractionalSkillScorePerForecastDay(neighborhood_size=1),
+                "fss_5": FractionalSkillScorePerForecastDay(neighborhood_size=5),
+                "mae_daily": MAEPerForecastDay(),
+            }
+        )
+        mock_module.test_metrics = metric_collection
+
+        # Create sample 5D data: (batch=1, time=3, channels=1, height=6, width=6)
+        preds = torch.rand(1, 3, 1, 6, 6)
+        targets = torch.rand(1, 3, 1, 6, 6)
+        metric_collection.update(preds, targets)
+
+        mock_plot = MagicMock()
+        mock_wandb.plot.line_series.return_value = mock_plot
+
+        callback.teardown(trainer, mock_module, stage="test")
+
+        # One combined per-forecast-day plot for the fss_* group, one for the
+        # unrelated metric, and one FSS-vs-neighbourhood-size plot
+        assert mock_wandb.plot.line_series.call_count == 3
+        titles = {
+            call.kwargs["title"] for call in mock_wandb.plot.line_series.call_args_list
+        }
+        assert titles == {
+            "fss_per_forecast_day",
+            "mae_daily_per_forecast_day",
+            "fss_vs_neighbourhood_size",
+        }
+
+        fss_call = next(
+            call
+            for call in mock_wandb.plot.line_series.call_args_list
+            if call.kwargs["title"] == "fss_per_forecast_day"
+        )
+        assert fss_call.kwargs["keys"] == ["fss_1", "fss_5"]
+
+        fss_vs_size_call = next(
+            call
+            for call in mock_wandb.plot.line_series.call_args_list
+            if call.kwargs["title"] == "fss_vs_neighbourhood_size"
+        )
+        assert fss_vs_size_call.kwargs["xs"] == [1, 5]
+        assert fss_vs_size_call.kwargs["keys"] == ["test", "skilful_threshold"]
+        assert fss_vs_size_call.kwargs["ys"][-1] == [0.5, 0.5]
+        assert len(fss_vs_size_call.kwargs["ys"]) == 2
+        assert len(fss_vs_size_call.kwargs["ys"][0]) == 2
 
     def test_on_test_end_without_wandb_logger_vector_metric(
         self,

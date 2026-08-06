@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
-from functools import cached_property
+from functools import cached_property, partial
 from typing import Any, ClassVar
 
 import hydra
@@ -18,6 +18,7 @@ from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
     CentroidErrorPerForecastDay,
+    FractionalSkillScorePerForecastDay,
     IceNetAccuracyPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
@@ -59,9 +60,12 @@ class BaseModel(LightningModule, ABC):
         Optimizer configuration is also set here.
 
         The ``metrics`` parameter controls which metrics are computed during training,
-        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror"]``;
-        pass ``"centroid_error"`` to add the value-weighted centre-of-mass distance
-        metric (only meaningful for synthetic checks where the field is a single blob).
+        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
+        "centroid_error", "fss_1", "fss_5", "fss_15"]``. ``"centroid_error"`` is the
+        value-weighted centre-of-mass distance (only meaningful for synthetic checks
+        where the field is a single blob); ``"fss_1"``/``"fss_5"``/``"fss_15"`` are the
+        Fractional Skill Score of the sea-ice edge at neighbourhood sizes of 1, 5, and
+        15 pixels respectively (see ``icenet_mp.metrics.fss``).
         """
         super().__init__()
 
@@ -91,12 +95,17 @@ class BaseModel(LightningModule, ABC):
         self.loss_cfg = loss
 
         # Metrics
-        _metric_classes: dict[str, type[Metric]] = {
+        _metric_classes: dict[str, Callable[[], Metric]] = {
             "accuracy": IceNetAccuracyPerForecastDay,
             "mae": MAEPerForecastDay,
             "rmse": RMSEPerForecastDay,
             "sieerror": SeaIceExtentErrorPerForecastDay,
             "centroid_error": CentroidErrorPerForecastDay,
+            "fss_1": partial(FractionalSkillScorePerForecastDay, neighborhood_size=1),
+            "fss_5": partial(FractionalSkillScorePerForecastDay, neighborhood_size=5),
+            "fss_15": partial(
+                FractionalSkillScorePerForecastDay, neighborhood_size=15
+            ),
         }
         metric_names = (
             metrics
@@ -107,6 +116,9 @@ class BaseModel(LightningModule, ABC):
                 "rmse",
                 "sieerror",
                 "centroid_error",
+                "fss_1",
+                "fss_5",
+                "fss_15",
             ]
         )
         _common_metrics: dict[str, Metric | MetricCollection] = {
