@@ -41,9 +41,8 @@ class DataDownloader:
         Register a preprocessor if appropriate.
         """
         self.name = name
-        base_path = Path(
-            config["base_path"]
-        ).resolve()  # extract basepath for mask_dir()
+        # Extract basepath for mask_dir()
+        base_path = Path(config["base_path"]).resolve()
         _data_path = base_path / "data"
         self.path_dataset = _data_path / "anemoi" / f"{name}.zarr"
         self.path_preprocessor = _data_path / "preprocessing"
@@ -54,6 +53,13 @@ class DataDownloader:
         )  # type: ignore[assignment]
         self.recipe = Recipe(**anemoi_config)
         self.preprocessor = cls_preprocessor(anemoi_config)
+
+    @property
+    def source(self) -> str:
+        """Return the source of the dataset, inferred from its name."""
+        with suppress(IndexError):
+            return self.name.split("-")[2]
+        return ""
 
     def artifacts(self) -> list[Path]:
         """Return a list of temporary artifacts created during the download and finalise process."""
@@ -202,7 +208,7 @@ class DataDownloader:
 
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for supported datasets."""
-        if "-synthetic-" in self.name:
+        if self.source == "synthetic":
             self.path_masks.mkdir(parents=True, exist_ok=True)
             land_mask_path = self.path_masks / "land_mask.npy"
             active_mask_path = self.path_masks / "active_mask.npy"
@@ -217,10 +223,10 @@ class DataDownloader:
             logger.info("Created all-active masks for synthetic dataset %s.", self.name)
             return
 
-        # Create the masks if this is an SSMIS dataset
-        if "ssmis" not in self.name:
+        # Create the masks if this dataset was downloaded from OSISAF
+        if self.source not in ("ssmis", "osisaf"):
             return
-        logger.debug("Generating land and active grid cell masks for SSMIS dataset.")
+        logger.debug("Generating land and active grid cell masks for OSISAF dataset.")
 
         self.path_masks.mkdir(parents=True, exist_ok=True)
         land_mask_path = self.path_masks / "land_mask.npy"
