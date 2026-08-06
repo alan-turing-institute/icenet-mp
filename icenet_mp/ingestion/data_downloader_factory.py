@@ -40,9 +40,11 @@ class DataDownloaderFactory:
                 .get("preprocessor", {})
                 .get("type", "None")
             ]
-            DataDownloader(
-                dataset_name,
-                config,
-                cls_preprocessor,  # type: ignore[type-abstract]
-                cls_postprocessor,  # type: ignore[type-abstract]
+            self.downloaders.append(
+                DataDownloader(
+                    dataset_name,
+                    config,
+                    cls_preprocessor,  # type: ignore[type-abstract]
+                    cls_postprocessor,  # type: ignore[type-abstract]
+                )
             )

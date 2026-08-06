@@ -4,14 +4,19 @@ from pathlib import Path
 import numpy as np
 from anemoi.datasets import open_dataset
 
+from icenet_mp.utils import mask_dir
+
 from .ipostprocessor import IPostprocessor
 
 logger = logging.getLogger(__name__)
 
 
 class SyntheticMaskPostprocessor(IPostprocessor):
-    def process(self, path_dataset: Path, path_masks: Path, *, overwrite: bool) -> None:
-        """Generate all-active land and active grid cell masks for a synthetic dataset."""
+    def process(self, path_dataset: Path, *, overwrite: bool) -> None:
+        """Generate land and active grid cell masks using the entire grid."""
+        logger.debug("Generating land and active grid cell masks for entire grid.")
+
+        path_masks = mask_dir(self.base_path, self.dataset_name)
         path_masks.mkdir(parents=True, exist_ok=True)
         land_mask_path = path_masks / "land_mask.npy"
         active_mask_path = path_masks / "active_mask.npy"
@@ -23,6 +28,4 @@ class SyntheticMaskPostprocessor(IPostprocessor):
         synthetic_mask = np.ones(field_shape, dtype=np.uint8)
         np.save(land_mask_path, synthetic_mask)
         np.save(active_mask_path, synthetic_mask)
-        logger.info(
-            "Created all-active masks for synthetic dataset %s.", self.dataset_name
-        )
+        logger.info("Created and saved synthetic land and active masks")

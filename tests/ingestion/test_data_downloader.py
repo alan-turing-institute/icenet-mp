@@ -17,7 +17,15 @@ from icenet_mp.ingestion.postprocessors import (
     SyntheticMaskPostprocessor,
 )
 from icenet_mp.types import AnemoiDatasetStatus, AnemoiInspectArgs
+from icenet_mp.utils import mask_dir
 from tests.conftest import build_zarr
+
+
+def _path_masks(downloader: DataDownloader) -> Path:
+    """Compute the mask directory for `downloader`, mirroring what its postprocessor uses."""
+    return mask_dir(
+        downloader.postprocessor.base_path, downloader.postprocessor.dataset_name
+    )
 
 
 @dataclass
@@ -358,11 +366,9 @@ class TestDataDownloader:
         self,
         mock_data_downloader: DataDownloader,
         mock_data: dict[str, dict[str, Any]],
-        monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test the ValueError() suppression in finalise() by providing a dataset with no recipe."""
-        monkeypatch.setattr(mock_data_downloader, "generate_masks", MagicMock())
         build_zarr(mock_data_downloader.path_dataset, mock_data)
         residual = mock_data_downloader.path_dataset.parent / (
             f"{mock_data_downloader.path_dataset.stem}.tmp"
@@ -383,7 +389,7 @@ class TestDataDownloader:
         assert "Residual artifacts" in caplog.text
 
     @pytest.mark.parametrize("overwrite", [False, True])
-    def test_generate_masks_creates_or_recreates_land_and_active_masks(
+    def test_postprocessor_process_creates_or_recreates_land_and_active_masks(
         self,
         mock_data_downloader_ssmis: DataDownloader,
         mock_data_status_flag: dict[str, dict[str, Any]],
@@ -391,20 +397,23 @@ class TestDataDownloader:
         overwrite: bool,
     ) -> None:
         build_zarr(mock_data_downloader_ssmis.path_dataset, mock_data_status_flag)
-        land_mask_path = mock_data_downloader_ssmis.path_masks / "land_mask.npy"
-        active_mask_path = mock_data_downloader_ssmis.path_masks / "active_mask.npy"
+        path_masks = _path_masks(mock_data_downloader_ssmis)
+        land_mask_path = path_masks / "land_mask.npy"
+        active_mask_path = path_masks / "active_mask.npy"
         if overwrite:
             # Pre-seed masks with sentinel values to prove overwrite=True recomputes them.
-            mock_data_downloader_ssmis.path_masks.mkdir(parents=True)
+            path_masks.mkdir(parents=True)
             np.save(land_mask_path, np.full((2, 2), fill_value=9))
             np.save(active_mask_path, np.full((2, 2), fill_value=9))
 
-        mock_data_downloader_ssmis.generate_masks(overwrite=overwrite)
+        mock_data_downloader_ssmis.postprocessor.process(
+            mock_data_downloader_ssmis.path_dataset, overwrite=overwrite
+        )
 
         np.testing.assert_array_equal(np.load(land_mask_path), [[0, 1], [1, 1]])
         np.testing.assert_array_equal(np.load(active_mask_path), [[0, 1], [0, 1]])
 
-    def test_generate_masks_skips_missing_leading_date(
+    def test_postprocessor_process_skips_missing_leading_date(
         self,
         mock_data_downloader_ssmis: DataDownloader,
         mock_data_status_flag: dict[str, dict[str, Any]],
@@ -429,50 +438,57 @@ class TestDataDownloader:
             missing_dates=[dates[0]],
         )
 
-        mock_data_downloader_ssmis.generate_masks(overwrite=False)
+        mock_data_downloader_ssmis.postprocessor.process(
+            mock_data_downloader_ssmis.path_dataset, overwrite=False
+        )
 
-        land_mask_path = mock_data_downloader_ssmis.path_masks / "land_mask.npy"
-        active_mask_path = mock_data_downloader_ssmis.path_masks / "active_mask.npy"
-        np.testing.assert_array_equal(np.load(land_mask_path), [[0, 1], [1, 1]])
-        np.testing.assert_array_equal(np.load(active_mask_path), [[0, 1], [0, 1]])
+        path_masks = _path_masks(mock_data_downloader_ssmis)
+        np.testing.assert_array_equal(
+            np.load(path_masks / "land_mask.npy"), [[0, 1], [1, 1]]
+        )
+        np.testing.assert_array_equal(
+            np.load(path_masks / "active_mask.npy"), [[0, 1], [0, 1]]
+        )
 
-    def test_generate_masks_creates_all_active_synthetic_masks(
+    def test_postprocessor_process_creates_all_active_synthetic_masks(
         self,
         mock_data_downloader_synthetic: DataDownloader,
         mock_data: dict[str, dict[str, Any]],
     ) -> None:
         build_zarr(mock_data_downloader_synthetic.path_dataset, mock_data)
 
-        mock_data_downloader_synthetic.generate_masks(overwrite=False)
+        mock_data_downloader_synthetic.postprocessor.process(
+            mock_data_downloader_synthetic.path_dataset, overwrite=False
+        )
 
         expected = np.ones((2, 2), dtype=np.uint8)
-        np.testing.assert_array_equal(
-            np.load(mock_data_downloader_synthetic.path_masks / "land_mask.npy"),
-            expected,
-        )
-        np.testing.assert_array_equal(
-            np.load(mock_data_downloader_synthetic.path_masks / "active_mask.npy"),
-            expected,
-        )
+        path_masks = _path_masks(mock_data_downloader_synthetic)
+        np.testing.assert_array_equal(np.load(path_masks / "land_mask.npy"), expected)
+        np.testing.assert_array_equal(np.load(path_masks / "active_mask.npy"), expected)
 
-    def test_generate_masks_skips_unsupported_dataset(
+    def test_postprocessor_process_noop_for_default_dataset(
         self, mock_data_downloader: DataDownloader
     ) -> None:
-        """No dataset exists on disk; a real open_dataset() call would raise if reached."""
-        mock_data_downloader.generate_masks(overwrite=False)
-        assert not mock_data_downloader.path_masks.exists()
+        """No postprocessor is configured for this dataset, so process() is a no-op."""
+        mock_data_downloader.postprocessor.process(
+            mock_data_downloader.path_dataset, overwrite=False
+        )
+        assert not _path_masks(mock_data_downloader).exists()
 
-    def test_generate_masks_skips_when_masks_already_exist(
+    def test_postprocessor_process_skips_when_masks_already_exist(
         self, mock_data_downloader_ssmis: DataDownloader
     ) -> None:
-        mock_data_downloader_ssmis.path_masks.mkdir(parents=True)
-        land_mask_path = mock_data_downloader_ssmis.path_masks / "land_mask.npy"
-        active_mask_path = mock_data_downloader_ssmis.path_masks / "active_mask.npy"
+        path_masks = _path_masks(mock_data_downloader_ssmis)
+        path_masks.mkdir(parents=True)
+        land_mask_path = path_masks / "land_mask.npy"
+        active_mask_path = path_masks / "active_mask.npy"
         np.save(land_mask_path, np.zeros((2, 2)))
         np.save(active_mask_path, np.ones((2, 2)))
 
         # No dataset exists on disk; a real open_dataset() call would raise if reached.
-        mock_data_downloader_ssmis.generate_masks(overwrite=False)
+        mock_data_downloader_ssmis.postprocessor.process(
+            mock_data_downloader_ssmis.path_dataset, overwrite=False
+        )
 
         np.testing.assert_array_equal(np.load(land_mask_path), np.zeros((2, 2)))
         np.testing.assert_array_equal(np.load(active_mask_path), np.ones((2, 2)))

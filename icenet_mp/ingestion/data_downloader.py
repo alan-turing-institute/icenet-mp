@@ -24,7 +24,6 @@ from icenet_mp.types import (
     AnemoiInspectArgs,
     AnemoiLoadArgs,
 )
-from icenet_mp.utils import mask_dir
 
 from .postprocessors import IPostprocessor
 from .preprocessors import IPreprocessor
@@ -45,26 +44,18 @@ class DataDownloader:
         Register a preprocessor and postprocessor if appropriate.
         """
         self.name = name
-        # Extract basepath for mask_dir()
         base_path = Path(config["base_path"]).resolve()
-        _data_path = base_path / "data"
-        self.path_dataset = _data_path / "anemoi" / f"{name}.zarr"
-        self.path_preprocessor = _data_path / "preprocessing"
-        self.path_masks = mask_dir(base_path, name)
+        self.path_dataset = base_path / "data" / "anemoi" / f"{name}.zarr"
+        self.path_preprocessor = base_path / "data" / "preprocessing"
         # Note that Anemoi 'forcings' need to be escaped with `\${}` to avoid being resolved here
         anemoi_config: dict[str, Any] = OmegaConf.to_object(
             config["data"]["datasets"][name]
         )  # type: ignore[assignment]
         self.recipe = Recipe(**anemoi_config)
         self.preprocessor = cls_preprocessor(anemoi_config)
-        self.postprocessor = cls_postprocessor(anemoi_config)
-
-    @property
-    def source(self) -> str:
-        """Return the source of the dataset, inferred from its name."""
-        with suppress(IndexError):
-            return self.name.split("-")[2]
-        return ""
+        self.postprocessor = cls_postprocessor(
+            {**anemoi_config, "base_path": config["base_path"]}
+        )
 
     def artifacts(self) -> list[Path]:
         """Return a list of temporary artifacts created during the download and finalise process."""
@@ -198,9 +189,7 @@ class DataDownloader:
             logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
 
         # Create active grid cell and land masks if appropriate
-        self.postprocessor.process(
-            self.path_dataset, self.path_masks, overwrite=overwrite
-        )
+        self.postprocessor.process(self.path_dataset, overwrite=overwrite)
 
         # Cleanup any temporary artifacts created during the download and finalise process
         if self.artifacts():
@@ -212,21 +201,6 @@ class DataDownloader:
                     logger.warning("... %s", artifact)
             else:
                 logger.info("Cleaned up temporary artifacts for dataset %s.", self.name)
-
-    def generate_masks(self, *, overwrite: bool) -> None:
-        """Generate land and active grid cell masks for supported datasets."""
-        if self.source == "synthetic":
-            self.postprocessor.process(
-                self.path_dataset, self.path_masks, overwrite=overwrite
-            )
-        # Create the masks if this dataset was downloaded from OSISAF
-        if self.source in ("ssmis", "osisaf"):
-            logger.debug(
-                "Generating land and active grid cell masks for OSISAF dataset."
-            )
-            self.postprocessor.process(
-                self.path_dataset, self.path_masks, overwrite=overwrite
-            )
 
     def initialise(self) -> None:
         """Initialise an Anemoi dataset."""

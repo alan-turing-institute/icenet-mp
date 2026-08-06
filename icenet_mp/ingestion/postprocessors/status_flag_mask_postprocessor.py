@@ -4,16 +4,19 @@ from pathlib import Path
 import numpy as np
 from anemoi.datasets import open_dataset
 
+from icenet_mp.utils import mask_dir
+
 from .ipostprocessor import IPostprocessor
 
 logger = logging.getLogger(__name__)
 
 
 class StatusFlagMaskPostprocessor(IPostprocessor):
-    def process(self, path_dataset: Path, path_masks: Path, *, overwrite: bool) -> None:
-        """Generate land and active grid cell masks from a dataset's status_flag variable."""
+    def process(self, path_dataset: Path, *, overwrite: bool) -> None:
+        """Generate land and active grid cell masks from the status_flag variable."""
         logger.debug("Generating land and active grid cell masks from status_flag.")
 
+        path_masks = mask_dir(self.base_path, self.dataset_name)
         path_masks.mkdir(parents=True, exist_ok=True)
         land_mask_path = path_masks / "land_mask.npy"
         active_mask_path = path_masks / "active_mask.npy"
