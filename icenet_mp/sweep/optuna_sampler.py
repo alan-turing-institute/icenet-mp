@@ -183,7 +183,7 @@ class OptunaSampler:
             "seed": self.seed,
         }
         with (self.study_path / "optuna.yaml").open("w") as f_yaml:
-            yaml.dump(optuna_cfg, f_yaml, default_flow_style=False)
+            yaml.safe_dump(optuna_cfg, f_yaml, default_flow_style=False)
 
         # Save the model config to the study path
         OmegaConf.save(model_cfg, self.study_path / "model_config.yaml")
