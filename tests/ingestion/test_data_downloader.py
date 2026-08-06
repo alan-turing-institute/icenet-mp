@@ -11,6 +11,11 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.ingestion.data_downloader import DataDownloader
+from icenet_mp.ingestion.postprocessors import (
+    NullPostprocessor,
+    StatusFlagMaskPostprocessor,
+    SyntheticMaskPostprocessor,
+)
 from icenet_mp.types import AnemoiDatasetStatus, AnemoiInspectArgs
 from tests.conftest import build_zarr
 
@@ -66,7 +71,11 @@ def _make_data_downloader(tmp_path: Path, name: str) -> DataDownloader:
             },
         }
     )
-    return DataDownloader(name, full_cfg, MagicMock)
+    cls_postprocessor = {
+        "samp-sic-ssmis": StatusFlagMaskPostprocessor,
+        "samp-sic-synthetic": SyntheticMaskPostprocessor,
+    }.get(name, NullPostprocessor)
+    return DataDownloader(name, full_cfg, MagicMock, cls_postprocessor)  # type: ignore[type-abstract]
 
 
 @pytest.fixture
@@ -136,7 +145,7 @@ class TestDataDownloader:
         mock_dispatcher: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(mock_data_downloader, "generate_masks", MagicMock())
+        monkeypatch.setattr(mock_data_downloader, "postprocessor", MagicMock())
         status = AnemoiDatasetStatus(
             copy_in_progress=False, download_complete=True, is_finalised=False
         )

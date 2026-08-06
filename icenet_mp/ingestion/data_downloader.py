@@ -4,7 +4,6 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import tqdm
 from anemoi.datasets import open_dataset
 from anemoi.datasets.commands.cleanup import Cleanup
@@ -27,6 +26,7 @@ from icenet_mp.types import (
 )
 from icenet_mp.utils import mask_dir
 
+from .postprocessors import IPostprocessor
 from .preprocessors import IPreprocessor
 
 logger = logging.getLogger(__name__)
@@ -34,11 +34,15 @@ logger = logging.getLogger(__name__)
 
 class DataDownloader:
     def __init__(
-        self, name: str, config: DictConfig, cls_preprocessor: type[IPreprocessor]
+        self,
+        name: str,
+        config: DictConfig,
+        cls_preprocessor: type[IPreprocessor],
+        cls_postprocessor: type[IPostprocessor],
     ) -> None:
         """Initialise a DataDownloader from a config.
 
-        Register a preprocessor if appropriate.
+        Register a preprocessor and postprocessor if appropriate.
         """
         self.name = name
         # Extract basepath for mask_dir()
@@ -53,6 +57,7 @@ class DataDownloader:
         )  # type: ignore[assignment]
         self.recipe = Recipe(**anemoi_config)
         self.preprocessor = cls_preprocessor(anemoi_config)
+        self.postprocessor = cls_postprocessor(anemoi_config)
 
     @property
     def source(self) -> str:
@@ -193,7 +198,9 @@ class DataDownloader:
             logger.info("Finalised dataset %s at %s.", self.name, self.path_dataset)
 
         # Create active grid cell and land masks if appropriate
-        self.generate_masks(overwrite=overwrite)
+        self.postprocessor.process(
+            self.path_dataset, self.path_masks, overwrite=overwrite
+        )
 
         # Cleanup any temporary artifacts created during the download and finalise process
         if self.artifacts():
@@ -209,83 +216,17 @@ class DataDownloader:
     def generate_masks(self, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks for supported datasets."""
         if self.source == "synthetic":
-            self.path_masks.mkdir(parents=True, exist_ok=True)
-            land_mask_path = self.path_masks / "land_mask.npy"
-            active_mask_path = self.path_masks / "active_mask.npy"
-            if land_mask_path.exists() and active_mask_path.exists() and not overwrite:
-                logger.debug("Both masks already exist, skipping creation.")
-                return
-
-            field_shape = open_dataset(self.path_dataset).field_shape[-2:]
-            synthetic_mask = np.ones(field_shape, dtype=np.uint8)
-            np.save(land_mask_path, synthetic_mask)
-            np.save(active_mask_path, synthetic_mask)
-            logger.info("Created all-active masks for synthetic dataset %s.", self.name)
-            return
-
-        # Create the masks if this dataset was downloaded from OSISAF
-        if self.source not in ("ssmis", "osisaf"):
-            return
-        logger.debug("Generating land and active grid cell masks for OSISAF dataset.")
-
-        self.path_masks.mkdir(parents=True, exist_ok=True)
-        land_mask_path = self.path_masks / "land_mask.npy"
-        active_mask_path = self.path_masks / "active_mask.npy"
-
-        if land_mask_path.exists() and active_mask_path.exists() and not overwrite:
-            logger.debug("Both masks already exist, skipping creation.")
-            return
-
-        # Unpack status flags into a binary array, skipping any missing dates
-        ds_sf = open_dataset(self.path_dataset, select="status_flag")
-        missing_indices: set[int] = (
-            set(m) if (m := getattr(ds_sf, "missing", None)) is not None else set()
-        )
-        if missing_indices:
-            logger.warning(
-                "Skipping %d missing dates when generating masks.", len(missing_indices)
+            self.postprocessor.process(
+                self.path_dataset, self.path_masks, overwrite=overwrite
             )
-        available_indices = [i for i in range(len(ds_sf)) if i not in missing_indices]
-        if not available_indices:
-            msg = f"No available timesteps in status_flag for dataset {self.name}."
-            raise RuntimeError(msg)
-        # Attempting to read the entire array and then index leads to MissingDateError.
-        # Instead iterate over the available indices and recombine.
-        status_flag = np.stack(
-            [np.asarray(ds_sf[i], dtype=np.uint8) for i in available_indices]
-        )
-        binary = np.unpackbits(status_flag, axis=-1).reshape(*status_flag.shape, 8)
-
-        # land mask: land = 0, sea = 1
-        if land_mask_path.exists() and not overwrite:
-            logger.debug("Land mask already exists, skipping creation.")
-            land_mask = np.load(land_mask_path)
-        else:
-            land_mask = np.squeeze(binary[..., [7]]).sum(axis=0)
-            # convert to binary mask
-            land_mask = 1 - (land_mask > 0).astype(np.uint8)
-            # reshape to 2D grid
-            land_mask = land_mask.reshape(ds_sf.field_shape[-2:])
-            # save the land mask for later use
-            np.save(land_mask_path, land_mask)
-            logger.info("Land mask created and saved.")
-
-        # active mask: active grid cells = 1, inactive = 0
-        if active_mask_path.exists() and not overwrite:
-            logger.debug("Active mask already exists, skipping creation.")
-        else:
-            # Identify grid cells that are inactive for all time steps
-            inactive_count = np.squeeze(binary[..., [0]]).sum(axis=0)
-            inactive_mask = inactive_count >= len(available_indices)
-            # convert to binary mask, and set to 1 for active grid cells
-            active_mask = 1 - (inactive_mask > 0).astype(np.uint8)
-            # reshape to 2D grid
-            active_mask = active_mask.reshape(ds_sf.field_shape[-2:])
-            # intersect land mask with active mask to set all active grid cells to 1
-            active_mask = active_mask * land_mask
-            # save the active mask for later use
-            np.save(active_mask_path, active_mask)
-            logger.info("Active mask created and saved.")
+        # Create the masks if this dataset was downloaded from OSISAF
+        if self.source in ("ssmis", "osisaf"):
+            logger.debug(
+                "Generating land and active grid cell masks for OSISAF dataset."
+            )
+            self.postprocessor.process(
+                self.path_dataset, self.path_masks, overwrite=overwrite
+            )
 
     def initialise(self) -> None:
         """Initialise an Anemoi dataset."""

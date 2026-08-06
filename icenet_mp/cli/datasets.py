@@ -66,7 +66,9 @@ def masks(
     factory = DataDownloaderFactory(config)
     for downloader in factory.downloaders:
         logger.info("Generating masks for dataset %s.", downloader.name)
-        downloader.generate_masks(overwrite=overwrite)
+        downloader.postprocessor.process(
+            downloader.path_dataset, downloader.path_masks, overwrite=overwrite
+        )
 
 
 if __name__ == "__main__":

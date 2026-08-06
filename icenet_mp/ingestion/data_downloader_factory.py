@@ -3,10 +3,22 @@ from types import MappingProxyType
 from omegaconf import DictConfig
 
 from .data_downloader import DataDownloader
+from .postprocessors import (
+    NullPostprocessor,
+    StatusFlagMaskPostprocessor,
+    SyntheticMaskPostprocessor,
+)
 from .preprocessors import IceNetSICPreprocessor, NullPreprocessor
 
 
 class DataDownloaderFactory:
+    postprocessors = MappingProxyType(
+        {
+            "None": NullPostprocessor,
+            "StatusFlagMasks": StatusFlagMaskPostprocessor,
+            "SyntheticMasks": SyntheticMaskPostprocessor,
+        }
+    )
     preprocessors = MappingProxyType(
         {
             "None": NullPreprocessor,
@@ -18,11 +30,19 @@ class DataDownloaderFactory:
         """Initialise a DataDownloaderFactory from a config."""
         self.downloaders: list[DataDownloader] = []
         for dataset_name in config["data"]["datasets"]:
+            cls_postprocessor = self.postprocessors[
+                config["data"]["datasets"][dataset_name]
+                .get("postprocessor", {})
+                .get("type", "None")
+            ]
             cls_preprocessor = self.preprocessors[
                 config["data"]["datasets"][dataset_name]
                 .get("preprocessor", {})
                 .get("type", "None")
             ]
-            self.downloaders.append(
-                DataDownloader(dataset_name, config, cls_preprocessor)  # type: ignore[type-abstract]
+            DataDownloader(
+                dataset_name,
+                config,
+                cls_preprocessor,  # type: ignore[type-abstract]
+                cls_postprocessor,  # type: ignore[type-abstract]
             )
