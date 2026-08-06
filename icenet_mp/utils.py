@@ -14,11 +14,11 @@ def datetime_from_npdatetime(dt: np.datetime64) -> datetime:
 
 
 def mask_dir(base_path: Path, dataset_name: str) -> Path:
-    """Path finder for holding the active masks (now generated from SSMIS).
+    """Path finder for holding the active masks.
 
     On-disk active mask layout is defined here once and used everywhere, single source,
-    used both when active masks are written (in dataset creation) and when they are read (during
-    model build), so they never diverge.
+    used both when active masks are written (in dataset creation) and when they are read
+    (during model build), so they never diverge.
     """
     return base_path / "data" / "preprocessing" / "masks" / dataset_name
 
