@@ -5,6 +5,9 @@ full-sicnorth-osisaf-25p0km-1979-2025-24h-v1:
   attribution: EUMETSAT/OSISAF
   licence: CC-BY-4.0
 
+  postprocessor:
+    type: StatusFlagMasks
+
   dates:
     start: '1979-01-01T12:00:00'
     end: '2025-12-31T12:00:00'

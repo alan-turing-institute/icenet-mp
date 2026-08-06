@@ -10,6 +10,9 @@ samp-sicsouth-ssmis-25k-2017-2019-24h-v1:
     end: '2019-01-31T12:00:00'
     frequency: 24h
 
+  postprocessor:
+    type: StatusFlagMasks
+
   input:
     pipe:
       - concat:
