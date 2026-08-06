@@ -9,6 +9,7 @@ samp-sicsouth-osisaf-25p0km-2020-2024-24h-v3:
     start: '2020-01-01T12:00:00'
     end: '2024-07-31T12:00:00'
     frequency: 24h
+    # To reduce size, we only include the data ranges needed by the sample split
     missing:
     - start: 2022-01-01T12:00:00
       end: 2022-06-30T12:00:00
