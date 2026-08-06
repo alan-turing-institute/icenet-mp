@@ -30,7 +30,7 @@
 | icenet\_mp/data\_loaders/common\_data\_module.py                |       99 |       33 |     67% |48-49, 92, 100-104, 109, 114, 119, 151, 160-162, 167, 175, 179-182, 188-204, 210-223, 229-245, 251-264 |
 | icenet\_mp/data\_loaders/single\_dataset.py                     |      141 |        5 |     96% |185, 190, 214, 288-293 |
 | icenet\_mp/data\_processors/\_\_init\_\_.py                     |        2 |        0 |    100% |           |
-| icenet\_mp/data\_processors/data\_downloader.py                 |      199 |       59 |     70% |73-74, 111-151, 155-172, 201, 210-211, 244-245, 255-256, 269, 287-290, 299-301, 310-311, 325-335 |
+| icenet\_mp/data\_processors/data\_downloader.py                 |      204 |       59 |     71% |79-80, 117-157, 161-178, 207, 216-217, 250-251, 261-262, 275, 293-296, 305-307, 316-317, 331-341 |
 | icenet\_mp/data\_processors/data\_downloader\_factory.py        |       11 |        4 |     64% |     19-26 |
 | icenet\_mp/data\_processors/filters/\_\_init\_\_.py             |       13 |        0 |    100% |           |
 | icenet\_mp/data\_processors/filters/nan\_to\_num\_filter.py     |        9 |        0 |    100% |           |
@@ -146,7 +146,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                   |       65 |        5 |     92% |132-134, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                    |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                       |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                       | **5608** | **1605** | **71%** |           |
+| **TOTAL**                                                       | **5613** | **1605** | **71%** |           |
 
 
 ## Setup coverage badge
