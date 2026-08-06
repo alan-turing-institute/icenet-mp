@@ -84,7 +84,9 @@ class BaseEncoder(nn.Module):
             batch_size, n_timeslices, *self.data_space_out.chw
         )
 
-    def verify_output_channels(self) -> None:
+    def verify_output_channels(
+        self, device: torch.device | None = None, dtype: torch.dtype = torch.float32
+    ) -> None:
         """Cross-check that `forward` actually produces `data_space_out.channels`.
 
         Runs a single real forward pass on a zero input at construction time, so a
@@ -94,7 +96,12 @@ class BaseEncoder(nn.Module):
         self.eval()
         try:
             with torch.no_grad():
-                dummy_input = torch.zeros(1, *self.data_space_in.chw)
+                dummy_input = torch.zeros(
+                    1,
+                    *self.data_space_in.chw,
+                    dtype=dtype,
+                    device=device or torch.device("cpu"),
+                )
                 actual_channels = self(dummy_input).shape[1]
         finally:
             self.train(was_training)

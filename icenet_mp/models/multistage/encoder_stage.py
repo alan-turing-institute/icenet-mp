@@ -45,7 +45,7 @@ class EncoderStage(BaseModel):
         )
 
         # Verify the output channels for the encoder
-        self.encoder.verify_output_channels()
+        self.encoder.verify_output_channels(self.device)
 
         # Decode from the latent space back to the original input space. This decoder
         # is disposable and reconstructs the input (not the forecast target), so masking
