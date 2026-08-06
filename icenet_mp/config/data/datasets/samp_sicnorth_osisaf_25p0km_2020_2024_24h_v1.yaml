@@ -1,5 +1,5 @@
-samp-sicnorth-osisaf-25p0km-2020-2024-24h-v3:
-  name: samp-sicnorth-osisaf-25p0km-2020-2024-24h-v3
+samp-sicnorth-osisaf-25p0km-2020-2024-24h-v1:
+  name: samp-sicnorth-osisaf-25p0km-2020-2024-24h-v1
   group_as: sic-osisaf
   description: Sea ice concentration from SMMR/SSMI/SSMIS + AMSR-E/AMSR-2 + AMSR2 for northern hemisphere
   attribution: EUMETSAT/OSISAF

@@ -1,6 +1,6 @@
 defaults:
   - datasets:
-    - demo_sicnorth_osisaf_25k_2017_2019_24h_v1
+    - demo_sicnorth_icenet_25k_2017_2019_24h_v1
     - demo_weathernorth_era5_0p5_2017_2019_24h_v1
   - split: demo_dataset
   - _self_
