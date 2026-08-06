@@ -40,7 +40,7 @@ class DeepCompressionEncoder(BaseEncoder):
         *,
         data_space_in: DataSpace,
         latent_space: tuple[int, int],
-        attention_heads: dict[int, int] = {},  # noqa: B006
+        attention_heads: dict[int, int] | None = None,
         attention_scales: tuple[int, ...] = (5,),
         ffn_factor: int = 1,
         hid_blocks: Sequence[int] = (3, 3, 3),
@@ -55,6 +55,8 @@ class DeepCompressionEncoder(BaseEncoder):
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionEncoder."""
+        attention_heads = attention_heads or {}
+
         if len(hid_blocks) != len(hid_channels):
             msg = f"hid_blocks and hid_channels must have the same length, got {len(hid_blocks)} and {len(hid_channels)}"
             raise ValueError(msg)
