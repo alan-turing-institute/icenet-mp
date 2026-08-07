@@ -304,6 +304,34 @@ class DDPMProcessor(BaseProcessor):
         return ProcessorOutput(prediction=prediction, loss=loss)
 
     def _inference_rollout(self, x: TensorNTCHW) -> ProcessorOutput:
+        """Generate a latent forecast using a reverse diffusion process.
+
+        This method selects between two diffusion sampling strategies:
+
+        1. Non-autoregressive (parallel) sampling:
+        - The model generates the entire future sequence in a single diffusion process.
+        - No temporal dependency exists between forecast steps.
+
+        2. Autoregressive sampling:
+        - Forecast steps are generated sequentially.
+        - Each step is produced via an independent diffusion process.
+        - The conditioning window is updated after each step to incorporate
+            previously generated outputs.
+
+        Args:
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
+
+        Returns:
+            ProcessorOutput:
+            - prediction: (B, n_forecast_steps, n_latent_channels_total, H, W)
+            - loss: None
+
+        Notes:
+            - The diffusion process follows v-parameterization.
+            - Sampling begins from standard Gaussian noise.
+
+        """
         if self.use_autoregressive:
             return ProcessorOutput(prediction=self._sample_autoregressive(x))
         return ProcessorOutput(prediction=self._sample_parallel(x))
