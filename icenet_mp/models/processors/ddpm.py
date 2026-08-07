@@ -65,7 +65,7 @@ class DDPMProcessor(BaseProcessor):
             **kwargs: Additional arguments passed to ``BaseProcessor``.
 
         """
-        
+
         super().__init__(**kwargs)
 
         self.loss_fn: nn.Module = (
@@ -147,6 +147,15 @@ class DDPMProcessor(BaseProcessor):
         return expanded_last
 
     def _flatten_history(self, x: TensorNTCHW) -> TensorNCHW:
+        """Fold the history time dimension into channels.
+
+        Args:
+            x (TensorNTCHW): History tensor of shape (B, T_hist, C, H, W).
+
+        Returns:
+            TensorNCHW: Tensor of shape (B, T_hist * C, H, W).
+
+        """
         b, t, c, h, w = x.shape
         return x.reshape(b, t * c, h, w)
 
