@@ -13,6 +13,18 @@ from .base_processor import BaseProcessor
 
 
 class DDPMProcessor(BaseProcessor):
+    """Latent-space DDPM processor with v-prediction.
+
+    Input space:
+        TensorNTCHW with shape (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+        - Concatenation of every encoder's latent output along the channel dimension
+        - The target-latent slice is assumed to occupy channels [target_slice_start : target_slice_start + n_latent_channels_target]
+
+    Output space:
+        TensorNTCHW with shape (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+        - Target-latent slice contains the denoised prediction from reverse diffusion
+        - Non-target channels are carried forward from the last observed history frame (persistence in latent)
+    """
 
     def __init__(  # noqa: PLR0913
         self,
@@ -29,7 +41,31 @@ class DDPMProcessor(BaseProcessor):
         target_slice_start: int = 0,
         loss: DictConfig | nn.Module,
         **kwargs: Any,
-        ) -> None:
+    ) -> None:
+        """Initialize the DDPM processor.
+
+        Args:
+            timesteps (int): Number of diffusion timesteps. Default is 1000.
+            beta_schedule (str): Beta schedule used by ``GaussianDiffusion``:
+                ``"cosine"`` or ``"linear"``. Default is ``"cosine"``.
+            kernel_size (int): Convolution kernel size used in the conditional UNet.
+            start_out_channels (int): Base number of channels in the first UNet block.
+            time_embed_dim (int): Dimensionality of the diffusion timestep embedding.
+            dropout_rate (float): Dropout probability applied inside the UNet blocks.
+            normalization (str): Normalization layer type (e.g., "groupnorm").
+            activation (str): Activation function used throughout the network (e.g., "SiLU").
+            use_autoregressive (bool): Whether to use autoregressive sampling and
+                one-step training. Default is True.
+            target_slice_start (int): Channel offset at which the target-latent
+                slice appears inside the combined latent. Default 0 assumes the
+                target encoder is listed first in the model config.
+            loss (DictConfig | nn.Module): Loss module applied to (pred_v,
+                target_v). Set this to ``${loss}`` in the yaml to reuse the
+                top-level configured loss.
+            **kwargs: Additional arguments passed to ``BaseProcessor``.
+
+        """
+        
         super().__init__(**kwargs)
 
         self.loss_fn: nn.Module = (
