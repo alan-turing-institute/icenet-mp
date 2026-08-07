@@ -10,8 +10,9 @@ samp-sicsouth-ssmis-25p0km-2017-2019-24h-v2:
     end: '2019-01-31T12:00:00'
     frequency: 24h
 
-  postprocessor:
-    type: StatusFlagMasks
+  postprocessors:
+    mask_generator:
+      _target_: icenet_mp.ingestion.postprocessors.StatusFlagMaskGenerator
 
   input:
     pipe:
