@@ -299,6 +299,32 @@ class DDPMProcessor(BaseProcessor):
         return combined
 
     def _sample_autoregressive(self, x: TensorNTCHW) -> TensorNTCHW:
+        """Autoregressive reverse diffusion sampling (one forecast step at a time).
+
+        Each forecast step is generated sequentially via an independent reverse
+        diffusion process. After each step, the conditioning window is updated:
+        the predicted target-latent frame is appended to the history's target
+        slice, and non-target channels are carried forward from the last
+        observed frame (persistence in latent space).
+
+        Args:
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
+
+        Returns:
+            TensorNTCHW: Denoised forecast latent of shape
+                (B, n_forecast_steps, n_latent_channels_total, H, W),
+                formed by stacking all per-step predictions along the time
+                dimension and lifting into the combined latent.
+
+        Notes:
+            - Sampling at each step starts from standard Gaussian noise.
+            - The model predicts v-parameterization at every diffusion timestep.
+            - The history window slides forward by one frame per step, using
+              the model's own prediction as the new observation of the target
+              slice.
+
+        """
         history = x.clone()  # (B, T_hist, C_combined, H, W)
         b, _, _, h, w = x.shape
         device = x.device
