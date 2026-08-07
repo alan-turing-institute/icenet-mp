@@ -1,4 +1,4 @@
-"""Data processor module."""
+"""Data ingestion module."""
 
 from .downloaders import build_downloaders
 

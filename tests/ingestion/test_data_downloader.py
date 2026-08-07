@@ -8,24 +8,11 @@ from unittest.mock import MagicMock
 import anemoi.datasets.create.tasks
 import numpy as np
 import pytest
-from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.ingestion.data_downloader import DataDownloader
-from icenet_mp.ingestion.postprocessors import (
-    NullPostprocessor,
-    StatusFlagMaskPostprocessor,
-    SyntheticMaskPostprocessor,
-)
 from icenet_mp.types import AnemoiDatasetStatus, AnemoiInspectArgs
 from icenet_mp.utils import mask_dir
 from tests.conftest import build_zarr
-
-
-def _path_masks(downloader: DataDownloader) -> Path:
-    """Compute the mask directory for `downloader`, mirroring what its postprocessor uses."""
-    return mask_dir(
-        downloader.postprocessor.base_path, downloader.postprocessor.dataset_name
-    )
 
 
 @dataclass
@@ -61,29 +48,19 @@ class MockInspectZarr:
 
 def _make_data_downloader(tmp_path: Path, name: str) -> DataDownloader:
     """Build a DataDownloader for `name` from a minimal dataset config."""
-    full_cfg: DictConfig = OmegaConf.create(
-        {
-            "base_path": str(tmp_path),
-            "data": {
-                "datasets": {
-                    name: {
-                        "name": name,
-                        "preprocessor": {"type": "dummy"},
-                        "dates": {
-                            "start": "2020-01-01",
-                            "end": "2020-01-31",
-                            "frequency": "24h",
-                        },
-                    }
-                },
-            },
+    postprocessor_target = {
+        "samp-sic-ssmis": "icenet_mp.ingestion.postprocessors.StatusFlagMaskGenerator",
+        "samp-sic-synthetic": "icenet_mp.ingestion.postprocessors.SyntheticMaskGenerator",
+    }.get(name)
+    anemoi_config: dict[str, Any] = {
+        "name": name,
+        "dates": {"start": "2020-01-01", "end": "2020-01-31", "frequency": "24h"},
+    }
+    if postprocessor_target:
+        anemoi_config["postprocessors"] = {
+            "mask_generator": {"_target_": postprocessor_target}
         }
-    )
-    cls_postprocessor = {
-        "samp-sic-ssmis": StatusFlagMaskPostprocessor,
-        "samp-sic-synthetic": SyntheticMaskPostprocessor,
-    }.get(name, NullPostprocessor)
-    return DataDownloader(name, full_cfg, MagicMock, cls_postprocessor)  # type: ignore[type-abstract]
+    return DataDownloader(name, tmp_path, anemoi_config)
 
 
 @pytest.fixture
@@ -393,11 +370,12 @@ class TestDataDownloader:
         self,
         mock_data_downloader_ssmis: DataDownloader,
         mock_data_status_flag: dict[str, dict[str, Any]],
+        tmp_path: Path,
         *,
         overwrite: bool,
     ) -> None:
         build_zarr(mock_data_downloader_ssmis.path_dataset, mock_data_status_flag)
-        path_masks = _path_masks(mock_data_downloader_ssmis)
+        path_masks = mask_dir(tmp_path, mock_data_downloader_ssmis.name)
         land_mask_path = path_masks / "land_mask.npy"
         active_mask_path = path_masks / "active_mask.npy"
         if overwrite:
@@ -417,6 +395,7 @@ class TestDataDownloader:
         self,
         mock_data_downloader_ssmis: DataDownloader,
         mock_data_status_flag: dict[str, dict[str, Any]],
+        tmp_path: Path,
     ) -> None:
         """A missing index 0 must not crash the status_flag conversion (regression, #379)."""
         dates = mock_data_status_flag["coords"]["time"]["data"]
@@ -442,7 +421,7 @@ class TestDataDownloader:
             mock_data_downloader_ssmis.path_dataset, overwrite=False
         )
 
-        path_masks = _path_masks(mock_data_downloader_ssmis)
+        path_masks = mask_dir(tmp_path, mock_data_downloader_ssmis.name)
         np.testing.assert_array_equal(
             np.load(path_masks / "land_mask.npy"), [[0, 1], [1, 1]]
         )
@@ -454,6 +433,7 @@ class TestDataDownloader:
         self,
         mock_data_downloader_synthetic: DataDownloader,
         mock_data: dict[str, dict[str, Any]],
+        tmp_path: Path,
     ) -> None:
         build_zarr(mock_data_downloader_synthetic.path_dataset, mock_data)
 
@@ -462,23 +442,23 @@ class TestDataDownloader:
         )
 
         expected = np.ones((2, 2), dtype=np.uint8)
-        path_masks = _path_masks(mock_data_downloader_synthetic)
+        path_masks = mask_dir(tmp_path, mock_data_downloader_synthetic.name)
         np.testing.assert_array_equal(np.load(path_masks / "land_mask.npy"), expected)
         np.testing.assert_array_equal(np.load(path_masks / "active_mask.npy"), expected)
 
     def test_postprocessor_process_noop_for_default_dataset(
-        self, mock_data_downloader: DataDownloader
+        self, mock_data_downloader: DataDownloader, tmp_path: Path
     ) -> None:
         """No postprocessor is configured for this dataset, so process() is a no-op."""
         mock_data_downloader.postprocessor.process(
             mock_data_downloader.path_dataset, overwrite=False
         )
-        assert not _path_masks(mock_data_downloader).exists()
+        assert not mask_dir(tmp_path, mock_data_downloader.name).exists()
 
     def test_postprocessor_process_skips_when_masks_already_exist(
-        self, mock_data_downloader_ssmis: DataDownloader
+        self, mock_data_downloader_ssmis: DataDownloader, tmp_path: Path
     ) -> None:
-        path_masks = _path_masks(mock_data_downloader_ssmis)
+        path_masks = mask_dir(tmp_path, mock_data_downloader_ssmis.name)
         path_masks.mkdir(parents=True)
         land_mask_path = path_masks / "land_mask.npy"
         active_mask_path = path_masks / "active_mask.npy"
