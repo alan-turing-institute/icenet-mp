@@ -43,7 +43,12 @@ parameters:
 uv run imp sweep initialise --sweep-yaml example.sweep.yaml --config-name baseline/02_cnn_unet_cnn
 ```
 
-This will create a new W&B sweep and a local directory containing the following files:
+!!! note
+    `--sweep-yaml` is a full filesystem path, resolved relative to your current working directory (or given as an absolute path).
+    This is different from `--config-name`, which resolved relative to `icenet_mp/config/`.
+
+This will create a new W&B sweep and a local directory under `<base_path>/sweeps/<sweep_id>`.
+That directory contains the following files:
 
 - `model_config.yaml`: the base `imp` config
 - `optuna.yaml`: the sweep config
@@ -53,7 +58,7 @@ This will create a new W&B sweep and a local directory containing the following 
 ## 3. Run a trial
 
 ```bash
-uv run imp sweep run --sweep-path <path to sweep directory created above>
+uv run imp sweep trial --sweep-path <path to sweep directory created above>
 ```
 
 This will run a single job registered as part of the W&B sweep.
@@ -65,5 +70,5 @@ They will also create an entry in the W&B sweep which provides an easy compariso
 
 ![W&B sweep](../assets/wandb-sweep.png)
 
-If you want to run additional trials in the same search space, simply run `uv run imp sweep run ...` again.
+If you want to run additional trials in the same search space, simply run `uv run imp sweep trial ...` again.
 If you want to refine the search space, you will need to create a new sweep with `uv run imp sweep initialise ...`.

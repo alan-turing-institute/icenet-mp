@@ -25,7 +25,9 @@ def initialise(
     config: DictConfig,
     sweep_yaml: Annotated[
         Path,
-        typer.Option("--sweep-yaml", help="Path to a sweep search-space YAML file"),
+        typer.Option(
+            "--sweep-yaml", help="Full path to a sweep search-space YAML file"
+        ),
     ],
 ) -> None:
     """Initialise a W&B sweep with Optuna-sampled hyperparameters.
@@ -46,12 +48,12 @@ def initialise(
 
 
 @sweep_cli.command()
-def run(
+def trial(
     sweep_path: Annotated[
         Path,
         typer.Option(
             "--sweep-path",
-            help="The path to the local sweep directory",
+            help="Full path to a local sweep directory",
         ),
     ],
     *,

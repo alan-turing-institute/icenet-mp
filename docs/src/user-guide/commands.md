@@ -77,10 +77,10 @@ uv run imp sweep initialise --sweep-yaml example.sweep.yaml --config-name baseli
 Creates a W&B sweep and initialises a local Optuna study directory; hyperparameters are sampled per trial at runtime.
 See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
 
-## `sweep run`
+## `sweep trial`
 
 ```bash
-uv run imp sweep run --sweep-path <path to sweep directory created above>
+uv run imp sweep trial --sweep-path <path to sweep directory created above>
 ```
 
 Runs a single hyperparameter trial as part of a W&B sweep.
