@@ -1,16 +1,13 @@
 from abc import ABC, abstractmethod
-from collections.abc import MutableMapping
 from pathlib import Path
-from typing import Any
 
 
 class IPostprocessor(ABC):
-    def __init__(self, config: MutableMapping[str, Any]) -> None:
+    def __init__(self, base_path: Path, dataset_name: str) -> None:
         """Initialise the IPostprocessor base class."""
-        self.base_path = Path(config["base_path"]).resolve()
-        self.cls_name = str(config.get("postprocessor", {}).get("type", "None"))
-        self.dataset_name = str(config.get("name", "None"))
+        self.base_path = base_path
+        self.dataset_name = dataset_name
 
     @abstractmethod
     def process(self, path_dataset: Path, *, overwrite: bool) -> None:
-        """Generate postprocessing artifacts for the finalised dataset."""
+        """Perform post-processing actions on a given dataset."""
