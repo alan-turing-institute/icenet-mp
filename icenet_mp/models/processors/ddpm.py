@@ -252,6 +252,28 @@ class DDPMProcessor(BaseProcessor):
         return ProcessorOutput(prediction=self._sample_parallel(x))
 
     def _sample_parallel(self, x: TensorNTCHW) -> TensorNTCHW:
+         """Non-autoregressive (parallel) reverse diffusion sampling.
+
+        This method generates the entire forecast sequence in a single
+        diffusion process applied to one joint output tensor. The forecast
+        steps are encoded as channels in a single tensor of shape
+        (B, n_forecast_steps * C_target, H, W), then reshaped back to NTCHW
+        and lifted into the combined latent for the frozen decoder.
+
+        Args:
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
+
+        Returns:
+            TensorNTCHW: Denoised forecast latent of shape
+                (B, n_forecast_steps, n_latent_channels_total, H, W).
+
+        Notes:
+            - Sampling starts from Gaussian noise.
+            - The model predicts v-parameterization at each diffusion step.
+            - All forecast steps are denoised together as a single object.
+
+        """
         cond = self._flatten_history(x)
 
         b, _, h, w = cond.shape
