@@ -37,11 +37,7 @@ class IceNetSICPreprocessor(IPreprocessor):
         """Download data to the preprocessor path."""
         # Change to the output directory before downloading
         icenet_path = (
-            self.base_path
-            / "data"
-            / "preprocessing"
-            / self.dataset_name
-            / type(self).__name__
+            self.base_path / "data" / "preprocessing" / self.dataset_name / "icenet"
         )
         if overwrite:
             logger.info("Overwriting existing data in %s.", icenet_path)
