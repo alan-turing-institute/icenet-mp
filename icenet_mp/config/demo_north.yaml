@@ -4,7 +4,7 @@ defaults:
   - override /predict: sic-osisaf-2d
   - _self_
 
-# Disable decoder masking as sic-icenet targets have no associated masks
+# Disable decoder masking
 model:
   decoder:
     mask_type: null
