@@ -26,6 +26,13 @@ encoders:
     latent_channels: 2
     pixel_shuffle: true
     stride: 3
+  sic-osisaf:
+    _target_: icenet_mp.models.encoders.DeepCompressionEncoder
+    hid_channels: [24, 48]
+    hid_blocks: [1, 1]
+    latent_channels: 8
+    pixel_shuffle: true
+    stride: 3
   sic-ssmis:
     _target_: icenet_mp.models.encoders.DeepCompressionEncoder
     hid_channels: [24, 48]
