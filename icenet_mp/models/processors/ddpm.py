@@ -175,6 +175,19 @@ class DDPMProcessor(BaseProcessor):
     def _insert_target(
         self, base_frame: TensorNCHW, target: TensorNCHW
     ) -> TensorNCHW:
+        """Return a copy of ``base_frame`` with its target slice overwritten by ``target``.
+
+        Used to produce a C_combined-channel prediction for the frozen decoder
+        while only forecasting the target-latent slice.
+
+        Args:
+            base_frame (TensorNCHW): Combined-latent frame of shape (B, C_combined, H, W).
+            target (TensorNCHW): Target-latent slice of shape (B, C_target, H, W).
+
+        Returns:
+            TensorNCHW: Combined-latent frame of shape (B, C_combined, H, W).
+
+        """
         result = base_frame.clone()
         s = self.target_slice_start
         result[:, s : s + self.c_target] = target
