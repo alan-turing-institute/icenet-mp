@@ -242,6 +242,35 @@ class DDPMProcessor(BaseProcessor):
     def _training_rollout(
         self, x: TensorNTCHW, y: TensorNTCHW
         ) -> ProcessorOutput:
+        """One training rollout using DDPM v-prediction loss.
+
+        During training, the clean target latent is corrupted using the forward
+        diffusion process by adding noise at a randomly sampled timestep. The
+        model is trained to predict the corresponding v-target on the
+        target-latent slice.
+
+        Args:
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
+            y (TensorNTCHW): Encoded target latent of shape
+                (B, n_forecast_steps, n_latent_channels_target, H, W).
+
+        Returns:
+            ProcessorOutput:
+            - prediction: (B, n_forecast_steps, n_latent_channels_total, H, W)
+                Combined-latent tensor built from the predicted x_0 (target
+                slice) and the last observed frame (non-target slice). Used
+                only for metrics/callbacks under ``torch.no_grad``.
+            - loss: v-prediction loss value computed by ``self.loss_fn``.
+
+        Notes:
+            - In autoregressive mode, the model is trained on forecast step 0
+              only, matching the convention used by ``icenet_mp.models.ddpm.DDPM``.
+              Multi-step forecasts come from rolling out the AR loop at inference.
+            - In parallel mode, the model is trained on all forecast steps
+              jointly (folded into the channel dimension).
+
+        """
         b = x.shape[0]
         device = x.device
         
