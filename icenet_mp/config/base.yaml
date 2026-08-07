@@ -6,7 +6,7 @@ defaults:
     - wandb
   - loss: huber
   - model: quick_test
-  - predict: sic-ssmis-2d
+  - predict: sic-osisaf-2d
   - random: default
   - train: default
   - platform: default
