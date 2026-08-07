@@ -20,7 +20,7 @@ authors = [
     { name = "Shaerdan Shataer", email = "Shaerdan@gmail.com"},
     { name = "Louisa van Zeeland", email = "louisa-ai2@protonmail.com" },
 ]
-requires-python = ">=3.11,<3.13" # Note "3.13" is currently incompatible with the tensorflow requirement from icenet
+requires-python = ">=3.11"
 dependencies = [
     "anemoi-datasets>=0.5.39,!=0.5.40", # 0.5.40 crashes on any dataset with missing dates. This behaviour is tested in test_anemoi_datasets.py
     "anemoi-transform>=0.4.1",
