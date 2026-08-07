@@ -11,7 +11,7 @@ from .ipostprocessor import IPostprocessor
 logger = logging.getLogger(__name__)
 
 
-class SyntheticMaskPostprocessor(IPostprocessor):
+class SyntheticMaskGenerator(IPostprocessor):
     def process(self, path_dataset: Path, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks using the entire grid."""
         logger.debug("Generating land and active grid cell masks for entire grid.")

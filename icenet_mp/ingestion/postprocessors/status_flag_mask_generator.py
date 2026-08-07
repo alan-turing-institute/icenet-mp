@@ -11,7 +11,7 @@ from .ipostprocessor import IPostprocessor
 logger = logging.getLogger(__name__)
 
 
-class StatusFlagMaskPostprocessor(IPostprocessor):
+class StatusFlagMaskGenerator(IPostprocessor):
     def process(self, path_dataset: Path, *, overwrite: bool) -> None:
         """Generate land and active grid cell masks from the status_flag variable."""
         logger.debug("Generating land and active grid cell masks from status_flag.")

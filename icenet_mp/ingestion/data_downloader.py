@@ -13,7 +13,6 @@ from anemoi.datasets.commands.inspect import InspectZarr
 from anemoi.datasets.commands.load import Load
 from anemoi.datasets.create.recipe import Recipe
 from anemoi.datasets.usage.gridded import MissingDateError
-from omegaconf import DictConfig, OmegaConf
 from zarr.errors import PathNotFoundError
 
 from icenet_mp.types import (
@@ -25,8 +24,8 @@ from icenet_mp.types import (
     AnemoiLoadArgs,
 )
 
-from .postprocessors import IPostprocessor
-from .preprocessors import IPreprocessor
+from .postprocessors import CompositePostprocessor
+from .preprocessors import CompositePreprocessor
 
 logger = logging.getLogger(__name__)
 
@@ -35,27 +34,17 @@ class DataDownloader:
     def __init__(
         self,
         name: str,
-        config: DictConfig,
-        cls_preprocessor: type[IPreprocessor],
-        cls_postprocessor: type[IPostprocessor],
+        base_path: Path,
+        anemoi_config: dict[str, Any],
+        preprocessor: CompositePreprocessor,
+        postprocessor: CompositePostprocessor,
     ) -> None:
-        """Initialise a DataDownloader from a config.
-
-        Register a preprocessor and postprocessor if appropriate.
-        """
+        """Initialise a DataDownloader from a config, and a preprocessor and postprocessor."""
         self.name = name
-        base_path = Path(config["base_path"]).resolve()
         self.path_dataset = base_path / "data" / "anemoi" / f"{name}.zarr"
-        self.path_preprocessor = base_path / "data" / "preprocessing"
-        # Note that Anemoi 'forcings' need to be escaped with `\${}` to avoid being resolved here
-        anemoi_config: dict[str, Any] = OmegaConf.to_object(
-            config["data"]["datasets"][name]
-        )  # type: ignore[assignment]
         self.recipe = Recipe(**anemoi_config)
-        self.preprocessor = cls_preprocessor(anemoi_config)
-        self.postprocessor = cls_postprocessor(
-            {**anemoi_config, "base_path": config["base_path"]}
-        )
+        self.preprocessor = preprocessor
+        self.postprocessor = postprocessor
 
     def artifacts(self) -> list[Path]:
         """Return a list of temporary artifacts created during the download and finalise process."""
@@ -154,7 +143,7 @@ class DataDownloader:
 
     def download(self, *, overwrite: bool) -> None:
         """Download an Anemoi dataset in parts."""
-        self.preprocessor.download(self.path_preprocessor)
+        self.preprocessor.process(overwrite=overwrite)
         logger.info("Creating dataset %s at %s.", self.name, self.path_dataset)
         # Initialise
         self.initialise()

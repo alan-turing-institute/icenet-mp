@@ -1,9 +1,7 @@
+from .composite import CompositePreprocessor
 from .icenet_sic import IceNetSICPreprocessor
-from .ipreprocessor import IPreprocessor
-from .null import NullPreprocessor
 
 __all__ = [
-    "IPreprocessor",
+    "CompositePreprocessor",
     "IceNetSICPreprocessor",
-    "NullPreprocessor",
 ]

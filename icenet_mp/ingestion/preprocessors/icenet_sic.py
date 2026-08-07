@@ -1,10 +1,9 @@
 import logging
 import os
 import shutil
-from collections.abc import MutableMapping
+from collections.abc import Mapping
 from ftplib import FTP, error_perm
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 from icenet.data.sic.mask import Masks
@@ -16,24 +15,37 @@ logger = logging.getLogger(__name__)
 
 
 class IceNetSICPreprocessor(IPreprocessor):
-    def __init__(self, config: MutableMapping[str, Any]) -> None:
+    def __init__(
+        self,
+        base_path: Path,
+        dataset_name: str,
+        hemisphere: str,
+        dates: Mapping[str, str],
+    ) -> None:
         """Initialise the IceNetSIC preprocessor."""
-        super().__init__(config)
+        super().__init__(base_path, dataset_name)
         self.date_range = pd.date_range(
-            config["dates"]["start"],
-            config["dates"]["end"],
-            freq=config["dates"]["frequency"],
+            dates["start"], dates["end"], freq=dates["frequency"]
         )
-        self.is_north = config["preprocessor"]["hemisphere"].lower() == "north"
+        self.is_north = hemisphere.lower() == "north"
 
     @property
     def is_south(self) -> bool:
         return not self.is_north
 
-    def download(self, preprocessor_path: Path) -> None:
-        """Download data to the specified preprocessor path."""
+    def process(self, *, overwrite: bool) -> None:
+        """Download data to the preprocessor path."""
         # Change to the output directory before downloading
-        icenet_path = preprocessor_path / self.dataset_name / self.cls_name
+        icenet_path = (
+            self.base_path
+            / "data"
+            / "preprocessing"
+            / self.dataset_name
+            / type(self).__name__
+        )
+        if overwrite:
+            logger.info("Overwriting existing data in %s.", icenet_path)
+            shutil.rmtree(icenet_path)
         icenet_path.mkdir(parents=True, exist_ok=True)
         current_directory = Path.cwd()
         os.chdir(icenet_path)
