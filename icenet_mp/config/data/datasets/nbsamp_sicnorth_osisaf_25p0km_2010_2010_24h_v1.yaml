@@ -8,6 +8,11 @@ nbsamp-sicnorth-osisaf-25p0km-2010-2010-24h-v1:
   dates:
     start: '2010-08-01T00:00:00'
     end: '2010-09-30T23:00:00'
+    frequency: 24h
+
+  postprocessors:
+    mask_generator:
+      _target_: icenet_mp.ingestion.postprocessors.StatusFlagMaskGenerator
 
   input:
     pipe:
