@@ -1,5 +1,5 @@
 """Data processor module."""
 
-from .data_downloader_factory import DataDownloaderFactory
+from .downloaders import build_downloaders
 
-__all__ = ["DataDownloaderFactory"]
+__all__ = ["build_downloaders"]

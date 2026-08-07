@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import hydra
-from omegaconf import DictConfig
 
 if TYPE_CHECKING:
     from .ipreprocessor import IPreprocessor
@@ -10,14 +9,14 @@ if TYPE_CHECKING:
 
 class CompositePreprocessor:
     def __init__(
-        self, dataset_name: str, dataset_config: DictConfig, base_path: Path
+        self, dataset_name: str, preprocessor_cfgs: dict[str, Any], base_path: Path
     ) -> None:
         """Initialise a CompositePreprocessor from its child preprocessors."""
         self.children: list[IPreprocessor] = [
             hydra.utils.instantiate(
                 spec, base_path=base_path, dataset_name=dataset_name
             )
-            for spec in dataset_config.get("preprocessors", {}).values()
+            for spec in preprocessor_cfgs.values()
         ]
 
     def process(self, *, overwrite: bool) -> None:

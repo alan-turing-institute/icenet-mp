@@ -36,15 +36,17 @@ class DataDownloader:
         name: str,
         base_path: Path,
         anemoi_config: dict[str, Any],
-        preprocessor: CompositePreprocessor,
-        postprocessor: CompositePostprocessor,
     ) -> None:
         """Initialise a DataDownloader from a config, and a preprocessor and postprocessor."""
         self.name = name
         self.path_dataset = base_path / "data" / "anemoi" / f"{name}.zarr"
         self.recipe = Recipe(**anemoi_config)
-        self.preprocessor = preprocessor
-        self.postprocessor = postprocessor
+        self.preprocessor = CompositePreprocessor(
+            name, anemoi_config.get("preprocessors", {}), base_path
+        )
+        self.postprocessor = CompositePostprocessor(
+            name, anemoi_config.get("postprocessors", {}), base_path
+        )
 
     def artifacts(self) -> list[Path]:
         """Return a list of temporary artifacts created during the download and finalise process."""

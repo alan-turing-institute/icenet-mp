@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import hydra
-from omegaconf import DictConfig
 
 if TYPE_CHECKING:
     from .ipostprocessor import IPostprocessor
@@ -10,14 +9,14 @@ if TYPE_CHECKING:
 
 class CompositePostprocessor:
     def __init__(
-        self, dataset_name: str, dataset_config: DictConfig, base_path: Path
+        self, dataset_name: str, postprocessor_cfgs: dict[str, Any], base_path: Path
     ) -> None:
         """Initialise a CompositePostprocessor from its child postprocessors."""
         self.children: list[IPostprocessor] = [
             hydra.utils.instantiate(
                 spec, base_path=base_path, dataset_name=dataset_name
             )
-            for spec in dataset_config.get("postprocessors", {}).values()
+            for spec in postprocessor_cfgs.values()
         ]
 
     def process(self, path_dataset: Path, *, overwrite: bool) -> None:
