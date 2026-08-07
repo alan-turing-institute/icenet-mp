@@ -126,6 +126,24 @@ class DDPMProcessor(BaseProcessor):
     def _build_metrics_prediction(
         self, pred_x0: TensorNCHW, last_frame: TensorNCHW
         ) -> TensorNTCHW:
+        """Lift the training-time x_0 estimate into an NTCHW combined-latent tensor.
+
+        The returned tensor is only used for metrics/callbacks (the actual
+        training signal is the v-prediction MSE loss). Non-target channels are
+        filled with the last observed frame (persistence in latent space).
+
+        Args:
+            pred_x0 (TensorNCHW): Predicted x_0 of shape (B, C_target, H, W)
+                in autoregressive mode, or (B, n_forecast_steps * C_target, H, W)
+                in parallel mode.
+            last_frame (TensorNCHW): Last observed history frame of shape
+                (B, C_combined, H, W).
+
+        Returns:
+            TensorNTCHW: Combined-latent tensor of shape
+                (B, n_forecast_steps, C_combined, H, W).
+
+        """
         b = pred_x0.shape[0]
         h, w = last_frame.shape[-2:]
 
