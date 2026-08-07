@@ -119,6 +119,34 @@ class DDPMProcessor(BaseProcessor):
         x: TensorNTCHW,
         y: TensorNTCHW | None = None,
         ) -> ProcessorOutput:
+        """Run the diffusion process in latent space.
+
+        Dispatches between two execution paths:
+
+        1. Training path (``y`` provided):
+        - Adds noise to the encoded target latent at a random diffusion timestep.
+        - Predicts v conditioned on the encoded history.
+        - Returns a v-prediction loss inside ``ProcessorOutput``, computed
+          by ``self.loss_fn`` (the configured loss).
+
+        2. Inference path (``y`` is None):
+        - Runs reverse diffusion from Gaussian noise conditioned on the encoded history.
+        - Autoregressive or parallel depending on ``self.use_autoregressive``.
+
+        Args:
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
+            y (TensorNTCHW | None): During training: encoded target latent of
+                shape (B, n_forecast_steps, n_latent_channels_target, H, W).
+                Otherwise: None.
+
+        Returns:
+            ProcessorOutput:
+            - prediction: (B, n_forecast_steps, n_latent_channels_total, H, W)
+            - loss: v-prediction loss from ``self.loss_fn`` (training only,
+                otherwise None)
+
+        """
         if y is not None:
             return self._training_rollout(x, y)
         return self._inference_rollout(x)       
