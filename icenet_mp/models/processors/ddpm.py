@@ -160,6 +160,15 @@ class DDPMProcessor(BaseProcessor):
         return x.reshape(b, t * c, h, w)
 
     def _slice_target(self, x: TensorNCHW) -> TensorNCHW:
+        """Extract the target-latent channels from a combined-latent NCHW tensor.
+
+        Args:
+            x (TensorNCHW): Combined-latent tensor of shape (B, C_combined, H, W).
+
+        Returns:
+            TensorNCHW: Target-latent slice of shape (B, C_target, H, W).
+
+        """
         s = self.target_slice_start
         return x[:, s : s + self.c_target]
         
