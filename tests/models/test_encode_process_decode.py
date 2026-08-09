@@ -125,6 +125,7 @@ class TestEncodeProcessDecode:
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
             loss=cfg_loss,
+            target_variable_indices=[0],
             use_motion_channels=True,
         )
         history = torch.randn(
@@ -180,6 +181,7 @@ class TestEncodeProcessDecode:
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
             loss=cfg_loss,
+            target_variable_indices=[0],
             use_day_order_channels=True,
         )
         history = torch.randn(
@@ -237,6 +239,7 @@ class TestEncodeProcessDecode:
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
             loss=cfg_loss,
+            target_variable_indices=[0],
             use_skip_connection=True,
         )
         result: torch.Tensor = model(
@@ -351,5 +354,6 @@ class TestEncodeProcessDecode:
                 optimizer=DictConfig({}),
                 scheduler=DictConfig({}),
                 loss=cfg_loss,
+                target_variable_indices=[0],
                 use_residual_output=True,
             )
