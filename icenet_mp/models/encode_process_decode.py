@@ -33,7 +33,6 @@ class EncodeProcessDecode(BaseModel):
         use_skip_connection: bool = False,
         use_motion_channels: bool = False,
         use_day_order_channels: bool = False,
-        use_residual_output: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model.
@@ -44,9 +43,9 @@ class EncodeProcessDecode(BaseModel):
             decoder: Decoder config.
             target_variable_indices: Channel indices of the target variables within
                 the target group's input tensor. Used to select the persistence base
-                frame for the decoder's own skip connection (``decoder.skip_connection``)
-                and, when ``use_residual_output`` is set, for the residual-output base
-                frame too (ModelService passes this automatically).
+                frame for the decoder's own skip connection (``decoder.skip_connection``,
+                e.g. ``method: additive`` for a persistence/residual-output model;
+                ModelService passes this automatically).
             mask_dir: Optional directory containing land/active masks.
             use_skip_connection: If True, concatenate the most recent encoded history
                 timestep onto the processor's output before decoding (channel dim),
@@ -71,15 +70,6 @@ class EncodeProcessDecode(BaseModel):
                 encoder an explicit day-order cue rather than relying on order being
                 inferred from channel position alone. Adds one to each encoder's
                 expected input channel count.
-            use_residual_output: If True, the decoded output is treated as a *change*
-                relative to the most recent observed target frame (persistence) rather
-                than the full field: final output = clamp(last_frame + delta, 0, 1).
-                Routing only the delta through the processor bottleneck means a
-                zero-output network already matches persistence, so capacity is spent
-                on what changes instead of reconstructing the whole field through the
-                patch bottleneck. The target's group must be one of the input datasets.
-                Pair this with ``decoder.restrict_range: none`` -- the delta must be
-                allowed to go negative; the [0, 1] clamp here bounds the final sum.
             **kwargs: forwarded to ``BaseModel``.
 
         """
@@ -87,7 +77,6 @@ class EncodeProcessDecode(BaseModel):
         self.use_skip_connection = use_skip_connection
         self.use_motion_channels = use_motion_channels
         self.use_day_order_channels = use_day_order_channels
-        self.use_residual_output = use_residual_output
 
         # Check that the number of variable indices provided matches the number of
         # channels in the output space.
@@ -99,17 +88,6 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
         self.target_variable_indices = target_variable_indices
-
-        if use_residual_output:
-            input_names = {space.name for space in self.input_spaces}
-            if self.output_space.name not in input_names:
-                msg = (
-                    f"use_residual_output requires the target group "
-                    f"'{self.output_space.name}' to be one of the input datasets "
-                    f"{sorted(input_names)}, so the last observed frame is available "
-                    f"as the persistence base."
-                )
-                raise ValueError(msg)
 
         def encoder_input_space(input_space: DataSpace) -> DataSpace:
             channels = input_space.channels
@@ -214,6 +192,17 @@ class EncodeProcessDecode(BaseModel):
             mask_dir=mask_dir,
         )
 
+        if self.decoder.skip_connection is not None:
+            input_names = {space.name for space in self.input_spaces}
+            if self.output_space.name not in input_names:
+                msg = (
+                    f"decoder.skip_connection requires the target group "
+                    f"'{self.output_space.name}' to be one of the input datasets "
+                    f"{sorted(input_names)}, so the last observed frame is available "
+                    f"as the persistence base."
+                )
+                raise ValueError(msg)
+
     @staticmethod
     def _with_motion_channels(x: TensorNTCHW) -> TensorNTCHW:
         """Concatenate frame-to-frame differences as extra channels (explicit velocity cue).
@@ -301,14 +290,4 @@ class EncodeProcessDecode(BaseModel):
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output, persistence)
 
-        # In residual mode the decoder output is a delta from persistence: add the
-        # most recent *raw* observed target frame (not the encoded one) and bound the
-        # sum to the valid concentration range.
-        if self.use_residual_output:
-            base = inputs[self.output_space.name][
-                :, -1:, self.target_variable_indices, :, :
-            ]
-            output = (output + base).clamp(min=0.0, max=1.0)
-
-        # Return
         return output

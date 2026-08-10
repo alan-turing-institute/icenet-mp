@@ -6,7 +6,7 @@ name: cnn-unet-cnn-enhanced
 # the original baseline stays untouched and the two can be run side by side. This is
 # the UNet arm of the bake-off in next_steps.md: the same enhancement set as
 # baseline/03c_cnn_vit_cnn_residual (motion channels, day-order channels, skip
-# connection, residual/persistence-delta output) on top of the cnn-unet-cnn
+# connection, additive persistence skip connection) on top of the cnn-unet-cnn
 # arrangement, plus GroupNorm everywhere -- BatchNorm's train/eval statistics
 # divergence is known to collapse the UNet processor at batch size ~2, and GroupNorm
 # was the fix that made the ViT refinement head safe at the same batch size.
@@ -49,12 +49,14 @@ decoder:
   mask_type: active
   n_layers: 1
   norm_type: groupnorm
-  # The decoder output is a delta from persistence (see use_residual_output), so it
-  # must be allowed to go negative; the model clamps the final sum to [0, 1] instead.
+  # The decoder output is a delta from persistence (see skip_connection below), so it
+  # must be allowed to go negative; the skip connection's own clamp bounds the final
+  # sum to [0, 1] instead.
   restrict_range: none
   scale_factor: 3
+  skip_connection:
+    method: additive
 
 use_motion_channels: true
 use_day_order_channels: true
 use_skip_connection: true
-use_residual_output: true

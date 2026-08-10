@@ -40,8 +40,9 @@ decoder:
   n_layers: 1
   mask_type: active
   restrict_range: none
+  skip_connection:
+    method: additive
 
 use_motion_channels: true
 use_day_order_channels: true
 use_skip_connection: true
-use_residual_output: true

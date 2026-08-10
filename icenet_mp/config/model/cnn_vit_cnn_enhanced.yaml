@@ -51,6 +51,6 @@ use_day_order_channels: true
 # use_skip_connection: concatenate the most recent encoded history frame onto the
 # processor output so fine boundary detail bypasses the ViT patch bottleneck.
 use_skip_connection: false
-# use_residual_output: decode a *delta* added onto the last observed target frame
+# decoder.skip_connection defaults to method: none (off). baseline/03c_cnn_vit_cnn_residual
+# sets it to `additive` to decode a *delta* added onto the last observed target frame
 # (persistence base), clamped to [0, 1]. Pair with decoder.restrict_range: none.
-use_residual_output: false

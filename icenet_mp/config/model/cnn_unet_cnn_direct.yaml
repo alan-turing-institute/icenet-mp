@@ -48,8 +48,9 @@ decoder:
   norm_type: groupnorm
   restrict_range: none
   scale_factor: 3
+  skip_connection:
+    method: additive
 
 use_motion_channels: true
 use_day_order_channels: true
 use_skip_connection: true
-use_residual_output: true

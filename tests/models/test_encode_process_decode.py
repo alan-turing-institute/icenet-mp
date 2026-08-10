@@ -273,8 +273,9 @@ class TestEncodeProcessDecode:
         test_n_forecast_steps: int,
         test_n_history_steps: int,
     ) -> None:
-        # The target group must be an input dataset in residual mode, so build an
-        # input space with the target's name and more channels than the output.
+        # The target group must be an input dataset for the decoder's persistence skip
+        # connection, so build an input space with the target's name and more channels
+        # than the output.
         input_space = DictConfig(
             {
                 "channels": 4,
@@ -282,11 +283,12 @@ class TestEncodeProcessDecode:
                 "shape": cfg_output_space["shape"],
             }
         )
+        decoder = DictConfig({**cfg_decoder, "skip_connection": {"method": "additive"}})
         model = EncodeProcessDecode(
             name="encode-null-decode",
             encoders=cfg_encoders,
             processor=cfg_processor,
-            decoder=cfg_decoder,
+            decoder=decoder,
             hemisphere="north",
             input_spaces=[input_space],
             n_forecast_steps=test_n_forecast_steps,
@@ -295,7 +297,6 @@ class TestEncodeProcessDecode:
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
             loss=cfg_loss,
-            use_residual_output=True,
             target_variable_indices=[2],
         )
         history = torch.rand(
@@ -327,7 +328,7 @@ class TestEncodeProcessDecode:
         )
         assert torch.allclose(result, expected)
 
-    def test_residual_output_requires_target_input(
+    def test_decoder_skip_connection_requires_target_input(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -339,13 +340,15 @@ class TestEncodeProcessDecode:
         test_n_history_steps: int,
     ) -> None:
         # The default fixtures use different names for input ("test-input") and
-        # output ("target") spaces, so residual mode must refuse to build.
-        with pytest.raises(ValueError, match="use_residual_output"):
+        # output ("target") spaces, so a persistence skip connection must refuse to
+        # build: there is no observed target frame available for the persistence base.
+        decoder = DictConfig({**cfg_decoder, "skip_connection": {"method": "additive"}})
+        with pytest.raises(ValueError, match=r"decoder\.skip_connection"):
             EncodeProcessDecode(
                 name="encode-null-decode",
                 encoders=cfg_encoders,
                 processor=cfg_processor,
-                decoder=cfg_decoder,
+                decoder=decoder,
                 hemisphere="north",
                 input_spaces=[cfg_input_space],
                 n_forecast_steps=test_n_forecast_steps,
@@ -355,5 +358,4 @@ class TestEncodeProcessDecode:
                 scheduler=DictConfig({}),
                 loss=cfg_loss,
                 target_variable_indices=[0],
-                use_residual_output=True,
             )
