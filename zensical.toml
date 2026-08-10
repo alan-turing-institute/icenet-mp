@@ -21,6 +21,8 @@ nav = [
         { "Train a model" = "how-to/train.md" },
         { "Train a model in multiple stages" = "how-to/train-multistage.md" },
         { "Evaluate a model" = "how-to/evaluate.md" },
+        { "Run VIF analysis for multicollinearity" = "how-to/vif-analysis.md" },
+        { "Run feature screening" = "how-to/feature-screening.md" },
         { "Create a release" = "how-to/release.md" },
     ] },
     { "API Reference" = [

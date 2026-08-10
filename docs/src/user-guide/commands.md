@@ -100,7 +100,15 @@ uv run imp rf --config-name rf_screening/01_spatial_rf_screening
 ```
 
 Results are written to `outputs/rf/` by default. For every lead, compare the RF
-metrics with the persistence metrics in the report. Interpret grouped permutation
-importance only when the RF beats persistence on held-out data. Importance is
-predictive and model-specific, not causal: correlated predictors can substitute
-for one another, so a low score does not establish that a variable is unimportant.
+metrics with the persistence metrics in the report. By default
+(`rf.importance_policy: qualified`), interpret grouped permutation importance
+only when the RF beats persistence on held-out data; set
+`rf.importance_policy: always` (e.g. via `rf_screening/03_feature_screening`) to
+retain and report importance regardless, explicitly labelled exploratory.
+Importance is predictive and model-specific, not causal: correlated predictors
+can substitute for one another, so a low score does not establish that a
+variable is unimportant.
+
+For the full screening pipeline (VIF, PCA, EOF, RF, correlation, and a
+consolidated evidence report) via `imp pre-feature-analysis`, see
+[Run feature screening](../how-to/feature-screening.md).
