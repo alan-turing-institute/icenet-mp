@@ -30,7 +30,7 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.DDPMProcessor
-  timesteps: 1000
+  timesteps: 500
   beta_schedule: cosine
   start_out_channels: 64
   time_embed_dim: 256

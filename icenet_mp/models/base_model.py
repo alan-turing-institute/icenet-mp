@@ -238,7 +238,6 @@ class BaseModel(LightningModule, ABC):
         batch = self.process_batch(batch)
         target = batch["target"].clone().detach()
         prediction = self(batch)
-        # loss = self.loss(prediction, target)
         loss = getattr(self, "_last_processor_loss", None)
         if loss is None:
             loss = self.loss(prediction, target)

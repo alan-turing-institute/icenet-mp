@@ -5,7 +5,6 @@ import torch
 from omegaconf import DictConfig
 from torch import nn
 
-
 from icenet_mp.models.diffusion import GaussianDiffusion, UNetDiffusion
 from icenet_mp.types import BetaSchedule, ProcessorOutput, TensorNCHW, TensorNTCHW
 
@@ -65,13 +64,12 @@ class DDPMProcessor(BaseProcessor):
             **kwargs: Additional arguments passed to ``BaseProcessor``.
 
         """
-
         super().__init__(**kwargs)
 
         self.loss_fn: nn.Module = (
             loss if isinstance(loss, nn.Module) else hydra.utils.instantiate(loss)
         )
-        
+
         c_combined = self.data_space.channels
 
         c_target = self.data_space_target.channels
@@ -86,7 +84,7 @@ class DDPMProcessor(BaseProcessor):
 
         self.timesteps = timesteps
         self.use_autoregressive = use_autoregressive
-        
+
         self.target_slice_start = target_slice_start
         self.c_target = c_target
         self.c_combined = c_combined
@@ -118,7 +116,7 @@ class DDPMProcessor(BaseProcessor):
         self,
         x: TensorNTCHW,
         y: TensorNTCHW | None = None,
-        ) -> ProcessorOutput:
+    ) -> ProcessorOutput:
         """Run the diffusion process in latent space.
 
         Dispatches between two execution paths:
@@ -149,11 +147,11 @@ class DDPMProcessor(BaseProcessor):
         """
         if y is not None:
             return self._training_rollout(x, y)
-        return self._inference_rollout(x)       
+        return self._inference_rollout(x)
 
     def _build_metrics_prediction(
         self, pred_x0: TensorNCHW, last_frame: TensorNCHW
-        ) -> TensorNTCHW:
+    ) -> TensorNTCHW:
         """Lift the training-time x_0 estimate into an NTCHW combined-latent tensor.
 
         The returned tensor is only used for metrics/callbacks (the actual
@@ -181,13 +179,13 @@ class DDPMProcessor(BaseProcessor):
                 b, self.n_forecast_steps, self.c_combined, h, w
             )
 
-        pred_x0_ntchw = pred_x0.reshape(
-            b, self.n_forecast_steps, self.c_target, h, w
-        )
+        pred_x0_ntchw = pred_x0.reshape(b, self.n_forecast_steps, self.c_target, h, w)
 
-        expanded_last = last_frame.unsqueeze(1).expand(
-            b, self.n_forecast_steps, self.c_combined, h, w
-        ).clone()
+        expanded_last = (
+            last_frame.unsqueeze(1)
+            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
+            .clone()
+        )
         s = self.target_slice_start
         expanded_last[:, :, s : s + self.c_target] = pred_x0_ntchw
         return expanded_last
@@ -217,10 +215,8 @@ class DDPMProcessor(BaseProcessor):
         """
         s = self.target_slice_start
         return x[:, s : s + self.c_target]
-        
-    def _insert_target(
-        self, base_frame: TensorNCHW, target: TensorNCHW
-    ) -> TensorNCHW:
+
+    def _insert_target(self, base_frame: TensorNCHW, target: TensorNCHW) -> TensorNCHW:
         """Return a copy of ``base_frame`` with its target slice overwritten by ``target``.
 
         Used to produce a C_combined-channel prediction for the frozen decoder
@@ -238,10 +234,8 @@ class DDPMProcessor(BaseProcessor):
         s = self.target_slice_start
         result[:, s : s + self.c_target] = target
         return result
-    
-    def _training_rollout(
-        self, x: TensorNTCHW, y: TensorNTCHW
-        ) -> ProcessorOutput:
+
+    def _training_rollout(self, x: TensorNTCHW, y: TensorNTCHW) -> ProcessorOutput:
         """One training rollout using DDPM v-prediction loss.
 
         During training, the clean target latent is corrupted using the forward
@@ -273,7 +267,7 @@ class DDPMProcessor(BaseProcessor):
         """
         b = x.shape[0]
         device = x.device
-        
+
         last_frame = x[:, -1]  # (B, C_combined, H, W)
 
         cond = self._flatten_history(x)  # (B, T_hist * C_combined, H, W)
@@ -296,9 +290,7 @@ class DDPMProcessor(BaseProcessor):
         loss = self.loss_fn(pred_v, target_v)
 
         with torch.no_grad():
-            pred_x0 = self.diffusion.calculate_v(
-                x_start=pred_v, noise=noisy_y, t=t
-            )
+            pred_x0 = self.diffusion.calculate_v(x_start=pred_v, noise=noisy_y, t=t)
             prediction = self._build_metrics_prediction(pred_x0, last_frame)
 
         return ProcessorOutput(prediction=prediction, loss=loss)
@@ -337,7 +329,7 @@ class DDPMProcessor(BaseProcessor):
         return ProcessorOutput(prediction=self._sample_parallel(x))
 
     def _sample_parallel(self, x: TensorNTCHW) -> TensorNTCHW:
-         """Non-autoregressive (parallel) reverse diffusion sampling.
+        """Non-autoregressive (parallel) reverse diffusion sampling.
 
         This method generates the entire forecast sequence in a single
         diffusion process applied to one joint output tensor. The forecast
@@ -364,9 +356,7 @@ class DDPMProcessor(BaseProcessor):
         b, _, h, w = cond.shape
         device = cond.device
 
-        y = torch.randn(
-            (b, self.n_forecast_steps * self.c_target, h, w), device=device
-        )
+        y = torch.randn((b, self.n_forecast_steps * self.c_target, h, w), device=device)
 
         for t_step in reversed(range(self.timesteps)):
             t = torch.full((b,), t_step, dtype=torch.long, device=device)
@@ -375,10 +365,12 @@ class DDPMProcessor(BaseProcessor):
 
         y_ntchw = y.reshape(b, self.n_forecast_steps, self.c_target, h, w)
         last_frame = x[:, -1]  # (B, C_combined, H, W)
-        combined = last_frame.unsqueeze(1).expand(
-            b, self.n_forecast_steps, self.c_combined, h, w
-        ).clone()
-        
+        combined = (
+            last_frame.unsqueeze(1)
+            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
+            .clone()
+        )
+
         s = self.target_slice_start
         combined[:, :, s : s + self.c_target] = y_ntchw
         return combined
@@ -432,13 +424,16 @@ class DDPMProcessor(BaseProcessor):
             new_frame = self._insert_target(last_frame, y).unsqueeze(1)
             history = torch.cat([history, new_frame], dim=1)
 
-        target_ntchw = torch.stack(all_predictions, dim=1)  # (B, T_fcst, C_target, H, W)
+        target_ntchw = torch.stack(
+            all_predictions, dim=1
+        )  # (B, T_fcst, C_target, H, W)
         last_frame = x[:, -1]
-        combined = last_frame.unsqueeze(1).expand(
-            b, self.n_forecast_steps, self.c_combined, h, w
-        ).clone()
+        combined = (
+            last_frame.unsqueeze(1)
+            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
+            .clone()
+        )
 
         s = self.target_slice_start
         combined[:, :, s : s + self.c_target] = target_ntchw
         return combined
-    
