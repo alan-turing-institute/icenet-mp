@@ -31,6 +31,17 @@ def _metric_group(metric_name: str) -> str:
     return metric_name
 
 
+def _series_key(
+    stage: str, metric_name: str, *, grouped: bool, multiple_stages: bool
+) -> str:
+    """Series key for a per-forecast-day plot: only vary on what actually varies."""
+    if not grouped:
+        return stage
+    if multiple_stages:
+        return f"{stage}_{metric_name}"
+    return metric_name
+
+
 class MetricSummaryCallback(Callback):
     """A callback to summarise metrics at the end of an epoch or a run."""
 
@@ -78,6 +89,19 @@ class MetricSummaryCallback(Callback):
 
         # Extract the metric values (e.g., SIEError) across all batches
         # Only consider metrics that have a value for each forecast day
+        values_per_forecast_day = self._collect_values_per_forecast_day(metrics)
+
+        fss_metric_names = self._log_per_forecast_day_plots(
+            run, values_per_forecast_day, multiple_stages=len(metrics) > 1
+        )
+        self._log_fss_vs_neighbourhood_size(
+            run, values_per_forecast_day, fss_metric_names
+        )
+
+    def _collect_values_per_forecast_day(
+        self, metrics: dict[str, MetricCollection]
+    ) -> dict[str, dict[str, "Tensor"]]:
+        """Collect metric values that have a value for each forecast day."""
         values_per_forecast_day: dict[str, dict[str, Tensor]] = defaultdict(dict)
         for stage, metric_collection in metrics.items():
             for metric_name, metric in metric_collection.items():
@@ -86,27 +110,34 @@ class MetricSummaryCallback(Callback):
                 metric_tensor: Tensor = metric.compute()
                 if metric_tensor.reshape(-1).shape[0] > 1:
                     values_per_forecast_day[metric_name][stage] = metric_tensor
+        return values_per_forecast_day
 
-        # Group metrics that should share a single plot (e.g. FSS at several
-        # neighbourhood sizes), so related variants are grouped, one plot per metric
-        # otherwise
+    def _log_per_forecast_day_plots(
+        self,
+        run: wandb.Run,
+        values_per_forecast_day: dict[str, dict[str, "Tensor"]],
+        *,
+        multiple_stages: bool,
+    ) -> list[str]:
+        """Log a per-forecast-day plot for each metric group.
+
+        Metrics that should share a single plot (e.g. FSS at several neighbourhood
+        sizes) are grouped; all other metrics get one plot each. Returns the metric
+        names in the "fss" group, for use in the FSS-vs-neighbourhood-size plot.
+        """
         metric_names_by_group: dict[str, list[str]] = defaultdict(list)
         for metric_name in values_per_forecast_day:
             metric_names_by_group[_metric_group(metric_name)].append(metric_name)
 
-        multiple_stages = len(metrics) > 1
         for group_name, metric_names in metric_names_by_group.items():
             grouped = len(metric_names) > 1
-            series: dict[str, Tensor] = {}
-            for metric_name in metric_names:
-                for stage, tensor in values_per_forecast_day[metric_name].items():
-                    if not grouped:
-                        key = stage
-                    elif multiple_stages:
-                        key = f"{stage}_{metric_name}"
-                    else:
-                        key = metric_name
-                    series[key] = tensor
+            series: dict[str, Tensor] = {
+                _series_key(
+                    stage, metric_name, grouped=grouped, multiple_stages=multiple_stages
+                ): tensor
+                for metric_name in metric_names
+                for stage, tensor in values_per_forecast_day[metric_name].items()
+            }
 
             keys = list(series.keys())
             days = list(range(1, len(series[keys[0]]) + 1))
@@ -123,9 +154,7 @@ class MetricSummaryCallback(Callback):
                 },
             )
 
-        self._log_fss_vs_neighbourhood_size(
-            run, values_per_forecast_day, metric_names_by_group.get("fss", [])
-        )
+        return metric_names_by_group.get("fss", [])
 
     def _log_fss_vs_neighbourhood_size(
         self,

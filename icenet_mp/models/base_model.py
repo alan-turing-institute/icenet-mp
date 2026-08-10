@@ -103,9 +103,7 @@ class BaseModel(LightningModule, ABC):
             "centroid_error": CentroidErrorPerForecastDay,
             "fss_1": partial(FractionalSkillScorePerForecastDay, neighborhood_size=1),
             "fss_5": partial(FractionalSkillScorePerForecastDay, neighborhood_size=5),
-            "fss_15": partial(
-                FractionalSkillScorePerForecastDay, neighborhood_size=15
-            ),
+            "fss_15": partial(FractionalSkillScorePerForecastDay, neighborhood_size=15),
         }
         metric_names = (
             metrics
