@@ -181,17 +181,13 @@ class MetricSummaryCallback(Callback):
             for stage in stages
         ]
 
-        # A flat reference line at FSS = 0.5, the usual "skilful" threshold
-        keys = [*stages, "skilful_threshold"]
-        ys = [*ys, [0.5] * len(sizes)]
-
         plot_name = "fss_vs_neighbourhood_size"
         run.log(
             {
                 plot_name: wandb.plot.line_series(
                     xs=sizes,
                     ys=ys,
-                    keys=keys,
+                    keys=stages,
                     title=plot_name,
                     xname="neighbourhood_size",
                 )

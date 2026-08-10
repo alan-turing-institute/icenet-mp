@@ -218,9 +218,8 @@ class TestOnTestEnd:
             if call.kwargs["title"] == "fss_vs_neighbourhood_size"
         )
         assert fss_vs_size_call.kwargs["xs"] == [1, 5]
-        assert fss_vs_size_call.kwargs["keys"] == ["test", "skilful_threshold"]
-        assert fss_vs_size_call.kwargs["ys"][-1] == [0.5, 0.5]
-        assert len(fss_vs_size_call.kwargs["ys"]) == 2
+        assert fss_vs_size_call.kwargs["keys"] == ["test"]
+        assert len(fss_vs_size_call.kwargs["ys"]) == 1
         assert len(fss_vs_size_call.kwargs["ys"][0]) == 2
 
     def test_on_test_end_without_wandb_logger_vector_metric(
