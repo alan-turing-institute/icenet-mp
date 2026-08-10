@@ -1,5 +1,5 @@
-samp-sicnorth-osisaf-25k-2017-2019-24h-v1:
-  name: samp-sicnorth-osisaf-25k-2017-2019-24h-v1
+samp-sicnorth-icenet-25k-2017-2019-24h-v1:
+  name: samp-sicnorth-icenet-25k-2017-2019-24h-v1
   group_as: sic-icenet
   description: Sea ice concentration from SMMR/SSMI/SSMIS for northern hemisphere
   attribution: EUMETSAT/OSISAF
