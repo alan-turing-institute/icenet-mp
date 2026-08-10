@@ -4,7 +4,7 @@ import hydra
 import torch
 from omegaconf import DictConfig
 
-from icenet_mp.types import DataSpace, TensorNTCHW
+from icenet_mp.types import DataSpace, SkipConnectionType, TensorNTCHW
 
 from .base_model import BaseModel
 
@@ -88,6 +88,24 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
         self.target_variable_indices = target_variable_indices
+
+        # Fail fast, before instantiating any encoders/processor/decoder, if the
+        # decoder's own persistence skip connection is requested but there is no
+        # observed target frame available to build its persistence base from.
+        skip_connection_cfg = decoder.get("skip_connection") or {}
+        skip_connection_method = SkipConnectionType(
+            skip_connection_cfg.get("method", SkipConnectionType.NONE)
+        )
+        if skip_connection_method != SkipConnectionType.NONE:
+            input_names = {space.name for space in self.input_spaces}
+            if self.output_space.name not in input_names:
+                msg = (
+                    f"decoder.skip_connection requires the target group "
+                    f"'{self.output_space.name}' to be one of the input datasets "
+                    f"{sorted(input_names)}, so the last observed frame is available "
+                    f"as the persistence base."
+                )
+                raise ValueError(msg)
 
         def encoder_input_space(input_space: DataSpace) -> DataSpace:
             channels = input_space.channels
@@ -191,17 +209,6 @@ class EncodeProcessDecode(BaseModel):
             data_space_out=self.output_space,
             mask_dir=mask_dir,
         )
-
-        if self.decoder.skip_connection is not None:
-            input_names = {space.name for space in self.input_spaces}
-            if self.output_space.name not in input_names:
-                msg = (
-                    f"decoder.skip_connection requires the target group "
-                    f"'{self.output_space.name}' to be one of the input datasets "
-                    f"{sorted(input_names)}, so the last observed frame is available "
-                    f"as the persistence base."
-                )
-                raise ValueError(msg)
 
     @staticmethod
     def _with_motion_channels(x: TensorNTCHW) -> TensorNTCHW:

@@ -79,6 +79,53 @@ class TestModelService:
         assert processor.refine_channels == 8
         assert processor.refine_kernel_size == 5
 
+    def test_recovers_legacy_residual_output_checkpoint(self, tmp_path: Path) -> None:
+        """Legacy use_residual_output checkpoints gain an equivalent skip connection."""
+        checkpoint_path = tmp_path / "legacy_residual.ckpt"
+        torch.save(
+            {
+                "hyper_parameters": {
+                    "use_residual_output": True,
+                    "decoder": {
+                        "_target_": "icenet_mp.models.decoders.CNNDecoder",
+                        "restrict_range": "none",
+                    },
+                },
+                "state_dict": {},
+            },
+            checkpoint_path,
+        )
+
+        overrides = model_service._checkpoint_constructor_overrides(checkpoint_path)
+
+        decoder = overrides["decoder"]
+        assert isinstance(decoder, DictConfig)
+        assert decoder.skip_connection.method == "additive"
+        assert decoder.restrict_range == "none"
+
+    def test_does_not_override_existing_decoder_skip_connection(
+        self, tmp_path: Path
+    ) -> None:
+        """A checkpoint that already configures decoder.skip_connection is untouched."""
+        checkpoint_path = tmp_path / "modern.ckpt"
+        torch.save(
+            {
+                "hyper_parameters": {
+                    "use_residual_output": True,
+                    "decoder": {
+                        "_target_": "icenet_mp.models.decoders.CNNDecoder",
+                        "skip_connection": {"method": "gated"},
+                    },
+                },
+                "state_dict": {},
+            },
+            checkpoint_path,
+        )
+
+        overrides = model_service._checkpoint_constructor_overrides(checkpoint_path)
+
+        assert "decoder" not in overrides
+
     def test_from_config_loads_model(self, cfg_model_service: DictConfig) -> None:
         mock_instantiate = MagicMock()
         mock_instantiate.return_value = MockModel()

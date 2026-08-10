@@ -42,6 +42,8 @@ def _checkpoint_constructor_overrides(checkpoint_path: Path) -> dict[str, Any]:
         return {}
 
     hyperparameters = checkpoint.get("hyper_parameters", {})
+    overrides: dict[str, Any] = {}
+
     processor = hyperparameters.get("processor")
     state_dict = checkpoint.get("state_dict", {})
     if (
@@ -63,8 +65,28 @@ def _checkpoint_constructor_overrides(checkpoint_path: Path) -> dict[str, Any]:
         log.info(
             "Detected legacy ViT conv-refine checkpoint; restoring omitted decode-head settings."
         )
-        return {"processor": processor}
-    return {}
+        overrides["processor"] = processor
+
+    # `use_residual_output` was retired in favour of `decoder.skip_connection.method:
+    # additive`, which combines the persistence base frame before masking rather than
+    # after -- silently dropping it here rather than raising would reload the checkpoint
+    # with the persistence base frame never added back on, producing near-zero/garbage
+    # output instead of a valid forecast.
+    decoder = hyperparameters.get("decoder")
+    if (
+        hyperparameters.get("use_residual_output")
+        and isinstance(decoder, (dict, DictConfig))
+        and not decoder.get("skip_connection")
+    ):
+        decoder = DictConfig(OmegaConf.create(decoder))
+        decoder["skip_connection"] = {"method": "additive"}
+        log.info(
+            "Detected legacy use_residual_output checkpoint; restoring equivalent "
+            "decoder.skip_connection=additive."
+        )
+        overrides["decoder"] = decoder
+
+    return overrides
 
 
 class ModelService:
