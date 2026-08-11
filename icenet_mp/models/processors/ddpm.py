@@ -66,6 +66,7 @@ class DDPMProcessor(BaseProcessor):
         """
         super().__init__(**kwargs)
 
+        # Instantiate the configured loss function.
         self.loss_fn: nn.Module = (
             loss if isinstance(loss, nn.Module) else hydra.utils.instantiate(loss)
         )
@@ -179,14 +180,17 @@ class DDPMProcessor(BaseProcessor):
         b = pred_x0.shape[0]
         h, w = last_frame.shape[-2:]
 
+        # Restore the predicted target latent to the combined latent representation.
         if self.use_autoregressive:
             per_step = self._insert_target(last_frame, pred_x0)
             return per_step.unsqueeze(1).expand(
                 b, self.n_forecast_steps, self.c_combined, h, w
             )
 
+        # In parallel mode, the predicted x_0 is folded into channels for all forecast steps.
         pred_x0_ntchw = pred_x0.reshape(b, self.n_forecast_steps, self.c_target, h, w)
 
+        # Repeat the last frame across forecast steps; overwrite the target slice below.
         expanded_last = (
             last_frame.unsqueeze(1)
             .expand(b, self.n_forecast_steps, self.c_combined, h, w)
@@ -306,6 +310,8 @@ class DDPMProcessor(BaseProcessor):
 
         # Reconstruct x0 for metrics only; this is not used for training.
         with torch.no_grad():
+            # calculate_v() has the same algebraic form as the x_0 reconstruction,
+            # so we reuse it by passing pred_v as x_start.
             pred_x0 = self.diffusion.calculate_v(x_start=pred_v, noise=noisy_y, t=t)
             prediction = self._build_metrics_prediction(pred_x0, last_frame)
 
@@ -374,11 +380,13 @@ class DDPMProcessor(BaseProcessor):
 
         y = torch.randn((b, self.n_forecast_steps * self.c_target, h, w), device=device)
 
+        # Iteratively denoise from the final diffusion timestep to zero.
         for t_step in reversed(range(self.timesteps)):
             t = torch.full((b,), t_step, dtype=torch.long, device=device)
             pred_v = self.model(y, t, cond)
             y = self.diffusion.p_sample(y, t, pred_v)
 
+        # Build the combined latent, keeping non-target channels persistent.
         y_ntchw = y.reshape(b, self.n_forecast_steps, self.c_target, h, w)
         last_frame = x[:, -1]  # (B, C_combined, H, W)
         combined = (
@@ -387,6 +395,7 @@ class DDPMProcessor(BaseProcessor):
             .clone()
         )
 
+        # Replace the target slice while keeping non-target channels persistent.
         s = self.target_slice_start
         combined[:, :, s : s + self.c_target] = y_ntchw
         return combined
@@ -427,8 +436,10 @@ class DDPMProcessor(BaseProcessor):
             cond_window = history[:, -self.n_history_steps :]
             cond = self._flatten_history(cond_window)  # (B, T_hist * C_combined, H, W)
 
+            # Start each forecast step from Gaussian noise.
             y = torch.randn((b, self.c_target, h, w), device=device)
 
+            # Iteratively denoise from the final diffusion timestep to zero.
             for t_step in reversed(range(self.timesteps)):
                 t = torch.full((b,), t_step, dtype=torch.long, device=device)
                 pred_v = self.model(y, t, cond)
@@ -436,6 +447,7 @@ class DDPMProcessor(BaseProcessor):
 
             all_predictions.append(y)
 
+            # Append the prediction to the history for the next forecast step.
             last_frame = history[:, -1]  # (B, C_combined, H, W)
             new_frame = self._insert_target(last_frame, y).unsqueeze(1)
             history = torch.cat([history, new_frame], dim=1)
