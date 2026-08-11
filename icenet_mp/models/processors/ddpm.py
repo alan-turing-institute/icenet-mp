@@ -70,10 +70,13 @@ class DDPMProcessor(BaseProcessor):
             loss if isinstance(loss, nn.Module) else hydra.utils.instantiate(loss)
         )
 
+        # c_combined: total channels across all encoder latents concatenated.
         c_combined = self.data_space.channels
 
+        # c_target: channels of the target encoder's latent output.
         c_target = self.data_space_target.channels
 
+        # Validate that the target slice fits inside the combined latent channels.
         if target_slice_start < 0 or target_slice_start + c_target > c_combined:
             msg = (
                 f"target_slice_start={target_slice_start} with target channels="
@@ -85,12 +88,15 @@ class DDPMProcessor(BaseProcessor):
         self.timesteps = timesteps
         self.use_autoregressive = use_autoregressive
 
+        # Where the target's channels start in the combined latent. 0 means the target encoder is listed first.
         self.target_slice_start = target_slice_start
         self.c_target = c_target
         self.c_combined = c_combined
 
+        # UNet conditioning channels: history folded NTCHW -> NCHW.
         cond_channels = c_combined * self.n_history_steps
 
+        # Channels the UNet denoises: c_target (AR) or n_forecast_steps * c_target (parallel, all steps folded into channels).
         diffused_channels = (
             c_target if use_autoregressive else c_target * self.n_forecast_steps
         )
@@ -273,7 +279,7 @@ class DDPMProcessor(BaseProcessor):
         cond = self._flatten_history(x)  # (B, T_hist * C_combined, H, W)
 
         if self.use_autoregressive:
-            # AR trains on t=0 only.
+            # AR trains on forecast step 0 (T=0) only.
             y_flat = y[:, 0]  # (B, C_target, H, W)
         else:
             y_flat = y.reshape(b, self.n_forecast_steps * self.c_target, *y.shape[-2:])
