@@ -274,27 +274,37 @@ class DDPMProcessor(BaseProcessor):
         b = x.shape[0]
         device = x.device
 
+        # Last observed frame; its non-target channels are copied into the metrics prediction
+        # (the model only predicts the target slice, so the rest is persistence).
         last_frame = x[:, -1]  # (B, C_combined, H, W)
 
+        # History frames folded into channels for the 2D UNet.
         cond = self._flatten_history(x)  # (B, T_hist * C_combined, H, W)
 
+        # Clean target to denoise: AR uses step 0 only; parallel folds all steps into channels.
         if self.use_autoregressive:
             # AR trains on forecast step 0 (T=0) only.
             y_flat = y[:, 0]  # (B, C_target, H, W)
         else:
             y_flat = y.reshape(b, self.n_forecast_steps * self.c_target, *y.shape[-2:])
 
+        # Random diffusion timestep per sample.
         t = torch.randint(0, self.timesteps, (b,), device=device).long()
 
+        # Add noise to the clean target at diffusion step t.
         noise = torch.randn_like(y_flat)
         noisy_y = self.diffusion.q_sample(y_flat, t, noise)
 
+        # Predict the velocity conditioned on the noisy target and history.
         pred_v = self.model(noisy_y, t, cond)
 
+        # Compute the target velocity for the sampled noise and timestep.
         target_v = self.diffusion.calculate_v(y_flat, noise, t)
 
+        # Compute the v-prediction training loss.
         loss = self.loss_fn(pred_v, target_v)
 
+        # Reconstruct x0 for metrics only; this is not used for training.
         with torch.no_grad():
             pred_x0 = self.diffusion.calculate_v(x_start=pred_v, noise=noisy_y, t=t)
             prediction = self._build_metrics_prediction(pred_x0, last_frame)
