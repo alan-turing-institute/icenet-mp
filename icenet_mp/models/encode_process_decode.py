@@ -4,6 +4,7 @@ import hydra
 import torch
 from omegaconf import DictConfig
 
+from icenet_mp.models.processors.ddpm import DDPMProcessor
 from icenet_mp.types import DataSpace, TensorNTCHW
 
 from .base_model import BaseModel
@@ -111,6 +112,14 @@ class EncodeProcessDecode(BaseModel):
             mask_dir=mask_dir,
         )
 
+        # DDPM stage trains only the processor (v-prediction in latent space).
+        # The decoder is not on the gradient graph, so freeze it explicitly,
+        # otherwise DDP raises "unused parameters" when running on 2+ GPUs.
+        if isinstance(self.processor, DDPMProcessor):
+            for p in self.decoder.parameters():
+                p.requires_grad = False
+            self.decoder.eval()
+
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model.
 
@@ -128,12 +137,7 @@ class EncodeProcessDecode(BaseModel):
         # Combine in the variable dimension: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
         latent_input_combined: TensorNTCHW = torch.cat(latent_inputs, dim=2)
 
-        # Process in latent space:
-        # combined input tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        # latent_output: TensorNTCHW = self.processor.rollout(
-        #     latent_input_combined
-        # ).prediction
-        ###########
+        # Process in latent space: tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
         latent_target = None
         if self.training and "target" in inputs:
             latent_target = self.target_encoder.rollout(inputs["target"])
@@ -142,7 +146,6 @@ class EncodeProcessDecode(BaseModel):
         self._last_processor_loss = processor_out.loss
 
         latent_output: TensorNTCHW = processor_out.prediction
-        ###########
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output)
