@@ -101,7 +101,9 @@ class SSIMPerForecastDay(BaseErrorMetricDaily):
             torch.sqrt(sigma_preds_sq * sigma_targets_sq), sigma_preds_targets.abs()
         )
 
-        numerator = (2 * mu_preds_targets + self.c1) * (2 * sigma_preds_targets + self.c2)
+        numerator = (2 * mu_preds_targets + self.c1) * (
+            2 * sigma_preds_targets + self.c2
+        )
         denominator = (mu_preds_sq + mu_targets_sq + self.c1) * (
             sigma_preds_sq + sigma_targets_sq + self.c2
         )

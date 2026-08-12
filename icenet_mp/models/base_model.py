@@ -23,6 +23,7 @@ from icenet_mp.metrics import (
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
+    SSIMPerForecastDay,
 )
 from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
 
@@ -61,11 +62,12 @@ class BaseModel(LightningModule, ABC):
 
         The ``metrics`` parameter controls which metrics are computed during training,
         validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
-        "centroid_error", "fss_1", "fss_5", "fss_15"]``. ``"centroid_error"`` is the
-        value-weighted centre-of-mass distance (only meaningful for synthetic checks
+        "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``. ``"centroid_error"`` is
+        the value-weighted centre-of-mass distance (only meaningful for synthetic checks
         where the field is a single blob); ``"fss_1"``/``"fss_5"``/``"fss_15"`` are the
         Fractional Skill Score of the sea-ice edge at neighbourhood sizes of 1, 5, and
-        15 pixels respectively (see ``icenet_mp.metrics.fss``).
+        15 pixels respectively (see ``icenet_mp.metrics.fss``); ``"ssim"`` is the
+        Structural Similarity Index (see ``icenet_mp.metrics.ssim``).
         """
         super().__init__()
 
@@ -104,6 +106,7 @@ class BaseModel(LightningModule, ABC):
             "fss_1": partial(FractionalSkillScorePerForecastDay, neighborhood_size=1),
             "fss_5": partial(FractionalSkillScorePerForecastDay, neighborhood_size=5),
             "fss_15": partial(FractionalSkillScorePerForecastDay, neighborhood_size=15),
+            "ssim": SSIMPerForecastDay,
         }
         metric_names = (
             metrics
@@ -117,6 +120,7 @@ class BaseModel(LightningModule, ABC):
                 "fss_1",
                 "fss_5",
                 "fss_15",
+                "ssim",
             ]
         )
         _common_metrics: dict[str, Metric | MetricCollection] = {
