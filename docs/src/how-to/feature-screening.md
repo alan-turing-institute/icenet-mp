@@ -171,6 +171,11 @@ non-helpful feature never *hurts* the model, so the rank doesn't change much).
 `investigate` rows are positive but rank-unstable — these are the variables most
 worth re-running at a larger sample budget.
 
+For a worked end-to-end demonstration of the full pipeline on a real year
+of full-north data — including the `sic_change` vs `absolute` target
+comparison and all four RF spatial plots — see
+[Feature screening demonstration: full year 2020 run](feature-screening-year-demo.md).
+
 ## Output files
 
 Each strand writes to its own subdirectory of `--output-dir`:
