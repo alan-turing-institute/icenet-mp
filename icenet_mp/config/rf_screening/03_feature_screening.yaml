@@ -7,7 +7,15 @@ defaults:
 rf:
   backend: random_forest
   importance_policy: always
-  target_mode: absolute
+  # `sic_change` is the recommended target mode for screening weather/ocean
+  # inputs against SIC: it casts the target as `future SIC - latest historical
+  # SIC`, so the regression is not dominated by the trivial "the answer is
+  # close to last week's SIC" signal. With `absolute`, the RF rarely beats
+  # persistence on the full-north SIC dataset and `importance_policy: always`
+  # emits every row labelled `inconclusive`. Override to `absolute` only if the
+  # screening target is genuinely "absolute SIC" (e.g. a strongly-Stationary
+  # climatology baseline).
+  target_mode: sic_change
   spatial:
     reliability:
       # "stable" means positive importance in at least four of five folds and

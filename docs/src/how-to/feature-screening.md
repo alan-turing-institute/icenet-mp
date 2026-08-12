@@ -90,7 +90,7 @@ uv run imp pre-feature-analysis \
 | Option | Values | Effect |
 |---|---|---|
 | `rf.importance_policy` | `qualified` (default), `always` | `qualified` only reports importance when the RF beats persistence on held-out data. `always` retains and reports importance regardless, labelled exploratory — use this to avoid silently suppressing every result on a short-lead, hard-to-beat-persistence problem. |
-| `rf.target_mode` | `absolute` (default), `sic_change` | `sic_change` screens against `future SIC - latest historical SIC` instead of absolute SIC, to avoid the target being dominated by recent SIC when screening weather/ocean inputs. |
+| `rf.target_mode` | `sic_change` (default in `03_` and `04_`), `absolute` | `sic_change` screens against `future SIC - latest historical SIC` instead of absolute SIC, to avoid the target being dominated by recent SIC when screening weather/ocean inputs. With `absolute` the RF rarely beats persistence on the full-north SIC dataset and `importance_policy: always` then emits every row labelled `inconclusive`; the two modes disagree on which variables dominate, so pick the mode that matches the screening question. |
 | `rf.backend` | `random_forest` (default), `hist_gradient_boosting` | Alternative gradient-boosting regressor. **Performance note:** this backend fits a fresh model per (lead, fold) — 70 fits for the default 14-lead/5-fold setup — and each `HistGradientBoostingRegressor.fit()` call costs roughly a fixed ~130ms *per boosting round* regardless of dataset size (measured directly; `RandomForestRegressor` does not have this problem — it fits in a small fraction of that time on equivalent data because it parallelises across trees instead of building them sequentially). At the default `n_estimators: 300`, this backend can take a very long time even on a small/quick-check dataset. For a quick sanity check, drop `rf.n_estimators` substantially (e.g. `10`) first; reserve the default settings for a real, larger-N run where the per-round cost amortises. |
 | `rf.spatial.confirmation_groups` | list of group names, default `[]` | Opt-in incremental-inclusion test: for each named group, refits with it added to a SIC-history-only baseline (`add_to_sic_gain`) and removed from the full model (`drop_from_full_loss`). |
 
@@ -106,6 +106,70 @@ uv run imp pre-feature-analysis \
 | `reliability` label | Combines the two fields above; one of `stable`, `candidate`, `low_evidence` | `stable` in physically-plausible strata | `stable` somewhere that makes no physical sense — worth a manual look; `low_evidence` always means mean importance ≤ 0, regardless of fold consistency |
 | Correlation matrix | Raw pairwise linear redundancy | High correlation between physically-linked fields (adjacent pressure levels, duplicate uncertainty columns) | High correlation between physically-unrelated fields suggests a unit/alignment bug |
 | Evidence report `recommendation` | Rollup of importance sign + rank stability; one of `retain`, `investigate`, `deprioritise`, `inconclusive` | `retain` (positive, stable), `deprioritise` (importance ≤ 0) | Frequent `investigate` (positive but rank-unstable) at a *full* sample budget means the screening budget is too small for a stable answer; `inconclusive` means no importance value was available for that row (e.g. `importance_policy: qualified` suppressed it) |
+
+## Worked example: full-north SIC change target
+
+The staged `sic_change` run on the full-north dataset (`outputs/staged_feature_screening_sic_change_20260803/`)
+exercises the recommended config (`rf_screening/03_feature_screening`) at the
+default 14-day forecast length, with 4,800 effective samples across 200 initialisation
+dates (2019-01-01 to 2020-12-15). The full report is in
+`evidence/parameter_evidence.md`; the excerpts below are taken verbatim from it.
+
+**Run provenance** (excerpt of the report header):
+
+> Effective samples: 4800
+> Feature count: 108
+> Initialisation count: 200
+> Target mode: sic_change
+> VIF evidence qualified: true
+> EOF evidence qualified: false; reason: Variable-space covariance decomposition is not independent feature-selection evidence.
+
+**Model qualification** (RF vs persistence, every lead/stratum combination — `sic_change`
+is the only target mode where the RF beats persistence at every lead):
+
+| Lead | Stratum | RF MSE | Persistence MSE | MSE improvement | RF beat persistence |
+| ---: | --- | ---: | ---: | ---: | --- |
+| 1  | all            | 0.002666 | 0.002850 | 0.000184 | yes |
+| 5  | all            | 0.012715 | 0.013731 | 0.001016 | yes |
+| 5  | marginal_ice   | 0.033421 | 0.036506 | 0.003085 | yes |
+| 5  | open_water     | 0.000790 | 0.000664 | -0.000126 | yes |
+| 5  | pack_ice       | 0.003933 | 0.004022 | 0.000089 | yes |
+| 14 | all            | 0.025168 | 0.033575 | 0.008407 | yes |
+| 14 | marginal_ice   | 0.062054 | 0.084474 | 0.022420 | yes |
+
+A few subtleties when reading this table:
+
+- The `MSE improvement` column is `persistence_mse − rf_mse`, so a **positive**
+  value means RF is better than persistence. Negative numbers are legitimate and
+  just mean persistence is better in that stratum at that lead.
+- The `RF beat persistence` (`yes`/`no`) column is computed **once per lead** based
+  on the overall (all-strata) RF-vs-persistence comparison — every stratum in the
+  same lead row inherits the same value. The `sic_change` run shows `yes` at every
+  lead, but you can still see per-stratum `MSE improvement` flip sign (e.g. lead 5
+  `open_water`): the RF wins *overall* (driven by the marginal_ice and pack_ice
+  strata) while still losing to persistence in the easy open-water stratum, where
+  the absolute MSEs are tiny.
+
+**Variable-level evidence** (excerpt of the per-parameter table at lead 5):
+
+| Parameter | Lead/stratum | Permutation importance | Positive folds | Rank stability | Reliability | Recommendation |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| `sic-ssmis/ice_conc`                    | 5/marginal_ice | 0.000057  | 3 | 0.428 | candidate | investigate |
+| `sic-ssmis/ice_conc`                    | 5/pack_ice     | 0.000074  | 5 | 0.845 | stable    | retain      |
+| `sic-ssmis/ice_conc`                    | 5/open_water   | -0.000024 | 0 | 0.549 | low_evidence | deprioritise |
+| `sic-ssmis/algorithm_standard_uncertainty` | 5/marginal_ice | 0.000102 | 4 | 0.425 | candidate | investigate |
+| `sic-ssmis/algorithm_standard_uncertainty` | 5/pack_ice   | -0.000003 | 3 | 0.275 | low_evidence | deprioritise |
+| `era5/z_1000`                            | 5/marginal_ice | 0.000071  | 3 | 0.289 | candidate | investigate |
+| `era5/z_1000`                            | 5/open_water   | 0.000012  | 3 | 0.539 | candidate | retain      |
+| `era5/z_1000`                            | 5/pack_ice     | -0.000015 | 0 | 0.914 | low_evidence | deprioritise |
+
+The pattern to read for: `retain` rows are positive importance and stable
+(positive in ≥4/5 folds and rank-stable). `deprioritise` rows are
+non-positive importance (`low_evidence` always means mean importance ≤ 0 — the rank
+stability score is high for `era5/z_1000` at 5/pack_ice because shuffling a
+non-helpful feature never *hurts* the model, so the rank doesn't change much).
+`investigate` rows are positive but rank-unstable — these are the variables most
+worth re-running at a larger sample budget.
 
 ## Output files
 
