@@ -41,6 +41,8 @@ DEFAULT_SIC_SPEC = PlotSpec(
     outside_warn=0.05,
     severe_outside=0.20,
     include_shared_range_mismatch_check=True,
+    include_ice_edge=False,
+    ice_edge_threshold=0.15,
 )
 
 logger = logging.getLogger(__name__)
@@ -186,6 +188,10 @@ def _draw_main_panels(
     Returns:
         Tuple of (image_groundtruth, image_prediction).
 
+    Notes:
+        Draws a red sea ice edge contour line on both panels when
+        ``plot_spec.include_ice_edge`` is set.
+
     """
     # Create colourmap with bad color handling for NaN values
     cmap = colourmap_with_bad(plot_spec.colourmap, bad_color="lightgrey")
@@ -230,6 +236,11 @@ def _draw_main_panels(
         vmax=prediction_vmax,
         origin="lower",
     )
+
+    if plot_spec.include_ice_edge:
+        edge_levels = [plot_spec.ice_edge_threshold]
+        axs[0].contour(ground_truth, levels=edge_levels, colors="red", origin="lower")
+        axs[1].contour(prediction, levels=edge_levels, colors="red", origin="lower")
 
     return image_groundtruth, image_prediction
 
