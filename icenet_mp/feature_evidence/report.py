@@ -99,7 +99,7 @@ def _diagnostic_status(result: Mapping[str, Any], flag: str) -> dict[str, Any] |
     elif value is True:
         reason = "Result-level evidence qualification is true."
     else:
-        reason = "Qualification flag absent; numeric values retained for backward compatibility."
+        reason = "Qualification was not requested for this run; numeric values are retained."
     return {
         "qualification_flag": flag,
         "qualified": value,

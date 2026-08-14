@@ -1,10 +1,10 @@
 # ruff: noqa: EM101, EM102, PLR2004, TRY003
 """Opt-in sampled-map Random Forest screening for SIC predictors.
 
-This module deliberately keeps spatial screening separate from the legacy scalar RF
-diagnostic.  Rows are ``(initialisation date, location)`` pairs and every target
-lead is evaluated independently.  The implementation uses only observations at or
-before the initialisation date for predictors and strata.
+This module deliberately keeps spatial screening separate from the scalar RF
+diagnostic in ``rf.py``.  Rows are ``(initialisation date, location)`` pairs and
+every target lead is evaluated independently.  The implementation uses only
+observations at or before the initialisation date for predictors and strata.
 """
 
 from __future__ import annotations

@@ -144,7 +144,7 @@ def _get_max_samples(config: DictConfig, module_name: str) -> int | None:
     """Resolve ``max_samples`` for a given analysis module.
 
     Looks up ``module.max_samples`` first (e.g. ``pca.max_samples``), falling back to
-    the legacy ``vif.max_samples`` key for backward compatibility with existing configs.
+    the shared ``vif.max_samples`` key so a single value can cap every strand at once.
 
     Args:
         config: Hydra-composed config.

@@ -171,10 +171,10 @@ def test_unqualified_vif_and_excluded_eof_are_not_variable_evidence(
     )
 
 
-def test_absent_diagnostic_flags_preserve_legacy_numeric_evidence(
+def test_absent_diagnostic_flags_preserve_numeric_evidence(
     tmp_path: Path,
 ) -> None:
-    """Older diagnostic JSON without qualification flags remains compatible."""
+    """Diagnostic JSON from an unqualified (non opt-in) run still contributes evidence."""
     vif_path = _write(
         tmp_path / "vif.json",
         {"variable_names": ["era5/2t"], "vif_scores": [2.0]},
@@ -190,7 +190,7 @@ def test_absent_diagnostic_flags_preserve_legacy_numeric_evidence(
     assert evidence.vif == 2.0
     assert evidence.eof_importance == 0.7
     assert report.provenance["diagnostics"]["vif"]["qualified"] is None
-    assert "backward compatibility" in report.provenance["diagnostics"]["eof"]["reason"]
+    assert "not requested" in report.provenance["diagnostics"]["eof"]["reason"]
 
 
 def test_writes_all_report_formats(tmp_path: Path) -> None:

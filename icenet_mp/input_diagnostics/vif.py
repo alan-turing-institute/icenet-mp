@@ -43,7 +43,8 @@ class VIFResult:
     threshold: float
     # Number of samples (timesteps) used.
     n_samples: int
-    # Evidence qualification is opt-in; None preserves legacy interpretation.
+    # Evidence qualification is opt-in; None means qualification wasn't requested,
+    # distinct from a computed True/False.
     evidence_qualified: bool | None = None
     qualification: dict[str, object] | None = None
 
