@@ -2,13 +2,11 @@
 
 This page runs the recommended screening config against one full year of
 real full-north data, side-by-side for the new `sic_change` target and the
-legacy `absolute` target, and walks through what the outputs look like and
-what the new additions on this branch are doing.
+alternative `absolute` target, and walks through what the outputs look like
+and what the new additions on this branch are doing.
 
-The runs were performed on a single Mac Studio against
-`/Volumes/AHBackup/ClimateData` with the data group
-`data=full_north_from_1999`. The full evidence reports and intermediate
-artefacts are in:
+The runs use the data group `data=full_north_from_1999`. The full evidence
+reports and intermediate artefacts are in:
 
 ```
 outputs/demo_year_2020_sic_change_20260812/
@@ -47,7 +45,7 @@ uv run imp pre-feature-analysis \
   rf.spatial.permutation_repeats=3 \
   rf.spatial.plot_results=true
 
-# Legacy config (absolute target, for comparison)
+# Alternative target mode (absolute, for comparison)
 uv run imp pre-feature-analysis \
   --config-name rf_screening/03_feature_screening \
   --output-dir outputs/demo_year_2020_absolute_20260812 \
@@ -92,7 +90,7 @@ so the VIF/PCA/EOF numbers below are identical between the two outputs.
 
 The model-qualification table tells the whole story. The same RF budget
 is used in both runs; only the target changes. With `target_mode: sic_change`
-the RF beats persistence at every lead from 1 to 14. With the legacy
+the RF beats persistence at every lead from 1 to 14. With
 `target_mode: absolute` the RF is *worse* than persistence at every lead —
 and the gap is largest at the short leads where weather/ocean inputs
 should matter most.
@@ -170,10 +168,11 @@ Lead 1
 The "importance is retained for exploratory screening" line is the policy
 doing its job: the user can see the RF rankings, the reliability labels,
 and the recommendations for the `absolute` run, with the model-quality
-context (RF did not beat persistence) right above the table. The previous
-default policy was `qualified`, which would have suppressed every
-importance row in this case and emitted an `inconclusive` recommendation
-for every variable — which is honest but useless.
+context (RF did not beat persistence) right above the table. Without
+`importance_policy: always` set, the policy would default to `qualified`,
+which would have suppressed every importance row in this case and emitted
+an `inconclusive` recommendation for every variable — which is honest
+but useless.
 
 ## VIF, PCA, EOF and the correlation heatmap
 
