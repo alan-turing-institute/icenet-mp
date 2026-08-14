@@ -140,3 +140,29 @@ class TestHydraAdaptor:
         hydra_adaptor(fn)(x=42, config_name="sample")  # type: ignore[arg-type]
         assert received[0][0] == 42
         assert isinstance(received[0][1], DictConfig)
+
+    def test_config_name_not_declared_is_not_forwarded(self) -> None:
+        """Functions that don't ask for config_name see no behaviour change."""
+
+        def fn(config: DictConfig) -> None:
+            del config
+
+        params = inspect.signature(hydra_adaptor(fn)).parameters
+        assert list(params) == ["overrides", "config_name"]
+
+    def test_config_name_declared_is_forwarded_without_duplicate_cli_option(
+        self,
+    ) -> None:
+        received: dict[str, object] = {}
+
+        def fn(config: DictConfig, config_name: str = "sample") -> None:
+            received["config"] = config
+            received["config_name"] = config_name
+
+        wrapped = hydra_adaptor(fn)
+        # Only one config_name parameter should reach the CLI surface.
+        assert list(inspect.signature(wrapped).parameters).count("config_name") == 1
+
+        wrapped(config_name="synthetic")  # type: ignore[arg-type]
+        assert received["config_name"] == "synthetic"
+        assert isinstance(received["config"], DictConfig)

@@ -15,12 +15,17 @@ def hydra_adaptor(function: Callable) -> Callable[Param, RetType]:
     """Replace a function that takes a Hydra config with one that takes string arguments.
 
     Args:
-        function: Callable(*args, config: DictConfig, **kwargs)
+        function: Callable(*args, config: DictConfig, **kwargs). If the function also
+            declares a plain ``config_name`` parameter (not annotated as a typer Option),
+            it receives the resolved config name string alongside ``config`` — useful for
+            deriving output paths from the config being run — without adding a second
+            ``--config-name`` option to the CLI.
 
     Returns:
         Callable(*args, config_name: str, **kwargs, overrides: list[str])
 
     """
+    wants_config_name = "config_name" in inspect.signature(function, eval_str=True).parameters
 
     def wrapper(
         overrides: Annotated[
@@ -38,6 +43,8 @@ def hydra_adaptor(function: Callable) -> Callable[Param, RetType]:
     ) -> RetType:
         with initialize(config_path="../config", version_base=None):
             config = compose(config_name=config_name, overrides=overrides)
+        if wants_config_name:
+            kwargs["config_name"] = config_name
         return function(*args, config=config, **kwargs)
 
     # Separate parameters by kind
@@ -49,6 +56,8 @@ def hydra_adaptor(function: Callable) -> Callable[Param, RetType]:
     for param in fn_signature.parameters.values():
         if param.annotation == DictConfig:
             continue  # skip config param
+        if param.name == "config_name":
+            continue  # forwarded directly above, not exposed as a second CLI option
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             keyword_only_params.append(param)
         else:

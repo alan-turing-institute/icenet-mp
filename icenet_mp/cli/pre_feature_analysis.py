@@ -418,11 +418,19 @@ def pre_feature_analysis(
     _ctx: typer.Context,
     config: DictConfig,
     output_dir: Annotated[
-        str,
+        str | None,
         typer.Option(
-            help="Root directory for all analysis results (subdirs: vif/, pca/, eof/, rf/, correlations/).",
+            help=(
+                "Root directory for all analysis results (subdirs: vif/, pca/, eof/, "
+                "rf/, correlations/, evidence/). Defaults to "
+                "outputs/pre_feature_analysis/<config-name>/, so each screened config "
+                "gets its own output folder."
+            ),
         ),
-    ] = "outputs/pre_feature_analysis",
+    ] = None,
+    config_name: str = "sample",
 ) -> None:
     """Run VIF, PCA, EOF, RF feature importance, and correlation heatmap together."""
+    if output_dir is None:
+        output_dir = str(Path("outputs/pre_feature_analysis") / config_name)
     _run_all_strands(config, Path(output_dir))

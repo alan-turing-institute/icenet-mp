@@ -49,7 +49,6 @@ answer.
 ```bash
 uv run imp pre-feature-analysis \
   --config-name rf_screening/03_feature_screening \
-  --output-dir outputs/pre_feature_analysis \
   platform=<your-platform> \
   data/split=<your-split>
 ```
@@ -59,6 +58,12 @@ uv run imp pre-feature-analysis \
 thresholds. `rf_screening/01_spatial_rf_screening` and
 `rf_screening/02_feature_evidence_registry` are smaller building blocks the `03`
 config layers on top of.
+
+By default, results are written to
+`outputs/pre_feature_analysis/<config-name>/` — one folder per screened
+config, so re-running against a different `--config-name` (or a different
+model yaml) never overwrites a previous run's report. Pass `--output-dir` to
+choose a different location explicitly.
 
 ### Scaling down for a quick check
 
