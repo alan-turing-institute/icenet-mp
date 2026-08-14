@@ -56,7 +56,7 @@ uv run imp pre-feature-analysis \
 `rf_screening/03_feature_screening` is the recommended opt-in config: it sets
 `rf.importance_policy: always` (see below) and reasonable reliability
 thresholds. `rf_screening/01_spatial_rf_screening` and
-`rf_screening/02_feature_evidence_suite` are smaller building blocks the `03`
+`rf_screening/02_feature_evidence_registry` are smaller building blocks the `03`
 config layers on top of.
 
 ### Individual strands

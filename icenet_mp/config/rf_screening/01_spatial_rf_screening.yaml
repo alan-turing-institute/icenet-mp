@@ -1,5 +1,5 @@
 # @package _global_
-# Opt-in sampled-map RF screening.  Legacy scalar RF remains the default elsewhere.
+# Opt-in sampled-map RF screening. Scalar RF (rf.mode: scalar) remains the default.
 defaults:
   - /base
   - override /data: full_north_from_1999

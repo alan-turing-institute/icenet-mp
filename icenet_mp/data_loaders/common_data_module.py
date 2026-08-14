@@ -62,11 +62,6 @@ class CommonDataModule(LightningDataModule):
 
         # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
-        # Optional stride over training window start dates (see CombinedDataset):
-        # consecutive windows overlap in all but one timestep, so a stride of e.g. 2
-        # halves the samples per epoch while barely reducing data coverage. Only
-        # applied to training; validation/test/predict always use every window.
-        self.train_stride = int(config["data"]["split"].get("train_stride", 1))
         self.predict_periods = [
             {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["predict"]
@@ -251,7 +246,6 @@ class CommonDataModule(LightningDataModule):
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
-            stride=self.train_stride,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
