@@ -28,7 +28,7 @@ default is now `sic_change`).
 uv run imp pre-feature-analysis \
   --config-name rf_screening/03_feature_screening \
   --output-dir outputs/demo_year_2020_sic_change_20260812 \
-  platform=ahbackup \
+  platform=<your-platform> \
   data/split=quick_2yr_from_1999 \
   ++data.split.train.0.start=2020-01-01 \
   ++data.split.train.0.end=2020-12-31 \
@@ -49,7 +49,7 @@ uv run imp pre-feature-analysis \
 uv run imp pre-feature-analysis \
   --config-name rf_screening/03_feature_screening \
   --output-dir outputs/demo_year_2020_absolute_20260812 \
-  platform=ahbackup \
+  platform=<your-platform> \
   data/split=quick_2yr_from_1999 \
   ++data.split.train.0.start=2020-01-01 \
   ++data.split.train.0.end=2020-12-31 \
