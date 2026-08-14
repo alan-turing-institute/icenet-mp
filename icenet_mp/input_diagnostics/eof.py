@@ -1,4 +1,4 @@
-"""Variable-space covariance decomposition retained under the EOF command name.
+"""Variable-space covariance decomposition (EOF-style mode analysis).
 
 This implementation spatially averages each variable, centers those time series without
 standardising them, and performs SVD. Its modes are directions across variables, not
@@ -12,8 +12,9 @@ covariance, followed by orthogonal directions of decreasing variance.
   covariance direction; this alone does not establish a physical pattern or usefulness.
 - The explained variance fraction tells you how important each mode is overall.
 
-The calculation is mathematically equivalent to unstandardised PCA on the spatial means.
-It is retained for compatibility and is excluded as independent feature-selection evidence.
+The calculation is mathematically equivalent to unstandardised PCA on the spatial means,
+so it is excluded as independent feature-selection evidence in the evidence report
+(counting both would double-count the same signal).
 
 Like all diagnostics, EOF is **unsupervised** — it does not use the target (SIC).
 High-loading variables are those that vary together in structured ways across timesteps.
@@ -26,15 +27,8 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path  # noqa: TC003
-from typing import TYPE_CHECKING
 
 import numpy as np
-
-from .data import build_sample_matrix, resolve_datasets
-
-if TYPE_CHECKING:
-    from omegaconf import DictConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -157,65 +151,11 @@ def compute_eof(
     )
 
 
-def run_eof_analysis(config: DictConfig) -> EOFResult:
-    """Run the compatibility-named EOF variable-space decomposition from config.
-
-    Resolves dataset paths and variable selections directly from the config, loads raw
-    data via SingleDataset, spatially aggregates, and computes per-variable loading summaries.
-
-    Args:
-        config: Hydra-composed config (from ``imp eof``).
-
-    Returns:
-        EOFResult with computed modes.
-
-    """
-    max_samples = config.get("vif", {}).get(
-        "max_samples", None
-    )  # reuse vif.max_samples key
-
-    group_paths, group_variables = resolve_datasets(config)
-
-    from icenet_mp.data_loaders.single_dataset import SingleDataset  # noqa: PLC0415
-
-    datasets: dict[str, SingleDataset] = {}
-    for group_name, paths in group_paths.items():
-        vars_list = group_variables.get(group_name)
-        if vars_list is not None and len(vars_list) > 0:
-            logger.info(
-                "Loading dataset group %r (%d paths, variables: %s).",
-                group_name,
-                len(paths),
-                vars_list,
-            )
-            datasets[group_name] = SingleDataset(
-                group_name,
-                paths,
-                variables=vars_list,
-            )
-        else:
-            logger.warning(
-                "Dataset group %r has no variable filter — loading all variables (%d paths). "
-                "Consider specifying 'variables' to limit data loaded.",
-                group_name,
-                len(paths),
-            )
-            datasets[group_name] = SingleDataset(group_name, paths)
-
-    sample_matrix, var_names = build_sample_matrix(datasets, max_samples=max_samples)
-
-    logger.info(
-        "Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names)
-    )
-
-    return compute_eof(sample_matrix, var_names)
-
-
 def print_eof_table(result: EOFResult) -> None:
     """Print a formatted EOF results table to stdout.
 
     Args:
-        result: EOFResult from ``compute_eof`` or ``run_eof_analysis``.
+        result: EOFResult from ``compute_eof``.
 
     """
     evr = result.explained_variance_ratio
@@ -272,7 +212,7 @@ def save_eof_results(result: EOFResult, output_dir: Path) -> Path:
     """Save EOF results to JSON and a text report in the given directory.
 
     Args:
-        result: EOFResult from ``compute_eof`` or ``run_eof_analysis``.
+        result: EOFResult from ``compute_eof``.
         output_dir: Directory to write files into (created if missing).
 
     Returns:

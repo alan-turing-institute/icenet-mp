@@ -11,9 +11,9 @@ feature space, not predictive power.
 """
 
 from .data import build_datasets, build_sample_matrix, resolve_datasets
-from .eof import compute_eof, run_eof_analysis
-from .pca import compute_pca, run_pca_analysis
-from .vif import compute_vif, run_vif_analysis
+from .eof import compute_eof
+from .pca import compute_pca
+from .vif import compute_vif
 
 __all__ = [
     "build_datasets",
@@ -22,7 +22,4 @@ __all__ = [
     "compute_pca",
     "compute_vif",
     "resolve_datasets",
-    "run_eof_analysis",
-    "run_pca_analysis",
-    "run_vif_analysis",
 ]

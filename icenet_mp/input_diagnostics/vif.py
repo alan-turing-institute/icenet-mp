@@ -23,10 +23,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path  # noqa: TC003
 
 import numpy as np
-from omegaconf import DictConfig  # noqa: TC002
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-
-from .data import build_datasets, build_sample_matrix, resolve_datasets
 
 logger = logging.getLogger(__name__)
 
@@ -186,46 +183,13 @@ def compute_vif(  # noqa: PLR0913
     )
 
 
-def run_vif_analysis(config: DictConfig) -> VIFResult:
-    """Run a full VIF analysis from a Hydra-composed config.
-
-    Resolves dataset paths and variable selections directly from the config (without
-    requiring a prediction target), loads raw data via SingleDataset, and computes
-    per-variable VIF scores.
-
-    Args:
-        config: Hydra-composed config (from ``imp vif``).
-
-    Returns:
-        VIFResult with computed scores.
-
-    """
-    vif_cfg = config.get("vif", {})
-    threshold = float(vif_cfg.get("threshold", 5.0))
-    max_samples = vif_cfg.get("max_samples", None)
-
-    # Resolve dataset paths and variable selections from config.
-    group_paths, group_variables = resolve_datasets(config)
-
-    # Build SingleDataset instances for each group.
-    datasets = build_datasets(group_paths, group_variables)
-
-    sample_matrix, var_names = build_sample_matrix(datasets, max_samples=max_samples)
-
-    logger.info(
-        "Sample matrix shape: %s (%d variables).", sample_matrix.shape, len(var_names)
-    )
-
-    return compute_vif(sample_matrix, var_names, threshold=threshold)
-
-
 def _format_table_lines(result: VIFResult) -> tuple[list[str], int]:
     """Format VIF results as table lines sorted by score descending.
 
     Shared helper for ``print_vif_table`` and ``save_vif_results`` to avoid duplication.
 
     Args:
-        result: VIFResult from ``compute_vif`` or ``run_vif_analysis``.
+        result: VIFResult from ``compute_vif``.
 
     Returns:
         Tuple of (table_lines, flagged_count).
@@ -252,7 +216,7 @@ def print_vif_table(result: VIFResult) -> None:
     """Print a formatted VIF results table to stdout.
 
     Args:
-        result: VIFResult from ``compute_vif`` or ``run_vif_analysis``.
+        result: VIFResult from ``compute_vif``.
 
     """
     threshold = result.threshold
@@ -280,7 +244,7 @@ def save_vif_results(result: VIFResult, output_dir: Path) -> Path:
     """Save VIF results to JSON and a text report in the given directory.
 
     Args:
-        result: VIFResult from ``compute_vif`` or ``run_vif_analysis``.
+        result: VIFResult from ``compute_vif``.
         output_dir: Directory to write files into (created if missing).
 
     Returns:

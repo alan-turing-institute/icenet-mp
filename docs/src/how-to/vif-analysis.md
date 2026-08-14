@@ -2,7 +2,7 @@
 
 Variance Inflation Factor (VIF) analysis identifies linear relationships between input variables in your model configuration. High VIF scores indicate that a variable is redundant with others, which can degrade training stability and interpretability.
 
-This guide walks through running VIF on your dataset to check for multicollinearity before training.
+This guide walks through running VIF on your dataset to check for multicollinearity before training. VIF is one strand of `imp pre-feature-analysis` — the single command that also runs PCA, EOF, Random Forest importance, and a correlation heatmap; see [Run feature screening](feature-screening.md) for the rest of the pipeline.
 
 ## Prerequisites
 
@@ -21,19 +21,19 @@ You will need real data available at `base_path` (typically `/Volumes/Storage/Cl
 ### Using a single dataset (quick check)
 
 ```bash
-uv run imp vif --config-name baseline/01_unet.yaml \
+uv run imp pre-feature-analysis --config-name baseline/01_unet.yaml \
   'data/datasets=[full_sicnorth_ssmis_25p0km_1979_2024_24h_v2]' \
   ++vif.max_samples=1000
 ```
 
-This loads all variables from the SIC dataset and computes VIF for each one. Use `++vif.max_samples` to limit the number of timesteps loaded (useful for large datasets).
+This loads all variables from the SIC dataset and runs every screening strand, including VIF, against them. Use `++vif.max_samples` to limit the number of timesteps loaded for the VIF strand specifically (useful for large datasets).
 
 ### Using multiple datasets (full analysis)
 
 The baseline configs reference three dataset groups: SIC, ERA5 weather, and ARGO float data. To analyse multicollinearity across all input variables:
 
 ```bash
-uv run imp vif --config-name baseline/01_unet.yaml \
+uv run imp pre-feature-analysis --config-name baseline/01_unet.yaml \
   ++base_path=/Volumes/Storage/ClimateData \
   'data/datasets=[full_sicnorth_ssmis_25p0km_1979_2024_24h_v2, full_weathernorth_era5_25p0km_1999_2025_24h_v3, full_floatnorth_argo_25p0km_1999_2025_24h_v2]' \
   ++vif.max_samples=1000
@@ -46,7 +46,7 @@ uv run imp vif --config-name baseline/01_unet.yaml \
 To limit analysis to particular variables (faster, less output):
 
 ```bash
-uv run imp vif --config-name baseline/01_unet.yaml \
+uv run imp pre-feature-analysis --config-name baseline/01_unet.yaml \
   ++base_path=/Volumes/Storage/ClimateData \
   'data/datasets=[full_sicnorth_ssmis_25p0km_1979_2024_24h_v2]' \
   '+data.datasets.full-sicnorth-ssmis-25p0km-1979-2024-24h-v2.variables=[ice_conc, TEMP, U10]' \
@@ -56,11 +56,11 @@ uv run imp vif --config-name baseline/01_unet.yaml \
 ### Custom threshold and output directory
 
 ```bash
-uv run imp vif --config-name baseline/01_unet.yaml \
+uv run imp pre-feature-analysis --config-name baseline/01_unet.yaml \
   ++base_path=/Volumes/Storage/ClimateData \
   'data/datasets=[full_sicnorth_ssmis_25p0km_1979_2024_24h_v2]' \
   ++vif.threshold=10.0 \
-  --output-dir outputs/my_vif_run
+  --output-dir outputs/my_run
 ```
 
 ## Interpreting results
@@ -95,7 +95,9 @@ In this example:
 
 ## Output files
 
-Results are written to the output directory (default: `outputs/vif/`):
+VIF writes into its own `vif/` subdirectory of `--output-dir` (default:
+`outputs/pre_feature_analysis/vif/`), alongside the other strands'
+subdirectories:
 
 | File | Description |
 |------|-------------|

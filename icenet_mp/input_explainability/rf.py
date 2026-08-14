@@ -631,7 +631,7 @@ def run_rf_analysis(
     sampling approach that ignored temporal structure.
 
     Args:
-        config: Hydra-composed config (from ``imp rf`` or ``imp input-explainability run``).
+        config: Hydra-composed config (as passed to ``imp pre-feature-analysis``).
 
     Returns:
         RFResult with computed scores.

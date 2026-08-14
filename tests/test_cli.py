@@ -45,7 +45,7 @@ class TestBaseCLI:
         r"datasets\s+Manage datasets",
         r"evaluate\s+Evaluate a pre-trained model",
         r"train\s+Train a model",
-        r"vif\s+Run VIF analysis on the configured dataset variables.",
+        r"pre-feature-analysis\s+Run all input variable analysis strands",
     )
 
     def test_help(self) -> None:
@@ -130,16 +130,17 @@ class TestTrainCLI:
         )
 
 
-class TestVIFCLI:
-    def test_vif_help(self) -> None:
+class TestPreFeatureAnalysisCLI:
+    def test_pre_feature_analysis_help(self) -> None:
         runner = CustomCliRunner()
         runner.check_output(
-            ["vif", "--help"],
+            ["pre-feature-analysis", "--help"],
             expected_patterns=[
-                r"Usage: imp vif \[OPTIONS\] \[overrides\]...",
-                r"Run VIF analysis on the configured dataset variables.",
+                r"Usage: imp pre-feature-analysis \[OPTIONS\] \[overrides\]...",
+                r"Run all input variable analysis strands",
                 r"overrides\s+<str>\s+One or more space-separated Hydra config",
                 r"--config-name\s+<str>\s+Name of a file to load from the config",
+                r"--output-dir\s+<str>\s+Root directory for all analysis results",
                 r"--help\s+-h\s+Show this message and exit.",
             ],
         )

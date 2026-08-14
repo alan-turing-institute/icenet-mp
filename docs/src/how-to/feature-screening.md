@@ -3,8 +3,9 @@
 `imp pre-feature-analysis` runs every input-variable screening strand together —
 VIF, PCA, EOF, Random Forest permutation importance, and a correlation heatmap —
 against the same dataset, and consolidates the results into one evidence report.
-Each strand can also be run standalone (`imp pca`, `imp eof`, `imp rf`) for a
-quicker, single-strand check.
+It is the single entrypoint for screening; see
+[Scaling down for a quick check](#scaling-down-for-a-quick-check) below for a
+faster iteration loop rather than running strands separately.
 
 This guide covers everything except VIF, which has its own guide: see
 [Run VIF analysis for multicollinearity](vif-analysis.md).
@@ -58,14 +59,6 @@ uv run imp pre-feature-analysis \
 thresholds. `rf_screening/01_spatial_rf_screening` and
 `rf_screening/02_feature_evidence_registry` are smaller building blocks the `03`
 config layers on top of.
-
-### Individual strands
-
-```bash
-uv run imp pca --config-name <config> 'data/datasets=[...]'
-uv run imp eof --config-name <config> 'data/datasets=[...]'
-uv run imp rf --config-name rf_screening/01_spatial_rf_screening
-```
 
 ### Scaling down for a quick check
 
