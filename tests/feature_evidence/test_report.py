@@ -193,6 +193,33 @@ def test_absent_diagnostic_flags_preserve_numeric_evidence(
     assert "not requested" in report.provenance["diagnostics"]["eof"]["reason"]
 
 
+def test_parameter_summary_rolls_up_lead_stratum_rows(tmp_path: Path) -> None:
+    """The per-parameter rollup aggregates across all lead/stratum evidence rows."""
+    spatial_path = _write(
+        tmp_path / "spatial.json", _spatial_result(interpretable=True)
+    )
+    report = build_evidence_rows(_registry(), spatial_rf_path=spatial_path)
+
+    json_path, _, markdown_path = save_evidence_report(report, tmp_path / "report")
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    assert len(payload["parameter_summary"]) == 1
+    summary = payload["parameter_summary"][0]
+    assert summary["identifier"] == "era5/2t"
+    assert summary["lead_stratum_combinations"] == len(report.variable_evidence)
+    assert (
+        summary["retain_count"]
+        + summary["investigate_count"]
+        + summary["deprioritise_count"]
+        + summary["inconclusive_count"]
+        == summary["lead_stratum_combinations"]
+    )
+    assert summary["overall_recommendation"] == "retain"
+    assert "## Parameter summary (rollup across lead and stratum)" in markdown
+    assert "era5/2t" in markdown.split("## Parameter summary")[1].split("##")[0]
+
+
 def test_writes_all_report_formats(tmp_path: Path) -> None:
     """Reports are available for both programmatic and researcher-facing use."""
     report = build_evidence_rows(_registry())

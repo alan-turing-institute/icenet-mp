@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 from dataclasses import asdict, dataclass
+from statistics import fmean
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -171,6 +173,66 @@ def _recommendation(
     if stability is not None and float(stability) < _MINIMUM_STABLE_RANK:
         return "investigate"
     return "retain"
+
+
+def _overall_recommendation(counts: Counter[str]) -> str:
+    """Roll many lead/stratum recommendations up into one cautious headline.
+
+    A tie (including a retain/deprioritise split with no clear majority) is reported
+    as "investigate" rather than picking a side arbitrarily - this stays advisory
+    rather than implying a confident hard rule from mixed evidence.
+    """
+    scored = {
+        label: count for label, count in counts.items() if label != "inconclusive"
+    }
+    if not scored:
+        return "inconclusive"
+    top_count = max(scored.values())
+    leaders = [label for label, count in scored.items() if count == top_count]
+    return leaders[0] if len(leaders) == 1 else "investigate"
+
+
+def _summarise_by_parameter(rows: list[EvidenceRow]) -> list[dict[str, Any]]:
+    """Roll granular lead/stratum evidence rows up into one row per parameter.
+
+    The variable-level table has one row per (parameter, lead, stratum) - hundreds
+    to thousands of rows for a realistic feature set. This rollup gives researchers
+    an at-a-glance view per parameter without scanning the full table.
+    """
+    grouped: dict[str, list[EvidenceRow]] = {}
+    for row in rows:
+        grouped.setdefault(row.identifier, []).append(row)
+
+    summaries = []
+    for identifier, group_rows in grouped.items():
+        counts = Counter(row.recommendation for row in group_rows)
+        importances = [
+            row.rf_group_importance
+            for row in group_rows
+            if row.rf_group_importance is not None
+        ]
+        stabilities = [
+            row.rf_rank_stability
+            for row in group_rows
+            if row.rf_rank_stability is not None
+        ]
+        summaries.append(
+            {
+                "identifier": identifier,
+                "family": group_rows[0].family,
+                "lead_stratum_combinations": len(group_rows),
+                "retain_count": counts.get("retain", 0),
+                "investigate_count": counts.get("investigate", 0),
+                "deprioritise_count": counts.get("deprioritise", 0),
+                "inconclusive_count": counts.get("inconclusive", 0),
+                "mean_permutation_importance": fmean(importances)
+                if importances
+                else None,
+                "mean_rank_stability": fmean(stabilities) if stabilities else None,
+                "overall_recommendation": _overall_recommendation(counts),
+            }
+        )
+    return summaries
 
 
 def build_evidence_rows(
@@ -369,9 +431,11 @@ def save_evidence_report(
         "Exploratory screening only: the same held-out folds are used for model "
         "qualification and permutation importance; this is not confirmatory evidence."
     )
+    parameter_summary = _summarise_by_parameter(report.variable_evidence)
     payload = {
         "warning": warning,
         "provenance": report.provenance,
+        "parameter_summary": parameter_summary,
         "model_qualification": [asdict(row) for row in report.model_qualification],
         "variable_evidence": records,
     }
@@ -409,6 +473,45 @@ def save_evidence_report(
         display = "not reported" if qualified is None else str(qualified).lower()
         lines.append(
             f"- {str(name).upper()} evidence qualified: {display}; reason: {status['reason']}"
+        )
+    lines.extend(
+        [
+            "",
+            "## Parameter summary (rollup across lead and stratum)",
+            "",
+            (
+                "Each parameter appears once per forecast lead and spatial stratum in the "
+                "detailed table below; this rolls those rows up so the overall pattern "
+                "for a parameter doesn't require scanning the full table. `Overall "
+                "guidance` is the most common per-row recommendation, or `investigate` "
+                "when there is no clear majority - it is advisory, not a hard rule."
+            ),
+            "",
+            (
+                "| Parameter | Family | Lead/stratum rows | Retain | Investigate | "
+                "Deprioritise | Inconclusive | Mean permutation importance | "
+                "Mean rank stability | Overall guidance |"
+            ),
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+        ]
+    )
+    for summary in parameter_summary:
+        mean_importance = (
+            f"{summary['mean_permutation_importance']:.6f}"
+            if summary["mean_permutation_importance"] is not None
+            else "—"
+        )
+        mean_stability = (
+            f"{summary['mean_rank_stability']:.3f}"
+            if summary["mean_rank_stability"] is not None
+            else "—"
+        )
+        lines.append(
+            f"| {summary['identifier']} | {summary['family']} | "
+            f"{summary['lead_stratum_combinations']} | {summary['retain_count']} | "
+            f"{summary['investigate_count']} | {summary['deprioritise_count']} | "
+            f"{summary['inconclusive_count']} | {mean_importance} | {mean_stability} | "
+            f"{summary['overall_recommendation']} |"
         )
     lines.extend(
         [
