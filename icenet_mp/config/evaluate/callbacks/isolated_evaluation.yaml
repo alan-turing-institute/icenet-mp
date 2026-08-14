@@ -1,3 +1,0 @@
-isolated_evaluation:
-  _target_: icenet_mp.callbacks.IsolatedEvaluationCallback
-  output_dir: ${evaluate.run_directory}

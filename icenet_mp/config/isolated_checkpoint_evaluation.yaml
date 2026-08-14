@@ -1,9 +1,0 @@
-# @package _global_
-defaults:
-  - /base
-  - override /evaluate: isolated_checkpoint
-  - override /loggers: isolated_evaluation
-  - _self_
-
-evaluation:
-  run_name: ???

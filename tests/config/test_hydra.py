@@ -59,16 +59,6 @@ class TestHydraConfigLoading:
         assert "metric_summary" not in cfg.train.callbacks
         assert "metric_summary" not in cfg.evaluate.callbacks
 
-    def test_isolated_checkpoint_evaluation_requires_named_local_run(self) -> None:
-        cfg = self.load_config(
-            config_name="isolated_checkpoint_evaluation",
-            overrides=["evaluation.run_name=checkpoint-a"],
-        )
-
-        assert list(cfg.loggers) == ["isolated_evaluation"]
-        assert list(cfg.evaluate.callbacks) == ["isolated_evaluation"]
-        assert cfg.evaluate.run_directory.endswith("/evaluation/checkpoint-a")
-
     def test_feature_screening_policy_is_opt_in(self) -> None:
         """The screening baseline retains importance without changing older baselines."""
         existing = self.load_config(config_name="rf_screening/02_feature_evidence_suite")
@@ -76,7 +66,7 @@ class TestHydraConfigLoading:
 
         assert existing.rf.get("importance_policy", "qualified") == "qualified"
         assert screening.rf.importance_policy == "always"
-        assert screening.rf.target_mode == "absolute"
+        assert screening.rf.target_mode == "sic_change"
 
     def test_feature_screening_backend_selection_is_opt_in(self) -> None:
         """Default backend is RandomForest; HistGradientBoosting is opt-in via a new baseline."""

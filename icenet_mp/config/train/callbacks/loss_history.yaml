@@ -1,3 +1,0 @@
-loss_history:
-  _target_: icenet_mp.callbacks.LossHistoryCallback
-  history_path: ${base_path}/report/loss_history.json
