@@ -29,7 +29,6 @@ class ConvBlockUpsample(nn.Module):
         norm_type: str = "batchnorm",
         out_channels: int | None = None,
         scale_factor: int = 2,
-        upsample_last: bool = False,
         upsample_mode: str = "bilinear",
     ) -> None:
         """Initialize a ConvBlockUpsample module.
@@ -42,12 +41,6 @@ class ConvBlockUpsample(nn.Module):
             norm_type: type of normalization ("groupnorm", "batchnorm", or "none").
             out_channels: the number of output channels (if None, scale input channels down by scale_factor).
             scale_factor: the factor by which to upsample the spatial dimensions (default is 2).
-            upsample_last: if True, run the convolutions (including the channel
-                reduction) at the input resolution and upsample afterwards, instead of
-                upsampling first and convolving at the upsampled resolution. The
-                convolutional work then costs scale_factor^2 less FLOPs and activation
-                memory for the same parameter count, at the price of the convolutions'
-                receptive field being measured pre-upsample.
             upsample_mode: the method to use for upsampling ("bilinear" or "shuffle").
 
         """
@@ -66,39 +59,29 @@ class ConvBlockUpsample(nn.Module):
             msg = f"Unsupported upsample_mode: {upsample_mode}"
             raise ValueError(msg)
 
-        upsample_channels = out_channels if upsample_last else in_channels
-        upsample = {
-            "bilinear": nn.Upsample(
-                scale_factor=scale_factor, mode="bilinear", align_corners=False
+        self.model = nn.Sequential(
+            # Size increasing upsample/normalisation/activation that maintains channels
+            {
+                "bilinear": nn.Upsample(
+                    scale_factor=scale_factor, mode="bilinear", align_corners=False
+                ),
+                "shuffle": WeightedUpsample(in_channels, upsample_factor=scale_factor),
+            }[upsample_mode],
+            normalisation_from_name(norm_type, in_channels),
+            ACTIVATION_FROM_NAME[activation](),
+            *(
+                # Size preserving convolution/normalisation/activation
+                # Final block also changes channels to out_channels
+                ConvNormAct(
+                    in_channels,
+                    out_channels if idx_subblock == n_subblocks - 1 else in_channels,
+                    activation=activation,
+                    kernel_size=kernel_size,
+                    norm_type=norm_type,
+                )
+                for idx_subblock in range(n_subblocks)
             ),
-            "shuffle": WeightedUpsample(
-                upsample_channels, upsample_factor=scale_factor
-            ),
-        }[upsample_mode]
-        conv_subblocks = (
-            # Size preserving convolution/normalisation/activation
-            # Final block also changes channels to out_channels
-            ConvNormAct(
-                in_channels,
-                out_channels if idx_subblock == n_subblocks - 1 else in_channels,
-                activation=activation,
-                kernel_size=kernel_size,
-                norm_type=norm_type,
-            )
-            for idx_subblock in range(n_subblocks)
         )
-        if upsample_last:
-            # Convolve (and cut channels) at the input resolution, upsample after
-            self.model = nn.Sequential(*conv_subblocks, upsample)
-        else:
-            # Size increasing upsample/normalisation/activation that maintains
-            # channels, then convolve at the upsampled resolution
-            self.model = nn.Sequential(
-                upsample,
-                normalisation_from_name(norm_type, in_channels),
-                ACTIVATION_FROM_NAME[activation](),
-                *conv_subblocks,
-            )
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         return self.model(x)

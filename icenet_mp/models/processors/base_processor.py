@@ -1,7 +1,6 @@
 from collections import deque
 
 from torch import cat, nn, stack
-from torch.utils.checkpoint import checkpoint
 
 from icenet_mp.types import DataSpace, ProcessorOutput, TensorNCHW, TensorNTCHW
 
@@ -23,30 +22,13 @@ class BaseProcessor(nn.Module):
         data_space_target: DataSpace | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
-        checkpoint_rollout: bool = False,
     ) -> None:
-        """Initialise a BaseProcessor.
-
-        Args:
-            data_space: The latent input space.
-            data_space_target: The latent target space (defaults to `data_space`).
-            n_forecast_steps: Number of forecast steps to roll out.
-            n_history_steps: Number of history steps in the input window.
-            checkpoint_rollout: If True, apply gradient checkpointing to each rollout
-                step during training. Gradients are unchanged, but instead of holding
-                the activations of every rollout step live until backward, each step's
-                forward is recomputed during backward — trading a second forward pass
-                for freeing most of the rollout's activation memory. This is what
-                makes larger batch sizes viable: the full multi-step graph otherwise
-                grows superlinearly expensive under unified-memory pressure.
-
-        """
+        """Initialise a BaseProcessor."""
         super().__init__()
         self.data_space = data_space
         self.data_space_target = data_space_target or data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
-        self.checkpoint_rollout = checkpoint_rollout
         # The latent spatial dimensions (H, W) for the inputs and target must match
         if self.data_space_target.shape != self.data_space.shape:
             msg = (
@@ -110,13 +92,8 @@ class BaseProcessor(nn.Module):
         # Slide the window forward, predicting one timestep at a time from the whole
         # window and then dropping the oldest timestep to make room for the prediction.
         outputs: list[TensorNCHW] = []
-        use_checkpoint = self.checkpoint_rollout and self.training
         for _ in range(self.n_forecast_steps):
-            window_cat = cat(list(window), dim=1)
-            if use_checkpoint:
-                next_step = checkpoint(self.__call__, window_cat, use_reentrant=False)
-            else:
-                next_step = self(window_cat)
+            next_step = self(cat(list(window), dim=1))
             outputs.append(next_step)
             window.popleft()
             window.append(next_step)

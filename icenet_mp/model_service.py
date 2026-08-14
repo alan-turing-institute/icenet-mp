@@ -3,7 +3,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import hydra
 import torch
@@ -13,11 +13,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
-from icenet_mp.callbacks import (
-    IsolatedEvaluationCallback,
-    PlottingCallback,
-    UnconditionalCheckpoint,
-)
+from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
 from icenet_mp.compatibility.torch import (
     patch_interpolate_antialias,
     patch_open_file_limit,
@@ -29,64 +25,6 @@ from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
 log = logging.getLogger(__name__)
-
-
-def _checkpoint_constructor_overrides(checkpoint_path: Path) -> dict[str, Any]:
-    """Recover architecture options omitted by legacy checkpoint hyperparameters."""
-    try:
-        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    except Exception:  # noqa: BLE001
-        log.debug(
-            "Could not inspect checkpoint hyperparameters at %s.", checkpoint_path
-        )
-        return {}
-
-    hyperparameters = checkpoint.get("hyper_parameters", {})
-    overrides: dict[str, Any] = {}
-
-    processor = hyperparameters.get("processor")
-    state_dict = checkpoint.get("state_dict", {})
-    if (
-        isinstance(processor, (dict, DictConfig))
-        and processor.get("_target_") == "icenet_mp.models.processors.VitProcessor"
-        and "decode_head" not in processor
-        and "processor.patch_to_pixels.weight" in state_dict
-    ):
-        processor = DictConfig(OmegaConf.create(processor))
-        processor["decode_head"] = "conv_refine"
-        patch_size = int(processor["patch_size"])
-        projected_channels = int(
-            state_dict["processor.patch_to_pixels.weight"].shape[0]
-        )
-        processor["refine_channels"] = projected_channels // (patch_size**2)
-        processor["refine_kernel_size"] = int(
-            state_dict["processor.refine.0.block.0.block.0.weight"].shape[-1]
-        )
-        log.info(
-            "Detected legacy ViT conv-refine checkpoint; restoring omitted decode-head settings."
-        )
-        overrides["processor"] = processor
-
-    # `use_residual_output` was retired in favour of `decoder.skip_connection.method:
-    # additive`, which combines the persistence base frame before masking rather than
-    # after -- silently dropping it here rather than raising would reload the checkpoint
-    # with the persistence base frame never added back on, producing near-zero/garbage
-    # output instead of a valid forecast.
-    decoder = hyperparameters.get("decoder")
-    if (
-        hyperparameters.get("use_residual_output")
-        and isinstance(decoder, (dict, DictConfig))
-        and not decoder.get("skip_connection")
-    ):
-        decoder = DictConfig(OmegaConf.create(decoder))
-        decoder["skip_connection"] = {"method": "additive"}
-        log.info(
-            "Detected legacy use_residual_output checkpoint; restoring equivalent "
-            "decoder.skip_connection=additive."
-        )
-        overrides["decoder"] = decoder
-
-    return overrides
 
 
 class ModelService:
@@ -122,7 +60,6 @@ class ModelService:
 
         self.data_module_: CommonDataModule | None = None
         self.model_: BaseModel | None = None
-        self.checkpoint_path_: Path | None = None
 
     @classmethod
     def from_config(cls, config: DictConfig) -> "ModelService":
@@ -178,31 +115,16 @@ class ModelService:
                 combined_cfg[key] = OmegaConf.merge(
                     combined_cfg.get(key, {}), ckpt_config.get(key, {})
                 )
-            current_callbacks = config.get("evaluate", {}).get("callbacks", {})
-            isolated_evaluation = any(
-                callback.get("_target_")
-                == "icenet_mp.callbacks.IsolatedEvaluationCallback"
-                for callback in current_callbacks.values()
-            )
-            if isolated_evaluation:
-                combined_cfg["evaluate"]["callbacks"] = OmegaConf.create(
-                    OmegaConf.to_container(current_callbacks)
-                )
-                combined_cfg["loggers"] = OmegaConf.create(
-                    OmegaConf.to_container(config.get("loggers", {}))
-                )
         except (NotADirectoryError, FileNotFoundError):
             combined_cfg = config
             log.debug("Could not load checkpoint configuration from %s.", config_path)
 
         # Load the model from checkpoint
         builder = cls(combined_cfg)
-        builder.checkpoint_path_ = checkpoint_path.resolve()
         model_cls: type[BaseModel] = hydra.utils.get_class(
             builder.config["model"]["_target_"]
         )
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
-        constructor_overrides = _checkpoint_constructor_overrides(checkpoint_path)
         builder.model_ = model_cls.load_from_checkpoint(
             checkpoint_path,
             mask_dir=str(builder.data_module.mask_directory),
@@ -210,7 +132,6 @@ class ModelService:
             longitudes_fn=lambda: builder.data_module.longitudes,
             map_location="cpu",  # portability: will be moved to the correct device later
             weights_only=False,
-            **constructor_overrides,
         )
 
         return builder
@@ -358,7 +279,7 @@ class ModelService:
             / f"run-{get_timestamp()}-{generate_id()}"
         )
 
-    def build_trainer(  # noqa: C901, PLR0912, PLR0915
+    def build_trainer(  # noqa: C901, PLR0912
         self,
         *,
         config: DictConfig,
@@ -442,18 +363,7 @@ class ModelService:
         )
 
         # Ensure the run directory exists
-        configured_run_directory = config.get("run_directory")
-        run_directory = (
-            Path(str(configured_run_directory)).expanduser().resolve()
-            if configured_run_directory
-            else self.build_run_directory(trainer)
-        )
-        if configured_run_directory and run_directory.exists():
-            msg = (
-                f"Configured run directory already exists: {run_directory}. "
-                "Select a new evaluation run name."
-            )
-            raise FileExistsError(msg)
+        run_directory = self.build_run_directory(trainer)
         log.debug("Set run directory to %s.", run_directory)
         run_directory.mkdir(parents=True, exist_ok=True)
 
@@ -477,16 +387,6 @@ class ModelService:
                     "name", self.model.__class__.__name__
                 )
                 callback.set_metadata(self.config, model_name)
-            if isinstance(callback, IsolatedEvaluationCallback):
-                if self.checkpoint_path_ is None:
-                    msg = "Isolated evaluation is only supported for checkpoint evaluation."
-                    raise ValueError(msg)
-                callback.set_evaluation_context(
-                    checkpoint_path=self.checkpoint_path_,
-                    config=self.config,
-                    target_group_name=self.data_module.target_group_name,
-                    target_variable_indices=self.data_module.target_variable_indices,
-                )
             # Set plotting stage
             if isinstance(callback, PlottingCallback):
                 log.debug(

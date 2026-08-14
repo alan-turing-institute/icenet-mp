@@ -26,9 +26,7 @@ class CNNDecoder(BaseDecoder):
         TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
-    # Each keyword is a distinct Hydra-configured hyperparameter logged verbatim into
-    # checkpoints; bundling them into a config object would break existing checkpoints.
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         activation: str = "ReLU",
@@ -37,7 +35,6 @@ class CNNDecoder(BaseDecoder):
         n_subblocks: int = 2,
         norm_type: str = "batchnorm",
         scale_factor: int = 2,
-        upsample_last: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNDecoder."""
@@ -92,7 +89,6 @@ class CNNDecoder(BaseDecoder):
                     n_subblocks=n_subblocks,
                     norm_type=norm_type,
                     scale_factor=scale_factor,
-                    upsample_last=upsample_last,
                 )
             )
             logger.debug(

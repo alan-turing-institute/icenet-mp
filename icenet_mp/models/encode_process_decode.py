@@ -4,7 +4,7 @@ import hydra
 import torch
 from omegaconf import DictConfig
 
-from icenet_mp.types import DataSpace, SkipConnectionType, TensorNTCHW
+from icenet_mp.types import DataSpace, TensorNTCHW
 
 from .base_model import BaseModel
 
@@ -20,9 +20,7 @@ class EncodeProcessDecode(BaseModel):
     # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
     ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
 
-    # Each keyword is a distinct Hydra-configured hyperparameter logged verbatim into
-    # checkpoints; bundling them into a config object would break existing checkpoints.
-    def __init__(  # noqa: C901, PLR0913
+    def __init__(
         self,
         *,
         encoders: DictConfig,
@@ -30,53 +28,10 @@ class EncodeProcessDecode(BaseModel):
         decoder: DictConfig,
         target_variable_indices: list[int],
         mask_dir: str | None = None,
-        use_skip_connection: bool = False,
-        use_motion_channels: bool = False,
-        use_day_order_channels: bool = False,
         **kwargs: Any,
     ) -> None:
-        """Initialise an EncodeProcessDecode model.
-
-        Args:
-            encoders: Per-dataset encoder configs, plus `latent_space`.
-            processor: Processor config.
-            decoder: Decoder config.
-            target_variable_indices: Channel indices of the target variables within
-                the target group's input tensor. Used to select the persistence base
-                frame for the decoder's own skip connection (``decoder.skip_connection``,
-                e.g. ``method: additive`` for a persistence/residual-output model;
-                ModelService passes this automatically).
-            mask_dir: Optional directory containing land/active masks.
-            use_skip_connection: If True, concatenate the most recent encoded history
-                timestep onto the processor's output before decoding (channel dim),
-                broadcasting it across all forecast steps. Processors that route
-                everything through a bottleneck with no spatial skip path of their own
-                (e.g. a patchified ViT) lose fine boundary detail that a skip
-                connection lets the decoder recover directly from the input, the same
-                way UNetProcessor's own internal skip connections do. This is
-                independent of (and can be combined with) the decoder's own
-                persistence skip connection (``decoder.skip_connection``).
-            use_motion_channels: If True, concatenate frame-to-frame differences of
-                each input dataset's history window onto its raw frames (channel dim)
-                before encoding, giving every encoder an explicit velocity cue instead
-                of relying on it being inferred purely from stacked raw frames. The
-                first history step has no earlier frame to diff against, so its motion
-                channels are zero-filled. Doubles each encoder's expected input
-                channel count.
-            use_day_order_channels: If True, concatenate one extra channel onto each
-                timestep of each input dataset's history window before encoding,
-                holding a constant label for that timestep's position in the window
-                (0 for the oldest day up to 1 for the most recent). This gives the
-                encoder an explicit day-order cue rather than relying on order being
-                inferred from channel position alone. Adds one to each encoder's
-                expected input channel count.
-            **kwargs: forwarded to ``BaseModel``.
-
-        """
+        """Initialise an EncodeProcessDecode model."""
         super().__init__(**kwargs)
-        self.use_skip_connection = use_skip_connection
-        self.use_motion_channels = use_motion_channels
-        self.use_day_order_channels = use_day_order_channels
 
         # Check that the number of variable indices provided matches the number of
         # channels in the output space.
@@ -89,45 +44,13 @@ class EncodeProcessDecode(BaseModel):
             raise ValueError(msg)
         self.target_variable_indices = target_variable_indices
 
-        # Fail fast, before instantiating any encoders/processor/decoder, if the
-        # decoder's own persistence skip connection is requested but there is no
-        # observed target frame available to build its persistence base from.
-        skip_connection_cfg = decoder.get("skip_connection") or {}
-        skip_connection_method = SkipConnectionType(
-            skip_connection_cfg.get("method", SkipConnectionType.NONE)
-        )
-        if skip_connection_method != SkipConnectionType.NONE:
-            input_names = {space.name for space in self.input_spaces}
-            if self.output_space.name not in input_names:
-                msg = (
-                    f"decoder.skip_connection requires the target group "
-                    f"'{self.output_space.name}' to be one of the input datasets "
-                    f"{sorted(input_names)}, so the last observed frame is available "
-                    f"as the persistence base."
-                )
-                raise ValueError(msg)
-
-        def encoder_input_space(input_space: DataSpace) -> DataSpace:
-            channels = input_space.channels
-            if use_motion_channels:
-                channels *= 2
-            if use_day_order_channels:
-                channels += 1
-            if channels == input_space.channels:
-                return input_space
-            return DataSpace(
-                channels=channels,
-                name=input_space.name,
-                shape=input_space.shape,
-            )
-
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
         try:
             self.encoders: list[BaseEncoder] = [
                 hydra.utils.instantiate(
                     encoders[input_space.name],
-                    data_space_in=encoder_input_space(input_space),
+                    data_space_in=input_space,
                     latent_space=encoders["latent_space"],
                     latitudes_fn=self.latitudes_fn,
                     longitudes_fn=self.longitudes_fn,
@@ -191,54 +114,13 @@ class EncodeProcessDecode(BaseModel):
             n_history_steps=self.n_history_steps,
         )
 
-        # Add a decoder. If a skip connection is used, the decoder receives the
-        # processor's output concatenated with the most recent encoded history
-        # timestep, so it has twice as many input channels.
-        decoder_data_space_in = (
-            DataSpace(
-                name=combined_latent_space.name,
-                channels=combined_latent_space.channels * 2,
-                shape=combined_latent_space.shape,
-            )
-            if use_skip_connection
-            else combined_latent_space
-        )
+        # Add a decoder
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
-            data_space_in=decoder_data_space_in,
+            data_space_in=combined_latent_space,
             data_space_out=self.output_space,
             mask_dir=mask_dir,
         )
-
-    @staticmethod
-    def _with_motion_channels(x: TensorNTCHW) -> TensorNTCHW:
-        """Concatenate frame-to-frame differences as extra channels (explicit velocity cue).
-
-        The first history step has no earlier frame to diff against, so its motion
-        channels are zero-filled rather than dropped, to keep the timestep count
-        unchanged.
-        """
-        diffs = x[:, 1:] - x[:, :-1]
-        zero_pad = torch.zeros_like(x[:, :1])
-        diffs = torch.cat([zero_pad, diffs], dim=1)
-        return torch.cat([x, diffs], dim=2)
-
-    @staticmethod
-    def _with_day_order_channels(x: TensorNTCHW) -> TensorNTCHW:
-        """Concatenate a constant day-order label channel onto each timestep.
-
-        Each timestep gains one channel whose value marks its position in the history
-        window, spaced evenly from 0 (oldest) to 1 (most recent). A single-timestep
-        window is labelled 0.
-        """
-        batch, n_steps, _, height, width = x.shape
-        labels = torch.linspace(
-            0.0, 1.0, max(n_steps, 2), device=x.device, dtype=x.dtype
-        )[:n_steps]
-        labels = labels.view(1, n_steps, 1, 1, 1).expand(
-            batch, n_steps, 1, height, width
-        )
-        return torch.cat([x, labels], dim=2)
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model.
@@ -250,21 +132,9 @@ class EncodeProcessDecode(BaseModel):
         - decode back to [NTCHW] output space [batch, n_forecast_steps, n_output_channels, H_output, W_output]
         - add a skip connection from the most recent target value to every forecast step
         """
-        encoder_inputs = inputs
-        if self.use_motion_channels:
-            encoder_inputs = {
-                name: self._with_motion_channels(tensor)
-                for name, tensor in encoder_inputs.items()
-            }
-        if self.use_day_order_channels:
-            encoder_inputs = {
-                name: self._with_day_order_channels(tensor)
-                for name, tensor in encoder_inputs.items()
-            }
-
         # Encode inputs into latent space: list of tensors with (batch_size, n_history_steps, n_latent_channels, latent_height, latent_width)
         latent_inputs: list[TensorNTCHW] = [
-            encoder.rollout(encoder_inputs[encoder.name]) for encoder in self.encoders
+            encoder.rollout(inputs[encoder.name]) for encoder in self.encoders
         ]
 
         # Combine in the variable dimension: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
@@ -285,16 +155,8 @@ class EncodeProcessDecode(BaseModel):
             else None
         )
 
-        # Optionally skip the most recent encoded history timestep straight to the
-        # decoder (bypassing the processor), broadcast across every forecast step.
-        # Independent of (and combinable with) the decoder's own persistence skip
-        # connection above.
-        if self.use_skip_connection:
-            most_recent = latent_input_combined[:, -1:, :, :, :]
-            skip = most_recent.expand(-1, self.n_forecast_steps, -1, -1, -1)
-            latent_output = torch.cat([latent_output, skip], dim=2)
-
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         output: TensorNTCHW = self.decoder.rollout(latent_output, persistence)
 
+        # Return
         return output
