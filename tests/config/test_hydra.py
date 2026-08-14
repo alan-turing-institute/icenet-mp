@@ -61,7 +61,9 @@ class TestHydraConfigLoading:
 
     def test_feature_screening_policy_is_opt_in(self) -> None:
         """The screening baseline retains importance without changing older baselines."""
-        existing = self.load_config(config_name="rf_screening/02_feature_evidence_registry")
+        existing = self.load_config(
+            config_name="rf_screening/02_feature_evidence_registry"
+        )
         screening = self.load_config(config_name="rf_screening/03_feature_screening")
 
         assert existing.rf.get("importance_policy", "qualified") == "qualified"

@@ -25,7 +25,9 @@ def hydra_adaptor(function: Callable) -> Callable[Param, RetType]:
         Callable(*args, config_name: str, **kwargs, overrides: list[str])
 
     """
-    wants_config_name = "config_name" in inspect.signature(function, eval_str=True).parameters
+    wants_config_name = (
+        "config_name" in inspect.signature(function, eval_str=True).parameters
+    )
 
     def wrapper(
         overrides: Annotated[
