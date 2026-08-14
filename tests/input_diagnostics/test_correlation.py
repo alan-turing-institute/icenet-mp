@@ -67,16 +67,16 @@ class TestPlotCorrelationHeatmap:
     """Tests for the plot_correlation_heatmap function."""
 
     def test_creates_file(self, tmp_path: Path) -> None:
-        """Should create a PNG file at the given path."""
+        """Should create correlations.png inside the given directory."""
         rng = np.random.default_rng(42)
         matrix = rng.standard_normal((100, 3))
         names = ["a", "b", "c"]
 
         corr_df = compute_correlation_matrix(matrix, names)
 
-        out_path = tmp_path / "correlations.png"
-        plot_correlation_heatmap(corr_df, out_path)
+        out_path = plot_correlation_heatmap(corr_df, tmp_path)
 
+        assert out_path == tmp_path / "correlations.png"
         assert out_path.exists()
 
 

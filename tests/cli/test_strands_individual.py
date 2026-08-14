@@ -102,9 +102,9 @@ class TestCorrelationStrand:
     def test_multi_variable_succeeds(self, tmp_path: Path) -> None:
         """Multi-variable input should produce correlation outputs.
 
-        Note: _run_correlation_strand passes output_dir / "correlations" to both
-        plot and save functions, creating a nested structure:
-        <output_dir>/correlations/correlations.csv (CSV) + correlations.png (PNG).
+        _run_correlation_strand passes output_dir / "correlations" to both plot and
+        save functions, so both land together in <output_dir>/correlations/:
+        correlations.csv and correlations.png.
         """
         rng = np.random.default_rng(42)
         matrix = rng.standard_normal((100, 5))
@@ -114,8 +114,7 @@ class TestCorrelationStrand:
 
         nested_corr = tmp_path / "correlations"
         assert (nested_corr / "correlations.csv").exists()
-        # plot_correlation_heatmap saves without .png extension; check directory has files.
-        assert any(p.is_file() for p in nested_corr.iterdir())
+        assert (nested_corr / "correlations.png").exists()
 
     def test_single_variable_succeeds(self, tmp_path: Path) -> None:
         """Single-variable input should still produce correlation output."""
@@ -126,6 +125,7 @@ class TestCorrelationStrand:
 
         nested_corr = tmp_path / "correlations"
         assert (nested_corr / "correlations.csv").exists()
+        assert (nested_corr / "correlations.png").exists()
 
 
 class TestStrandLoggingOutput:

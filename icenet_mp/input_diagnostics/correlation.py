@@ -46,13 +46,18 @@ def compute_correlation_matrix(
 
 def plot_correlation_heatmap(
     corr_df: pd.DataFrame,
-    output_path: Path | str,
-) -> None:
+    output_dir: Path | str,
+) -> Path:
     """Plot a correlation heatmap with clustermap.
 
     Args:
         corr_df: Correlation DataFrame from ``compute_correlation_matrix``.
-        output_path: Path to save the figure (PNG).
+        output_dir: Directory to save the figure into, as ``correlations.png`` -
+            matches :func:`save_correlation_csv`'s directory convention so both
+            land in the same folder.
+
+    Returns:
+        Path to the saved PNG file.
 
     """
     import matplotlib.pyplot as plt  # noqa: PLC0415
@@ -68,10 +73,12 @@ def plot_correlation_heatmap(
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
     plt.tight_layout()
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(str(output_path), dpi=150, bbox_inches="tight")
+    out_path = Path(output_dir) / "correlations.png"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(out_path), dpi=150, bbox_inches="tight")
     plt.close(fig)
-    logger.info("Correlation heatmap written to %s", output_path)
+    logger.info("Correlation heatmap written to %s", out_path)
+    return out_path
 
 
 def print_correlation_summary(corr_df: pd.DataFrame, top_n: int = 10) -> None:
