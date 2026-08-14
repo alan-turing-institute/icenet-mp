@@ -50,6 +50,7 @@ class EvidenceRow:
     rf_add_to_sic_gain: float | None = None
     rf_drop_from_full_loss: float | None = None
     recommendation: str = "inconclusive"
+    correlated_alternatives: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -230,6 +231,7 @@ def _summarise_by_parameter(rows: list[EvidenceRow]) -> list[dict[str, Any]]:
                 else None,
                 "mean_rank_stability": fmean(stabilities) if stabilities else None,
                 "overall_recommendation": _overall_recommendation(counts),
+                "correlated_alternatives": list(group_rows[0].correlated_alternatives),
             }
         )
     return summaries
@@ -288,6 +290,7 @@ def build_evidence_rows(
                     rf_group_importance=None,
                     rf_importance_interpretable=None,
                     rf_importance_calculated=None,
+                    correlated_alternatives=group.correlated_alternatives,
                 )
                 for group in registry.groups.values()
             ],
@@ -379,6 +382,7 @@ def build_evidence_rows(
                             summary,
                             importance_calculated=importance_calculated,
                         ),
+                        correlated_alternatives=group.correlated_alternatives,
                     )
                 )
     qualifications: list[ModelQualification] = []
@@ -484,15 +488,17 @@ def save_evidence_report(
                 "detailed table below; this rolls those rows up so the overall pattern "
                 "for a parameter doesn't require scanning the full table. `Overall "
                 "guidance` is the most common per-row recommendation, or `investigate` "
-                "when there is no clear majority - it is advisory, not a hard rule."
+                "when there is no clear majority - it is advisory, not a hard rule. "
+                "`Correlated alternatives` are parameters the registry annotates as "
+                "likely substitutable, not a claim that either is unnecessary."
             ),
             "",
             (
                 "| Parameter | Family | Lead/stratum rows | Retain | Investigate | "
                 "Deprioritise | Inconclusive | Mean permutation importance | "
-                "Mean rank stability | Overall guidance |"
+                "Mean rank stability | Overall guidance | Correlated alternatives |"
             ),
-            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |",
         ]
     )
     for summary in parameter_summary:
@@ -506,12 +512,17 @@ def save_evidence_report(
             if summary["mean_rank_stability"] is not None
             else "—"
         )
+        correlated_alternatives = (
+            ", ".join(summary["correlated_alternatives"])
+            if summary["correlated_alternatives"]
+            else "—"
+        )
         lines.append(
             f"| {summary['identifier']} | {summary['family']} | "
             f"{summary['lead_stratum_combinations']} | {summary['retain_count']} | "
             f"{summary['investigate_count']} | {summary['deprioritise_count']} | "
             f"{summary['inconclusive_count']} | {mean_importance} | {mean_stability} | "
-            f"{summary['overall_recommendation']} |"
+            f"{summary['overall_recommendation']} | {correlated_alternatives} |"
         )
     lines.extend(
         [

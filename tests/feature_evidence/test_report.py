@@ -220,6 +220,47 @@ def test_parameter_summary_rolls_up_lead_stratum_rows(tmp_path: Path) -> None:
     assert "era5/2t" in markdown.split("## Parameter summary")[1].split("##")[0]
 
 
+def test_correlated_alternatives_surface_in_parameter_summary(tmp_path: Path) -> None:
+    """Registry-annotated substitutable parameters reach the researcher-facing report."""
+    registry = load_feature_registry(
+        OmegaConf.create(
+            {
+                "feature_evidence": {
+                    "registry": {
+                        "entries": [
+                            {
+                                "source": "float-argo",
+                                "variable": "TEMP",
+                                "family": "ocean_temperature",
+                                "correlated_alternatives": ["float-argo/PSAL"],
+                            },
+                            {
+                                "source": "float-argo",
+                                "variable": "PSAL",
+                                "family": "ocean_salinity",
+                                "correlated_alternatives": ["float-argo/TEMP"],
+                            },
+                        ]
+                    }
+                }
+            }
+        )
+    )
+
+    report = build_evidence_rows(registry)
+    _, _, markdown_path = save_evidence_report(report, tmp_path)
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    evidence_by_identifier = {row.identifier: row for row in report.variable_evidence}
+    assert evidence_by_identifier["float-argo/TEMP"].correlated_alternatives == (
+        "float-argo/PSAL",
+    )
+    summary_section = markdown.split("## Parameter summary")[1].split("##")[0]
+    assert (
+        "float-argo/PSAL" in summary_section.split("float-argo/TEMP")[1].split("\n")[0]
+    )
+
+
 def test_writes_all_report_formats(tmp_path: Path) -> None:
     """Reports are available for both programmatic and researcher-facing use."""
     report = build_evidence_rows(_registry())
