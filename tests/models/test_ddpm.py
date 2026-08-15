@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -5,7 +7,7 @@ from omegaconf import DictConfig, OmegaConf
 from icenet_mp.models.ddpm import DDPM, SimpleEncoder2D
 
 
-def _make_ddpm(*, use_autoregressive: bool = True, **kwargs) -> DDPM:  # noqa: ANN003
+def _make_ddpm(*, use_autoregressive: bool = True, **kwargs: Any) -> DDPM:
     input_spaces = [
         DictConfig(
             {
@@ -29,7 +31,7 @@ def _make_ddpm(*, use_autoregressive: bool = True, **kwargs) -> DDPM:  # noqa: A
             "shape": (16, 16),
         }
     )
-    model_kwargs = {
+    model_kwargs: dict[str, Any] = {
         "hemisphere": "north",
         "input_spaces": input_spaces,
         "loss": OmegaConf.create({"_target_": "torch.nn.HuberLoss"}),
