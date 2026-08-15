@@ -29,23 +29,24 @@ def _make_ddpm(*, use_autoregressive: bool = True, **kwargs) -> DDPM:  # noqa: A
             "shape": (16, 16),
         }
     )
-    return DDPM(
-        hemisphere="north",
-        input_spaces=input_spaces,
-        loss=OmegaConf.create({"_target_": "torch.nn.HuberLoss"}),
-        metrics=[],
-        n_forecast_steps=3,
-        n_history_steps=2,
-        name="ddpm-test",
-        optimizer=DictConfig({}),
-        output_space=output_space,
-        scheduler=DictConfig({}),
-        start_out_channels=4,
-        time_embed_dim=16,
-        timesteps=2,
-        use_autoregressive=use_autoregressive,
-        **kwargs,
-    )
+    model_kwargs = {
+        "hemisphere": "north",
+        "input_spaces": input_spaces,
+        "loss": OmegaConf.create({"_target_": "torch.nn.HuberLoss"}),
+        "metrics": [],
+        "n_forecast_steps": 3,
+        "n_history_steps": 2,
+        "name": "ddpm-test",
+        "optimizer": DictConfig({}),
+        "output_space": output_space,
+        "scheduler": DictConfig({}),
+        "start_out_channels": 4,
+        "time_embed_dim": 16,
+        "timesteps": 2,
+        "use_autoregressive": use_autoregressive,
+    }
+    model_kwargs.update(kwargs)
+    return DDPM(**model_kwargs)
 
 
 class TestSimpleEncoder2D:
