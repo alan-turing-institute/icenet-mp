@@ -41,7 +41,7 @@ class IceNetSICPreprocessor(IPreprocessor):
         )
         if overwrite:
             logger.info("Overwriting existing data in %s.", icenet_path)
-            shutil.rmtree(icenet_path)
+            shutil.rmtree(icenet_path, ignore_errors=True)
         icenet_path.mkdir(parents=True, exist_ok=True)
         current_directory = Path.cwd()
         os.chdir(icenet_path)
