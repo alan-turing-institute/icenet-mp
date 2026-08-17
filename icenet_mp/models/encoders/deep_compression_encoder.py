@@ -12,7 +12,7 @@ from typing import Any, Literal
 from torch import nn
 
 from icenet_mp.models.common import ResBlock, ResidualDownsample
-from icenet_mp.types import TensorNCHW
+from icenet_mp.types import DataSpace, TensorNCHW
 
 from .base_encoder import BaseEncoder
 
@@ -38,7 +38,9 @@ class DeepCompressionEncoder(BaseEncoder):
     def __init__(  # noqa: PLR0913
         self,
         *,
-        attention_heads: dict[int, int] = {},  # noqa: B006
+        data_space_in: DataSpace,
+        latent_space: tuple[int, int],
+        attention_heads: dict[int, int] | None = None,
         attention_scales: tuple[int, ...] = (5,),
         ffn_factor: int = 1,
         hid_blocks: Sequence[int] = (3, 3, 3),
@@ -53,7 +55,7 @@ class DeepCompressionEncoder(BaseEncoder):
         **kwargs: Any,
     ) -> None:
         """Initialise a DeepCompressionEncoder."""
-        super().__init__(**kwargs)
+        attention_heads = attention_heads or {}
 
         if len(hid_blocks) != len(hid_channels):
             msg = f"hid_blocks and hid_channels must have the same length, got {len(hid_blocks)} and {len(hid_channels)}"
@@ -64,24 +66,32 @@ class DeepCompressionEncoder(BaseEncoder):
         if stride < 1:
             msg = f"stride must be >= 1, got {stride}"
             raise ValueError(msg)
-        in_channels = self.data_space_in.channels
 
         # Validate the output shape is correct.
         spatial_factor = patch_size * stride ** (len(hid_channels) - 1)
         output_shape = (
-            self.data_space_in.shape[0] // spatial_factor,
-            self.data_space_in.shape[1] // spatial_factor,
+            data_space_in.shape[0] // spatial_factor,
+            data_space_in.shape[1] // spatial_factor,
         )
-        if output_shape != self.data_space_out.shape:
+        if output_shape != tuple(latent_space):
             msg = (
                 f"Stride {stride} and number of layers {len(hid_channels)} will encode "
-                f"inputs of shape {self.data_space_in.shape} to shape {output_shape} "
-                f"but the required latent space shape is {self.data_space_out.shape}"
+                f"inputs of shape {data_space_in.shape} to shape {output_shape} "
+                f"but the required latent space shape is {latent_space}"
             )
             raise ValueError(msg)
 
         # Set latent channels to the last hidden channel if not specified
         latent_channels = latent_channels or hid_channels[-1]
+
+        # Initialise the base class with the correct number of output channels
+        super().__init__(
+            data_space_in=data_space_in,
+            latent_space=latent_space,
+            output_channels=latent_channels,
+            **kwargs,
+        )
+        in_channels = self.data_space_in.channels
 
         # Set padding and padding mode for convolutions
         padding = kernel_size // 2
@@ -153,9 +163,6 @@ class DeepCompressionEncoder(BaseEncoder):
                         padding_mode=padding_mode,
                     )
                 )
-
-        # Set the number of output channels correctly
-        self.data_space_out.channels = latent_channels
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)
