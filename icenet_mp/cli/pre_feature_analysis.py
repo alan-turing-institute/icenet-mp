@@ -33,6 +33,7 @@ from icenet_mp.input_diagnostics.data import (
     _get_max_samples,
     build_datasets,
     build_sample_matrix,
+    load_land_mask,
     resolve_datasets,
 )
 
@@ -233,6 +234,7 @@ def _run_rf_strand(
             n_history_steps=n_history_steps,
             n_forecast_steps=n_forecast_steps,
             max_samples=max_samples,
+            land_mask=load_land_mask(config),
         )
     except ValueError as exc:
         logger.warning("RF window building failed: %s", exc)
@@ -324,9 +326,10 @@ def _run_all_strands(
             {group: dataset.variable_names for group, dataset in datasets.items()}
         )
 
+    land_mask = load_land_mask(config)
     matrices = {
         module: build_sample_matrix(
-            datasets, max_samples=_get_max_samples(config, module)
+            datasets, max_samples=_get_max_samples(config, module), land_mask=land_mask
         )
         for module in ("vif", "pca", "eof")
     }

@@ -1,4 +1,5 @@
 import inspect
+from collections.abc import Callable
 from importlib.resources import files
 
 import pytest
@@ -161,7 +162,7 @@ class TestHydraAdaptor:
             received["config"] = config
             received["config_name"] = config_name
 
-        wrapped = hydra_adaptor(fn)
+        wrapped: Callable = hydra_adaptor(fn)
         # Only one config_name parameter should reach the CLI surface.
         assert list(inspect.signature(wrapped).parameters).count("config_name") == 1
 

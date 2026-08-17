@@ -1,8 +1,4 @@
-"""Abstract base for input explainability methods.
-
-Defines the protocol that all explainability implementations must follow, plus a
-shared result container and plotting helper. This design makes it straightforward to
-add new methods (SHAP, partial dependence, etc.) without modifying existing code.
+"""Shared result container and plotting helpers for input explainability methods.
 
 **Adding a new method:**
 1. Create ``icenet_mp/input_explainability/my_method.py`` with a ``compute_my_method()``
@@ -13,15 +9,10 @@ add new methods (SHAP, partial dependence, etc.) without modifying existing code
 
 from __future__ import annotations
 
-import abc
 from dataclasses import dataclass
 from pathlib import Path  # noqa: TC003
-from typing import TYPE_CHECKING
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
 
 
 @dataclass(frozen=True)
@@ -51,40 +42,6 @@ class ExplainabilityResult:
     r2_score: float
     mse: float
     interaction_scores: np.ndarray | None = None  # (n_features, n_features) or None
-
-
-@abc.abstractmethod
-class ExplainabilityMethod(abc.ABC):
-    """Protocol for input explainability methods.
-
-    Each method analyses how input features contribute to predicting a target variable.
-    Implementations should be stateless — all configuration comes through constructor args.
-
-    """
-
-    @property
-    @abc.abstractmethod
-    def name(self) -> str:
-        """Human-readable name for this method (e.g., 'random_forest')."""
-
-    @abc.abstractmethod
-    def compute(
-        self,
-        X: np.ndarray,  # noqa: N803 — standard ML convention for feature matrix
-        y: np.ndarray,
-        feature_names: Sequence[str],
-    ) -> ExplainabilityResult:
-        """Compute explainability scores.
-
-        Args:
-            X: Feature matrix, shape (n_samples, n_features).
-            y: Target values, shape (n_samples,).
-            feature_names: One name per column in X.
-
-        Returns:
-            ExplainabilityResult with computed scores and metadata.
-
-        """
 
 
 def plot_feature_importance(

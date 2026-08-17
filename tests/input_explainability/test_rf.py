@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from sklearn.ensemble import RandomForestRegressor
 
+from icenet_mp.input_explainability.base import ExplainabilityResult
 from icenet_mp.input_explainability.rf import (
     RFWindow,
     _compute_interaction_scores,
@@ -134,6 +135,18 @@ class TestComputeRFImportance:
 
         assert result.interaction_scores is None
 
+    def test_purge_gap_forwarded_to_time_series_split(self) -> None:
+        """purge_gap must reach TimeSeriesSplit, not just be accepted and ignored."""
+        rng = np.random.default_rng(42)
+        n_samples = 50
+        X = rng.standard_normal((n_samples, 2))
+        y = X[:, 0] + rng.standard_normal(n_samples) * 0.1
+
+        # A gap this large leaves too few samples for 5 folds — sklearn raises only if
+        # the gap value actually reached TimeSeriesSplit.
+        with pytest.raises(ValueError, match="gap"):
+            compute_rf_importance(X, y, ["a", "b"], target_name="target", purge_gap=45)
+
     def test_print_rf_table_shows_interaction_section(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -241,16 +254,17 @@ class TestComputeInteractionScores:
 
 
 class TestRFResult:
-    """Tests for the RFResult dataclass."""
+    """Tests for compute_rf_importance's ExplainabilityResult output."""
 
     def test_frozen(self) -> None:
-        """RFResult should be immutable."""
+        """ExplainabilityResult should be immutable."""
         rng = np.random.default_rng(42)
         X = rng.standard_normal((100, 3))
         y = X[:, 0] + rng.standard_normal(100) * 0.1
 
         result = compute_rf_importance(X, y, ["x", "y", "z"], target_name="target")
 
+        assert isinstance(result, ExplainabilityResult)
         with pytest.raises(dataclasses.FrozenInstanceError):
             result.n_samples = 999  # type: ignore[misc]
 
@@ -462,6 +476,31 @@ class TestBuildRFWindows:
                 n_history_steps=2,
                 n_forecast_steps=1,
             )
+
+    def test_land_mask_excludes_masked_cells_from_spatial_means(self) -> None:
+        """Passing land_mask must drop the land cell from both feature and target means."""
+        d0 = np.datetime64("2020-01-01")
+        d1 = np.datetime64("2020-01-02")
+        # Land cell (bottom-right) is a huge outlier so masked vs unmasked means differ.
+        values = {
+            d0: np.array([[[10.0, 10.0], [10.0, 1000.0]]]),
+            d1: np.array([[[20.0, 20.0], [20.0, 2000.0]]]),
+        }
+        dataset = FakeSingleDataset("sic", ["ice_conc"], values)
+        land_mask = np.array([[True, True], [True, False]])
+
+        windows, _ = build_rf_windows(
+            {"sic": dataset},  # type: ignore[dict-item]
+            dataset,  # type: ignore[arg-type]
+            "ice_conc",
+            n_history_steps=1,
+            n_forecast_steps=1,
+            land_mask=land_mask,
+        )
+
+        assert len(windows) == 1
+        assert windows[0].history_features["sic"][0, 0] == 10.0
+        assert windows[0].target_value == 20.0
 
     def test_absent_target_variable_raises_clearly(self) -> None:
         """The RF target must never fall back to another channel or their mean."""

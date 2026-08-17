@@ -36,6 +36,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.model_selection import TimeSeriesSplit
 
+from icenet_mp.input_explainability.base import ExplainabilityResult
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -91,7 +93,7 @@ def _get_rf_window_params(config: DictConfig) -> tuple[int, int]:
     return int(n_history), int(n_forecast)
 
 
-def build_rf_windows(  # noqa: C901, PLR0912, PLR0915 — data-loading function with many steps
+def build_rf_windows(  # noqa: C901, PLR0912, PLR0913, PLR0915 — data-loading function with many steps
     datasets: dict[str, SingleDataset],
     target_ds: SingleDataset,
     target_variable: str,
@@ -99,6 +101,7 @@ def build_rf_windows(  # noqa: C901, PLR0912, PLR0915 — data-loading function 
     n_history_steps: int = 3,
     n_forecast_steps: int = 14,
     max_samples: int | None = None,
+    land_mask: np.ndarray | None = None,
 ) -> tuple[list[RFWindow], list[str]]:
     """Build temporal windows for Random Forest samples.
 
@@ -118,6 +121,9 @@ def build_rf_windows(  # noqa: C901, PLR0912, PLR0915 — data-loading function 
         n_history_steps: Number of past days to use as input history.
         n_forecast_steps: Number of future days to average for the target.
         max_samples: Maximum number of windows to return (chronological order).
+        land_mask: Optional boolean array, shape (H, W), True for valid ocean cells.
+            When given, spatial means are taken over ocean cells only, matching the
+            spatial RF strand; when omitted, land cells are included in the mean.
 
     Returns:
         Tuple of ``(windows, feature_names)`` where ``windows`` is a list of
@@ -227,7 +233,12 @@ def build_rf_windows(  # noqa: C901, PLR0912, PLR0915 — data-loading function 
         try:
             for group_name, ds in datasets.items():
                 tchw = ds.get_tchw(history_dates)  # (n_history_steps, C, H, W)
-                spatial_means = tchw.mean(axis=(-2, -1))  # (n_history_steps, C)
+                if land_mask is not None:
+                    spatial_means = tchw[:, :, land_mask].mean(
+                        axis=-1
+                    )  # (n_history_steps, C)
+                else:
+                    spatial_means = tchw.mean(axis=(-2, -1))  # (n_history_steps, C)
                 history_features[group_name] = spatial_means
         except Exception:  # noqa: BLE001 — MissingDateError when intermediate dates are absent
             logger.warning(
@@ -246,7 +257,10 @@ def build_rf_windows(  # noqa: C901, PLR0912, PLR0915 — data-loading function 
             try:
                 tchw = target_ds.get_tchw([fd])  # (T=1, C, H, W)
                 ch_idx = target_ds.variable_names.index(target_var_name)
-                spatial_mean = float(tchw[0, ch_idx].mean())
+                if land_mask is not None:
+                    spatial_mean = float(tchw[0, ch_idx][land_mask].mean())
+                else:
+                    spatial_mean = float(tchw[0, ch_idx].mean())
                 target_values.append(spatial_mean)
             except (KeyError, ValueError, IndexError):
                 logger.warning(
@@ -340,21 +354,6 @@ def _windows_to_arrays(
         y[i] = window.target_value
 
     return X, y, expanded_names
-
-
-@dataclass(frozen=True)
-class RFResult:
-    """Holds the results of a Random Forest explainability run."""
-
-    feature_names: list[str]
-    target_name: str
-    n_samples: int
-    n_features: int
-    permutation_importance: np.ndarray  # (n_features,) — mean across CV folds
-    importances_std: np.ndarray  # (n_features,) — std across CV folds
-    r2_score: float
-    mse: float
-    interaction_scores: np.ndarray | None = None  # (n_features, n_features) or None
 
 
 def _compute_interaction_scores(
@@ -478,7 +477,8 @@ def compute_rf_importance(  # noqa: PLR0913 — public API accepts RF hyperparam
     random_state: int = 42,
     n_jobs: int = -1,
     interaction_enabled: bool = True,
-) -> RFResult:
+    purge_gap: int = 0,
+) -> ExplainabilityResult:
     """Compute Random Forest feature importance using time-series cross-validation.
 
     Uses **time-series cross-validation** (consecutive folds, no shuffling) to compute
@@ -509,13 +509,19 @@ def compute_rf_importance(  # noqa: PLR0913 — public API accepts RF hyperparam
         random_state: Random seed for reproducibility.
         n_jobs: Number of parallel jobs (-1 = all CPUs).
         interaction_enabled: Whether to compute Friedman H-statistic pairwise interactions.
+        purge_gap: Number of samples to drop between each fold's train and test split.
+            Consecutive samples are built from overlapping temporal windows (each sample's
+            history/forecast span shares days with its neighbours), so the samples nearest
+            a fold boundary otherwise leak information across it — mirrors the date-purge
+            used by the spatial RF strand. Callers building temporal windows should pass
+            ``n_history_steps + n_forecast_steps - 1``.
 
     Returns:
-        RFResult with importance scores, fit metrics, and metadata.
+        ExplainabilityResult with importance scores, fit metrics, and metadata.
 
     """
     n_samples, n_features = x.shape
-    tscv = TimeSeriesSplit(n_splits=5)
+    tscv = TimeSeriesSplit(n_splits=5, gap=purge_gap)
 
     importances_all: list[np.ndarray] = []
     r2_scores: list[float] = []
@@ -603,7 +609,7 @@ def compute_rf_importance(  # noqa: PLR0913 — public API accepts RF hyperparam
             max_features=_MAX_INTERACTION_FEATURES,
         )
 
-    return RFResult(
+    return ExplainabilityResult(
         feature_names=list(feature_names),
         target_name=target_name,
         n_samples=n_samples,
@@ -618,7 +624,7 @@ def compute_rf_importance(  # noqa: PLR0913 — public API accepts RF hyperparam
 
 def run_rf_analysis(
     config: DictConfig,
-) -> RFResult | SpatialRFResult:
+) -> ExplainabilityResult | SpatialRFResult:
     """Run a full Random Forest explainability analysis from a Hydra-composed config.
 
     Resolves dataset paths and variable selections for input features, loads the target
@@ -634,12 +640,13 @@ def run_rf_analysis(
         config: Hydra-composed config (as passed to ``imp pre-feature-analysis``).
 
     Returns:
-        RFResult with computed scores.
+        ExplainabilityResult with computed scores.
 
     """
     from icenet_mp.input_diagnostics.data import (  # noqa: PLC0415
         _get_max_samples,
         build_datasets,
+        load_land_mask,
         resolve_datasets,
     )
 
@@ -785,6 +792,7 @@ def run_rf_analysis(
         n_history_steps=n_history_steps,
         n_forecast_steps=n_forecast_steps,
         max_samples=max_samples,
+        land_mask=load_land_mask(config),
     )
 
     logger.info(
@@ -819,14 +827,15 @@ def run_rf_analysis(
         random_state=rf_cfg.get("random_state", 42),
         n_jobs=rf_cfg.get("n_jobs", -1),
         interaction_enabled=interaction_enabled,
+        purge_gap=n_history_steps + n_forecast_steps - 1,
     )
 
 
-def print_rf_table(result: RFResult) -> None:
+def print_rf_table(result: ExplainabilityResult) -> None:
     """Print a formatted RF results table to stdout.
 
     Args:
-        result: RFResult from ``compute_rf_importance`` or ``run_rf_analysis``.
+        result: ExplainabilityResult from ``compute_rf_importance`` or ``run_rf_analysis``.
 
     """
     names = list(result.feature_names)
@@ -902,14 +911,14 @@ def print_rf_table(result: RFResult) -> None:
 
 
 def save_rf_results(  # noqa: C901, PLR0915
-    result: RFResult, output_dir: Path
+    result: ExplainabilityResult, output_dir: Path
 ) -> tuple[Path, Path, list[Path]]:
     """Save RF results to JSON and a text report in the given directory.
 
     Also generates visualisation plots (feature importance bar chart + interaction heatmap).
 
     Args:
-        result: RFResult from ``compute_rf_importance`` or ``run_rf_analysis``.
+        result: ExplainabilityResult from ``compute_rf_importance`` or ``run_rf_analysis``.
         output_dir: Directory to write files into (created if missing).
 
     Returns:
@@ -1001,11 +1010,11 @@ def save_rf_results(  # noqa: C901, PLR0915
 
     # Generate plots.
     plot_paths: list[Path] = []
-    fig_path = plot_feature_importance(result, output_dir)  # type: ignore[arg-type]
+    fig_path = plot_feature_importance(result, output_dir)
     plot_paths.append(fig_path)
     logger.info("Feature importance plot written to %s.", fig_path)
 
-    heat_path = plot_interaction_heatmap(result, output_dir)  # type: ignore[arg-type]
+    heat_path = plot_interaction_heatmap(result, output_dir)
     if heat_path is not None:
         plot_paths.append(heat_path)
         logger.info("Interaction heatmap written to %s.", heat_path)

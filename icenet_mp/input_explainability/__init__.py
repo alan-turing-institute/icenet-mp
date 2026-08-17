@@ -9,15 +9,14 @@ content or redundancy.
 - ``rf`` — Random Forest with permutation importance and interaction analysis.
 
 **Extensibility:** New explainability methods (SHAP, partial dependence, etc.) can be
-added by implementing the :class:`ExplainabilityMethod` protocol in a new submodule.
+added by returning an :class:`ExplainabilityResult` from a new submodule.
 
 """
 
-from .base import ExplainabilityMethod, ExplainabilityResult
+from .base import ExplainabilityResult
 from .rf import compute_rf_importance, run_rf_analysis
 
 __all__ = [
-    "ExplainabilityMethod",
     "ExplainabilityResult",
     "compute_rf_importance",
     "run_rf_analysis",

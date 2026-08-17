@@ -160,9 +160,51 @@ def _get_max_samples(config: DictConfig, module_name: str) -> int | None:
     return mod_cfg.get("max_samples", config.get("vif", {}).get("max_samples"))
 
 
+def load_land_mask(config: DictConfig) -> np.ndarray | None:
+    """Load the valid-ocean mask configured for RF screening, if any.
+
+    Reuses ``rf.spatial.mask_dataset_name`` — the same mask the spatial RF strand
+    requires — so that unsupervised diagnostics (VIF/PCA/EOF) and scalar RF exclude
+    land cells from their spatial means whenever a mask is already configured for the
+    run. Returns ``None`` (no masking) when the key is absent, so a run without spatial
+    RF configured still executes, at the cost of land-inclusive spatial means.
+
+    Args:
+        config: Hydra-composed config.
+
+    Returns:
+        Boolean array, shape (H, W), True for valid ocean cells, or ``None``.
+
+    Raises:
+        FileNotFoundError: If ``mask_dataset_name`` is configured but no mask exists
+            on disk for it.
+
+    """
+    mask_dataset_name = ((config.get("rf", {}) or {}).get("spatial", {}) or {}).get(
+        "mask_dataset_name"
+    )
+    if not mask_dataset_name:
+        logger.warning(
+            "No rf.spatial.mask_dataset_name configured; spatial means include land "
+            "cells, biasing diagnostics and scalar RF for domains with land."
+        )
+        return None
+
+    from icenet_mp.utils import mask_dir  # noqa: PLC0415
+
+    mask_path = (
+        mask_dir(Path(config["base_path"]), str(mask_dataset_name)) / "land_mask.npy"
+    )
+    if not mask_path.exists():
+        msg = f"Configured rf.spatial.mask_dataset_name has no mask at {mask_path}."
+        raise FileNotFoundError(msg)
+    return np.load(mask_path).astype(bool)
+
+
 def build_sample_matrix(
     datasets: dict[str, SingleDataset],
     max_samples: int | None = None,
+    land_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, list[str]]:
     """Load raw data from all datasets and stack into a sample matrix.
 
@@ -178,6 +220,10 @@ def build_sample_matrix(
     Args:
         datasets: Mapping of group name to SingleDataset.
         max_samples: If set, sample evenly across the available common dates.
+        land_mask: Optional boolean array, shape (H, W), True for valid ocean cells.
+            When given, spatial means are taken over ocean cells only; when omitted, the
+            mean is taken over the full grid (land cells included), which biases the
+            statistics for datasets with land in the domain.
 
     Returns:
         Tuple of (sample_matrix, variable_names) where sample_matrix has shape
@@ -227,7 +273,10 @@ def build_sample_matrix(
             c = tchw.shape[1]
             if var_idx < c:
                 # Spatial mean: average across HxW to get one value per timestep.
-                spatial_mean = tchw[:, var_idx, :, :].mean(axis=(-2, -1))
+                if land_mask is not None:
+                    spatial_mean = tchw[:, var_idx][:, land_mask].mean(axis=-1)
+                else:
+                    spatial_mean = tchw[:, var_idx, :, :].mean(axis=(-2, -1))
                 arrays.append(spatial_mean)
 
     if not arrays:
