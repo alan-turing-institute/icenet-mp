@@ -10,6 +10,7 @@ from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
 from icenet_mp.metrics import (
     FractionalSkillScorePerForecastDay,
     IceNetAccuracyPerForecastDay,
+    IntegratedIceEdgeErrorPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
@@ -367,6 +368,59 @@ class TestMetricCalculations:
         assert torch.allclose(daily_result, expected_sie, atol=1e-5)
 
         assert daily_result.mean().item() == pytest.approx(-208.33333, abs=1e-5)
+
+    def test_calculates_mean_iiee_daily_correctly(self) -> None:
+        """Test that IIEE daily is calculated correctly."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        computed_iiee = IntegratedIceEdgeErrorPerForecastDay(pixel_size=1)
+        computed_iiee.update(preds, targets)
+        daily_result = computed_iiee.compute()
+
+        # Expected IIEE per day (unsigned disagreement, unlike SIEError which cancels):
+        # Day 1: |0-1| + |0-1| + |1-1| + |0-0| = 2.0
+        # Day 2: |0-1| + |1-0| + |1-1| + |0-0| = 2.0
+        # Day 3: |1-0| + |1-0| + |1-1| + |0-1| = 3.0
+        expected_iiee = torch.tensor([2.0, 2.0, 3.0])  # pixel_size=1 -> no scaling
+
+        assert torch.allclose(daily_result, expected_iiee, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(2.33333, abs=1e-5)
+
+    def test_calculates_mean_iiee_daily_pixel_size(self) -> None:
+        """Test that IIEE daily is calculated correctly with pixel-size scaling."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        computed_iiee = IntegratedIceEdgeErrorPerForecastDay()
+        computed_iiee.update(preds, targets)
+        daily_result = computed_iiee.compute()
+
+        # Expected IIEE per day (before pixel-size scaling): [2.0, 2.0, 3.0]
+        expected_iiee = torch.tensor(
+            [1250.0, 1250.0, 1875.0]
+        )  # default pixel_size=25 -> scaled by 25^2
+
+        assert torch.allclose(daily_result, expected_iiee, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(1458.33333, abs=1e-3)
 
     def test_calculates_mean_accuracy_daily_correctly(self) -> None:
         """Test that IceNetAccuracy daily is calculated correctly."""

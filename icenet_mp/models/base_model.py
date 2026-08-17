@@ -20,6 +20,7 @@ from icenet_mp.metrics import (
     CentroidErrorPerForecastDay,
     FractionalSkillScorePerForecastDay,
     IceNetAccuracyPerForecastDay,
+    IntegratedIceEdgeErrorPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
@@ -62,7 +63,10 @@ class BaseModel(LightningModule, ABC):
 
         The ``metrics`` parameter controls which metrics are computed during training,
         validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
-        "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``. ``"centroid_error"`` is
+        "iiee", "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``. ``"iiee"`` is
+        the Integrated Ice Edge Error, the area of disagreement between predicted and
+        true ice extent (see ``icenet_mp.metrics.iiee``); unlike ``"sieerror"`` it
+        never lets over- and under-estimation cancel out. ``"centroid_error"`` is
         the value-weighted centre-of-mass distance (only meaningful for synthetic checks
         where the field is a single blob); ``"fss_1"``/``"fss_5"``/``"fss_15"`` are the
         Fractional Skill Score of the sea-ice edge at neighbourhood sizes of 1, 5, and
@@ -102,6 +106,7 @@ class BaseModel(LightningModule, ABC):
             "mae": MAEPerForecastDay,
             "rmse": RMSEPerForecastDay,
             "sieerror": SeaIceExtentErrorPerForecastDay,
+            "iiee": IntegratedIceEdgeErrorPerForecastDay,
             "centroid_error": CentroidErrorPerForecastDay,
             "fss_1": partial(FractionalSkillScorePerForecastDay, neighborhood_size=1),
             "fss_5": partial(FractionalSkillScorePerForecastDay, neighborhood_size=5),
@@ -116,6 +121,7 @@ class BaseModel(LightningModule, ABC):
                 "mae",
                 "rmse",
                 "sieerror",
+                "iiee",
                 "centroid_error",
                 "fss_1",
                 "fss_5",
