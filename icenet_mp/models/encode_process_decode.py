@@ -101,6 +101,10 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
+        # Verify the output channels for each encoder
+        for encoder in (*self.encoders, self.target_encoder):
+            encoder.verify_output_channels(self.device)
+
         # Add a processor
         combined_latent_space = DataSpace(
             name="combined_latent_space",
