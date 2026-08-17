@@ -75,6 +75,11 @@ def _build_model(
         "_target_": "icenet_mp.models.decoders.CNNDecoder",
         "n_layers": 1,
     }
+    if predict_residual:
+        # The tendency is applied by the decoder's additive skip connection, so a
+        # residual model must configure one (mirrors cnn_vit_cnn_residual.yaml).
+        # `decoder_extra` still overrides this, so tests can probe the validation.
+        decoder_payload["skip_connection"] = {"method": "additive"}
     decoder_payload.update(decoder_extra or {})
     decoder = DictConfig(decoder_payload)
     torch.manual_seed(seed)

@@ -55,3 +55,8 @@ decoder:
   mask_type: active
   norm_type: groupnorm
   restrict_range: none
+  # The tendency is applied by the decoder additive skip connection (#405); the only difference is 
+  # that the physical rollout takes the previous forecast of physical states as the anchor instead of
+  # the fixed newest observation
+  skip_connection:
+    method: additive
