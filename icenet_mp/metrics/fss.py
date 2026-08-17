@@ -10,6 +10,8 @@ import torch
 import torch.nn.functional as F
 from torchmetrics import Metric
 
+from .ice_edge import binary_edge
+
 SEA_ICE_THRESHOLD = 0.15  # Threshold for defining ice/no-ice, and hence the ice edge
 
 
@@ -62,28 +64,6 @@ class FractionalSkillScorePerForecastDay(Metric):
         )
         self.add_state(
             "count", default=torch.tensor([], dtype=torch.long), dist_reduce_fx="sum"
-        )
-
-    @staticmethod
-    def _binary_edge(ice_mask: torch.Tensor) -> torch.Tensor:
-        """Binary ice-edge map: True for ice cells that border a non-ice cell.
-
-        Parameters
-        ----------
-        ice_mask : torch.Tensor
-            Boolean tensor of shape (N, H, W).
-
-        """
-        padded = F.pad(ice_mask.float(), (1, 1, 1, 1), value=0.0).bool()
-        up = padded[:, :-2, 1:-1]
-        down = padded[:, 2:, 1:-1]
-        left = padded[:, 1:-1, :-2]
-        right = padded[:, 1:-1, 2:]
-        return ice_mask & (
-            (ice_mask != up)
-            | (ice_mask != down)
-            | (ice_mask != left)
-            | (ice_mask != right)
         )
 
     def _neighborhood_fraction(self, edge: torch.Tensor) -> torch.Tensor:
@@ -159,8 +139,8 @@ class FractionalSkillScorePerForecastDay(Metric):
         preds_mask = (preds > SEA_ICE_THRESHOLD).reshape(-1, height, width)
         target_mask = (target > SEA_ICE_THRESHOLD).reshape(-1, height, width)
 
-        lambda_model = self._neighborhood_fraction(self._binary_edge(preds_mask))
-        lambda_truth = self._neighborhood_fraction(self._binary_edge(target_mask))
+        lambda_model = self._neighborhood_fraction(binary_edge(preds_mask))
+        lambda_truth = self._neighborhood_fraction(binary_edge(target_mask))
 
         mse, mse_ref = self._config_stats(lambda_truth, lambda_model)
 

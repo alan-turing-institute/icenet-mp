@@ -8,6 +8,7 @@ from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
 from icenet_mp.metrics import (
+    DistanceAveragedIceEdgeErrorPerForecastDay,
     FractionalSkillScorePerForecastDay,
     IceNetAccuracyPerForecastDay,
     IntegratedIceEdgeErrorPerForecastDay,
@@ -480,3 +481,74 @@ class TestMetricCalculations:
         assert torch.allclose(daily_result, expected_sie, atol=1e-5)
 
         assert daily_result.mean().item() == pytest.approx(33.33333, abs=1e-5)
+
+    def test_calculates_diiee_daily_correctly(self) -> None:
+        """Test that DIIEE daily is calculated correctly."""
+        # Day 1: predicted 2x2 ice block vs a 2x3 target block (extra column of
+        # underestimation). Day 2: predicted and target blocks match exactly.
+        # Day 3: neither field has any ice (edge length undefined -> NaN).
+        day1_pred = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day1_target = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day2 = day1_pred
+        day3 = torch.zeros(4, 4)
+
+        preds = torch.stack([day1_pred, day2, day3]).unsqueeze(0).unsqueeze(2)
+        targets = torch.stack([day1_target, day2, day3]).unsqueeze(0).unsqueeze(2)
+
+        computed_diiee = DistanceAveragedIceEdgeErrorPerForecastDay(pixel_size=1)
+        computed_diiee.update(preds, targets)
+        daily_result = computed_diiee.compute()
+
+        # Day 1: mismatch area = 2 (the extra column), edge length = 4 (pred) + 6
+        #   (target) = 10 -> diiee = 2 * 2 / 10 = 0.4
+        # Day 2: perfect match -> mismatch area = 0 -> diiee = 0.0
+        # Day 3: no ice edge in either field -> undefined -> NaN
+        assert torch.allclose(daily_result[:2], torch.tensor([0.4, 0.0]), atol=1e-5)
+        assert torch.isnan(daily_result[2])
+
+    def test_calculates_diiee_daily_pixel_size(self) -> None:
+        """Test that DIIEE daily is calculated correctly with pixel-size scaling."""
+        day1_pred = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day1_target = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day2 = day1_pred
+
+        preds = torch.stack([day1_pred, day2]).unsqueeze(0).unsqueeze(2)
+        targets = torch.stack([day1_target, day2]).unsqueeze(0).unsqueeze(2)
+
+        computed_diiee = DistanceAveragedIceEdgeErrorPerForecastDay()
+        computed_diiee.update(preds, targets)
+        daily_result = computed_diiee.compute()
+
+        # DIIEE is linear in pixel_size (area scales as pixel_size^2, edge length as
+        # pixel_size), so the pixel_size=1 result of [0.4, 0.0] scales by 25.
+        expected_diiee = torch.tensor([10.0, 0.0])  # default pixel_size=25
+
+        assert torch.allclose(daily_result, expected_diiee, atol=1e-5)

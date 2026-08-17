@@ -18,6 +18,7 @@ from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
     CentroidErrorPerForecastDay,
+    DistanceAveragedIceEdgeErrorPerForecastDay,
     FractionalSkillScorePerForecastDay,
     IceNetAccuracyPerForecastDay,
     IntegratedIceEdgeErrorPerForecastDay,
@@ -66,7 +67,11 @@ class BaseModel(LightningModule, ABC):
         "iiee", "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``. ``"iiee"`` is
         the Integrated Ice Edge Error, the area of disagreement between predicted and
         true ice extent (see ``icenet_mp.metrics.iiee``); unlike ``"sieerror"`` it
-        never lets over- and under-estimation cancel out. ``"centroid_error"`` is
+        never lets over- and under-estimation cancel out. ``"diiee"`` (not enabled by
+        default) is the Distance-averaged IIEE: the IIEE area normalised by combined
+        ice-edge length, giving an average edge displacement in km rather than an
+        area (see ``icenet_mp.metrics.diiee``); it is undefined (NaN) for lead times
+        where neither field has any ice edge. ``"centroid_error"`` is
         the value-weighted centre-of-mass distance (only meaningful for synthetic checks
         where the field is a single blob); ``"fss_1"``/``"fss_5"``/``"fss_15"`` are the
         Fractional Skill Score of the sea-ice edge at neighbourhood sizes of 1, 5, and
@@ -107,6 +112,7 @@ class BaseModel(LightningModule, ABC):
             "rmse": RMSEPerForecastDay,
             "sieerror": SeaIceExtentErrorPerForecastDay,
             "iiee": IntegratedIceEdgeErrorPerForecastDay,
+            "diiee": DistanceAveragedIceEdgeErrorPerForecastDay,
             "centroid_error": CentroidErrorPerForecastDay,
             "fss_1": partial(FractionalSkillScorePerForecastDay, neighborhood_size=1),
             "fss_5": partial(FractionalSkillScorePerForecastDay, neighborhood_size=5),
