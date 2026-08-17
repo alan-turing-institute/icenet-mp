@@ -126,6 +126,18 @@ class TestGenerateParameterOverrides:
             CONFIG["parameters"]
         )
 
+    def test_override_generation_mutates_state(self, tmp_path: Path) -> None:
+        """Multiple runs in the same study should use different trials."""
+        sampler1 = build_sampler(CONFIG, tmp_path)
+        trial1 = sampler1.ask()
+        overrides1 = sampler1.generate_parameter_overrides(trial1)
+
+        sampler2 = build_sampler(CONFIG, tmp_path)
+        trial2 = sampler2.ask()
+        overrides2 = sampler2.generate_parameter_overrides(trial2)
+
+        assert [value for _, value in overrides1] != [value for _, value in overrides2]
+
     def test_unknown_parameter_type_raises(self, tmp_path: Path) -> None:
         bad_config = {**CONFIG, "parameters": {"x": {"type": "not-a-type"}}}
         sampler = build_sampler(bad_config, tmp_path)

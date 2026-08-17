@@ -111,7 +111,7 @@ class OptunaSampler:
             )
         return self._study
 
-    def _save_sampler(self) -> None:
+    def _update_sampler_state(self) -> None:
         """Persist a study's sampler state to disk.
 
         This must be called after each `ask()` or `tell()` operation on the underlying
@@ -125,7 +125,7 @@ class OptunaSampler:
     def ask(self) -> Trial:
         """Ask the study for a new trial."""
         trial = self.study.ask()
-        self._save_sampler()
+        self._update_sampler_state()
         return trial
 
     def generate_parameter_overrides(
@@ -136,6 +136,7 @@ class OptunaSampler:
         for name, param_spec in self.parameters.items():
             parameter = build_parameter(name, param_spec)
             overrides.append((parameter, parameter.suggest(trial)))
+        self._update_sampler_state()
         return overrides
 
     def generate_trial_config(
@@ -219,5 +220,5 @@ class OptunaSampler:
     ) -> FrozenTrial:
         """Ask the study for a new trial."""
         result = self.study.tell(trial, values, state, skip_if_finished)
-        self._save_sampler()
+        self._update_sampler_state()
         return result
