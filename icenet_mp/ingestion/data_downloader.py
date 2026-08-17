@@ -42,10 +42,10 @@ class DataDownloader:
         self.path_dataset = base_path / "data" / "anemoi" / f"{name}.zarr"
         self.recipe = Recipe(**anemoi_config)
         self.preprocessor = CompositePreprocessor(
-            name, anemoi_config.get("preprocessors", {}), base_path
+            name, anemoi_config.get("preprocessors") or {}, base_path
         )
         self.postprocessor = CompositePostprocessor(
-            name, anemoi_config.get("postprocessors", {}), base_path
+            name, anemoi_config.get("postprocessors") or {}, base_path
         )
 
     def artifacts(self) -> list[Path]:
