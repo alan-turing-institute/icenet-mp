@@ -377,6 +377,9 @@ class ModelService:
                 wandb_run.save(
                     model_config_path, base_path=model_config_path.parent, policy="now"
                 )
+                # Ensure that losses are summarised by their minimum value
+                for loss_metric in ("train_loss", "validation_loss", "test_loss"):
+                    wandb_run.define_metric(loss_metric, summary="min")
 
         # Additional configuration for callbacks
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
