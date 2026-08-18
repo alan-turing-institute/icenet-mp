@@ -3,8 +3,8 @@ from logging import getLogger
 
 from icenet_mp.compatibility.lightning import register_accelerators
 from icenet_mp.compatibility.torch import patch_parameter_deepcopy
-from icenet_mp.data_processors.filters import register_filters
-from icenet_mp.data_processors.sources import register_sources
+from icenet_mp.ingestion.filters import register_filters
+from icenet_mp.ingestion.sources import register_sources
 from icenet_mp.visualisations import register_animation_backends
 
 log = getLogger(__name__)

@@ -4,7 +4,7 @@ from typing import Annotated
 import typer
 from omegaconf import DictConfig
 
-from icenet_mp.data_processors import DataDownloaderFactory
+from icenet_mp.ingestion import build_downloaders
 
 from .hydra import hydra_adaptor
 
@@ -24,8 +24,7 @@ def create(
     ] = False,
 ) -> None:
     """Create all datasets."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
+    for downloader in build_downloaders(config):
         logger.info("Creating dataset %s.", downloader.name)
         try:
             downloader.create(overwrite=overwrite)
@@ -44,8 +43,7 @@ def inspect(
     ] = False,
 ) -> None:
     """Inspect all datasets."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
+    for downloader in build_downloaders(config):
         logger.info("Inspecting dataset %s.", downloader.name)
         try:
             downloader.inspect(verbose=verbose)
@@ -63,10 +61,9 @@ def masks(
     ] = False,
 ) -> None:
     """Create land / active grid cell masks."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
+    for downloader in build_downloaders(config):
         logger.info("Generating masks for dataset %s.", downloader.name)
-        downloader.generate_masks(overwrite=overwrite)
+        downloader.postprocessor.process(downloader.path_dataset, overwrite=overwrite)
 
 
 if __name__ == "__main__":
