@@ -432,7 +432,12 @@ class ModelService:
     def train(
         self, *, checkpoint_dir: Path | None = None, multistage: bool = False
     ) -> Trainer:
-        """Train a model."""
+        """Train a model.
+
+        `checkpoint_dir` is only used for multistage training; it has no effect
+        otherwise, since single-stage training has no per-component checkpoints to
+        resume from.
+        """
         if multistage:
             return self.train_multistage(checkpoint_dir=checkpoint_dir)
         return self._fit(config=self.config["train"])
