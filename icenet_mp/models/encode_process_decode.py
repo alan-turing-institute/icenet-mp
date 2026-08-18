@@ -112,14 +112,22 @@ class EncodeProcessDecode(BaseModel):
             mask_dir=mask_dir,
         )
 
-        # Processors that require multistage training compute loss in latent space
-        # without touching the decoder. We therefore freeze this explicitly.
-        if self.processor.computes_loss_in_latent_space:
-            self.decoder.freeze()
+        # Freeze unused modules
+        self._freeze_unused_modules()
 
     @property
     def multistage_only(self) -> bool:
         return self.processor.computes_loss_in_latent_space
+
+    def _freeze_unused_modules(self) -> None:
+        """Freeze unused modules."""
+        # Processors that compute loss in latent space do not touch the decoder.
+        # However, processors that do not do this, do not touch the target_encoder.
+        # We therefore explicitly freeze the unused modules.
+        if self.processor.computes_loss_in_latent_space:
+            self.decoder.freeze()
+        else:
+            self.target_encoder.freeze()
 
     def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Encode all input datasets and concatenate along the channel dimension.
@@ -154,11 +162,8 @@ class EncodeProcessDecode(BaseModel):
     def train(self, mode: bool = True) -> "EncodeProcessDecode":
         """Set training mode, with decoder frozen if computing loss in latent space."""
         super().train(mode)
-        # Processors that require multistage training compute loss in latent space
-        # without touching the decoder. We therefore freeze this explicitly.
-
-        if mode and self.processor.computes_loss_in_latent_space:
-            self.decoder.freeze()
+        if mode:
+            self._freeze_unused_modules()
         return self
 
     def training_step(
@@ -188,15 +193,18 @@ class EncodeProcessDecode(BaseModel):
         target = batch["target"].clone().detach()
         combined_latent = self.encode_inputs(batch)
 
-        # Attempt to encode the target to latent space and pass it to the processor
-        expected_chw = self.target_encoder.data_space_in.chw
-        if tuple(target.shape[2:]) != expected_chw:
-            msg = (
-                f"Target CHW {tuple(target.shape[2:])} does not match "
-                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
-            )
-            raise ValueError(msg)
-        target_latent = self.target_encoder.rollout(target)
+        # Calculate target_latent if and only if the processor needs this for computing
+        # loss in latent space.
+        target_latent = None
+        if self.processor.computes_loss_in_latent_space:
+            expected_chw = self.target_encoder.data_space_in.chw
+            if tuple(target.shape[2:]) != expected_chw:
+                msg = (
+                    f"Target CHW {tuple(target.shape[2:])} does not match "
+                    f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
+                )
+                raise ValueError(msg)
+            target_latent = self.target_encoder.rollout(target)
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
         if processor_output.loss is None:
