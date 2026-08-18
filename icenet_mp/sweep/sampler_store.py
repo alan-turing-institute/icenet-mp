@@ -48,7 +48,7 @@ class SamplerStore:
         try:
             with self._sampler_path.open("rb") as f_sampler:
                 return pickle.load(f_sampler)  # noqa: S301
-        except (FileNotFoundError, EOFError):
+        except (FileNotFoundError, EOFError, pickle.UnpicklingError):
             log.debug("Sampler could not be loaded from %s.", self._sampler_path)
             sampler_cls = self.sampler_map.get(self._sampler_cls)
             if sampler_cls is None:
