@@ -110,43 +110,43 @@ def trial(
     sweep = OptunaSweep.from_path(sweep_path)
     trial, overrides = sweep.ask()
 
-    # Generate a merged config for this trial
-    log.info("Running trial %d with overrides:", trial.number)
-    for parameter, value in overrides:
-        log.info("  %s = %s", parameter.name, value)
-    config = sweep.generate_trial_config(overrides)
+    try:
+        # Generate a merged config for this trial
+        log.info("Running trial %d with overrides:", trial.number)
+        for parameter, value in overrides:
+            log.info("  %s = %s", parameter.name, value)
+        config = sweep.generate_trial_config(overrides)
 
-    # Set W&B environment variables to ensure we are connected to the correct sweep
-    os.environ["WANDB_SWEEP_ID"] = sweep.study_name
-    os.environ["WANDB_ENTITY"] = sweep.entity
-    os.environ["WANDB_PROJECT"] = "train"
+        # Set W&B environment variables to ensure we are connected to the correct sweep
+        os.environ["WANDB_SWEEP_ID"] = sweep.study_name
+        os.environ["WANDB_ENTITY"] = sweep.entity
+        os.environ["WANDB_PROJECT"] = "train"
 
-    # Train the model for this trial
-    model = ModelService.from_config(config)
-    trainer = model.train(
-        checkpoint_dir=Path(checkpoint_dir).resolve() if checkpoint_dir else None,
-        multistage=multistage,
-    )
-
-    # Find the checkpoint callback to score the trial against
-    checkpoints = [
-        ckpt
-        for ckpt in trainer.checkpoint_callbacks
-        if isinstance(ckpt, ModelCheckpoint)
-    ]
-    if len(checkpoints) > 1:
-        msg = (
-            f"Cannot determine which of {len(checkpoints)} checkpoint callbacks to "
-            "score the trial against."
+        # Train the model for this trial
+        model = ModelService.from_config(config)
+        trainer = model.train(
+            checkpoint_dir=Path(checkpoint_dir).resolve() if checkpoint_dir else None,
+            multistage=multistage,
         )
-        raise ValueError(msg)
-    checkpoint = checkpoints[0] if checkpoints else None
+
+        # If there is exactly one ModelCheckpoint callback then we will use that
+        checkpoints = [
+            ckpt
+            for ckpt in trainer.checkpoint_callbacks
+            if isinstance(ckpt, ModelCheckpoint)
+        ]
+        checkpoint = checkpoints[0] if len(checkpoints) == 1 else None
+    except Exception:
+        # Mark the trial as failed after any exception before continuing
+        log.exception("Trial %d failed.", trial.number)
+        sweep.tell(trial, state=TrialState.FAIL)
+        raise
 
     # Record the trial result and log the best trial
     if checkpoint is None:
         log.warning(
-            "Trial %d failed: no ModelCheckpoint callback was configured, so it "
-            "cannot be scored.",
+            "Trial %d failed: could not find a unique ModelCheckpoint callback, so the "
+            "trial cannot be scored.",
             trial.number,
         )
         sweep.tell(trial, state=TrialState.FAIL)

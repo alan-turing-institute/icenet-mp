@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 import yaml
 from omegaconf import OmegaConf
+from optuna.trial import TrialState
 from typer.testing import CliRunner
 
 from icenet_mp.cli.main import app
+from icenet_mp.model_service import ModelService
 from icenet_mp.sweep import OptunaSweep
 
 
@@ -112,6 +114,7 @@ class TestSweepCLI:
             "n_trials": 3,
             "sampler": "random",
             "seed": 0,
+            "entity": "test-entity",
             "parameters": {
                 "train.optimizer.lr": {"type": "float", "low": 1.0e-5, "high": 1.0e-2}
             },
@@ -231,6 +234,28 @@ class TestSweepCLI:
             runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
         assert "Study contains 0 trial(s)" in caplog.text
         assert "No trials have completed yet" in caplog.text
+
+    def test_trial_marks_study_failed_instead_of_leaving_it_running_on_a_crash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A crash while training must not leave the trial RUNNING forever."""
+        study_path, _ = self._build_study(tmp_path, n_completed=0)
+
+        def _raise_from_config(_config: object) -> ModelService:
+            msg = "Simulated training crash."
+            raise RuntimeError(msg)
+
+        monkeypatch.setattr(ModelService, "from_config", _raise_from_config)
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["sweep", "trial", "--sweep-path", str(study_path)])
+
+        assert result.exit_code != 0
+        assert isinstance(result.exception, RuntimeError)
+
+        trials = OptunaSweep.from_path(study_path).study.get_trials()
+        assert len(trials) == 1
+        assert trials[0].state == TrialState.FAIL
 
 
 class TestTrainCLI:
