@@ -13,10 +13,11 @@ from icenet_mp.sweep import OptunaSampler
 
 from .hydra import hydra_adaptor
 
+# Configure logging
+log = logging.getLogger(__name__)
+
 # Create the typer app
 sweep_cli = typer.Typer(help="Generate W&B sweeps with Optuna-sampled hyperparameters")
-
-log = logging.getLogger(__name__)
 
 
 @sweep_cli.command()
@@ -45,6 +46,26 @@ def initialise(
 
     sampler.initialise_study(config, sweep_id)
     log.info("Initialised an Optuna study at %s", sampler.study_path)
+
+
+@sweep_cli.command()
+def summarise(
+    sweep_path: Annotated[
+        Path,
+        typer.Option(
+            "--sweep-path",
+            help="Full path to a local sweep directory",
+        ),
+    ],
+) -> None:
+    """Summarise the best parameters found in a W&B sweep."""
+    sampler = OptunaSampler.from_path(sweep_path)
+    log.info("Study contains %d trial(s)", len(sampler.study.get_trials()))
+    best = sampler.study.best_trial
+    log.info("Best trial (%d) completed with value %f.", best.number, best.value)
+    log.info("Best trial parameters:")
+    for parameter_name, parameter_value in best.params.items():
+        log.info("  %s: %s", parameter_name, parameter_value)
 
 
 @sweep_cli.command()
@@ -113,12 +134,11 @@ def trial(
         return
     result = sampler.tell(trial, ckpt.best_model_score.item())
     log.info("Trial %d completed with value %f", result.number, result.value)
-    log.info(
-        "Best trial (%d) completed with value %f.",
-        sampler.study.best_trial.number,
-        sampler.study.best_trial.value,
-    )
-    log.info("Best trial parameters: %s", sampler.study.best_trial.params)
+    best = sampler.study.best_trial
+    log.info("Best trial (%d) completed with value %f.", best.number, best.value)
+    log.info("Best trial parameters:")
+    for parameter_name, parameter_value in best.params.items():
+        log.info("  %s: %s", parameter_name, parameter_value)
 
 
 if __name__ == "__main__":

@@ -72,3 +72,12 @@ They will also create an entry in the W&B sweep which provides an easy compariso
 
 If you want to run additional trials in the same search space, simply run `uv run imp sweep trial ...` again.
 If you want to refine the search space, you will need to create a new sweep with `uv run imp sweep initialise ...`.
+
+## 5. Summarise the best trial
+
+```bash
+uv run imp sweep summarise --sweep-path <path to sweep directory created above>
+```
+
+This prints the number of completed trials and the value and hyperparameters from the best trial, read directly from the local Optuna study.
+Unlike `sweep trial`, it does not need a W&B connection.

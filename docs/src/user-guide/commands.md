@@ -86,6 +86,16 @@ uv run imp sweep trial --sweep-path <path to sweep directory created above>
 Runs a single hyperparameter trial as part of a W&B sweep.
 See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
 
+## `sweep summarise`
+
+```bash
+uv run imp sweep summarise --sweep-path <path to sweep directory created above>
+```
+
+Reads the local Optuna study and reports the number of completed trials, plus the value and hyperparameters for the best trial.
+This works without a W&B connection.
+See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
+
 ## `evaluate`
 
 ```bash

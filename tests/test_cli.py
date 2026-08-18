@@ -1,9 +1,15 @@
+import logging
 import re
 from collections.abc import Sequence
+from pathlib import Path
 
+import pytest
+import yaml
+from omegaconf import OmegaConf
 from typer.testing import CliRunner
 
 from icenet_mp.cli.main import app
+from icenet_mp.sweep import OptunaSampler
 
 
 class CustomCliRunner(CliRunner):
@@ -94,6 +100,33 @@ class TestEvaluateCLI:
 
 
 class TestSweepCLI:
+    @staticmethod
+    def _build_study(tmp_path: Path) -> tuple[Path, int]:
+        """Create a local sweep directory with one completed trial.
+
+        Returns the sweep directory and the number of the (only, so also best) trial.
+        """
+        cfg_sweep = {
+            "name": "example",
+            "n_trials": 3,
+            "sampler": "random",
+            "seed": 0,
+            "metric": {"name": "validation_loss", "goal": "minimize"},
+            "parameters": {
+                "train.optimizer.lr": {"type": "float", "low": 1.0e-5, "high": 1.0e-2}
+            },
+        }
+        study_path = tmp_path / "example-sweep"
+        study_path.mkdir()
+        (study_path / "optuna.yaml").write_text(yaml.safe_dump(cfg_sweep))
+        OmegaConf.save(OmegaConf.create({}), study_path / "model_config.yaml")
+
+        sampler = OptunaSampler.from_path(study_path)
+        trial = sampler.ask()
+        sampler.generate_parameter_overrides(trial)
+        sampler.tell(trial, 0.5)
+        return study_path, trial.number
+
     def test_help(self) -> None:
         runner = CustomCliRunner()
         runner.check_output(
@@ -103,6 +136,7 @@ class TestSweepCLI:
                 r"Generate W&B sweeps with Optuna-sampled hyperparameters",
                 r"--help\s+-h\s+Show this message and exit.",
                 r"initialise\s+Initialise a W&B sweep with Optuna-sampled",
+                r"summarise\s+Summarise the best parameters found in a",
                 r"trial\s+Run a single trial from a W&B sweep.",
             ],
         )
@@ -121,6 +155,18 @@ class TestSweepCLI:
             ],
         )
 
+    def test_summarise_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["sweep", "summarise", "--help"],
+            expected_patterns=[
+                r"Usage: imp sweep summarise \[OPTIONS\]",
+                r"Summarise the best parameters found in a W&B sweep.",
+                r"--sweep-path\s+<path>\s+Full path to a local sweep directory",
+                r"--help\s+-h\s+Show this message and exit.",
+            ],
+        )
+
     def test_trial_help(self) -> None:
         runner = CustomCliRunner()
         runner.check_output(
@@ -134,6 +180,45 @@ class TestSweepCLI:
                 r"--help\s+-h\s+Show this message and exit.",
             ],
         )
+
+    def test_missing_sweep_path_raises(self, tmp_path: Path) -> None:
+        runner = CliRunner()
+        result = runner.invoke(
+            app,
+            ["sweep", "summarise", "--sweep-path", str(tmp_path / "missing")],
+        )
+        assert result.exit_code != 0
+        assert isinstance(result.exception, FileNotFoundError)
+
+    def test_reports_best_trial_number_and_value(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        study_path, trial_number = self._build_study(tmp_path)
+        runner = CustomCliRunner()
+        with caplog.at_level(logging.INFO):
+            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert (
+            f"Best trial ({trial_number}) completed with value 0.500000." in caplog.text
+        )
+
+    def test_reports_best_trial_parameters(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        study_path, _ = self._build_study(tmp_path)
+        runner = CustomCliRunner()
+        with caplog.at_level(logging.INFO):
+            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert "Best trial parameters:" in caplog.text
+        assert "train.optimizer.lr" in caplog.text
+
+    def test_reports_trial_count(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        study_path, _ = self._build_study(tmp_path)
+        runner = CustomCliRunner()
+        with caplog.at_level(logging.INFO):
+            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert "Study contains 1 trial(s)" in caplog.text
 
 
 class TestTrainCLI:
