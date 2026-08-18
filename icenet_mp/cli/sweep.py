@@ -128,14 +128,25 @@ def trial(
         multistage=multistage,
     )
 
+    # Find the checkpoint callback to score the trial against
+    checkpoints = [
+        ckpt
+        for ckpt in trainer.checkpoint_callbacks
+        if isinstance(ckpt, ModelCheckpoint)
+    ]
+    if len(checkpoints) > 1:
+        msg = (
+            f"Cannot determine which of {len(checkpoints)} checkpoint callbacks to "
+            "score the trial against."
+        )
+        raise ValueError(msg)
+    checkpoint = checkpoints[0] if checkpoints else None
+
     # Record the trial result and log the best trial
-    if not isinstance(ckpt := trainer.checkpoint_callback, ModelCheckpoint):
+    if checkpoint is None or checkpoint.best_model_score is None:
         sweep.tell(trial, state=TrialState.FAIL)
         return
-    if ckpt.best_model_score is None:
-        sweep.tell(trial, state=TrialState.FAIL)
-        return
-    result = sweep.tell(trial, ckpt.best_model_score.item())
+    result = sweep.tell(trial, checkpoint.best_model_score.item())
     log.info("Trial %d completed with value %f", result.number, result.value)
     best = sweep.study.best_trial
     log.info("Best trial (%d) completed with value %f.", best.number, best.value)
