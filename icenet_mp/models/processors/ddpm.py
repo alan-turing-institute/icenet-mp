@@ -209,16 +209,7 @@ class DDPMProcessor(BaseProcessor):
 
         # In parallel mode, the predicted x_0 is folded into channels for all forecast steps.
         pred_x0_ntchw = pred_x0.reshape(b, self.n_forecast_steps, self.c_target, h, w)
-
-        # Repeat the last frame across forecast steps; overwrite the target slice below.
-        expanded_last = (
-            last_frame.unsqueeze(1)
-            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
-            .clone()
-        )
-        s = self.target_slice_start
-        expanded_last[:, :, s : s + self.c_target] = pred_x0_ntchw
-        return expanded_last
+        return self._build_combined_latent(pred_x0_ntchw, last_frame)
 
     def _flatten_history(self, x: TensorNTCHW) -> TensorNCHW:
         """Fold the history time dimension into channels.
@@ -251,6 +242,36 @@ class DDPMProcessor(BaseProcessor):
         s = self.target_slice_start
         result[:, s : s + self.c_target] = target
         return result
+
+    def _build_combined_latent(
+        self, target_ntchw: TensorNTCHW, last_frame: TensorNCHW
+    ) -> TensorNTCHW:
+        """Lift target-latent forecasts into the combined latent representation.
+
+        Non-target channels are carried forward from ``last_frame`` (persistence
+        in latent space) for every forecast step, while the target-latent slice
+        is overwritten with ``target_ntchw``.
+
+        Args:
+            target_ntchw (TensorNTCHW): Target-latent forecasts of shape
+                (B, n_forecast_steps, C_target, H, W).
+            last_frame (TensorNCHW): Last observed history frame of shape
+                (B, C_combined, H, W).
+
+        Returns:
+            TensorNTCHW: Combined-latent tensor of shape
+                (B, n_forecast_steps, C_combined, H, W).
+
+        """
+        b, _, h, w = last_frame.shape
+        combined = (
+            last_frame.unsqueeze(1)
+            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
+            .clone()
+        )
+        s = self.target_slice_start
+        combined[:, :, s : s + self.c_target] = target_ntchw
+        return combined
 
     def _training_rollout(self, x: TensorNTCHW, y: TensorNTCHW) -> ProcessorOutput:
         """One training rollout using DDPM v-prediction loss.
@@ -395,17 +416,7 @@ class DDPMProcessor(BaseProcessor):
 
         # Build the combined latent, keeping non-target channels persistent.
         y_ntchw = y.reshape(b, self.n_forecast_steps, self.c_target, h, w)
-        last_frame = x[:, -1]  # (B, C_combined, H, W)
-        combined = (
-            last_frame.unsqueeze(1)
-            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
-            .clone()
-        )
-
-        # Replace the target slice while keeping non-target channels persistent.
-        s = self.target_slice_start
-        combined[:, :, s : s + self.c_target] = y_ntchw
-        return combined
+        return self._build_combined_latent(y_ntchw, x[:, -1])
 
     def _sample_autoregressive(self, x: TensorNTCHW) -> TensorNTCHW:
         """Autoregressive reverse diffusion sampling (one forecast step at a time).
@@ -462,13 +473,4 @@ class DDPMProcessor(BaseProcessor):
         target_ntchw = torch.stack(
             all_predictions, dim=1
         )  # (B, T_fcst, C_target, H, W)
-        last_frame = x[:, -1]
-        combined = (
-            last_frame.unsqueeze(1)
-            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
-            .clone()
-        )
-
-        s = self.target_slice_start
-        combined[:, :, s : s + self.c_target] = target_ntchw
-        return combined
+        return self._build_combined_latent(target_ntchw, x[:, -1])
