@@ -83,7 +83,7 @@ class DDPMProcessor(BaseProcessor):
             **kwargs: Additional arguments passed to ``BaseProcessor``.
 
         """
-        super().__init__(requires_multistage=True, **kwargs)
+        super().__init__(computes_loss_in_latent_space=True, **kwargs)
 
         # Instantiate the configured loss function.
         self.loss_fn: nn.Module = (

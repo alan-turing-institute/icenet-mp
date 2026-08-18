@@ -18,19 +18,19 @@ class BaseProcessor(nn.Module):
     def __init__(
         self,
         *,
+        computes_loss_in_latent_space: bool = False,
         data_space: DataSpace,
         data_space_target: DataSpace | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
-        requires_multistage: bool = False,
     ) -> None:
         """Initialise a BaseProcessor."""
         super().__init__()
+        self.computes_loss_in_latent_space = computes_loss_in_latent_space
         self.data_space = data_space
         self.data_space_target = data_space_target or data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
-        self.requires_multistage = requires_multistage
         # The latent spatial dimensions (H, W) for the inputs and target must match
         if self.data_space_target.shape != self.data_space.shape:
             msg = (

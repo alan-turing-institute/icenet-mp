@@ -90,7 +90,7 @@ class TestEncodeProcessDecode:
             cfg_output_space["shape"][1],
         )
 
-    def test_processor_does_not_require_multistage(
+    def test_processor_default_does_not_require_multistage(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -117,7 +117,7 @@ class TestEncodeProcessDecode:
         )
         assert model.requires_multistage is False
 
-    def test_processor_requires_multistage(
+    def test_processor_with_custom_loss_requires_multistage(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -128,7 +128,9 @@ class TestEncodeProcessDecode:
         test_n_forecast_steps: int,
         test_n_history_steps: int,
     ) -> None:
-        cfg_processor = DictConfig({**cfg_processor, "requires_multistage": True})
+        cfg_processor = DictConfig(
+            {**cfg_processor, "computes_loss_in_latent_space": True}
+        )
         model = EncodeProcessDecode(
             name="encode-null-decode",
             encoders=cfg_encoders,
