@@ -122,7 +122,10 @@ class TestSweepCLI:
         study_path = tmp_path / "example-sweep"
         study_path.mkdir()
         (study_path / "optuna.yaml").write_text(yaml.safe_dump(cfg_sweep))
-        OmegaConf.save(OmegaConf.create({}), study_path / "model_config.yaml")
+        OmegaConf.save(
+            OmegaConf.create({"train": {"optimizer": {"lr": 0.001}}}),
+            study_path / "model_config.yaml",
+        )
 
         sampler = OptunaSweep.from_path(study_path)
         trial_number = None

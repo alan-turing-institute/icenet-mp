@@ -129,11 +129,17 @@ class OptunaSweep:
         """Generate a trial config from a list of parameter overrides."""
         base_config = DictConfig(OmegaConf.load(self.study_path / "model_config.yaml"))
         # Set each override directly, so that categorical values cannot be interpreted
-        # as YAML keywords (e.g. "off", "null") and re-parsed into a bool/None.
+        # as YAML keywords (e.g. "off", "null") and re-parsed into a bool/None. We set
+        # struct-mode so that typos will raise instead of silently creating new keys.
+        OmegaConf.set_struct(base_config, value=True)
         for parameter, value in overrides:
             OmegaConf.update(base_config, parameter.name, value, merge=True)
+        # Struct mode must come back off before merging in loggers.wandb.config below:
+        # unlike the overrides above, that key is expected to be genuinely new.
         # Also add the sampled values to the W&B config under the sanitised key
-        # names, so they show up as columns in the sweep GUI.
+        # names, so they show up as columns in the sweep GUI. These are new keys, so we
+        # turn struct mode off before merging them in.
+        OmegaConf.set_struct(base_config, value=False)
         wandb_overrides = OmegaConf.create(
             {
                 "loggers": {

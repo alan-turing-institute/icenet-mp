@@ -5,9 +5,10 @@ import pytest
 import wandb
 import yaml
 from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import OmegaConfBaseException
 
 from icenet_mp.sweep import OptunaSweep
-from icenet_mp.sweep.parameters import CategoricalParameter
+from icenet_mp.sweep.parameters import CategoricalParameter, FloatParameter
 
 pytestmark = pytest.mark.filterwarnings(
     "ignore:QMCSampler is experimental:optuna.exceptions.ExperimentalWarning"
@@ -27,11 +28,25 @@ CONFIG: dict[str, Any] = {
 
 
 def build_sampler(config: dict[str, Any], study_path: Path) -> OptunaSweep:
-    """Build an OptunaSweep at `study_path`."""
+    """Build an OptunaSweep at `study_path`.
+
+    The persisted model config has a default for every path in `CONFIG`'s
+    `parameters`, mirroring a real composed Hydra config where a sweep only ever
+    overrides an already-present leaf.
+    """
     sampler = OptunaSweep(config)
     sampler._study_path = study_path
     sampler._study_name = study_path.name
-    OmegaConf.save(OmegaConf.create({}), study_path / "model_config.yaml")
+    OmegaConf.save(
+        OmegaConf.create(
+            {
+                "train": {"optimizer": {"lr": 0.001}},
+                "loss": {"delta": 1.0},
+                "model": {"name": "unet"},
+            }
+        ),
+        study_path / "model_config.yaml",
+    )
     return sampler
 
 
@@ -212,6 +227,12 @@ class TestOptunaSweepGenerateTrialConfig:
         assert OmegaConf.select(trial_cfg, "model.name") == "off"
         wandb_config = OmegaConf.select(trial_cfg, "loggers.wandb.config")
         assert wandb_config["model.name"] == "off"
+
+    def test_unknown_parameter_path_raises(self, tmp_path: Path) -> None:
+        sampler = build_sampler(CONFIG, tmp_path)
+        parameter = FloatParameter("train.optimzer.lr", 1e-5, 1e-2)
+        with pytest.raises(OmegaConfBaseException, match="optimzer"):
+            sampler.generate_trial_config([(parameter, 0.001)])
 
 
 class TestOptunaSweepAskAndTell:
