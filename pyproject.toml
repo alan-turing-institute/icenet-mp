@@ -70,7 +70,7 @@ dev = [
 ]
 docs = [
     "mkdocstrings-python>=2.0.5",
-    "zensical>=0.0.46",
+    "zensical>=0.0.53",
 ]
 notebooks = [
     "cmocean>=4.0.3",
