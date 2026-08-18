@@ -329,7 +329,7 @@ def plot_stratum_importance(
     )
     im = ax.imshow(matrix, aspect="auto", cmap="viridis")
     ax.set_xticks(range(len(_STRATA)))
-    ax.set_xticklabels(list(_STRATA))
+    ax.set_xticklabels(list(_STRATA), rotation=20, ha="right")
     ax.set_yticks(range(len(groups)))
     ax.set_yticklabels(groups, fontsize=8)
     ax.set_xlabel("Stratum")
