@@ -395,3 +395,75 @@ class TestConfigValidation:
                 predict_residual=True,
                 decoder_extra={"restrict_range": "sigmoid"},
             )
+
+    def test_residual_requires_an_additive_skip_connection(self) -> None:
+        """Without a skip connection the anchor would be silently dropped.
+
+        finalise() applies the anchor only when the decoder has a skip connection, so
+        a residual model configured without one would quietly return an absolute
+        prediction - the exact failure this parameterisation exists to prevent.
+        """
+        with pytest.raises(ValueError, match="additive skip connection"):
+            _build_model(
+                rollout_space="physical",
+                predict_residual=True,
+                decoder_extra={"restrict_range": "none",
+                               "skip_connection": {"method": "none"}},
+            )
+
+
+class TestAnchorSemantics:
+    """The static anchor (#405) and the moving anchor (#410) are the same additive
+    skip connection differing only in WHICH frame is supplied as the anchor.
+
+    Both tests below drive the decoder to emit a CONSTANT tendency c, which makes the
+    two anchor choices analytically separable:
+        static anchor  ->  output_k = clamp(observation + c)      (same for every lead)
+        moving anchor  ->  output_k = clamp(output_{k-1} + c)     (accumulates with k)
+    """
+
+    @staticmethod
+    def _constant_tendency(model: EncodeProcessDecode, value: float) -> None:
+        """Make the decoder emit `value` everywhere, whatever its input."""
+        final = _final_conv(model)
+        with torch.no_grad():
+            final.weight.zero_()
+            assert final.bias is not None, "decoder's final conv needs a bias"
+            final.bias.fill_(value)
+
+    def test_moving_anchor_accumulates_across_leads(self) -> None:
+        """rollout_space='physical': each lead corrects the PREVIOUS lead."""
+        model = _build_model(
+            rollout_space="physical",
+            predict_residual=True,
+            decoder_extra={"restrict_range": "none"},
+        )
+        step = 0.05
+        self._constant_tendency(model, step)
+        model.eval()
+        inputs = _inputs(model, seed=5)
+        with torch.no_grad():
+            prediction = model(inputs)
+
+        newest = inputs[TARGET_GROUP][:, -1]
+        for lead in range(model.n_forecast_steps):
+            expected = (newest + step * (lead + 1)).clamp(0.0, 1.0)
+            torch.testing.assert_close(prediction[:, lead], expected)
+
+    def test_static_anchor_does_not_accumulate(self) -> None:
+        """The default latent path anchors EVERY lead on the newest observation."""
+        model = _build_model(
+            rollout_space="latent",
+            decoder_extra={"restrict_range": "none",
+                           "skip_connection": {"method": "additive"}},
+        )
+        step = 0.05
+        self._constant_tendency(model, step)
+        model.eval()
+        inputs = _inputs(model, seed=5)
+        with torch.no_grad():
+            prediction = model(inputs)
+
+        expected = (inputs[TARGET_GROUP][:, -1] + step).clamp(0.0, 1.0)
+        for lead in range(model.n_forecast_steps):
+            torch.testing.assert_close(prediction[:, lead], expected)
