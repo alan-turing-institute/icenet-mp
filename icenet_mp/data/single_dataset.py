@@ -266,6 +266,7 @@ class SingleDataset(Dataset):
                    slice is invalid
 
         """
+        start_date = normalise_date(start_date)
         try:
             idx_global_start = self._date2idx[start_date]
             idx_ds_start, idx_date_start = self._idx2anemoi[idx_global_start]
@@ -327,6 +328,7 @@ class SingleDataset(Dataset):
 
     def to_index(self, date: np.datetime64) -> int:
         """Return the index of a given date in the dataset."""
+        date = normalise_date(date)
         try:
             return self._date2idx[date]
         except KeyError as exc:
