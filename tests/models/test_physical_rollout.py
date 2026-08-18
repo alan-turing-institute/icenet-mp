@@ -407,14 +407,18 @@ class TestConfigValidation:
             _build_model(
                 rollout_space="physical",
                 predict_residual=True,
-                decoder_extra={"restrict_range": "none",
-                               "skip_connection": {"method": "none"}},
+                decoder_extra={
+                    "restrict_range": "none",
+                    "skip_connection": {"method": "none"},
+                },
             )
 
 
 class TestAnchorSemantics:
-    """The static anchor (#405) and the moving anchor (#410) are the same additive
-    skip connection differing only in WHICH frame is supplied as the anchor.
+    """Static and moving anchors are one mechanism differing only in the anchor frame.
+
+    The static anchor (#405) and the moving anchor (#410) are the same additive skip
+    connection; only the frame supplied as the anchor differs.
 
     Both tests below drive the decoder to emit a CONSTANT tendency c, which makes the
     two anchor choices analytically separable:
@@ -454,8 +458,10 @@ class TestAnchorSemantics:
         """The default latent path anchors EVERY lead on the newest observation."""
         model = _build_model(
             rollout_space="latent",
-            decoder_extra={"restrict_range": "none",
-                           "skip_connection": {"method": "additive"}},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
         )
         step = 0.05
         self._constant_tendency(model, step)

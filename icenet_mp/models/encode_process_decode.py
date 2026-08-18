@@ -40,6 +40,10 @@ class EncodeProcessDecode(BaseModel):
             encoders: config for the per-input-group encoders (plus ``latent_space``).
             processor: config for the latent-space processor.
             decoder: config for the decoder producing the output space.
+            target_variable_indices: indices, within the target INPUT group, of the
+                variable(s) being predicted. Must select exactly as many channels as
+                ``output_space`` has; used to pull the newest observed target frame
+                out of the input window as the skip connection's anchor.
             mask_dir: directory holding the mask ``.npy`` files, if masking is used.
             **kwargs: forwarded to ``BaseModel`` (spaces, steps, optimiser, loss, ...).
 
@@ -105,48 +109,10 @@ class EncodeProcessDecode(BaseModel):
             raise ValueError(msg)
         self.target_variable_indices = target_variable_indices
 
-        if rollout_space not in {"latent", "physical"}:
-            msg = (
-                f"rollout_space must be 'latent' or 'physical', got {rollout_space!r}."
-            )
-            raise ValueError(msg)
+        self._validate_rollout_options(rollout_space, predict_residual, decoder)
         self.rollout_space = rollout_space
         self.predict_residual = bool(predict_residual)
         self.feedback_channel = feedback_channel
-        if self.predict_residual and rollout_space != "physical":
-            msg = (
-                "predict_residual=True requires rollout_space='physical': the residual "
-                "is added to the previous PHYSICAL field, which only exists as a "
-                "rollout state in physical space."
-            )
-            raise ValueError(msg)
-        # The residual update is applied by the decoder's additive skip connection
-        # (#405), must be configured: finalise() adds the anchor only when
-        # skip_connection is present, and would otherwise silently drop it and
-        # return an absolute prediction (rather than the tendency).
-        skip_method = str(
-            (decoder.get("skip_connection") or {}).get("method", "none")
-        )
-        if self.predict_residual and skip_method != "additive":
-            msg = (
-                f"predict_residual=True requires the decoder to use an additive skip "
-                f"connection (got skip_connection.method={skip_method!r}): the "
-                f"tendency is added to the anchor by the decoder's skip connection, "
-                f"so without it the anchor would be dropped and the output would be "
-                f"an absolute prediction rather than a residual one."
-            )
-            raise ValueError(msg)
-        if (
-            self.predict_residual
-            and str(decoder.get("restrict_range") or "none") != "none"
-        ):
-            msg = (
-                f"predict_residual=True requires the decoder's restrict_range to be "
-                f"'none' (got {decoder.get('restrict_range')!r}): the decoder emits a "
-                f"signed tendency, which must not be squashed into [0, 1]. The sum "
-                f"previous + tendency is clamped to [0, 1] by the model instead."
-            )
-            raise ValueError(msg)
 
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
@@ -230,6 +196,57 @@ class EncodeProcessDecode(BaseModel):
         # forward pass reproduces the last observation exactly at every lead.
         if self.predict_residual and zero_init_tendency:
             self._zero_tendency_head()
+
+    @staticmethod
+    def _validate_rollout_options(
+        rollout_space: str,
+        predict_residual: bool,  # noqa: FBT001 - mirrors the __init__ keyword
+        decoder: DictConfig,
+    ) -> None:
+        """Reject rollout/residual settings that cannot work, before anything is built.
+
+        Kept out of `__init__` so that adding a check does not push it past the
+        cyclomatic-complexity limit.
+        """
+        if rollout_space not in {"latent", "physical"}:
+            msg = (
+                f"rollout_space must be 'latent' or 'physical', got {rollout_space!r}."
+            )
+            raise ValueError(msg)
+        if not predict_residual:
+            return
+
+        if rollout_space != "physical":
+            msg = (
+                "predict_residual=True requires rollout_space='physical': the residual "
+                "is added to the previous PHYSICAL field, which only exists as a "
+                "rollout state in physical space."
+            )
+            raise ValueError(msg)
+
+        # The residual update is applied by the decoder's additive skip connection
+        # (#405), so one must be configured: finalise() adds the anchor only when
+        # skip_connection is present, and would otherwise silently drop it and
+        # return an absolute prediction (rather than the tendency).
+        skip_method = str((decoder.get("skip_connection") or {}).get("method", "none"))
+        if skip_method != "additive":
+            msg = (
+                f"predict_residual=True requires the decoder to use an additive skip "
+                f"connection (got skip_connection.method={skip_method!r}): the "
+                f"tendency is added to the anchor by the decoder's skip connection, "
+                f"so without it the anchor would be dropped and the output would be "
+                f"an absolute prediction rather than a residual one."
+            )
+            raise ValueError(msg)
+
+        if str(decoder.get("restrict_range") or "none") != "none":
+            msg = (
+                f"predict_residual=True requires the decoder's restrict_range to be "
+                f"'none' (got {decoder.get('restrict_range')!r}): the decoder emits a "
+                f"signed tendency, which must not be squashed into [0, 1]. The sum "
+                f"previous + tendency is clamped to [0, 1] by the model instead."
+            )
+            raise ValueError(msg)
 
     def _zero_tendency_head(self) -> None:
         """Zero the decoder's output convolution so the initial tendency is exactly 0."""
@@ -352,7 +369,7 @@ class EncodeProcessDecode(BaseModel):
             raw = self.decoder(step_latent)
 
             if self.predict_residual:
-                # Compared to the latent path the difference here is 
+                # Compared to the latent path the difference here is
                 # the anchor: here we use the state produced by the previous forecast step.
                 anchor = self._anchor(target_window, n_out)
                 field = self.decoder.finalise(raw, anchor)
