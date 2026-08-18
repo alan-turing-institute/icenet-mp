@@ -75,8 +75,8 @@ class DDPMProcessor(BaseProcessor):
             use_autoregressive (bool): Whether to use autoregressive sampling and
                 one-step training. Default is True.
             target_slice_start (int): Channel offset at which the target-latent
-                slice appears inside the combined latent. Default 0 assumes the
-                target encoder is listed first in the model config.
+                slice appears inside the combined latent.
+                Set automatically by ``EncodeProcessDecode``.
             loss (DictConfig | nn.Module): Loss module applied to (pred_v,
                 target_v). Set this to ``${loss}`` in the yaml to reuse the
                 top-level configured loss.
