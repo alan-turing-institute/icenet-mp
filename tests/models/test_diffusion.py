@@ -86,20 +86,13 @@ class TestUNetDiffusion:
         assert output.shape == noise.shape
         assert torch.isfinite(output).all()
 
-    @pytest.mark.parametrize(
-        ("parameter", "value", "message"),
-        [
-            ("kernel_size", 0, "Kernel size must be greater than 0"),
-            ("start_out_channels", 0, "Start out channels must be greater than 0"),
-        ],
-    )
-    def test_invalid_construction_arguments_raise(
-        self, *, parameter: str, value: int, message: str
-    ) -> None:
-        kwargs = {parameter: value}
+    def test_invalid_kernel_size_raises(self) -> None:
+        with pytest.raises(ValueError, match="Kernel size must be greater than 0"):
+            UNetDiffusion(input_channels=4, output_channels=1, kernel_size=0)
 
-        with pytest.raises(ValueError, match=message):
-            UNetDiffusion(input_channels=4, output_channels=1, **kwargs)
+    def test_invalid_start_out_channels_raises(self) -> None:
+        with pytest.raises(ValueError, match="Start out channels must be greater than 0"):
+            UNetDiffusion(input_channels=4, output_channels=1, start_out_channels=0)
 
 
 class TestMask:
