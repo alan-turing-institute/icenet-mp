@@ -17,9 +17,6 @@ name: example
 n_trials: 8
 sampler: tpe
 seed: 0
-metric:
-  name: validation_loss
-  goal: minimize
 parameters:
   train.optimizer.lr:
     type: float
@@ -31,6 +28,8 @@ parameters:
     low: 0.1
     high: 2.0
 ```
+
+Every sweep is optimised against the trial's best `validation_loss`, taken from the training run's checkpoint callback; this is not configurable.
 
 `parameters` keys are Hydra dotted override paths, exactly as you'd pass them to `imp train key=value`. Each entry is one of:
 

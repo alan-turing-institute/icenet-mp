@@ -112,7 +112,6 @@ class TestSweepCLI:
             "n_trials": 3,
             "sampler": "random",
             "seed": 0,
-            "metric": {"name": "validation_loss", "goal": "minimize"},
             "parameters": {
                 "train.optimizer.lr": {"type": "float", "low": 1.0e-5, "high": 1.0e-2}
             },

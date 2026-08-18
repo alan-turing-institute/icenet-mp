@@ -17,7 +17,6 @@ CONFIG: dict[str, Any] = {
     "n_trials": 6,
     "sampler": "qmc",
     "seed": 0,
-    "metric": {"name": "loss_metric", "goal": "minimize"},
     "parameters": {
         "train.optimizer.lr": {"type": "float", "low": 1e-5, "high": 1e-2, "log": True},
         "loss.delta": {"type": "float", "low": 0.1, "high": 2.0},
@@ -43,13 +42,9 @@ class TestOptunaSweepInit:
         assert sampler.name == CONFIG["name"]
         assert sampler.n_trials == CONFIG["n_trials"]
         assert sampler.seed == CONFIG["seed"]
-        assert sampler.metric == CONFIG["metric"]
+        assert sampler.metric == {"name": "validation_loss.min", "goal": "minimize"}
         assert sampler.parameters == CONFIG["parameters"]
         assert sampler.sampler_cls == CONFIG["sampler"]
-
-    def test_metric_defaults_when_missing(self) -> None:
-        sampler = OptunaSweep({**CONFIG, "metric": {}})
-        assert sampler.metric == {"name": "validation_loss.min", "goal": "minimize"}
 
     def test_seed_defaults_to_zero(self) -> None:
         config = {k: v for k, v in CONFIG.items() if k != "seed"}
@@ -289,7 +284,10 @@ class TestOptunaSweepInitialiseSweep:
         assert captured["entity"] == "my-entity"
         assert captured["project"] == "train"
         assert captured["sweep_config"]["method"] == "random"
-        assert captured["sweep_config"]["metric"] == CONFIG["metric"]
+        assert captured["sweep_config"]["metric"] == {
+            "name": "validation_loss.min",
+            "goal": "minimize",
+        }
         assert captured["sweep_config"]["parameters"]["model.name"] == {
             "values": ["unet", "cnn_unet_cnn"]
         }

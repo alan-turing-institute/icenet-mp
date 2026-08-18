@@ -2,7 +2,7 @@ import os
 from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import wandb
 import yaml
@@ -15,18 +15,17 @@ from .sampler_store import SamplerStore
 
 
 class OptunaSweep:
+    # The goal is always to minimise the validation loss
+    metric: ClassVar[dict[str, str]] = {
+        "name": "validation_loss.min",
+        "goal": "minimize",
+    }
+
     def __init__(self, config: dict[str, Any]) -> None:
         """Initialize an OptunaSweep from a parsed YAML dict."""
         self.name: str = config["name"]
         self.n_trials: int = config["n_trials"]
         self.seed: int = config.get("seed", 0)
-        metric_name = str(config.get("metric", {}).get("name", "validation_loss"))
-        if metric_name.endswith("_loss"):
-            metric_name = f"{metric_name}.min"
-        self.metric = {
-            "name": metric_name,
-            "goal": config.get("metric", {}).get("goal", "minimize"),
-        }
         self.parameters: dict[str, Any] = config["parameters"]
         self.sampler_cls = config["sampler"]
         self._entity: str | None = config.get("entity")
