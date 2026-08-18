@@ -28,6 +28,28 @@ class TestIntParameter:
         with pytest.raises(ValueError, match=r"step.*must be 1"):
             IntParameter.from_spec("x", spec)
 
+    def test_sweep_cfg_uses_int_uniform_by_default(self) -> None:
+        cfg = IntParameter("x", 1, 10).sweep_cfg()
+        assert cfg["x"] == {"distribution": "int_uniform", "min": 1, "max": 10}
+
+    def test_sweep_cfg_quantizes_a_non_default_step(self) -> None:
+        cfg = IntParameter("x", 1, 10, step=2).sweep_cfg()
+        assert cfg["x"] == {
+            "distribution": "q_uniform",
+            "min": 1,
+            "max": 10,
+            "q": 2,
+        }
+
+    def test_sweep_cfg_sets_q_to_one_when_log(self) -> None:
+        cfg = IntParameter("x", 1, 10, log=True).sweep_cfg()
+        assert cfg["x"] == {
+            "distribution": "q_log_uniform_values",
+            "min": 1,
+            "max": 10,
+            "q": 1,
+        }
+
 
 class TestFloatParameter:
     """Tests for FloatParameter."""
@@ -48,6 +70,27 @@ class TestFloatParameter:
         spec = {"low": 0.1, "high": 10.0, "log": True, "step": 0.5}
         with pytest.raises(ValueError, match=r"step.*not supported"):
             FloatParameter.from_spec("x", spec)
+
+    def test_sweep_cfg_uses_uniform_by_default(self) -> None:
+        cfg = FloatParameter("x", 0.1, 10.0).sweep_cfg()
+        assert cfg["x"] == {"distribution": "uniform", "min": 0.1, "max": 10.0}
+
+    def test_sweep_cfg_quantizes_a_step(self) -> None:
+        cfg = FloatParameter("x", 0.1, 10.0, step=0.5).sweep_cfg()
+        assert cfg["x"] == {
+            "distribution": "q_uniform",
+            "min": 0.1,
+            "max": 10.0,
+            "q": 0.5,
+        }
+
+    def test_sweep_cfg_stays_unquantized_when_log(self) -> None:
+        cfg = FloatParameter("x", 0.1, 10.0, log=True).sweep_cfg()
+        assert cfg["x"] == {
+            "distribution": "log_uniform_values",
+            "min": 0.1,
+            "max": 10.0,
+        }
 
 
 class TestBuildParameter:

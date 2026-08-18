@@ -74,13 +74,16 @@ class IntParameter(Parameter):
         )
 
     def sweep_cfg(self) -> dict[str, dict[str, Any]]:
-        return {
-            self.sanitised_name: {
-                "distribution": "q_log_uniform_values" if self.log else "uniform",
-                "min": self.low,
-                "max": self.high,
-            }
-        }
+        cfg: dict[str, Any] = {"min": self.low, "max": self.high}
+        if self.log:
+            cfg["distribution"] = "q_log_uniform_values"
+            cfg["q"] = self.step
+        elif self.step != 1:
+            cfg["distribution"] = "q_uniform"
+            cfg["q"] = self.step
+        else:
+            cfg["distribution"] = "int_uniform"
+        return {self.sanitised_name: cfg}
 
 
 class FloatParameter(Parameter):
@@ -121,13 +124,15 @@ class FloatParameter(Parameter):
         )
 
     def sweep_cfg(self) -> dict[str, dict[str, Any]]:
-        return {
-            self.sanitised_name: {
-                "distribution": "q_log_uniform_values" if self.log else "uniform",
-                "min": self.low,
-                "max": self.high,
-            }
-        }
+        cfg: dict[str, Any] = {"min": self.low, "max": self.high}
+        if self.log:
+            cfg["distribution"] = "log_uniform_values"
+        elif self.step is not None:
+            cfg["distribution"] = "q_uniform"
+            cfg["q"] = self.step
+        else:
+            cfg["distribution"] = "uniform"
+        return {self.sanitised_name: cfg}
 
 
 class CategoricalParameter(Parameter):
