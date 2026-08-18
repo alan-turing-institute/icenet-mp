@@ -85,6 +85,30 @@ class OptunaSweep:
     def sampler(self) -> SamplerStore:
         return SamplerStore(self.study_path, self.sampler_cls, self.seed)
 
+    @cached_property
+    def _built_parameters(self) -> list[Parameter]:
+        """Build and validate every configured Parameter.
+
+        Raises if two parameters sanitise to the same W&B config key, since the sweep
+        or trial config would otherwise silently drop one of them.
+        """
+        parameters = [
+            build_parameter(name, param_spec)
+            for name, param_spec in self.parameters.items()
+        ]
+        seen: dict[str, str] = {}
+        for parameter in parameters:
+            collision = seen.get(parameter.sanitised_name)
+            if collision is not None:
+                msg = (
+                    f"Parameters '{collision}' and '{parameter.name}' both sanitise "
+                    f"to the W&B config key '{parameter.sanitised_name}'. If no "
+                    "changes are made, one will be silently dropped from the sweep."
+                )
+                raise ValueError(msg)
+            seen[parameter.sanitised_name] = parameter.name
+        return parameters
+
     def ask(self) -> Trial:
         """Ask the study for a new trial.
 
@@ -100,12 +124,11 @@ class OptunaSweep:
 
         Since suggest() calls mutate the sampler, we need to perform this under a lock.
         """
-        overrides: list[tuple[Parameter, int | float | str]] = []
         with self.sampler.lock(self.study):
-            for name, param_spec in self.parameters.items():
-                parameter = build_parameter(name, param_spec)
-                overrides.append((parameter, parameter.suggest(trial)))
-        return overrides
+            return [
+                (parameter, parameter.suggest(trial))
+                for parameter in self._built_parameters
+            ]
 
     def generate_trial_config(
         self, overrides: list[tuple[Parameter, int | float | str]]
@@ -166,8 +189,8 @@ class OptunaSweep:
             "metric": self.metric,
             "parameters": {
                 k: v
-                for name, param_spec in self.parameters.items()
-                for k, v in build_parameter(name, param_spec).sweep_cfg().items()
+                for parameter in self._built_parameters
+                for k, v in parameter.sweep_cfg().items()
             },
         }
         self._entity = (

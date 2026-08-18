@@ -14,19 +14,19 @@ class Parameter(ABC):
     @property
     def sanitised_name(self) -> str:
         """Return a sanitised version of the parameter name for use in W&B sweeps."""
-        replacements = {
+        prefixes = {
             "model.decoder": "decoder",
             "model.encoders": "encoders",
             "model.processor": "processor",
-            "predict.n_forecast_steps": "predict.n_forecast_steps",
-            "predict.n_history_steps": "predict.n_history_steps",
             "train.optimizer": "optimizer",
             "train.scheduler": "scheduler",
         }
-        name = self.name
-        for old, new in replacements.items():
-            name = name.replace(old, new)
-        return name
+        for old, new in prefixes.items():
+            if self.name == old:
+                return new
+            if self.name.startswith(f"{old}."):
+                return new + self.name[len(old) :]
+        return self.name
 
     @abstractmethod
     def suggest(self, trial: Trial) -> int | float | str:

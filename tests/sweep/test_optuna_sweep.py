@@ -145,6 +145,26 @@ class TestOptunaSweepGenerateParameterOverrides:
         with pytest.raises(ValueError, match="Unknown parameter type"):
             sampler.generate_parameter_overrides(trial)
 
+    def test_raises_when_two_parameters_sanitise_to_the_same_name(
+        self, tmp_path: Path
+    ) -> None:
+        """A collision must raise, not silently drop one parameter from the sweep.
+
+        'train.optimizer.lr' and 'optimizer.lr' would otherwise both collapse to the
+        W&B config key 'optimizer.lr'.
+        """
+        config = {
+            **CONFIG,
+            "parameters": {
+                "train.optimizer.lr": {"type": "float", "low": 1e-5, "high": 1e-2},
+                "optimizer.lr": {"type": "float", "low": 0.0, "high": 1.0},
+            },
+        }
+        sampler = build_sampler(config, tmp_path)
+        trial = sampler.ask()
+        with pytest.raises(ValueError, match="both sanitise"):
+            sampler.generate_parameter_overrides(trial)
+
     def test_does_not_duplicate_a_concurrent_trials_samples(
         self, tmp_path: Path
     ) -> None:

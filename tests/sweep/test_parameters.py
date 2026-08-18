@@ -8,6 +8,35 @@ from icenet_mp.sweep.parameters import (
 )
 
 
+class TestSanitisedName:
+    """Tests for Parameter.sanitised_name."""
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("model.decoder.channels", "decoder.channels"),
+            ("model.encoders.sic.channels", "encoders.sic.channels"),
+            ("model.processor.depth", "processor.depth"),
+            ("train.optimizer.lr", "optimizer.lr"),
+            ("train.scheduler.T_max", "scheduler.T_max"),
+            ("train.optimizer", "optimizer"),
+            ("loss.delta", "loss.delta"),
+            ("predict.n_forecast_steps", "predict.n_forecast_steps"),
+        ],
+    )
+    def test_strips_known_prefixes(self, name: str, expected: str) -> None:
+        assert CategoricalParameter(name, [1]).sanitised_name == expected
+
+    def test_does_not_match_a_longer_name_sharing_the_same_prefix_text(self) -> None:
+        """A name sharing a prefix's characters is not the same as sharing its prefix.
+
+        'model.decoders_extra...' must not be mistaken for the 'model.decoder' prefix
+        just because it starts with the same characters.
+        """
+        name = "model.decoders_extra.channels"
+        assert CategoricalParameter(name, [1]).sanitised_name == name
+
+
 class TestIntParameter:
     """Tests for IntParameter."""
 
