@@ -4,7 +4,6 @@ import hydra
 import torch
 from omegaconf import DictConfig
 
-from icenet_mp.models.processors.ddpm import DDPMProcessor
 from icenet_mp.types import DataSpace, TensorNTCHW
 
 from .base_model import BaseModel
@@ -112,13 +111,10 @@ class EncodeProcessDecode(BaseModel):
             mask_dir=mask_dir,
         )
 
-        # DDPM stage trains only the processor (v-prediction in latent space).
-        # The decoder is not on the gradient graph, so freeze it explicitly,
-        # otherwise DDP raises "unused parameters" when running on 2+ GPUs.
-        if isinstance(self.processor, DDPMProcessor):
-            for p in self.decoder.parameters():
-                p.requires_grad = False
-            self.decoder.eval()
+        # Processors that require multistage training compute loss in latent space
+        # without touching the decoder. We therefore freeze this explicitly.
+        if self.processor.requires_multistage:
+            self.decoder.freeze()
 
     @property
     def requires_multistage(self) -> bool:

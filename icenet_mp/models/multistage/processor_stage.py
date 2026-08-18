@@ -32,24 +32,20 @@ class ProcessorStage(BaseModel):
 
         # Copy encoders from DecoderStage, freeze their parameters and register them.
         self.encoder_names = decoder_model.encoder_names
-        self.encoders = [copy.deepcopy(encoder) for encoder in decoder_model.encoders]
+        self.encoders = [
+            copy.deepcopy(encoder).freeze() for encoder in decoder_model.encoders
+        ]
         for encoder in self.encoders:
-            for param in encoder.parameters():
-                param.requires_grad = False
             self.add_module(encoder.name, encoder)
 
         # Load the target encoder and freeze it
-        self.target_encoder = target_encoder.encoder
-        for param in self.target_encoder.parameters():
-            param.requires_grad = False
+        self.target_encoder = target_encoder.encoder.freeze()
 
         # Copy combined latent space from DecoderStage
         combined_latent_space = decoder_model.decoder.data_space_in
 
         # Copy decoder from DecoderStage and freeze it
-        self.decoder = copy.deepcopy(decoder_model.decoder)
-        for param in self.decoder.parameters():
-            param.requires_grad = False
+        self.decoder = copy.deepcopy(decoder_model.decoder).freeze()
 
         # Trainable processor
         self.processor: BaseProcessor = hydra.utils.instantiate(

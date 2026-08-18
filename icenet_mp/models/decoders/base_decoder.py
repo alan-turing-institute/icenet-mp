@@ -66,6 +66,12 @@ class BaseDecoder(nn.Module):
         """
         return self.mask(self.restrict(x))
 
+    def freeze(self) -> "BaseDecoder":
+        """Freeze the parameters of this decoder."""
+        for parameter in self.parameters():
+            parameter.requires_grad = False
+        return self.eval()
+
     def rollout(self, x: TensorNTCHW) -> TensorNTCHW:
         """Decode latent space into output space across multiple timesteps.
 

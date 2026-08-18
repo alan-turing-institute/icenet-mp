@@ -33,10 +33,10 @@ class DecoderStage(BaseModel):
 
         # Copy encoders from EncoderStages, freeze their parameters and register them.
         self.encoder_names = [encoder.dataset_name for encoder in encoders]
-        self.encoders = [copy.deepcopy(encoder.encoder) for encoder in encoders]
+        self.encoders = [
+            copy.deepcopy(encoder.encoder).freeze() for encoder in encoders
+        ]
         for encoder in self.encoders:
-            for param in encoder.parameters():
-                param.requires_grad = False
             self.add_module(encoder.name, encoder)
 
         # Build combined latent DataSpace by summing channels across all encoders
