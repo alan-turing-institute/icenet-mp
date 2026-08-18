@@ -2,11 +2,13 @@ _target_: icenet_mp.models.EncodeProcessDecode
 
 name: cnn-ddpm-cnn
 
-# NOTE: target_slice_start defaults to 0, i.e. it assumes the target dataset
-# is first in encoders (dict order). Here that's sic-ssmis. If you reorder
-# encoders or add one before the target, update target_slice_start to match.
 encoders:
   latent_space: [144, 144]
+  sic-osisaf:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    kernel_size: 5
+    n_layers: 1
+    scale_factor: 3
   sic-ssmis:
     _target_: icenet_mp.models.encoders.CNNEncoder
     kernel_size: 5
@@ -30,13 +32,13 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.DDPMProcessor
-  timesteps: 500
+  timesteps: 150
   beta_schedule: cosine
   start_out_channels: 64
   time_embed_dim: 256
   dropout_rate: 0.05
   use_autoregressive: true
-  target_slice_start: 0
+  # target_slice_start: 0
   loss: ${loss}
 
 decoder:
