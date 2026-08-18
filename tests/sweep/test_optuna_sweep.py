@@ -316,3 +316,19 @@ class TestOptunaSweepInitialiseSweep:
         assert captured["sweep_config"]["parameters"]["model.name"] == {
             "values": ["unet", "cnn_unet_cnn"]
         }
+
+    def test_falls_back_to_wandb_entity_env_var_when_entity_is_explicitly_null(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, Any] = {}
+        monkeypatch.setattr(
+            wandb, "sweep", lambda *_, **kwargs: captured.update(kwargs) or "sweep-id"
+        )
+        monkeypatch.setenv("WANDB_ENTITY", "env-entity")
+        sampler = OptunaSweep(CONFIG)
+        model_cfg = DictConfig({"loggers": {"wandb": {"entity": None}}})
+
+        sampler.initialise_sweep(model_cfg)
+
+        assert sampler.entity == "env-entity"
+        assert captured["entity"] == "env-entity"

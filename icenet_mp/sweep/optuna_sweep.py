@@ -191,11 +191,8 @@ class OptunaSweep:
                 for k, v in parameter.sweep_cfg().items()
             },
         }
-        self._entity = (
-            model_cfg.get("loggers", {})
-            .get("wandb", {})
-            .get("entity", os.environ.get("WANDB_ENTITY", None))
-        )
+        wandb_cfg = model_cfg.get("loggers", {}).get("wandb", {})
+        self._entity = wandb_cfg.get("entity") or os.environ.get("WANDB_ENTITY")
         # Start the sweep
         return wandb.sweep(sweep_config, entity=self.entity, project="train")
 
