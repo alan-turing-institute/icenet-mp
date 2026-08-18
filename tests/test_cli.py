@@ -101,10 +101,11 @@ class TestEvaluateCLI:
 
 class TestSweepCLI:
     @staticmethod
-    def _build_study(tmp_path: Path) -> tuple[Path, int]:
-        """Create a local sweep directory with one completed trial.
+    def _build_study(tmp_path: Path, n_completed: int = 1) -> tuple[Path, int | None]:
+        """Create a local sweep directory with `n_completed` completed trials.
 
-        Returns the sweep directory and the number of the (only, so also best) trial.
+        Returns the sweep directory and the number of the last (so also best, since
+        each trial scores 0.5) completed trial, or None if `n_completed` is 0.
         """
         cfg_sweep = {
             "name": "example",
@@ -122,10 +123,13 @@ class TestSweepCLI:
         OmegaConf.save(OmegaConf.create({}), study_path / "model_config.yaml")
 
         sampler = OptunaSweep.from_path(study_path)
-        trial = sampler.ask()
-        sampler.generate_parameter_overrides(trial)
-        sampler.tell(trial, 0.5)
-        return study_path, trial.number
+        trial_number = None
+        for _ in range(n_completed):
+            trial = sampler.ask()
+            sampler.generate_parameter_overrides(trial)
+            sampler.tell(trial, 0.5)
+            trial_number = trial.number
+        return study_path, trial_number
 
     def test_help(self) -> None:
         runner = CustomCliRunner()
@@ -219,6 +223,16 @@ class TestSweepCLI:
         with caplog.at_level(logging.INFO):
             runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
         assert "Study contains 1 trial(s)" in caplog.text
+
+    def test_reports_no_trials_completed_without_crashing(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        study_path, _ = self._build_study(tmp_path, n_completed=0)
+        runner = CustomCliRunner()
+        with caplog.at_level(logging.INFO):
+            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert "Study contains 0 trial(s)" in caplog.text
+        assert "No trials have completed yet" in caplog.text
 
 
 class TestTrainCLI:

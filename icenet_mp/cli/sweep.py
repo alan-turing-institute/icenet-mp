@@ -60,7 +60,11 @@ def summarise(
 ) -> None:
     """Summarise the best parameters found in a W&B sweep."""
     sweep = OptunaSweep.from_path(sweep_path)
-    log.info("Study contains %d trial(s)", len(sweep.study.get_trials()))
+    trials = sweep.study.get_trials()
+    log.info("Study contains %d trial(s)", len(trials))
+    if not any(t.state == TrialState.COMPLETE for t in trials):
+        log.info("No trials have completed yet. Nothing to summarise.")
+        return
     best = sweep.study.best_trial
     log.info("Best trial (%d) completed with value %f.", best.number, best.value)
     log.info("Best trial parameters:")
