@@ -78,7 +78,13 @@ def mock_data_downloader(tmp_path: Path) -> DataDownloader:
 @pytest.fixture
 def mock_data_downloader_ssmis(tmp_path: Path) -> DataDownloader:
     """A DataDownloader for an SSMIS dataset, used to test mask generation."""
-    return _make_data_downloader(tmp_path, "sic-ssmis")
+    return _make_data_downloader(tmp_path, "samp-sic-ssmis")
+
+
+@pytest.fixture
+def mock_data_downloader_synthetic(tmp_path: Path) -> DataDownloader:
+    """A DataDownloader for synthetic data, used to test dummy mask generation."""
+    return _make_data_downloader(tmp_path, "samp-sic-synthetic")
 
 
 @pytest.fixture
@@ -421,7 +427,26 @@ class TestDataDownloader:
         np.testing.assert_array_equal(np.load(land_mask_path), [[0, 1], [1, 1]])
         np.testing.assert_array_equal(np.load(active_mask_path), [[0, 1], [0, 1]])
 
-    def test_generate_masks_skips_non_ssmis_dataset(
+    def test_generate_masks_creates_all_active_synthetic_masks(
+        self,
+        mock_data_downloader_synthetic: DataDownloader,
+        mock_data: dict[str, dict[str, Any]],
+    ) -> None:
+        build_zarr(mock_data_downloader_synthetic.path_dataset, mock_data)
+
+        mock_data_downloader_synthetic.generate_masks(overwrite=False)
+
+        expected = np.ones((2, 2), dtype=np.uint8)
+        np.testing.assert_array_equal(
+            np.load(mock_data_downloader_synthetic.path_masks / "land_mask.npy"),
+            expected,
+        )
+        np.testing.assert_array_equal(
+            np.load(mock_data_downloader_synthetic.path_masks / "active_mask.npy"),
+            expected,
+        )
+
+    def test_generate_masks_skips_unsupported_dataset(
         self, mock_data_downloader: DataDownloader
     ) -> None:
         """No dataset exists on disk; a real open_dataset() call would raise if reached."""

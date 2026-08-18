@@ -63,7 +63,7 @@ class XPUAccelerator(Accelerator):
 
     @staticmethod
     @override
-    def parse_devices(devices: None | int | str | list[int]) -> None | list[int]:
+    def parse_devices(devices: int | str | list[int] | None) -> list[int] | None:
         """Accelerator device parsing logic.
 
         Args:

@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 from omegaconf import DictConfig
@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 class ProcessorStage(EncodeProcessDecode):
+    # Parameters that should be excluded from hyperparameter logging
+    ignored_hparams: ClassVar[frozenset[str]] = EncodeProcessDecode.ignored_hparams | {
+        "decoder_model",
+        "target_encoder",
+    }
+
     def __init__(
         self,
         processor: DictConfig,
@@ -47,6 +53,7 @@ class ProcessorStage(EncodeProcessDecode):
 
         # Copy decoder from DecoderStage and freeze it
         self.decoder = copy.deepcopy(decoder_model.decoder).freeze()
+        self.target_variable_indices = decoder_model.target_variable_indices
 
         # Trainable processor
         self.processor: BaseProcessor = hydra.utils.instantiate(

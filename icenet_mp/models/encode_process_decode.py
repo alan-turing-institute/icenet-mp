@@ -27,11 +27,23 @@ class EncodeProcessDecode(BaseModel):
         encoders: DictConfig,
         processor: DictConfig,
         decoder: DictConfig,
+        target_variable_indices: list[int],
         mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
         super().__init__(**kwargs)
+
+        # Check that the number of variable indices provided matches the number of
+        # channels in the output space.
+        if self.output_space.channels != len(target_variable_indices):
+            msg = (
+                f"output_space has {self.output_space.channels} channel(s) but "
+                f"target_variable_indices selects {len(target_variable_indices)}; "
+                f"check that predict.target.variables is set correctly."
+            )
+            raise ValueError(msg)
+        self.target_variable_indices = target_variable_indices
 
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
@@ -152,11 +164,29 @@ class EncodeProcessDecode(BaseModel):
         - concatenate inputs in [NTCHW] latent space [batch, n_history_steps, n_latent_channels_total, H_latent, W_latent]
         - process in latent space [NTCHW] [batch, n_forecast_steps, n_latent_channels_total, H_latent, W_latent]
         - decode back to [NTCHW] output space [batch, n_forecast_steps, n_output_channels, H_output, W_output]
+        - add a skip connection from the most recent target value to every forecast step
         """
-        combined_latent: TensorNTCHW = self.encode_inputs(inputs)
-        latent_output: TensorNTCHW = self.processor.rollout(combined_latent).prediction
-        output: TensorNTCHW = self.decoder.rollout(latent_output)
-        return output
+        # Encode inputs into latent space: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+        latent_input_combined: TensorNTCHW = self.encode_inputs(inputs)
+
+        # Process in latent space: tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
+        latent_output: TensorNTCHW = self.processor.rollout(
+            latent_input_combined
+        ).prediction
+
+        # Get persistence if required for skip connection
+        persistence = self.get_persistence(inputs)
+
+        # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
+        return self.decoder.rollout(latent_output, persistence)
+
+    def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
+        """Extract persistence if needed for a skip connection."""
+        if self.decoder.skip_connection:
+            return None
+        return inputs[self.output_space.name][
+            :, -1, self.target_variable_indices, :, :
+        ].unsqueeze(1)
 
     @override
     def train(self, mode: bool = True) -> "EncodeProcessDecode":
@@ -207,16 +237,21 @@ class EncodeProcessDecode(BaseModel):
             target_latent = self.target_encoder.rollout(target)
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
+        # Get persistence if required for skip connection
+        persistence = self.get_persistence(batch)
+
         if processor_output.loss is None:
             # Standard path: compare decoded output to target.
-            prediction = self.decoder.rollout(processor_output.prediction)
+            prediction = self.decoder.rollout(processor_output.prediction, persistence)
             loss = self.loss(prediction, target)
         else:
             # Custom loss path: processor owns the training signal.
             # Decode under no_grad for metrics/callbacks only.
             loss = processor_output.loss
             with torch.no_grad():
-                prediction = self.decoder.rollout(processor_output.prediction)
+                prediction = self.decoder.rollout(
+                    processor_output.prediction, persistence
+                )
 
         # Log metrics; computation will be done at epoch end
         self.log(

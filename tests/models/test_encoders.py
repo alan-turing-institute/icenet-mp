@@ -4,6 +4,7 @@ import torch
 from icenet_mp.models.encoders import (
     BaseEncoder,
     CNNEncoder,
+    DeepCompressionEncoder,
     NaiveLinearEncoder,
     PiecewiseEncoder,
 )
@@ -57,6 +58,71 @@ class TestEncoders:
             encoder.data_space_out.channels,
             *test_latent_hw,
         )
+
+
+class TestDeepCompressionEncoder:
+    @pytest.mark.parametrize("pixel_shuffle", [True, False])
+    @pytest.mark.parametrize(
+        ("patch_size", "stride", "hid_channels"),
+        [
+            (1, 2, (4, 8, 16)),
+            (2, 2, (4, 8, 16)),
+            (1, 3, (4, 8)),
+            (2, 1, (4,)),
+        ],
+    )
+    @pytest.mark.parametrize("latent_hw", [(4, 4), (2, 6), (5, 3)])
+    def test_forward_shape(
+        self,
+        *,
+        pixel_shuffle: bool,
+        patch_size: int,
+        stride: int,
+        hid_channels: tuple[int, ...],
+        latent_hw: tuple[int, int],
+    ) -> None:
+        hid_blocks = [1] * len(hid_channels)
+        spatial_factor = patch_size * stride ** (len(hid_channels) - 1)
+        input_space = DataSpace(
+            name="input",
+            channels=3,
+            shape=(spatial_factor * latent_hw[0], spatial_factor * latent_hw[1]),
+        )
+
+        encoder = DeepCompressionEncoder(
+            data_space_in=input_space,
+            latent_space=latent_hw,
+            hid_channels=hid_channels,
+            hid_blocks=hid_blocks,
+            patch_size=patch_size,
+            pixel_shuffle=pixel_shuffle,
+            stride=stride,
+        )
+        result = encoder.rollout(torch.randn(2, 3, *input_space.chw))
+        assert result.shape == (2, 3, encoder.data_space_out.channels, *latent_hw)
+
+    def test_shape_mismatch_raises(self) -> None:
+        stride = 2
+        hid_channels = [4, 8, 16]
+        hid_blocks = [1, 1, 1]
+        spatial_factor = stride ** (len(hid_channels) - 1)
+        latent_hw = (4, 4)
+        input_space = DataSpace(
+            name="input",
+            channels=3,
+            shape=(
+                spatial_factor * latent_hw[0],
+                spatial_factor * (latent_hw[1] + 1),
+            ),
+        )
+        with pytest.raises(ValueError, match="will encode inputs of shape"):
+            DeepCompressionEncoder(
+                data_space_in=input_space,
+                latent_space=latent_hw,
+                hid_channels=hid_channels,
+                hid_blocks=hid_blocks,
+                stride=stride,
+            )
 
 
 class TestPiecewiseEncoder:

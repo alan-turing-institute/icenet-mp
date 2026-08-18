@@ -1,7 +1,7 @@
 defaults:
   - datasets:
-    - samp_floatsouth_argo_25p0km_2017_2019_24h_v2
-    - samp_sicsouth_ssmis_25p0km_2017_2019_24h_v2
-    - samp_weathersouth_era5_25p0km_2017_2019_24h_v3
+    - samp_floatsouth_argo_25p0km_2020_2024_24h_v3
+    - samp_sicsouth_osisaf_25p0km_2020_2024_24h_v1
+    - samp_weathersouth_era5_25p0km_2020_2024_24h_v4
   - split: sample_dataset
   - _self_
