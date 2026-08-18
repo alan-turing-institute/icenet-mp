@@ -10,10 +10,15 @@ demo-sicnorth-icenet-25k-2017-2019-24h-v1:
     end: '2019-12-31T23:00:00'
     frequency: 24h
 
-  preprocessor:
-    type: IceNetSIC
-    hemisphere: north
+  preprocessors:
+    icenet:
+      _target_: icenet_mp.ingestion.preprocessors.IceNetSICPreprocessor
+      hemisphere: north
+      dates:
+        start: ${....dates.start}
+        end: ${....dates.end}
+        frequency: ${....dates.frequency}
 
   input:
     netcdf:
-      path: ${base_path}/data/preprocessing/${...name}/${...preprocessor.type}/data/osisaf/${...preprocessor.hemisphere}/siconca/*.nc
+      path: ${base_path}/data/preprocessing/${...name}/icenet/data/osisaf/${...preprocessors.icenet.hemisphere}/siconca/*.nc
