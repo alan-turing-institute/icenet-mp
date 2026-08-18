@@ -273,6 +273,26 @@ class DDPMProcessor(BaseProcessor):
         combined[:, :, s : s + self.c_target] = target_ntchw
         return combined
 
+    def _run_reverse_diffusion(self, y: TensorNCHW, cond: TensorNCHW) -> TensorNCHW:
+        """Iteratively denoise ``y`` from t=timesteps-1 down to t=0.
+
+        Args:
+            y (TensorNCHW): Noisy latent to denoise, of shape (B, C, H, W).
+            cond (TensorNCHW): History condition folded to channels, of shape
+                (B, T_hist * C_combined, H, W).
+
+        Returns:
+            TensorNCHW: Denoised latent of shape (B, C, H, W).
+
+        """
+        b = y.shape[0]
+        device = y.device
+        for t_step in reversed(range(self.timesteps)):
+            t = torch.full((b,), t_step, dtype=torch.long, device=device)
+            pred_v = self.model(y, t, cond)
+            y = self.diffusion.p_sample(y, t, pred_v)
+        return y
+
     def _training_rollout(self, x: TensorNTCHW, y: TensorNTCHW) -> ProcessorOutput:
         """One training rollout using DDPM v-prediction loss.
 
@@ -409,10 +429,7 @@ class DDPMProcessor(BaseProcessor):
         y = torch.randn((b, self.n_forecast_steps * self.c_target, h, w), device=device)
 
         # Iteratively denoise from the final diffusion timestep to zero.
-        for t_step in reversed(range(self.timesteps)):
-            t = torch.full((b,), t_step, dtype=torch.long, device=device)
-            pred_v = self.model(y, t, cond)
-            y = self.diffusion.p_sample(y, t, pred_v)
+        y = self._run_reverse_diffusion(y, cond)
 
         # Build the combined latent, keeping non-target channels persistent.
         y_ntchw = y.reshape(b, self.n_forecast_steps, self.c_target, h, w)
@@ -458,10 +475,7 @@ class DDPMProcessor(BaseProcessor):
             y = torch.randn((b, self.c_target, h, w), device=device)
 
             # Iteratively denoise from the final diffusion timestep to zero.
-            for t_step in reversed(range(self.timesteps)):
-                t = torch.full((b,), t_step, dtype=torch.long, device=device)
-                pred_v = self.model(y, t, cond)
-                y = self.diffusion.p_sample(y, t, pred_v)
+            y = self._run_reverse_diffusion(y, cond)
 
             all_predictions.append(y)
 
