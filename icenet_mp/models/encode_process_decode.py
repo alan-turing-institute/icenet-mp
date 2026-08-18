@@ -120,6 +120,10 @@ class EncodeProcessDecode(BaseModel):
                 p.requires_grad = False
             self.decoder.eval()
 
+    @property
+    def requires_multistage(self) -> bool:
+        return self.processor.requires_multistage
+
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model.
 

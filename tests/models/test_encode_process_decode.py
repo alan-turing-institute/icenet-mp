@@ -89,3 +89,58 @@ class TestEncodeProcessDecode:
             cfg_output_space["shape"][0],
             cfg_output_space["shape"][1],
         )
+
+    def test_processor_does_not_require_multistage(
+        self,
+        cfg_decoder: DictConfig,
+        cfg_encoders: DictConfig,
+        cfg_processor: DictConfig,
+        cfg_input_space: DictConfig,
+        cfg_output_space: DictConfig,
+        cfg_loss: DictConfig,
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+    ) -> None:
+        model = EncodeProcessDecode(
+            name="encode-null-decode",
+            encoders=cfg_encoders,
+            processor=cfg_processor,
+            decoder=cfg_decoder,
+            hemisphere="north",
+            input_spaces=[cfg_input_space],
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            output_space=cfg_output_space,
+            optimizer=DictConfig({}),
+            scheduler=DictConfig({}),
+            loss=cfg_loss,
+        )
+        assert model.requires_multistage is False
+
+    def test_processor_requires_multistage(
+        self,
+        cfg_decoder: DictConfig,
+        cfg_encoders: DictConfig,
+        cfg_processor: DictConfig,
+        cfg_input_space: DictConfig,
+        cfg_output_space: DictConfig,
+        cfg_loss: DictConfig,
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+    ) -> None:
+        cfg_processor = DictConfig({**cfg_processor, "requires_multistage": True})
+        model = EncodeProcessDecode(
+            name="encode-null-decode",
+            encoders=cfg_encoders,
+            processor=cfg_processor,
+            decoder=cfg_decoder,
+            hemisphere="north",
+            input_spaces=[cfg_input_space],
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            output_space=cfg_output_space,
+            optimizer=DictConfig({}),
+            scheduler=DictConfig({}),
+            loss=cfg_loss,
+        )
+        assert model.requires_multistage is True

@@ -40,13 +40,13 @@ class BaseModel(LightningModule, ABC):
         input_spaces: list[DictConfig],
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        loss: DictConfig,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
         optimizer: DictConfig,
         output_space: DictConfig,
         scheduler: DictConfig,
-        loss: DictConfig,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
@@ -105,6 +105,10 @@ class BaseModel(LightningModule, ABC):
     @cached_property
     def longitudes(self) -> dict[str, list[float]]:
         return {} if not self.longitudes_fn else self.longitudes_fn()
+
+    @property
+    def requires_multistage(self) -> bool:
+        return False
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""

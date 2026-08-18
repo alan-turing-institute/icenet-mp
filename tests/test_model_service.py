@@ -128,3 +128,26 @@ class TestModelService:
             expected_config["loggers"] = "will_overwrite"
             assert service.config == expected_config
             assert service.config["model"]["name"] != "will_not_overwrite"
+
+    def test_train_standard_mode_rejects_model_requiring_multistage(self) -> None:
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.requires_multistage = True
+
+        with pytest.raises(ValueError, match="multistage"):
+            service.train()
+
+    def test_train_standard_mode_allows_model_not_requiring_multistage(
+        self,
+    ) -> None:
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.requires_multistage = False
+        service.config_ = DictConfig({"train": "train_config"})
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_fit = MagicMock()
+            mp.setattr(service, "_fit", mock_fit)
+            service.train()
+
+        mock_fit.assert_called_once_with(config="train_config")
