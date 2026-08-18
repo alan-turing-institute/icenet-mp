@@ -7,6 +7,7 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.sweep import OptunaSweep
+from icenet_mp.sweep.parameters import CategoricalParameter
 
 pytestmark = pytest.mark.filterwarnings(
     "ignore:QMCSampler is experimental:optuna.exceptions.ExperimentalWarning"
@@ -208,6 +209,17 @@ class TestOptunaSweepGenerateTrialConfig:
         )
         assert wandb_config["loss.delta"] == OmegaConf.select(trial_cfg, "loss.delta")
         assert wandb_config["model.name"] == OmegaConf.select(trial_cfg, "model.name")
+
+    def test_categorical_value_resembling_a_yaml_keyword_is_kept_as_a_string(
+        self, tmp_path: Path
+    ) -> None:
+        """A choice like 'off' or 'null' must not be YAML-coerced to bool/None."""
+        sampler = build_sampler(CONFIG, tmp_path)
+        parameter = CategoricalParameter("model.name", ["off", "null", "unet"])
+        trial_cfg = sampler.generate_trial_config([(parameter, "off")])
+        assert OmegaConf.select(trial_cfg, "model.name") == "off"
+        wandb_config = OmegaConf.select(trial_cfg, "loggers.wandb.config")
+        assert wandb_config["model.name"] == "off"
 
 
 class TestOptunaSweepAskAndTell:

@@ -134,11 +134,12 @@ class OptunaSweep:
     ) -> DictConfig:
         """Generate a trial config from a list of parameter overrides."""
         base_config = DictConfig(OmegaConf.load(self.study_path / "model_config.yaml"))
-        parameter_overrides = OmegaConf.from_dotlist(
-            [f"{parameter.name}={value}" for parameter, value in overrides]
-        )
-        # Also add the sampled values to the W&B config under the sanitised key names,
-        # so they show up as columns in the sweep GUI.
+        # Set each override directly, so that categorical values cannot be interpreted
+        # as YAML keywords (e.g. "off", "null") and re-parsed into a bool/None.
+        for parameter, value in overrides:
+            OmegaConf.update(base_config, parameter.name, value, merge=True)
+        # Also add the sampled values to the W&B config under the sanitised key
+        # names, so they show up as columns in the sweep GUI.
         wandb_overrides = OmegaConf.create(
             {
                 "loggers": {
@@ -151,9 +152,7 @@ class OptunaSweep:
                 }
             }
         )
-        return DictConfig(
-            OmegaConf.merge(base_config, parameter_overrides, wandb_overrides)
-        )
+        return DictConfig(OmegaConf.merge(base_config, wandb_overrides))
 
     def initialise_study(self, model_cfg: DictConfig, sweep_id: str) -> None:
         """Create the Optuna study directory and save the model and sweep configs."""
