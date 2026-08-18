@@ -118,7 +118,7 @@ class EncodeProcessDecode(BaseModel):
             self.decoder.freeze()
 
     @property
-    def requires_multistage(self) -> bool:
+    def multistage_only(self) -> bool:
         return self.processor.computes_loss_in_latent_space
 
     def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

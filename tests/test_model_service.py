@@ -132,7 +132,7 @@ class TestModelService:
     def test_train_standard_mode_rejects_model_requiring_multistage(self) -> None:
         service = ModelService.__new__(ModelService)
         service.model_ = MagicMock()
-        service.model_.requires_multistage = True
+        service.model_.multistage_only = True
 
         with pytest.raises(ValueError, match="multistage"):
             service.train()
@@ -142,7 +142,7 @@ class TestModelService:
     ) -> None:
         service = ModelService.__new__(ModelService)
         service.model_ = MagicMock()
-        service.model_.requires_multistage = False
+        service.model_.multistage_only = False
         service.config_ = DictConfig({"train": "train_config"})
 
         with pytest.MonkeyPatch.context() as mp:

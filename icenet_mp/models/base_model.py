@@ -107,7 +107,7 @@ class BaseModel(LightningModule, ABC):
         return {} if not self.longitudes_fn else self.longitudes_fn()
 
     @property
-    def requires_multistage(self) -> bool:
+    def multistage_only(self) -> bool:
         return False
 
     def configure_optimizers(self) -> OptimizerLRScheduler:

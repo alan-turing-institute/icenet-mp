@@ -394,7 +394,7 @@ class ModelService:
         if multistage:
             self.train_multistage(checkpoint_dir=checkpoint_dir)
         else:
-            if self.model.requires_multistage:
+            if self.model.multistage_only:
                 msg = (
                     "This model cannot be trained in standard mode. The most likely "
                     "cause is that the decoder must be pretrained before processor "

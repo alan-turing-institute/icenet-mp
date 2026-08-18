@@ -115,9 +115,9 @@ class TestEncodeProcessDecode:
             scheduler=DictConfig({}),
             loss=cfg_loss,
         )
-        assert model.requires_multistage is False
+        assert model.multistage_only is False
 
-    def test_processor_with_custom_loss_requires_multistage(
+    def test_processor_with_custom_loss_multistage_only(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -145,4 +145,4 @@ class TestEncodeProcessDecode:
             scheduler=DictConfig({}),
             loss=cfg_loss,
         )
-        assert model.requires_multistage is True
+        assert model.multistage_only is True

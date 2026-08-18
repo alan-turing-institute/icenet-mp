@@ -83,6 +83,7 @@ class DDPMProcessor(BaseProcessor):
             **kwargs: Additional arguments passed to ``BaseProcessor``.
 
         """
+        kwargs.pop("computes_loss_in_latent_space", None)
         super().__init__(computes_loss_in_latent_space=True, **kwargs)
 
         # Instantiate the configured loss function.
