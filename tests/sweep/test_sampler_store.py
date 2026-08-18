@@ -40,6 +40,28 @@ class TestSamplerStoreLoad:
             store.load()
 
 
+class TestSamplerStoreTemporary:
+    """Tests for SamplerStore.temporary."""
+
+    def test_constructs_a_fresh_sampler_of_the_configured_class(
+        self, tmp_path: Path
+    ) -> None:
+        store = build_store(tmp_path)
+        assert isinstance(store.temporary(), RandomSampler)
+
+    def test_ignores_an_existing_pickle(self, tmp_path: Path) -> None:
+        """Unlike `load`, `temporary` never reads persisted sampler state."""
+        persisted_bytes = pickle.dumps(RandomSampler(seed=123))
+        (tmp_path / "sampler.pkl").write_bytes(persisted_bytes)
+        store = build_store(tmp_path)
+        assert pickle.dumps(store.temporary()) != persisted_bytes
+
+    def test_raises_for_an_unknown_sampler_cls(self, tmp_path: Path) -> None:
+        store = SamplerStore(tmp_path, "not-a-sampler", seed=0)
+        with pytest.raises(ValueError, match="Unknown sampler"):
+            store.temporary()
+
+
 class TestSamplerStoreLock:
     """Tests for SamplerStore.lock."""
 

@@ -71,10 +71,11 @@ class OptunaSweep:
     @property
     def study(self) -> Study:
         if self._study is None:
+            # Use an in-memory placeholder sampler to avoid unnecessary disk I/O
             self._study = create_study(
                 direction=self.metric["goal"],
                 load_if_exists=True,
-                sampler=self.sampler.load(),
+                sampler=self.sampler.temporary(),
                 storage=f"sqlite:///{self.study_path / 'optuna.db'}",
                 study_name=self.study_name,
             )
