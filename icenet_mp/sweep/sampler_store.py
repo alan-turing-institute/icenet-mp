@@ -31,12 +31,14 @@ class SamplerStore:
         "tpe": TPESampler,
     }
 
-    def __init__(self, study_path: Path, sampler_cls: str, seed: int) -> None:
+    def __init__(
+        self, study_path: Path, sampler_cls: str, seed: int, *, timeout: float = 60.0
+    ) -> None:
         """Initialise a SamplerStore at `study_path` for the named sampler type."""
         self._sampler_path = study_path / "sampler.pkl"
         self._sampler_cls = sampler_cls
         self._seed = seed
-        self._lock = FileLock(str(study_path / "sampler.pkl.lock"))
+        self._lock = FileLock(str(study_path / "sampler.pkl.lock"), timeout=timeout)
 
     def load(self) -> BaseSampler:
         """Wait until a lock is avalable then read the sampler."""

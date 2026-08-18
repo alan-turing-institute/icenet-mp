@@ -2,6 +2,7 @@ import pickle
 from pathlib import Path
 
 import pytest
+from filelock import FileLock, Timeout
 from optuna import create_study
 from optuna.samplers import RandomSampler
 
@@ -110,3 +111,24 @@ class TestSamplerStoreLock:
             slow_value = slow_sampler._rng.rng.random()
 
         assert slow_value != concurrent_value
+
+
+class TestSamplerStoreTimeout:
+    """Tests for SamplerStore's lock timeout."""
+
+    def test_raises_instead_of_blocking_forever_on_a_stuck_lock(
+        self, tmp_path: Path
+    ) -> None:
+        stuck_lock = FileLock(str(tmp_path / "sampler.pkl.lock"))
+        stuck_lock.acquire()
+        try:
+            store = SamplerStore(tmp_path, "random", seed=0, timeout=0.05)
+            study = create_study(sampler=RandomSampler(seed=0))
+            with pytest.raises(Timeout), store.lock(study):
+                pass
+        finally:
+            stuck_lock.release()
+
+    def test_default_timeout_is_finite(self, tmp_path: Path) -> None:
+        store = build_store(tmp_path)
+        assert store._lock.timeout > 0
