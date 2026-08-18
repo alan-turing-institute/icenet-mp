@@ -193,6 +193,63 @@ Each strand writes to its own subdirectory of `--output-dir`:
 Plots are generated when `rf.spatial.plot_results: true` (the default in
 `rf_screening/04_feature_screening_hist_gradient_boosting`; opt-in elsewhere).
 
+## Figures at a glance
+
+The figures below are from a real `sic_change` run on a full year of full-north
+data; see [Feature screening demonstration: full year 2020 run](feature-screening-year-demo.md)
+for the full walkthrough. Each plot answers a specific question.
+
+### Correlation heatmap
+
+![Pairwise correlation heatmap](../assets/feature-screening-demo/correlations.png)
+
+- *Question:* Which variables are pairwise linearly redundant?
+- Read for the strongest off-diagonal blocks; physically-linked fields
+  cluster (adjacent pressure levels, paired wind components, etc.).
+- Fastest cross-check on high VIF scores.
+- Unexpected near-1 correlations between unrelated fields usually mean a
+  unit or alignment bug.
+
+### Importance heatmap
+
+![Mean MSE increase per (lead × feature group)](../assets/feature-screening-demo/importance_heatmap.png)
+
+- *Question:* Which variables, at which forecast leads, does the model rely on?
+- Rows: forecast leads (1–14 days; bottom = 14). Columns: physical variables.
+- Brighter cells = larger MSE increase when the variable's lags are shuffled.
+- A column that stays bright at long leads (e.g. the SIC columns,
+  `era5/sin_julian_day`) is the strongest single-variable signal.
+
+### Reliability grid
+
+![Reliability classification per (lead × feature group)](../assets/feature-screening-demo/reliability_grid.png)
+
+- *Question:* How trustworthy is each cell in the importance heatmap?
+- Same axes as the heatmap; cell colour is the categorical reliability label.
+- Green = `stable` (positive AND reproducible across folds).
+- Yellow = `candidate` (positive but rank-unstable — needs more samples).
+- Red = `low_evidence` (mean importance ≤ 0).
+
+### Stratum importance
+
+![Mean MSE increase per (group × stratum)](../assets/feature-screening-demo/stratum_importance.png)
+
+- *Question:* Where, physically, does each variable matter?
+- Rows: variables. Columns: `open_water`, `pack_ice`, `marginal_ice`.
+- A variable bright in only one stratum is informative only in that regime —
+  check whether your training set actually samples that regime.
+
+### Model quality
+
+![RF MSE vs persistence, sic_change](../assets/feature-screening-demo/model_quality_sic_change.png)
+
+- *Question:* Is the surrogate model good enough for its importance values to mean anything?
+- Green bars: RF held-out MSE per forecast lead. Red bars: persistence MSE.
+- RF should beat persistence (shorter green bar) at the leads you care about.
+- Compare against [the absolute-target version](../assets/feature-screening-demo/model_quality_absolute.png)
+  to see why `sic_change` is the recommended default: in `absolute` mode,
+  persistence wins at every lead and importance collapses.
+
 ## Design notes
 
 - The evidence report requires a feature registry

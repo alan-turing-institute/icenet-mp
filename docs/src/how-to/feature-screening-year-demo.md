@@ -324,6 +324,12 @@ cycle is the dominant signal, and the SIC-change target exposes it. The
 SIC columns (`sic-ssmis/ice_conc`, `sic-ssmis/total_standard_uncertainty`)
 show similar but weaker marginal-ice peaks.
 
+### Model quality
+
+See the [model quality plots above](#headline-sic_change-is-the-only-mode-where-the-rf-actually-screens-anything)
+in the **Headline** section — the `sic_change` and `absolute` panels
+together illustrate why `sic_change` is the recommended default target mode.
+
 ## What this run demonstrates about the branch additions
 
 1. **`target_mode: sic_change`** is the new default in `03_feature_screening`,
