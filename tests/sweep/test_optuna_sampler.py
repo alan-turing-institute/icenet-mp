@@ -17,7 +17,7 @@ CONFIG: dict[str, Any] = {
     "n_trials": 6,
     "sampler": "qmc",
     "seed": 0,
-    "metric": {"name": "validation_loss", "goal": "minimize"},
+    "metric": {"name": "loss_metric", "goal": "minimize"},
     "parameters": {
         "train.optimizer.lr": {"type": "float", "low": 1e-5, "high": 1e-2, "log": True},
         "loss.delta": {"type": "float", "low": 0.1, "high": 2.0},
@@ -49,7 +49,7 @@ class TestInit:
 
     def test_metric_defaults_when_missing(self) -> None:
         sampler = OptunaSampler({**CONFIG, "metric": {}})
-        assert sampler.metric == {"name": "validation_loss", "goal": "minimize"}
+        assert sampler.metric == {"name": "validation_loss.min", "goal": "minimize"}
 
     def test_seed_defaults_to_zero(self) -> None:
         config = {k: v for k, v in CONFIG.items() if k != "seed"}

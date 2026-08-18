@@ -36,8 +36,11 @@ class OptunaSampler:
         self.name: str = config["name"]
         self.n_trials: int = config["n_trials"]
         self.seed: int = config.get("seed", 0)
+        metric_name = str(config.get("metric", {}).get("name", "validation_loss"))
+        if metric_name.endswith("_loss"):
+            metric_name = f"{metric_name}.min"
         self.metric = {
-            "name": config.get("metric", {}).get("name", "validation_loss"),
+            "name": metric_name,
             "goal": config.get("metric", {}).get("goal", "minimize"),
         }
         self.parameters: dict[str, Any] = config["parameters"]
