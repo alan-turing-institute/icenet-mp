@@ -108,6 +108,14 @@ class EncodeProcessDecode(BaseModel):
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
             shape=latent_shapes.pop(),
         )
+        target_slice_start: int | None = None
+        offset = 0
+        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
+            if input_space.name == self.output_space.name:
+                target_slice_start = offset
+                break
+            offset += encoder.data_space_out.channels
+
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
             data_space=combined_latent_space,
