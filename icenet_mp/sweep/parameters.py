@@ -49,6 +49,9 @@ class IntParameter(Parameter):
         self, name: str, low: int, high: int, *, log: bool = False, step: int = 1
     ) -> None:
         """Initialise an IntParameter with a name, range, and sampling options."""
+        if log and step != 1:
+            msg = f"Parameter '{name}': `step` must be 1 when `log` is true."
+            raise ValueError(msg)
         super().__init__(name)
         self.low = low
         self.high = high
@@ -93,6 +96,9 @@ class FloatParameter(Parameter):
         step: float | None = None,
     ) -> None:
         """Initialise a FloatParameter with a name, range, and sampling options."""
+        if log and step is not None:
+            msg = f"Parameter '{name}': `step` is not supported when `log` is true."
+            raise ValueError(msg)
         super().__init__(name)
         self.low = low
         self.high = high

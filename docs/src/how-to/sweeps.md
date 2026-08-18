@@ -34,7 +34,8 @@ parameters:
 
 `parameters` keys are Hydra dotted override paths, exactly as you'd pass them to `imp train key=value`. Each entry is one of:
 
-- `type: float` / `type: int` — `low`, `high`, optionally `log: true` (log-uniform) or `step`
+- `type: float` / `type: int` — `low`, `high`, optionally `log: true` (log-uniform) or `step`.
+  `log` and `step` are mutually exclusive: `type: int` requires `step: 1` (the default) when `log: true`, and `type: float` does not accept a `step` at all when `log: true`.
 - `type: categorical` — `choices: [...]`
 
 ## 2. Generate the sweep
