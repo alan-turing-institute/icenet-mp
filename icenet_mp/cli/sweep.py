@@ -106,12 +106,11 @@ def trial(
     ] = False,
 ) -> None:
     """Run a single trial from a W&B sweep."""
-    # Load the Optuna sweep and start a trial
+    # Load the Optuna sweep, start a trial, and get its parameter overrides
     sweep = OptunaSweep.from_path(sweep_path)
-    trial = sweep.ask()
+    trial, overrides = sweep.ask()
 
-    # Generate parameter overrides and a merged config for this trial
-    overrides = sweep.generate_parameter_overrides(trial)
+    # Generate a merged config for this trial
     log.info("Running trial %d with overrides:", trial.number)
     for parameter, value in overrides:
         log.info("  %s = %s", parameter.name, value)

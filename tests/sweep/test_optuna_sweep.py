@@ -111,13 +111,12 @@ class TestOptunaSweepStudy:
         assert (tmp_path / "optuna.db").exists()
 
 
-class TestOptunaSweepGenerateParameterOverrides:
-    """Tests for OptunaSweep.generate_parameter_overrides."""
+class TestOptunaSweepAsk:
+    """Tests for OptunaSweep.ask."""
 
     def test_one_override_per_parameter(self, tmp_path: Path) -> None:
         sampler = build_sampler(CONFIG, tmp_path)
-        trial = sampler.ask()
-        overrides = sampler.generate_parameter_overrides(trial)
+        _, overrides = sampler.ask()
         assert {parameter.name for parameter, _ in overrides} == set(
             CONFIG["parameters"]
         )
@@ -125,21 +124,18 @@ class TestOptunaSweepGenerateParameterOverrides:
     def test_override_generation_mutates_state(self, tmp_path: Path) -> None:
         """Multiple runs in the same study should use different trials."""
         sampler1 = build_sampler(CONFIG, tmp_path)
-        trial1 = sampler1.ask()
-        overrides1 = sampler1.generate_parameter_overrides(trial1)
+        _, overrides1 = sampler1.ask()
 
         sampler2 = build_sampler(CONFIG, tmp_path)
-        trial2 = sampler2.ask()
-        overrides2 = sampler2.generate_parameter_overrides(trial2)
+        _, overrides2 = sampler2.ask()
 
         assert [value for _, value in overrides1] != [value for _, value in overrides2]
 
     def test_unknown_parameter_type_raises(self, tmp_path: Path) -> None:
         bad_config = {**CONFIG, "parameters": {"x": {"type": "not-a-type"}}}
         sampler = build_sampler(bad_config, tmp_path)
-        trial = sampler.ask()
         with pytest.raises(ValueError, match="Unknown parameter type"):
-            sampler.generate_parameter_overrides(trial)
+            sampler.ask()
 
     def test_raises_when_two_parameters_sanitise_to_the_same_name(
         self, tmp_path: Path
@@ -157,28 +153,26 @@ class TestOptunaSweepGenerateParameterOverrides:
             },
         }
         sampler = build_sampler(config, tmp_path)
-        trial = sampler.ask()
         with pytest.raises(ValueError, match="both sanitise"):
-            sampler.generate_parameter_overrides(trial)
+            sampler.ask()
 
     def test_does_not_duplicate_a_concurrent_trials_samples(
         self, tmp_path: Path
     ) -> None:
         """Concurrent trials must not clobber each other's sampler state.
 
-        A slow process must re-read `sampler.pkl` before sampling, not overwrite a
-        faster concurrent process's already-persisted RNG advance with its own stale
-        in-memory copy.
+        A slow process must re-read `sampler.pkl` before its next ask(), not
+        overwrite a faster concurrent process's already-persisted RNG advance with
+        its own stale in-memory copy.
         """
         config = {**CONFIG, "sampler": "random"}
         slow = build_sampler(config, tmp_path)
-        slow_trial = slow.ask()
+        slow.ask()
 
         concurrent = build_sampler(config, tmp_path)
-        concurrent_trial = concurrent.ask()
-        concurrent_overrides = concurrent.generate_parameter_overrides(concurrent_trial)
+        _, concurrent_overrides = concurrent.ask()
 
-        slow_overrides = slow.generate_parameter_overrides(slow_trial)
+        _, slow_overrides = slow.ask()
 
         assert [v for _, v in slow_overrides] != [v for _, v in concurrent_overrides]
 
@@ -188,8 +182,7 @@ class TestOptunaSweepGenerateTrialConfig:
 
     def test_parameter_values_match_search_space(self, tmp_path: Path) -> None:
         sampler = build_sampler(CONFIG, tmp_path)
-        trial = sampler.ask()
-        overrides = sampler.generate_parameter_overrides(trial)
+        _, overrides = sampler.ask()
         trial_cfg = sampler.generate_trial_config(overrides)
         assert 1e-5 <= OmegaConf.select(trial_cfg, "train.optimizer.lr") <= 1e-2
         assert 0.1 <= OmegaConf.select(trial_cfg, "loss.delta") <= 2.0
@@ -199,8 +192,7 @@ class TestOptunaSweepGenerateTrialConfig:
         self, tmp_path: Path
     ) -> None:
         sampler = build_sampler(CONFIG, tmp_path)
-        trial = sampler.ask()
-        overrides = sampler.generate_parameter_overrides(trial)
+        _, overrides = sampler.ask()
         trial_cfg = sampler.generate_trial_config(overrides)
         wandb_config = OmegaConf.select(trial_cfg, "loggers.wandb.config")
         assert set(wandb_config) == {"optimizer.lr", "loss.delta", "model.name"}
@@ -232,13 +224,13 @@ class TestOptunaSweepAskAndTell:
 
     def test_successive_asks_return_different_trials(self, tmp_path: Path) -> None:
         sampler = build_sampler(CONFIG, tmp_path)
-        first = sampler.ask()
-        second = sampler.ask()
+        first, _ = sampler.ask()
+        second, _ = sampler.ask()
         assert first.number != second.number
 
     def test_tell_records_value_on_best_trial(self, tmp_path: Path) -> None:
         sampler = build_sampler(CONFIG, tmp_path)
-        trial = sampler.ask()
+        trial, _ = sampler.ask()
         result = sampler.tell(trial, 0.5)
         assert result.number == trial.number
         assert result.value == 0.5

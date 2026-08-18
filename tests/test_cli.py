@@ -124,8 +124,7 @@ class TestSweepCLI:
         sampler = OptunaSweep.from_path(study_path)
         trial_number = None
         for _ in range(n_completed):
-            trial = sampler.ask()
-            sampler.generate_parameter_overrides(trial)
+            trial, _ = sampler.ask()
             sampler.tell(trial, 0.5)
             trial_number = trial.number
         return study_path, trial_number

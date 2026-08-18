@@ -108,26 +108,19 @@ class OptunaSweep:
             seen[parameter.sanitised_name] = parameter.name
         return parameters
 
-    def ask(self) -> Trial:
-        """Ask the study for a new trial.
+    def ask(self) -> tuple[Trial, list[tuple[Parameter, int | float | str]]]:
+        """Ask the study for a new trial and suggest a value for each parameter.
 
-        Since ask() calls mutate the sampler, we need to perform this under a lock.
+        ask() and suggest() calls both mutate the sampler, so we use a single lock
+        acquisition to keep the pair synchronised.
         """
         with self.sampler.lock(self.study):
-            return self.study.ask()
-
-    def generate_parameter_overrides(
-        self, trial: Trial
-    ) -> list[tuple[Parameter, int | float | str]]:
-        """Get a suggested value for each parameter in the sweep.
-
-        Since suggest() calls mutate the sampler, we need to perform this under a lock.
-        """
-        with self.sampler.lock(self.study):
-            return [
+            trial = self.study.ask()
+            overrides = [
                 (parameter, parameter.suggest(trial))
                 for parameter in self._built_parameters
             ]
+            return trial, overrides
 
     def generate_trial_config(
         self, overrides: list[tuple[Parameter, int | float | str]]
