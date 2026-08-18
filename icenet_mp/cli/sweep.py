@@ -143,7 +143,21 @@ def trial(
     checkpoint = checkpoints[0] if checkpoints else None
 
     # Record the trial result and log the best trial
-    if checkpoint is None or checkpoint.best_model_score is None:
+    if checkpoint is None:
+        log.warning(
+            "Trial %d failed: no ModelCheckpoint callback was configured, so it "
+            "cannot be scored.",
+            trial.number,
+        )
+        sweep.tell(trial, state=TrialState.FAIL)
+        return
+    if checkpoint.best_model_score is None:
+        log.warning(
+            "Trial %d failed: the checkpoint callback monitoring '%s' has no "
+            "best_model_score, so it cannot be scored.",
+            trial.number,
+            checkpoint.monitor,
+        )
         sweep.tell(trial, state=TrialState.FAIL)
         return
     result = sweep.tell(trial, checkpoint.best_model_score.item())
