@@ -1,3 +1,3 @@
-from .optuna_sampler import OptunaSampler
+from .optuna_sweep import OptunaSweep
 
-__all__ = ["OptunaSampler"]
+__all__ = ["OptunaSweep"]

@@ -1,38 +1,22 @@
-import logging
 import os
-import pickle
 from collections.abc import Sequence
+from functools import cached_property
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
 import wandb
 import yaml
 from omegaconf import DictConfig, OmegaConf
 from optuna import Study, create_study
-from optuna.samplers import (
-    BaseSampler,
-    GPSampler,
-    QMCSampler,
-    RandomSampler,
-    TPESampler,
-)
 from optuna.trial import FrozenTrial, Trial, TrialState
 
 from .parameters import Parameter, build_parameter
+from .sampler_store import SamplerStore
 
-log = logging.getLogger(__name__)
 
-
-class OptunaSampler:
-    sampler_map: ClassVar[dict[str, type[BaseSampler]]] = {
-        "gp": GPSampler,
-        "qmc": QMCSampler,
-        "random": RandomSampler,
-        "tpe": TPESampler,
-    }
-
+class OptunaSweep:
     def __init__(self, config: dict[str, Any]) -> None:
-        """Initialize an OptunaSampler from a parsed YAML dict."""
+        """Initialize an OptunaSweep from a parsed YAML dict."""
         self.name: str = config["name"]
         self.n_trials: int = config["n_trials"]
         self.seed: int = config.get("seed", 0)
@@ -51,7 +35,7 @@ class OptunaSampler:
         self._study_path: Path | None = None
 
     @classmethod
-    def from_path(cls, study_path: Path) -> "OptunaSampler":
+    def from_path(cls, study_path: Path) -> "OptunaSweep":
         """Load a sweep config from a study path."""
         yaml_path = study_path / "optuna.yaml"
         instance = cls.from_yaml(yaml_path)
@@ -60,7 +44,7 @@ class OptunaSampler:
         return instance
 
     @classmethod
-    def from_yaml(cls, path: Path) -> "OptunaSampler":
+    def from_yaml(cls, path: Path) -> "OptunaSweep":
         """Load a sweep config from a YAML file."""
         return cls(yaml.safe_load(path.read_text()))
 
@@ -88,58 +72,39 @@ class OptunaSampler:
     @property
     def study(self) -> Study:
         if self._study is None:
-            # Create or load the sampler
-            sampler_path = self.study_path / "sampler.pkl"
-            try:
-                with sampler_path.open("rb") as f_sampler:
-                    sampler = pickle.load(f_sampler)  # noqa: S301
-            except (FileNotFoundError, EOFError):
-                log.debug("Sampler could not be loaded from %s.", sampler_path)
-                sampler_cls = self.sampler_map.get(self.sampler_cls)
-                if sampler_cls is None:
-                    msg = (
-                        f"Unknown sampler '{self.sampler_cls}', expected one of "
-                        f"{self.sampler_map.keys()}"
-                    )
-                    raise ValueError(msg) from None
-                sampler = sampler_cls(seed=self.seed)  # type: ignore[call-arg]
-
-            # Create or load the study
             self._study = create_study(
                 direction=self.metric["goal"],
                 load_if_exists=True,
-                sampler=sampler,
+                sampler=self.sampler.load(),
                 storage=f"sqlite:///{self.study_path / 'optuna.db'}",
                 study_name=self.study_name,
             )
         return self._study
 
-    def _update_sampler_state(self) -> None:
-        """Persist a study's sampler state to disk.
-
-        This must be called after each `ask()` or `tell()` operation on the underlying
-        Optuna study, since these calls trigger changes on the sampler. Without this,
-        every call to `ask()` will return the same trial.
-        """
-        sampler_path = self.study_path / "sampler.pkl"
-        with sampler_path.open("wb") as f_sampler:
-            pickle.dump(self.study.sampler, f_sampler)
+    @cached_property
+    def sampler(self) -> SamplerStore:
+        return SamplerStore(self.study_path, self.sampler_cls, self.seed)
 
     def ask(self) -> Trial:
-        """Ask the study for a new trial."""
-        trial = self.study.ask()
-        self._update_sampler_state()
-        return trial
+        """Ask the study for a new trial.
+
+        Since ask() calls mutate the sampler, we need to perform this under a lock.
+        """
+        with self.sampler.lock(self.study):
+            return self.study.ask()
 
     def generate_parameter_overrides(
         self, trial: Trial
     ) -> list[tuple[Parameter, int | float | str]]:
-        """Get a suggested value for each parameter in the sweep."""
+        """Get a suggested value for each parameter in the sweep.
+
+        Since suggest() calls mutate the sampler, we need to perform this under a lock.
+        """
         overrides: list[tuple[Parameter, int | float | str]] = []
-        for name, param_spec in self.parameters.items():
-            parameter = build_parameter(name, param_spec)
-            overrides.append((parameter, parameter.suggest(trial)))
-        self._update_sampler_state()
+        with self.sampler.lock(self.study):
+            for name, param_spec in self.parameters.items():
+                parameter = build_parameter(name, param_spec)
+                overrides.append((parameter, parameter.suggest(trial)))
         return overrides
 
     def generate_trial_config(
@@ -221,7 +186,9 @@ class OptunaSampler:
         state: TrialState | None = None,
         skip_if_finished: bool = False,
     ) -> FrozenTrial:
-        """Ask the study for a new trial."""
-        result = self.study.tell(trial, values, state, skip_if_finished)
-        self._update_sampler_state()
-        return result
+        """Tell the study the result of a completed trial.
+
+        Since tell() calls mutate the sampler, we need to perform this under a lock.
+        """
+        with self.sampler.lock(self.study):
+            return self.study.tell(trial, values, state, skip_if_finished)

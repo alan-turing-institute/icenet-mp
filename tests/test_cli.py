@@ -9,7 +9,7 @@ from omegaconf import OmegaConf
 from typer.testing import CliRunner
 
 from icenet_mp.cli.main import app
-from icenet_mp.sweep import OptunaSampler
+from icenet_mp.sweep import OptunaSweep
 
 
 class CustomCliRunner(CliRunner):
@@ -121,7 +121,7 @@ class TestSweepCLI:
         (study_path / "optuna.yaml").write_text(yaml.safe_dump(cfg_sweep))
         OmegaConf.save(OmegaConf.create({}), study_path / "model_config.yaml")
 
-        sampler = OptunaSampler.from_path(study_path)
+        sampler = OptunaSweep.from_path(study_path)
         trial = sampler.ask()
         sampler.generate_parameter_overrides(trial)
         sampler.tell(trial, 0.5)

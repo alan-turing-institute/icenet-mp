@@ -54,6 +54,7 @@ That directory contains the following files:
 - `optuna.yaml`: the sweep config
 - `optuna.db`: a record of local trials (not human-readable)
 - `sampler.pkl`: the state of the Optuna sampler (not human-readable)
+- `sampler.pkl.lock`: a lock file governing concurrent access to `sampler.pkl`
 
 ## 3. Run a trial
 

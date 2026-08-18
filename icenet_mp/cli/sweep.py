@@ -9,7 +9,7 @@ from omegaconf import DictConfig
 from optuna.trial import TrialState
 
 from icenet_mp.model_service import ModelService
-from icenet_mp.sweep import OptunaSampler
+from icenet_mp.sweep import OptunaSweep
 
 from .hydra import hydra_adaptor
 
@@ -37,15 +37,15 @@ def initialise(
     specified by Optuna. Create the Optuna study directory and save the model and sweep
     configs.
     """
-    # Initialise Optuna sampler
-    sampler = OptunaSampler.from_yaml(sweep_yaml)
+    sweep = OptunaSweep.from_yaml(sweep_yaml)
 
     # Initialise a W&B sweep
-    sweep_id = sampler.initialise_sweep(config)
+    sweep_id = sweep.initialise_sweep(config)
     log.info("Initialised a W&B sweep with ID %s", sweep_id)
 
-    sampler.initialise_study(config, sweep_id)
-    log.info("Initialised an Optuna study at %s", sampler.study_path)
+    # Initialise Optuna study
+    sweep.initialise_study(config, sweep_id)
+    log.info("Initialised an Optuna study at %s", sweep.study_path)
 
 
 @sweep_cli.command()
@@ -59,9 +59,9 @@ def summarise(
     ],
 ) -> None:
     """Summarise the best parameters found in a W&B sweep."""
-    sampler = OptunaSampler.from_path(sweep_path)
-    log.info("Study contains %d trial(s)", len(sampler.study.get_trials()))
-    best = sampler.study.best_trial
+    sweep = OptunaSweep.from_path(sweep_path)
+    log.info("Study contains %d trial(s)", len(sweep.study.get_trials()))
+    best = sweep.study.best_trial
     log.info("Best trial (%d) completed with value %f.", best.number, best.value)
     log.info("Best trial parameters:")
     for parameter_name, parameter_value in best.params.items():
@@ -102,20 +102,20 @@ def trial(
     ] = False,
 ) -> None:
     """Run a single trial from a W&B sweep."""
-    # Load the Optuna sampler and start a trial
-    sampler = OptunaSampler.from_path(sweep_path)
-    trial = sampler.ask()
+    # Load the Optuna sweep and start a trial
+    sweep = OptunaSweep.from_path(sweep_path)
+    trial = sweep.ask()
 
     # Generate parameter overrides and a merged config for this trial
-    overrides = sampler.generate_parameter_overrides(trial)
+    overrides = sweep.generate_parameter_overrides(trial)
     log.info("Running trial %d with overrides:", trial.number)
     for parameter, value in overrides:
         log.info("  %s = %s", parameter.name, value)
-    config = sampler.generate_trial_config(overrides)
+    config = sweep.generate_trial_config(overrides)
 
     # Set W&B environment variables to ensure we are connected to the correct sweep
-    os.environ["WANDB_SWEEP_ID"] = sampler.study_name
-    os.environ["WANDB_ENTITY"] = sampler.entity
+    os.environ["WANDB_SWEEP_ID"] = sweep.study_name
+    os.environ["WANDB_ENTITY"] = sweep.entity
     os.environ["WANDB_PROJECT"] = "train"
 
     # Train the model for this trial
@@ -127,14 +127,14 @@ def trial(
 
     # Record the trial result and log the best trial
     if not isinstance(ckpt := trainer.checkpoint_callback, ModelCheckpoint):
-        sampler.tell(trial, state=TrialState.FAIL)
+        sweep.tell(trial, state=TrialState.FAIL)
         return
     if ckpt.best_model_score is None:
-        sampler.tell(trial, state=TrialState.FAIL)
+        sweep.tell(trial, state=TrialState.FAIL)
         return
-    result = sampler.tell(trial, ckpt.best_model_score.item())
+    result = sweep.tell(trial, ckpt.best_model_score.item())
     log.info("Trial %d completed with value %f", result.number, result.value)
-    best = sampler.study.best_trial
+    best = sweep.study.best_trial
     log.info("Best trial (%d) completed with value %f.", best.number, best.value)
     log.info("Best trial parameters:")
     for parameter_name, parameter_value in best.params.items():
