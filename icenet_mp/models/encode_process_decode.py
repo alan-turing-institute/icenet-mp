@@ -122,6 +122,7 @@ class EncodeProcessDecode(BaseModel):
             data_space_target=self.target_encoder.data_space_out,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_slice_start=target_slice_start,
         )
 
         # Add a decoder
