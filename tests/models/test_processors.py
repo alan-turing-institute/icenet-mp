@@ -438,6 +438,7 @@ class TestDDPMProcessor:
             result = processor.rollout(x)
 
         s = processor.target_slice_start
+        assert s is not None
         c_target = processor.c_target
         non_target_idx = [
             i for i in range(test_latent_chw[0]) if not (s <= i < s + c_target)

@@ -110,7 +110,7 @@ class DDPMProcessor(BaseProcessor):
         self.use_autoregressive = use_autoregressive
 
         # Where the target's channels start in the combined latent. 0 means the target encoder is listed first.
-        self.target_slice_start = target_slice_start
+        self.target_slice_start: int = target_slice_start
         self.c_target = c_target
         self.c_combined = c_combined
 
