@@ -23,3 +23,5 @@ decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
   mask_type: active
   restrict_range: sigmoid
+  skip_connection:
+    method: none

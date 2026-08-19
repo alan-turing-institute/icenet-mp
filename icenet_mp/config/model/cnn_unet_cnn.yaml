@@ -42,3 +42,5 @@ decoder:
   norm_type: groupnorm
   restrict_range: sigmoid
   scale_factor: 3
+  skip_connection:
+    method: none
