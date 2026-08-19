@@ -71,3 +71,54 @@ class TestPiecewiseEncodeDecode:
         )
         output_ntchw = decoder.rollout(latent_ntchw, None)
         assert torch.equal(input_ntchw, output_ntchw)
+
+    def test_stacked_conv_blocks_propagate_gradients(self) -> None:
+        """Verify the current stacked encoder/decoder conv blocks receive gradients."""
+        torch.manual_seed(0)
+        n_history_steps = 2
+        input_ntchw = torch.randn(2, n_history_steps, 2, 16, 16, requires_grad=True)
+        input_space = DataSpace(name="input", channels=2, shape=(16, 16))
+
+        encoder = PiecewiseEncoder(
+            conv_activation="SiLU",
+            conv_subblocks_initial=3,
+            conv_subblocks_final=3,
+            data_space_in=input_space,
+            latent_space=(4, 4),
+        )
+        decoder = PiecewiseDecoder(
+            conv_activation="SiLU",
+            conv_subblocks_initial=3,
+            conv_subblocks_final=3,
+            data_space_in=encoder.data_space_out,
+            data_space_out=input_space,
+            restrict_range="none",
+            use_final_normalisation=False,
+            use_hann_window=False,
+        )
+
+        latent_ntchw = encoder.rollout(input_ntchw)
+        output_ntchw = decoder.rollout(latent_ntchw, None)
+        output_ntchw.square().mean().backward()
+
+        assert input_ntchw.grad is not None
+        assert torch.isfinite(input_ntchw.grad).all()
+        assert torch.count_nonzero(input_ntchw.grad) > 0
+
+        for component in (encoder, decoder):
+            conv_gradients = [
+                module.weight.grad
+                for module in component.modules()
+                if isinstance(module, torch.nn.Conv2d)
+            ]
+            assert conv_gradients
+            gradient_norms = []
+            for gradient in conv_gradients:
+                assert gradient is not None
+                assert torch.isfinite(gradient).all()
+                assert torch.count_nonzero(gradient) > 0
+                gradient_norms.append(gradient.norm())
+
+            norms = torch.stack(gradient_norms)
+            numerical_floor = torch.finfo(norms.dtype).eps * norms.max()
+            assert norms.min() > numerical_floor
