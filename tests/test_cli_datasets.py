@@ -1,27 +1,33 @@
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import numpy as np
 import pytest
 from PIL import Image
 
 import icenet_mp.cli.datasets as datasets_module
-from icenet_mp.ingestion.data_downloader import DataDownloader
+
+if TYPE_CHECKING:
+    from icenet_mp.ingestion.data_downloader import DataDownloader
 
 
 class FakeDataset:
+    """Minimal dataset stub for plotting tests."""
+
     name = "example"
     hemisphere = "north"
-    dates = [np.datetime64("2020-01-01")]
-    variable_names = ["ice_conc", "temperature"]
+    dates: ClassVar[list[np.datetime64]] = [np.datetime64("2020-01-01")]
+    variable_names: ClassVar[list[str]] = ["ice_conc", "temperature"]
 
     def __init__(self, **_kwargs) -> None:  # noqa: ANN003
-        pass
+        """Accept the constructor arguments used by the plotting helper."""
 
     def __len__(self) -> int:
+        """Return the single available timestep."""
         return 1
 
     def __getitem__(self, _idx: int) -> np.ndarray:
+        """Return two deterministic variables for the requested timestep."""
         return np.ones((2, 4, 4), dtype=np.float32)
 
 
@@ -29,6 +35,7 @@ def test_plot_downloader_saves_each_variable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Save one PNG for each variable returned by the plotting helper."""
     dataset_path = tmp_path / "example.zarr"
     dataset_path.mkdir()
 
@@ -60,6 +67,7 @@ def test_plot_downloader_rejects_out_of_range_timestep(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject a timestep index outside the available dataset range."""
     dataset_path = tmp_path / "example.zarr"
     dataset_path.mkdir()
 
