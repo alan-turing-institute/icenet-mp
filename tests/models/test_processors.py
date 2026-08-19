@@ -449,3 +449,20 @@ class TestDDPMProcessor:
                 result.prediction[:, t_step, non_target_idx],
                 last_frame[:, non_target_idx],
             )
+
+    def test_rejects_negative_target_slice(
+        self,
+        test_batch_size: int,  # noqa: ARG002
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        with pytest.raises(ValueError, match="does not fit"):
+            self._make_processor(
+                latent_chw=test_latent_chw,
+                n_forecast_steps=test_n_forecast_steps,
+                n_history_steps=test_n_history_steps,
+                use_autoregressive=test_use_autoregressive,
+                target_slice_start=-1,
+            )
