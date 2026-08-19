@@ -31,6 +31,7 @@ class PlottingCallback(Callback):
         frequency: dict[str, int] | None = None,
         make_input_plots: bool = False,
         make_static_plots: bool = True,
+        make_time_trace_plots: bool = False,
         make_video_plots: bool = True,
         plot_spec: PlotSpec | None = None,
         prefix: str | None = None,
@@ -47,6 +48,7 @@ class PlottingCallback(Callback):
                 number (plot N sample batches evenly spaced across the epoch)
             make_input_plots: Whether to plot the raw inputs.
             make_static_plots: Whether to create static plots.
+            make_time_trace_plots: Whether to plot prediction and ground-truth traces.
             make_video_plots: Whether to create video plots.
             plot_spec: Plotting specification to use (contains difference settings, timestep selection, etc.).
             prefix: An optional prefix to add to all plot keys when logging.
@@ -58,6 +60,7 @@ class PlottingCallback(Callback):
         self.frequency_number = int((frequency or {}).get("number", -1))
         self.make_input_plots = make_input_plots
         self.make_static_plots = make_static_plots
+        self.make_time_trace_plots = make_time_trace_plots
         self.make_video_plots = make_video_plots
 
         # Plotter instance
@@ -176,6 +179,15 @@ class PlottingCallback(Callback):
                 self.plotter.log_static_inputs(
                     dataset.inputs, dates, image_loggers, prefix=self.prefix
                 )
+
+        if self.make_time_trace_plots:
+            self.plotter.log_time_trace_outputs(
+                self.cached_outputs_,
+                dates,
+                image_loggers,
+                channel_names,
+                prefix=self.prefix,
+            )
 
         if self.make_video_plots:
             self.plotter.log_video_outputs(
