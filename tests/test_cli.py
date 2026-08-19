@@ -70,7 +70,21 @@ class TestDatasetsCLI:
                 r"--help\s+-h\s+Show this message and exit.",
                 r"create\s+Create all datasets.",
                 r"inspect\s+Inspect all datasets.",
+                r"plot\s+Plot one timestep of configured datasets.",
                 r"masks\s+Create land / active grid cell masks.",
+            ],
+        )
+
+    def test_plot_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["datasets", "plot", "--help"],
+            expected_patterns=[
+                r"Usage: imp datasets plot \[OPTIONS\] \[overrides\]...",
+                r"Plot one timestep of configured datasets.",
+                r"--dataset\s+<str>\s+Only plot the named configured dataset",
+                r"--output-dir\s+<path>\s+Directory in which to save dataset plots",
+                r"--timestep\s+<int>\s+Dataset timestep index to plot",
             ],
         )
 
