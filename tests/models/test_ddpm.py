@@ -7,9 +7,7 @@ from icenet_mp.models import DDPM
 
 class TestDDPM:
     @staticmethod
-    def _make_model(
-        cfg_loss: DictConfig, *, use_autoregressive: bool = True
-    ) -> DDPM:
+    def _make_model(cfg_loss: DictConfig, *, use_autoregressive: bool = True) -> DDPM:
         return DDPM(
             name="ddpm",
             hemisphere="north",
@@ -165,9 +163,7 @@ class TestDDPM:
         assert torch.all(conditioning_windows[0]["osisaf-north"][:, 0] == 1)
         assert torch.all(conditioning_windows[0]["osisaf-north"][:, 1] == 2)
         assert torch.all(conditioning_windows[1]["osisaf-north"][:, 0] == 2)
-        assert torch.count_nonzero(
-            conditioning_windows[1]["osisaf-north"][:, 1]
-        ) == 0
+        assert torch.count_nonzero(conditioning_windows[1]["osisaf-north"][:, 1]) == 0
         assert torch.all(conditioning_windows[0]["era5"][:, 0] == 10)
         assert torch.all(conditioning_windows[0]["era5"][:, 1] == 20)
         assert torch.all(conditioning_windows[1]["era5"][:, 0] == 20)
