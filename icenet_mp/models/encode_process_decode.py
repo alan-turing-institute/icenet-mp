@@ -236,17 +236,16 @@ class EncodeProcessDecode(BaseModel):
         target = batch["target"].clone().detach()
         combined_latent = self.encode_inputs(batch)
 
-        # Calculate target_latent if and only if the processor needs this for computing
-        # loss in latent space.
+        expected_chw = self.target_encoder.data_space_in.chw
+        if tuple(target.shape[2:]) != expected_chw:
+            msg = (
+                f"Target CHW {tuple(target.shape[2:])} does not match "
+                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
+            )
+            raise ValueError(msg)
+
         target_latent = None
         if self.processor.computes_loss_in_latent_space:
-            expected_chw = self.target_encoder.data_space_in.chw
-            if tuple(target.shape[2:]) != expected_chw:
-                msg = (
-                    f"Target CHW {tuple(target.shape[2:])} does not match "
-                    f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
-                )
-                raise ValueError(msg)
             target_latent = self.target_encoder.rollout(target)
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
