@@ -47,6 +47,10 @@ class DecoderStage(BaseModel):
         for encoder in self.encoders:
             self.add_module(encoder.name, encoder)
 
+        # Verify the output channels for each encoder
+        for encoder in self.encoders:
+            encoder.verify_output_channels(self.device)
+
         # Build combined latent DataSpace by summing channels across all encoders
         total_channels = sum(
             encoder.data_space_out.channels for encoder in self.encoders

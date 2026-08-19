@@ -48,6 +48,10 @@ class ProcessorStage(EncodeProcessDecode):
         # Load the target encoder and freeze it
         self.target_encoder = target_encoder.encoder.freeze()
 
+        # Verify the output channels for each encoder
+        for encoder in (*self.encoders, self.target_encoder):
+            encoder.verify_output_channels(self.device)
+
         # Copy combined latent space from DecoderStage
         combined_latent_space = decoder_model.decoder.data_space_in
 

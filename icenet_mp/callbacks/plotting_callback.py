@@ -9,7 +9,7 @@ from omegaconf import DictConfig
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from icenet_mp.data_loaders import CombinedDataset
+from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
 from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
 from icenet_mp.utils import datetime_from_npdatetime

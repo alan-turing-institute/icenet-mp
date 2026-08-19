@@ -4,7 +4,7 @@ from datetime import datetime
 import numpy as np
 from omegaconf import DictConfig
 
-from icenet_mp.data_loaders import SingleDataset
+from icenet_mp.data import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import (
     ArrayHW,

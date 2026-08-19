@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from functools import cached_property
 
+import torch
 from torch import nn
 
 from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
@@ -21,6 +22,7 @@ class BaseEncoder(nn.Module):
         *,
         data_space_in: DataSpace,
         latent_space: tuple[int, int],
+        output_channels: int,
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
     ) -> None:
@@ -29,7 +31,7 @@ class BaseEncoder(nn.Module):
         self.data_space_in = data_space_in
         self.data_space_out = DataSpace(
             name=f"latent_space_{data_space_in.name}",
-            channels=self.data_space_in.channels,
+            channels=output_channels,
             shape=latent_space,
         )
         self.latitudes_fn = latitudes_fn
@@ -87,3 +89,32 @@ class BaseEncoder(nn.Module):
         return self(x.reshape(-1, *self.data_space_in.chw)).reshape(
             batch_size, n_timeslices, *self.data_space_out.chw
         )
+
+    def verify_output_channels(
+        self, device: torch.device | None = None, dtype: torch.dtype = torch.float32
+    ) -> None:
+        """Cross-check that `forward` actually produces `data_space_out.channels`.
+
+        Runs a single real forward pass on a zero input at construction time, so a
+        wrong or stale channel declaration fails immediately.
+        """
+        was_training = self.training
+        self.eval()
+        try:
+            with torch.no_grad():
+                dummy_input = torch.zeros(
+                    1,
+                    *self.data_space_in.chw,
+                    dtype=dtype,
+                    device=device or torch.device("cpu"),
+                )
+                actual_channels = self(dummy_input).shape[1]
+        finally:
+            self.train(was_training)
+        if actual_channels != self.data_space_out.channels:
+            msg = (
+                f"{type(self).__name__} ('{self.name}') declared "
+                f"{self.data_space_out.channels} output channel(s) but forward() "
+                f"actually produced {actual_channels}."
+            )
+            raise ValueError(msg)

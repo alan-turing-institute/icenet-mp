@@ -44,6 +44,9 @@ class EncoderStage(BaseModel):
             longitudes_fn=self.longitudes_fn,
         )
 
+        # Verify the output channels for the encoder
+        self.encoder.verify_output_channels(self.device)
+
         # Decode from the latent space back to the original input space. This decoder
         # is disposable and reconstructs the input (not the forecast target), so masking
         # and skip connections are disabled here.
