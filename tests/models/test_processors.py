@@ -466,3 +466,33 @@ class TestDDPMProcessor:
                 use_autoregressive=test_use_autoregressive,
                 target_slice_start=-1,
             )
+
+    def test_nonzero_target_slice_start_inference_shape(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+            target_slice_start=1,  # C_TARGET=2, latent_chw[0]=4 -> valid, non-zero
+        )
+        x = torch.randn(
+            test_batch_size,
+            test_n_history_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
+        with torch.no_grad():
+            result = processor.rollout(x)
+        assert result.prediction.shape == (
+            test_batch_size,
+            test_n_forecast_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
