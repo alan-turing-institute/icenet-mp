@@ -23,6 +23,7 @@ class BaseProcessor(nn.Module):
         data_space_target: DataSpace | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
+        target_slice_start: int | None = None,
     ) -> None:
         """Initialise a BaseProcessor."""
         super().__init__()
@@ -31,6 +32,7 @@ class BaseProcessor(nn.Module):
         self.data_space_target = data_space_target or data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
+        self.target_slice_start = target_slice_start
         # The latent spatial dimensions (H, W) for the inputs and target must match
         if self.data_space_target.shape != self.data_space.shape:
             msg = (
