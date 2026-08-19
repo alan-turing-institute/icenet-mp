@@ -26,9 +26,9 @@ class TestGaussianDiffusion:
         noise = torch.randn_like(clean)
         timesteps = torch.tensor([1, 3])
         sqrt_alpha = diffusion.sqrt_alphas_cumprod[timesteps].view(2, 1, 1, 1)
-        sqrt_one_minus_alpha = diffusion.sqrt_one_minus_alphas_cumprod[
-            timesteps
-        ].view(2, 1, 1, 1)
+        sqrt_one_minus_alpha = diffusion.sqrt_one_minus_alphas_cumprod[timesteps].view(
+            2, 1, 1, 1
+        )
 
         sampled = diffusion.q_sample(clean, timesteps, noise)
 
@@ -41,9 +41,9 @@ class TestGaussianDiffusion:
         noise = torch.randn_like(clean)
         timesteps = torch.tensor([1, 3])
         sqrt_alpha = diffusion.sqrt_alphas_cumprod[timesteps].view(2, 1, 1, 1)
-        sqrt_one_minus_alpha = diffusion.sqrt_one_minus_alphas_cumprod[
-            timesteps
-        ].view(2, 1, 1, 1)
+        sqrt_one_minus_alpha = diffusion.sqrt_one_minus_alphas_cumprod[timesteps].view(
+            2, 1, 1, 1
+        )
 
         velocity = diffusion.calculate_v(clean, noise, timesteps)
 
@@ -91,7 +91,9 @@ class TestUNetDiffusion:
             UNetDiffusion(input_channels=4, output_channels=1, kernel_size=0)
 
     def test_invalid_start_out_channels_raises(self) -> None:
-        with pytest.raises(ValueError, match="Start out channels must be greater than 0"):
+        with pytest.raises(
+            ValueError, match="Start out channels must be greater than 0"
+        ):
             UNetDiffusion(input_channels=4, output_channels=1, start_out_channels=0)
 
 
