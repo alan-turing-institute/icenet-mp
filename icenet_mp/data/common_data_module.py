@@ -45,7 +45,13 @@ class CommonDataModule(LightningDataModule):
         # Check prediction target
         self.target_group_name = config["predict"]["target"]["group_name"]
         if self.target_group_name not in self.dataset_groups:
-            msg = f"Could not find prediction target {self.target_group_name}."
+            available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
+            msg = (
+                f"Prediction target group {self.target_group_name!r} was not found in "
+                f"the configured datasets. Available groups: {available_groups}. "
+                "When evaluating a checkpoint, ensure the dataset `group_as` matches "
+                "the checkpoint's `predict.target.group_name`."
+            )
             raise ValueError(msg)
         self._target_variables: list[str] = config["predict"]["target"].get(
             "variables", []
