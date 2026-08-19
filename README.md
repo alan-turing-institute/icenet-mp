@@ -28,7 +28,7 @@
 | icenet\_mp/data/\_\_init\_\_.py                                      |        4 |        0 |    100% |           |
 | icenet\_mp/data/combined\_dataset.py                                 |       42 |        1 |     98% |        88 |
 | icenet\_mp/data/common\_data\_module.py                              |       99 |       33 |     67% |48-49, 92, 100-104, 109, 114, 119, 151, 160-162, 167, 175, 179-182, 188-204, 210-223, 229-245, 251-264 |
-| icenet\_mp/data/single\_dataset.py                                   |      141 |        5 |     96% |185, 190, 214, 288-293 |
+| icenet\_mp/data/single\_dataset.py                                   |      143 |        5 |     97% |185, 190, 214, 289-294 |
 | icenet\_mp/exceptions.py                                             |        3 |        0 |    100% |           |
 | icenet\_mp/geotools/\_\_init\_\_.py                                  |       10 |        0 |    100% |           |
 | icenet\_mp/geotools/geographic\_field.py                             |       37 |       16 |     57% |22, 31, 40, 47, 60-71 |
@@ -151,7 +151,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       65 |        5 |     92% |132-134, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       17 |     85% |106-107, 109-112, 142-147, 183-185, 193-194, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **5659** | **1513** | **73%** |           |
+| **TOTAL**                                                            | **5661** | **1513** | **73%** |           |
 
 
 ## Setup coverage badge
