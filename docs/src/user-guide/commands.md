@@ -45,6 +45,22 @@ Trains the model end-to-end:
 uv run imp train
 ```
 
+To keep a W&B run local while debugging, set the logger's `offline` option. Metrics,
+figures, and other run data are written locally without being uploaded to W&B:
+
+```bash
+uv run imp train loggers.wandb.offline=true
+```
+
+The same override works during evaluation:
+
+```bash
+uv run imp evaluate --checkpoint PATH_TO_A_CHECKPOINT loggers.wandb.offline=true
+```
+
+Alternatively, W&B's `WANDB_MODE=offline` environment variable can be used with either
+command.
+
 Synthetic experiments do not use W&B. Use the synthetic configuration, which
 saves metrics and plotting artefacts locally under `${BASE_DIR}/report`:
 
