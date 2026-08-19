@@ -117,9 +117,7 @@ def plot(
     output_dir: Annotated[
         Path, typer.Option(help="Directory in which to save dataset plots")
     ] = Path("dataset_plots"),
-    timestep: Annotated[
-        int, typer.Option(help="Dataset timestep index to plot")
-    ] = 0,
+    timestep: Annotated[int, typer.Option(help="Dataset timestep index to plot")] = 0,
 ) -> None:
     """Plot one timestep of configured datasets."""
     matched_dataset = False
@@ -143,7 +141,7 @@ def plot(
         )
 
     if dataset is not None and not matched_dataset:
-        logger.error("Configured dataset %s was not found.", dataset)  # noqa: TRY400
+        logger.error("Configured dataset %s was not found.", dataset)
         raise typer.Exit(1)
 
 
