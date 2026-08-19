@@ -394,3 +394,22 @@ class TestDDPMProcessor:
             test_latent_chw[0],
             *test_latent_chw[1:],
         )
+
+    def test_rejects_out_of_bounds_target_slice(
+        self,
+        test_batch_size: int,  # noqa: ARG002
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        with pytest.raises(ValueError, match="does not fit"):
+            self._make_processor(
+                latent_chw=test_latent_chw,
+                n_forecast_steps=test_n_forecast_steps,
+                n_history_steps=test_n_history_steps,
+                use_autoregressive=test_use_autoregressive,
+                target_slice_start=test_latent_chw[
+                    0
+                ],  # start == c_combined (out of range)
+            )
