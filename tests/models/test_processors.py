@@ -525,6 +525,7 @@ class TestDDPMProcessor:
             *test_latent_chw[1:],
         )
         result = processor.rollout(x, y)
+        assert result.loss is not None
         result.loss.backward()
 
         assert any(
