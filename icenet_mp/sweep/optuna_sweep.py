@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 import wandb
 import yaml
 from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import OmegaConfBaseException
 from optuna import Study, create_study
 from optuna.trial import FrozenTrial, Trial, TrialState
 
@@ -153,6 +154,25 @@ class OptunaSweep:
             }
         )
         return DictConfig(OmegaConf.merge(base_config, wandb_overrides))
+
+    def validate_parameters(self, model_cfg: DictConfig) -> None:
+        """Check that every configured parameter resolves against `model_cfg`."""
+        probe_config = model_cfg.copy()
+        OmegaConf.set_struct(probe_config, value=True)
+        errors: list[str] = []
+        for parameter in self._built_parameters:
+            try:
+                OmegaConf.update(
+                    probe_config,
+                    parameter.name,
+                    parameter.probe_value(),
+                    merge=True,
+                )
+            except OmegaConfBaseException as exc:
+                errors.append(f"'{parameter.name}': {exc}")
+        if errors:
+            msg = "Invalid sweep parameter(s):\n" + "\n".join(errors)
+            raise ValueError(msg)
 
     def initialise_study(self, model_cfg: DictConfig, sweep_id: str) -> None:
         """Create the Optuna study directory and save the model and sweep configs."""

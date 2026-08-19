@@ -235,6 +235,62 @@ class TestOptunaSweepGenerateTrialConfig:
             sampler.generate_trial_config([(parameter, 0.001)])
 
 
+class TestOptunaSweepValidateParameters:
+    """Tests for OptunaSweep.validate_parameters."""
+
+    def test_accepts_paths_present_in_the_base_config(self) -> None:
+        sampler = OptunaSweep(CONFIG)
+        model_cfg = OmegaConf.create(
+            {
+                "train": {"optimizer": {"lr": 0.001}},
+                "loss": {"delta": 1.0},
+                "model": {"name": "unet"},
+            }
+        )
+        sampler.validate_parameters(model_cfg)  # must not raise
+
+    def test_raises_for_an_unknown_parameter_path(self) -> None:
+        config = {
+            **CONFIG,
+            "parameters": {
+                "train.optimzer.lr": {"type": "float", "low": 1e-5, "high": 1e-2}
+            },
+        }
+        sampler = OptunaSweep(config)
+        model_cfg = OmegaConf.create({"train": {"optimizer": {"lr": 0.001}}})
+        with pytest.raises(ValueError, match=r"train\.optimzer\.lr"):
+            sampler.validate_parameters(model_cfg)
+
+    def test_reports_every_invalid_parameter_not_just_the_first(self) -> None:
+        config = {
+            **CONFIG,
+            "parameters": {
+                "train.optimzer.lr": {"type": "float", "low": 1e-5, "high": 1e-2},
+                "model.decoder.made_up": {"type": "categorical", "choices": ["a"]},
+            },
+        }
+        sampler = OptunaSweep(config)
+        model_cfg = OmegaConf.create(
+            {"train": {"optimizer": {"lr": 0.001}}, "model": {"decoder": {}}}
+        )
+        with pytest.raises(ValueError, match="Invalid sweep parameter") as exc_info:
+            sampler.validate_parameters(model_cfg)
+        assert "train.optimzer.lr" in str(exc_info.value)
+        assert "model.decoder.made_up" in str(exc_info.value)
+
+    def test_does_not_mutate_the_passed_in_config(self) -> None:
+        sampler = OptunaSweep(CONFIG)
+        model_cfg = OmegaConf.create(
+            {
+                "train": {"optimizer": {"lr": 0.001}},
+                "loss": {"delta": 1.0},
+                "model": {"name": "unet"},
+            }
+        )
+        sampler.validate_parameters(model_cfg)
+        assert OmegaConf.select(model_cfg, "train.optimizer.lr") == 0.001
+
+
 class TestOptunaSweepAskAndTell:
     """Tests for OptunaSweep.ask and OptunaSweep.tell."""
 

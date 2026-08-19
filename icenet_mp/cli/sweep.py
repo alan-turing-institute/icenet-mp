@@ -39,6 +39,9 @@ def initialise(
     """
     sweep = OptunaSweep.from_yaml(sweep_yaml)
 
+    # Fail here for typos or unsupported parameters, rather than creating a broken sweep
+    sweep.validate_parameters(config)
+
     # Initialise a W&B sweep
     sweep_id = sweep.initialise_sweep(config)
     log.info("Initialised a W&B sweep with ID %s", sweep_id)

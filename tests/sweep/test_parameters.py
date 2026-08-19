@@ -79,6 +79,9 @@ class TestIntParameter:
             "q": 1,
         }
 
+    def test_probe_value_returns_low(self) -> None:
+        assert IntParameter("x", 1, 10).probe_value() == 1
+
 
 class TestFloatParameter:
     """Tests for FloatParameter."""
@@ -120,6 +123,16 @@ class TestFloatParameter:
             "min": 0.1,
             "max": 10.0,
         }
+
+    def test_probe_value_returns_low(self) -> None:
+        assert FloatParameter("x", 0.1, 10.0).probe_value() == 0.1
+
+
+class TestCategoricalParameter:
+    """Tests for CategoricalParameter."""
+
+    def test_probe_value_returns_first_choice(self) -> None:
+        assert CategoricalParameter("x", ["b", "a"]).probe_value() == "b"
 
 
 class TestBuildParameter:

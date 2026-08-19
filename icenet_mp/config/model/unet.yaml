@@ -17,6 +17,7 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
+  kernel_size: 3
   start_out_channels: 128
 
 decoder:

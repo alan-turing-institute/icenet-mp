@@ -32,6 +32,10 @@ class Parameter(ABC):
     def suggest(self, trial: Trial) -> int | float | str:
         """Sample a value for this parameter from an Optuna trial."""
 
+    @abstractmethod
+    def probe_value(self) -> int | float | str:
+        """Return a representative value, without needing an Optuna trial."""
+
     @classmethod
     @abstractmethod
     def from_spec(cls, name: str, spec: dict[str, Any]) -> "Parameter":
@@ -72,6 +76,9 @@ class IntParameter(Parameter):
         return trial.suggest_int(
             self.name, self.low, self.high, log=self.log, step=self.step
         )
+
+    def probe_value(self) -> int:
+        return self.low
 
     def sweep_cfg(self) -> dict[str, dict[str, Any]]:
         cfg: dict[str, Any] = {"min": self.low, "max": self.high}
@@ -123,6 +130,9 @@ class FloatParameter(Parameter):
             self.name, self.low, self.high, log=self.log, step=self.step
         )
 
+    def probe_value(self) -> float:
+        return self.low
+
     def sweep_cfg(self) -> dict[str, dict[str, Any]]:
         cfg: dict[str, Any] = {"min": self.low, "max": self.high}
         if self.log:
@@ -151,6 +161,9 @@ class CategoricalParameter(Parameter):
         return cast(
             "int | float | str", trial.suggest_categorical(self.name, self.choices)
         )
+
+    def probe_value(self) -> int | float | str:
+        return self.choices[0]
 
     def sweep_cfg(self) -> dict[str, dict[str, Any]]:
         return {self.sanitised_name: {"values": self.choices}}
