@@ -60,12 +60,12 @@
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
-            <a id="prevFileLink" class="nav" href="z_0aca00fa50c255e7_base_processor_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a id="prevFileLink" class="nav" href="z_0aca00fa50c255e7_ddpm_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a id="indexLink" class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a id="nextFileLink" class="nav" href="z_0aca00fa50c255e7_null_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-19 14:29 +0000
+            created at 2026-08-20 12:35 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -178,10 +178,10 @@
     <p class="run"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">    <span class="key">def</span> <span class="nam">rollout</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">x</span><span class="op">:</span> <span class="nam">TensorNTCHW</span><span class="op">,</span> <span class="nam">y</span><span class="op">:</span> <span class="nam">TensorNTCHW</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="nam">ProcessorOutput</span><span class="op">:</span>  <span class="com"># noqa: ARG002</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t97" href="#t97">97</a></span><span class="t">        <span class="str">&quot;&quot;&quot;Rollout the processor over a window of history/forecast timesteps.&quot;&quot;&quot;</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t98" href="#t98">98</a></span><span class="t">        <span class="com"># Get the initial shape of the input tensor</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t99" href="#t99">99</a></span><span class="t">        <span class="nam">n</span><span class="op">,</span> <span class="nam">t</span><span class="op">,</span> <span class="nam">c</span><span class="op">,</span> <span class="nam">h</span><span class="op">,</span> <span class="nam">w</span> <span class="op">=</span> <span class="nam">x</span><span class="op">.</span><span class="nam">shape</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t99" href="#t99">99</a></span><span class="t">        <span class="nam">n</span><span class="op">,</span> <span class="nam">_</span><span class="op">,</span> <span class="nam">c</span><span class="op">,</span> <span class="nam">h</span><span class="op">,</span> <span class="nam">w</span> <span class="op">=</span> <span class="nam">x</span><span class="op">.</span><span class="nam">shape</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t100" href="#t100">100</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t101" href="#t101">101</a></span><span class="t">        <span class="com"># Fold history timesteps into the channel dimension</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t">        <span class="nam">x_nchw</span> <span class="op">=</span> <span class="nam">x</span><span class="op">.</span><span class="nam">reshape</span><span class="op">(</span><span class="nam">n</span><span class="op">,</span> <span class="nam">t</span> <span class="op">*</span> <span class="nam">c</span><span class="op">,</span> <span class="nam">h</span><span class="op">,</span> <span class="nam">w</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t">        <span class="nam">x_nchw</span> <span class="op">=</span> <span class="nam">x</span><span class="op">.</span><span class="nam">flatten</span><span class="op">(</span><span class="nam">start_dim</span><span class="op">=</span><span class="num">1</span><span class="op">,</span> <span class="nam">end_dim</span><span class="op">=</span><span class="num">2</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t103" href="#t103">103</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">        <span class="com"># Apply the translator to get the forecast timesteps</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t105" href="#t105">105</a></span><span class="t">        <span class="nam">prediction_nchw</span><span class="op">:</span> <span class="nam">TensorNCHW</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">translator</span><span class="op">(</span><span class="nam">x_nchw</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -194,12 +194,12 @@
 <footer>
     <div class="content">
         <p>
-            <a class="nav" href="z_0aca00fa50c255e7_base_processor_py.html">&#xab; prev</a> &nbsp; &nbsp;
+            <a class="nav" href="z_0aca00fa50c255e7_ddpm_py.html">&#xab; prev</a> &nbsp; &nbsp;
             <a class="nav" href="index.html">&Hat; index</a> &nbsp; &nbsp;
             <a class="nav" href="z_0aca00fa50c255e7_null_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-08-19 14:29 +0000
+            created at 2026-08-20 12:35 +0000
         </p>
     </div>
 </footer>
