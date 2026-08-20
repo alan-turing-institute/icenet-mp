@@ -1,18 +1,12 @@
 import logging
-from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from omegaconf import DictConfig
 
-from icenet_mp.data import SingleDataset
 from icenet_mp.ingestion import build_downloaders
-from icenet_mp.ingestion.data_downloader import DataDownloader
-from icenet_mp.utils import datetime_from_npdatetime
-from icenet_mp.visualisations import DEFAULT_SIC_SPEC
-from icenet_mp.visualisations.land_mask import LandMask
-from icenet_mp.visualisations.plotting_static import plot_static_inputs
+from icenet_mp.visualisations import plot_dataset
 
 from .hydra import hydra_adaptor
 
@@ -20,53 +14,6 @@ from .hydra import hydra_adaptor
 datasets_cli = typer.Typer(help="Manage datasets")
 
 logger = logging.getLogger(__name__)
-
-
-def _plot_downloader(
-    downloader: DataDownloader,
-    output_dir: Path,
-    timestep: int,
-) -> int:
-    """Save static plots for one timestep of a downloaded dataset."""
-    if not downloader.path_dataset.exists():
-        msg = f"Dataset {downloader.name} not found at {downloader.path_dataset}"
-        raise RuntimeError(msg)
-
-    dataset = SingleDataset(
-        name=downloader.name,
-        input_files=[downloader.path_dataset],
-        normalise=False,
-    )
-    if timestep < 0 or timestep >= len(dataset):
-        msg = (
-            f"Timestep {timestep} is out of range for dataset {downloader.name} "
-            f"with {len(dataset)} timesteps"
-        )
-        raise IndexError(msg)
-
-    when = datetime_from_npdatetime(dataset.dates[timestep])
-    variables = {
-        f"{dataset.name}:{variable_name}": dataset[timestep][channel]
-        for channel, variable_name in enumerate(dataset.variable_names)
-    }
-    plot_spec = replace(DEFAULT_SIC_SPEC, hemisphere=dataset.hemisphere)
-    images = plot_static_inputs(
-        variables,
-        land_mask=LandMask(None),
-        plot_spec=plot_spec,
-        when=when,
-    )
-
-    dataset_output_dir = output_dir / downloader.name
-    dataset_output_dir.mkdir(parents=True, exist_ok=True)
-    saved = 0
-    for image_name, image_list in images.items():
-        safe_name = image_name.replace(":", "_").replace("/", "_")
-        for idx_image, image in enumerate(image_list):
-            suffix = f"-{idx_image}" if len(image_list) > 1 else ""
-            image.save(dataset_output_dir / f"{safe_name}{suffix}.png")
-            saved += 1
-    return saved
 
 
 @datasets_cli.command("create")
@@ -126,20 +73,20 @@ def plot(
             continue
         matched_dataset = True
         logger.info("Plotting dataset %s.", downloader.name)
-        try:
-            n_saved = _plot_downloader(downloader, output_dir, timestep)
-        except (IndexError, RuntimeError, ValueError, OSError) as exc:
-            logger.error(  # noqa: TRY400
-                "Plotting dataset %s failed, skipping: %s", downloader.name, exc
+        if downloader.path_dataset.exists():
+            n_saved = plot_dataset(
+                downloader.name, downloader.path_dataset, output_dir, timestep
             )
-            continue
-        logger.info(
-            "Saved %d plots for dataset %s under %s.",
-            n_saved,
-            downloader.name,
-            output_dir / downloader.name,
-        )
-
+            logger.info(
+                "Saved %d plots for dataset %s under %s.",
+                n_saved,
+                downloader.name,
+                output_dir / downloader.name,
+            )
+        else:
+            logger.error(
+                "Dataset %s not found at %s", downloader.name, downloader.path_dataset
+            )
     if dataset is not None and not matched_dataset:
         logger.error("Configured dataset %s was not found.", dataset)
         raise typer.Exit(1)
