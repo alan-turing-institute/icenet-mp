@@ -219,7 +219,7 @@ class TestProcessorStage:
             *cfg_output_space["shape"],
         )
 
-    def test_get_persistence_returns_none_when_decoder_has_skip_connection(
+    def test_get_persistence_returns_tensor_when_decoder_has_skip_connection(
         self,
         encoder_stage: EncoderStage,
         target_encoder_stage: EncoderStage,
@@ -277,7 +277,15 @@ class TestProcessorStage:
             ),
         }
 
-        assert processor_stage.get_persistence(inputs) is None
+        persistence = processor_stage.get_persistence(inputs)
+
+        assert persistence is not None
+        assert persistence.shape == (
+            batch_size,
+            1,
+            len(decoder_stage.target_variable_indices),
+            *cfg_output_space["shape"],
+        )
 
     def test_encoders_and_decoder_parameters_are_frozen(
         self, processor_stage: ProcessorStage

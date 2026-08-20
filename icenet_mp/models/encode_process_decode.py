@@ -112,21 +112,13 @@ class EncodeProcessDecode(BaseModel):
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
             shape=latent_shapes.pop(),
         )
-        target_slice_start: int | None = None
-        offset = 0
-        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
-            if input_space.name == self.output_space.name:
-                target_slice_start = offset
-                break
-            offset += encoder.data_space_out.channels
-
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
             data_space=combined_latent_space,
             data_space_target=self.target_encoder.data_space_out,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
-            target_slice_start=target_slice_start,
+            target_channel_offset=self.find_target_channel_offset(),
         )
 
         # Add a decoder
@@ -192,6 +184,15 @@ class EncodeProcessDecode(BaseModel):
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         return self.decoder.rollout(latent_output, persistence)
+
+    def find_target_channel_offset(self) -> int | None:
+        """Find the channel offset of the target dataset within the combined latent space, if present."""
+        offset = 0
+        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
+            if input_space.name == self.output_space.name:
+                return offset
+            offset += encoder.data_space_out.channels
+        return None
 
     def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
         """Extract persistence if needed for a skip connection."""

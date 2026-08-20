@@ -56,7 +56,6 @@ class DDPMProcessor(BaseProcessor):
         normalization: str = "groupnorm",
         activation: str = "SiLU",
         use_autoregressive: bool = True,
-        target_slice_start: int = 0,
         loss: DictConfig | nn.Module,
         **kwargs: Any,
     ) -> None:
@@ -74,9 +73,6 @@ class DDPMProcessor(BaseProcessor):
             activation (str): Activation function used throughout the network (e.g., "SiLU").
             use_autoregressive (bool): Whether to use autoregressive sampling and
                 one-step training. Default is True.
-            target_slice_start (int): Channel offset at which the target-latent
-                slice appears inside the combined latent.
-                Set automatically by ``EncodeProcessDecode``.
             loss (DictConfig | nn.Module): Loss module applied to (pred_v,
                 target_v). Set this to ``${loss}`` in the yaml to reuse the
                 top-level configured loss.
@@ -98,21 +94,26 @@ class DDPMProcessor(BaseProcessor):
         c_target = self.data_space_target.channels
 
         # Validate that the target slice fits inside the combined latent channels.
-        if target_slice_start < 0 or target_slice_start + c_target > c_combined:
+        if (
+            self.target_channel_offset is None
+            or self.target_channel_offset < 0
+            or self.target_channel_offset + c_target > c_combined
+        ):
             msg = (
-                f"target_slice_start={target_slice_start} with target channels="
+                f"target_channel_offset={self.target_channel_offset} with target channels="
                 f"{c_target} does not fit inside combined latent channels="
                 f"{c_combined}."
             )
             raise ValueError(msg)
 
-        self.timesteps = timesteps
-        self.use_autoregressive = use_autoregressive
-
-        # Where the target's channels start in the combined latent. 0 means the target encoder is listed first.
-        self.target_slice_start: int = target_slice_start
+        # Save the position of the target slice in the combined latent space
+        self.target_slice_start = self.target_channel_offset
+        self.target_slice_end = self.target_channel_offset + c_target
         self.c_target = c_target
         self.c_combined = c_combined
+
+        self.timesteps = timesteps
+        self.use_autoregressive = use_autoregressive
 
         # UNet conditioning channels: history folded NTCHW -> NCHW.
         cond_channels = c_combined * self.n_history_steps
@@ -226,8 +227,7 @@ class DDPMProcessor(BaseProcessor):
 
         """
         result = base_frame.clone()
-        s = self.target_slice_start
-        result[:, s : s + self.c_target] = target
+        result[:, self.target_slice_start : self.target_slice_end] = target
         return result
 
     def _build_combined_latent(
@@ -256,8 +256,7 @@ class DDPMProcessor(BaseProcessor):
             .expand(b, self.n_forecast_steps, self.c_combined, h, w)
             .clone()
         )
-        s = self.target_slice_start
-        combined[:, :, s : s + self.c_target] = target_ntchw
+        combined[:, :, self.target_slice_start : self.target_slice_end] = target_ntchw
         return combined
 
     def _run_reverse_diffusion(self, y: TensorNCHW, cond: TensorNCHW) -> TensorNCHW:

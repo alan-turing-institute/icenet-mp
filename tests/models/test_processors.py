@@ -305,7 +305,7 @@ class TestDDPMProcessor:
         n_forecast_steps: int,
         n_history_steps: int,
         use_autoregressive: bool,
-        target_slice_start: int = 0,
+        target_channel_offset: int = 0,
     ) -> DDPMProcessor:
         combined = DataSpace(
             name="combined", channels=latent_chw[0], shape=latent_chw[1:]
@@ -321,7 +321,7 @@ class TestDDPMProcessor:
             time_embed_dim=256,
             dropout_rate=0.0,
             use_autoregressive=use_autoregressive,
-            target_slice_start=target_slice_start,
+            target_channel_offset=target_channel_offset,
             loss=torch.nn.MSELoss(),
         )
 
@@ -409,7 +409,7 @@ class TestDDPMProcessor:
                 n_forecast_steps=test_n_forecast_steps,
                 n_history_steps=test_n_history_steps,
                 use_autoregressive=test_use_autoregressive,
-                target_slice_start=test_latent_chw[
+                target_channel_offset=test_latent_chw[
                     0
                 ],  # start == c_combined (out of range)
             )
@@ -437,7 +437,7 @@ class TestDDPMProcessor:
         with torch.no_grad():
             result = processor.rollout(x)
 
-        s = processor.target_slice_start
+        s = processor.target_channel_offset
         assert s is not None
         c_target = processor.c_target
         non_target_idx = [
@@ -465,10 +465,10 @@ class TestDDPMProcessor:
                 n_forecast_steps=test_n_forecast_steps,
                 n_history_steps=test_n_history_steps,
                 use_autoregressive=test_use_autoregressive,
-                target_slice_start=-1,
+                target_channel_offset=-1,
             )
 
-    def test_nonzero_target_slice_start_inference_shape(
+    def test_nonzero_target_channel_offset_inference_shape(
         self,
         test_batch_size: int,
         test_latent_chw: tuple[int, int, int],
@@ -481,7 +481,7 @@ class TestDDPMProcessor:
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             use_autoregressive=test_use_autoregressive,
-            target_slice_start=1,  # C_TARGET=2, latent_chw[0]=4 -> valid, non-zero
+            target_channel_offset=1,  # C_TARGET=2, latent_chw[0]=4 -> valid, non-zero
         )
         x = torch.randn(
             test_batch_size,

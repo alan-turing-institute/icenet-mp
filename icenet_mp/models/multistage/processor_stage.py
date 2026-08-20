@@ -66,6 +66,7 @@ class ProcessorStage(EncodeProcessDecode):
             data_space_target=self.target_encoder.data_space_out,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_channel_offset=self.find_target_channel_offset(),
         )
 
     @classmethod
