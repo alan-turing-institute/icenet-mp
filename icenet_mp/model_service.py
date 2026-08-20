@@ -18,7 +18,7 @@ from icenet_mp.compatibility.torch import (
     patch_interpolate_antialias,
     patch_open_file_limit,
 )
-from icenet_mp.data_loaders import CommonDataModule
+from icenet_mp.data import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
 from icenet_mp.types import SupportsMetadata
