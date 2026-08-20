@@ -192,13 +192,15 @@ class DDPMProcessor(BaseProcessor):
 
         # Restore the predicted target latent to the combined latent representation.
         if self.use_autoregressive:
-            per_step = self._insert_target(last_frame, pred_x0)
-            return per_step.unsqueeze(1).expand(
-                b, self.n_forecast_steps, self.c_combined, h, w
+            # In autoregressive mode, we duplicate predicted x_0 across all forecast steps
+            pred_x0_ntchw = pred_x0.unsqueeze(1).expand(
+                b, self.n_forecast_steps, self.c_target, h, w
             )
-
-        # In parallel mode, the predicted x_0 is folded into channels for all forecast steps.
-        pred_x0_ntchw = pred_x0.reshape(b, self.n_forecast_steps, self.c_target, h, w)
+        else:
+            # In parallel mode, the predicted x_0 is folded into channels for all forecast steps.
+            pred_x0_ntchw = pred_x0.reshape(
+                b, self.n_forecast_steps, self.c_target, h, w
+            )
         return self._build_combined_latent(pred_x0_ntchw, last_frame)
 
     def _insert_target(
