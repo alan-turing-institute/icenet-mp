@@ -206,7 +206,7 @@ class TestSweepCLI:
         with caplog.at_level(logging.INFO):
             runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
         assert (
-            f"Best trial ({trial_number}) completed with value 0.500000." in caplog.text
+            f"Trial {trial_number} performed best, with loss 0.500000." in caplog.text
         )
 
     def test_reports_best_trial_parameters(
