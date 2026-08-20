@@ -196,10 +196,10 @@ class EncodeProcessDecode(BaseModel):
     def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
         """Extract persistence if needed for a skip connection."""
         if self.decoder.skip_connection:
-            return None
-        return inputs[self.output_space.name][
-            :, -1, self.target_variable_indices, :, :
-        ].unsqueeze(1)
+            return inputs[self.output_space.name][
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1)
+        return None
 
     @override
     def train(self, mode: bool = True) -> "EncodeProcessDecode":
