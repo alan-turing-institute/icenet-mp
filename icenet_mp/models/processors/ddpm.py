@@ -211,19 +211,6 @@ class DDPMProcessor(BaseProcessor):
         pred_x0_ntchw = pred_x0.reshape(b, self.n_forecast_steps, self.c_target, h, w)
         return self._build_combined_latent(pred_x0_ntchw, last_frame)
 
-    def _flatten_history(self, x: TensorNTCHW) -> TensorNCHW:
-        """Fold the history time dimension into channels.
-
-        Args:
-            x (TensorNTCHW): History tensor of shape (B, T_hist, C, H, W).
-
-        Returns:
-            TensorNCHW: Tensor of shape (B, T_hist * C, H, W).
-
-        """
-        b, t, c, h, w = x.shape
-        return x.reshape(b, t * c, h, w)
-
     def _insert_target(self, base_frame: TensorNCHW, target: TensorNCHW) -> TensorNCHW:
         """Return a copy of ``base_frame`` with its target slice overwritten by ``target``.
 
@@ -331,7 +318,7 @@ class DDPMProcessor(BaseProcessor):
         last_frame = x[:, -1]  # (B, C_combined, H, W)
 
         # History frames folded into channels for the 2D UNet.
-        cond = self._flatten_history(x)  # (B, T_hist * C_combined, H, W)
+        cond = x.flatten(start_dim=1, end_dim=2)  # (B, T_hist * C_combined, H, W)
 
         # Clean target to denoise: AR uses step 0 only; parallel folds all steps into channels.
         if self.use_autoregressive:
@@ -421,7 +408,7 @@ class DDPMProcessor(BaseProcessor):
             - All forecast steps are denoised together as a single object.
 
         """
-        cond = self._flatten_history(x)
+        cond = x.flatten(start_dim=1, end_dim=2)
 
         b, _, h, w = cond.shape
         device = cond.device
@@ -469,7 +456,9 @@ class DDPMProcessor(BaseProcessor):
 
         for _ in range(self.n_forecast_steps):
             cond_window = history[:, -self.n_history_steps :]
-            cond = self._flatten_history(cond_window)  # (B, T_hist * C_combined, H, W)
+            cond = cond_window.flatten(
+                start_dim=1, end_dim=2
+            )  # (B, T_hist * C_combined, H, W)
 
             # Start each forecast step from Gaussian noise.
             y = torch.randn((b, self.c_target, h, w), device=device)

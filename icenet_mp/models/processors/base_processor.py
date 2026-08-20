@@ -45,12 +45,12 @@ class BaseProcessor(nn.Module):
         """Forward step: predict the next timestep from a window of history/forecast timesteps.
 
         Args:
-            x: TensorNCHW with (batch_size, n_latent_channels_total * n_history_steps, latent_height, latent_width),
+            x: TensorNCHW with shape (batch_size, n_channels, latent_height, latent_width),
                i.e. the current window of n_history_steps timesteps concatenated along channels,
                ordered oldest to newest.
 
         Returns:
-            TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width),
+            TensorNCHW with shape (batch_size, n_channels, latent_height, latent_width),
             i.e. the single next predicted timestep.
 
         """
