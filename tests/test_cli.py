@@ -98,6 +98,71 @@ class TestDatasetsCLI:
         )
 
 
+class TestDatasetsPlotCLI:
+    class FakeDownloader:
+        """A minimal downloader stub exposing only what `plot` needs."""
+
+        def __init__(self, name: str, path_dataset: Path) -> None:
+            """Store the downloader's name and dataset path."""
+            self.name = name
+            self.path_dataset = path_dataset
+
+    def test_plot_calls_plot_dataset_for_each_matched_existing_dataset(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Call plot_dataset once per configured downloader whose data exists."""
+        existing_path = tmp_path / "example.zarr"
+        existing_path.mkdir()
+        downloaders = [
+            self.FakeDownloader("example", existing_path),
+            self.FakeDownloader("missing", tmp_path / "missing.zarr"),
+        ]
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.build_downloaders", lambda _config: downloaders
+        )
+
+        calls = []
+
+        def fake_plot_dataset(
+            name: str, path: Path, output_dir: Path, timestep: int
+        ) -> int:
+            calls.append((name, path, output_dir, timestep))
+            return 2
+
+        monkeypatch.setattr("icenet_mp.cli.datasets.plot_dataset", fake_plot_dataset)
+
+        output_dir = tmp_path / "plots"
+        result = CliRunner().invoke(
+            app,
+            ["datasets", "plot", "--output-dir", str(output_dir), "--timestep", "1"],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        assert calls == [("example", existing_path, output_dir, 1)]
+
+    def test_plot_rejects_unmatched_dataset_name(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Exit non-zero when --dataset names a dataset that isn't configured."""
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.build_downloaders",
+            lambda _config: [self.FakeDownloader("example", tmp_path / "example.zarr")],
+        )
+
+        result = CliRunner().invoke(
+            app,
+            ["datasets", "plot", "--dataset", "unknown"],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 1
+
+
 class TestEvaluateCLI:
     def test_evaluate_help(self) -> None:
         runner = CustomCliRunner()
