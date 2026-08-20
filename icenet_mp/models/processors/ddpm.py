@@ -140,42 +140,31 @@ class DDPMProcessor(BaseProcessor):
             beta_schedule=BetaSchedule(beta_schedule),
         )
 
-    def rollout(
-        self,
-        x: TensorNTCHW,
-        y: TensorNTCHW | None = None,
-    ) -> ProcessorOutput:
-        """Run the diffusion process in latent space.
+    def _build_combined_latent(
+        self, target_ntchw: TensorNTCHW, last_frame: TensorNCHW
+    ) -> TensorNTCHW:
+        """Lift target-latent forecasts into the combined latent representation.
 
-        Dispatches between two execution paths:
-
-        1. Training path (``y`` provided):
-        - Adds noise to the encoded target latent at a random diffusion timestep.
-        - Predicts v conditioned on the encoded history.
-        - Returns a v-prediction loss inside ``ProcessorOutput``, computed
-          by ``self.loss_fn`` (the configured loss).
-
-        2. Inference path (``y`` is None):
-        - Runs reverse diffusion from Gaussian noise conditioned on the encoded history.
-        - Autoregressive or parallel depending on ``self.use_autoregressive``.
+        Non-target channels are carried forward from ``last_frame`` (persistence
+        in latent space) for every forecast step, while the target-latent slice
+        is overwritten with ``target_ntchw``.
 
         Args:
-            x (TensorNTCHW): Encoded history tensor of shape
-                (B, n_history_steps, n_latent_channels_total, H, W).
-            y (TensorNTCHW | None): During training: encoded target latent of
-                shape (B, n_forecast_steps, n_latent_channels_target, H, W).
-                Otherwise: None.
+            target_ntchw (TensorNTCHW): Target-latent forecasts of shape
+                (B, n_forecast_steps, C_target, H, W).
+            last_frame (TensorNCHW): Last observed history frame of shape
+                (B, C_combined, H, W).
 
         Returns:
-            ProcessorOutput:
-            - prediction: (B, n_forecast_steps, n_latent_channels_total, H, W)
-            - loss: v-prediction loss from ``self.loss_fn`` (training only,
-                otherwise None)
+            TensorNTCHW: Combined-latent tensor of shape
+                (B, n_forecast_steps, C_combined, H, W).
 
         """
-        if y is not None:
-            return self._training_rollout(x, y)
-        return self._inference_rollout(x)
+        b, _, h, w = last_frame.shape
+        expanded: TensorNTCHW = last_frame.unsqueeze(1).expand(
+            b, self.n_forecast_steps, self.c_combined, h, w
+        )
+        return self._insert_target(expanded, target_ntchw)
 
     def _build_metrics_prediction(
         self, pred_x0: TensorNCHW, last_frame: TensorNCHW
@@ -234,53 +223,40 @@ class DDPMProcessor(BaseProcessor):
         result[..., self.target_slice_start : self.target_slice_end, :, :] = target
         return result
 
-    def _build_combined_latent(
-        self, target_ntchw: TensorNTCHW, last_frame: TensorNCHW
-    ) -> TensorNTCHW:
-        """Lift target-latent forecasts into the combined latent representation.
+    def _rollout_inference(self, x: TensorNTCHW) -> ProcessorOutput:
+        """Generate a latent forecast using a reverse diffusion process.
 
-        Non-target channels are carried forward from ``last_frame`` (persistence
-        in latent space) for every forecast step, while the target-latent slice
-        is overwritten with ``target_ntchw``.
+        This method selects between two diffusion sampling strategies:
 
-        Args:
-            target_ntchw (TensorNTCHW): Target-latent forecasts of shape
-                (B, n_forecast_steps, C_target, H, W).
-            last_frame (TensorNCHW): Last observed history frame of shape
-                (B, C_combined, H, W).
+        1. Non-autoregressive (parallel) sampling:
+        - The model generates the entire future sequence in a single diffusion process.
+        - No temporal dependency exists between forecast steps.
 
-        Returns:
-            TensorNTCHW: Combined-latent tensor of shape
-                (B, n_forecast_steps, C_combined, H, W).
-
-        """
-        b, _, h, w = last_frame.shape
-        expanded: TensorNTCHW = last_frame.unsqueeze(1).expand(
-            b, self.n_forecast_steps, self.c_combined, h, w
-        )
-        return self._insert_target(expanded, target_ntchw)
-
-    def _run_reverse_diffusion(self, y: TensorNCHW, cond: TensorNCHW) -> TensorNCHW:
-        """Iteratively denoise ``y`` from t=timesteps-1 down to t=0.
+        2. Autoregressive sampling:
+        - Forecast steps are generated sequentially.
+        - Each step is produced via an independent diffusion process.
+        - The conditioning window is updated after each step to incorporate
+            previously generated outputs.
 
         Args:
-            y (TensorNCHW): Noisy latent to denoise, of shape (B, C, H, W).
-            cond (TensorNCHW): History condition folded to channels, of shape
-                (B, T_hist * C_combined, H, W).
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
 
         Returns:
-            TensorNCHW: Denoised latent of shape (B, C, H, W).
+            ProcessorOutput:
+            - prediction: (B, n_forecast_steps, n_latent_channels_total, H, W)
+            - loss: None
+
+        Notes:
+            - The diffusion process follows v-parameterization.
+            - Sampling begins from standard Gaussian noise.
 
         """
-        b = y.shape[0]
-        device = y.device
-        for t_step in reversed(range(self.timesteps)):
-            t = torch.full((b,), t_step, dtype=torch.long, device=device)
-            pred_v = self.model(y, t, cond)
-            y = self.diffusion.p_sample(y, t, pred_v)
-        return y
+        if self.use_autoregressive:
+            return ProcessorOutput(prediction=self._sample_autoregressive(x))
+        return ProcessorOutput(prediction=self._sample_parallel(x))
 
-    def _training_rollout(self, x: TensorNTCHW, y: TensorNTCHW) -> ProcessorOutput:
+    def _rollout_training(self, x: TensorNTCHW, y: TensorNTCHW) -> ProcessorOutput:
         """One training rollout using DDPM v-prediction loss.
 
         During training, the clean target latent is corrupted using the forward
@@ -352,75 +328,25 @@ class DDPMProcessor(BaseProcessor):
 
         return ProcessorOutput(prediction=prediction, loss=loss)
 
-    def _inference_rollout(self, x: TensorNTCHW) -> ProcessorOutput:
-        """Generate a latent forecast using a reverse diffusion process.
-
-        This method selects between two diffusion sampling strategies:
-
-        1. Non-autoregressive (parallel) sampling:
-        - The model generates the entire future sequence in a single diffusion process.
-        - No temporal dependency exists between forecast steps.
-
-        2. Autoregressive sampling:
-        - Forecast steps are generated sequentially.
-        - Each step is produced via an independent diffusion process.
-        - The conditioning window is updated after each step to incorporate
-            previously generated outputs.
+    def _run_reverse_diffusion(self, y: TensorNCHW, cond: TensorNCHW) -> TensorNCHW:
+        """Iteratively denoise ``y`` from t=timesteps-1 down to t=0.
 
         Args:
-            x (TensorNTCHW): Encoded history tensor of shape
-                (B, n_history_steps, n_latent_channels_total, H, W).
+            y (TensorNCHW): Noisy latent to denoise, of shape (B, C, H, W).
+            cond (TensorNCHW): History condition folded to channels, of shape
+                (B, T_hist * C_combined, H, W).
 
         Returns:
-            ProcessorOutput:
-            - prediction: (B, n_forecast_steps, n_latent_channels_total, H, W)
-            - loss: None
-
-        Notes:
-            - The diffusion process follows v-parameterization.
-            - Sampling begins from standard Gaussian noise.
+            TensorNCHW: Denoised latent of shape (B, C, H, W).
 
         """
-        if self.use_autoregressive:
-            return ProcessorOutput(prediction=self._sample_autoregressive(x))
-        return ProcessorOutput(prediction=self._sample_parallel(x))
-
-    def _sample_parallel(self, x: TensorNTCHW) -> TensorNTCHW:
-        """Non-autoregressive (parallel) reverse diffusion sampling.
-
-        This method generates the entire forecast sequence in a single
-        diffusion process applied to one joint output tensor. The forecast
-        steps are encoded as channels in a single tensor of shape
-        (B, n_forecast_steps * C_target, H, W), then reshaped back to NTCHW
-        and lifted into the combined latent for the frozen decoder.
-
-        Args:
-            x (TensorNTCHW): Encoded history tensor of shape
-                (B, n_history_steps, n_latent_channels_total, H, W).
-
-        Returns:
-            TensorNTCHW: Denoised forecast latent of shape
-                (B, n_forecast_steps, n_latent_channels_total, H, W).
-
-        Notes:
-            - Sampling starts from Gaussian noise.
-            - The model predicts v-parameterization at each diffusion step.
-            - All forecast steps are denoised together as a single object.
-
-        """
-        cond = x.flatten(start_dim=1, end_dim=2)
-
-        b, _, h, w = cond.shape
-        device = cond.device
-
-        y = torch.randn((b, self.n_forecast_steps * self.c_target, h, w), device=device)
-
-        # Iteratively denoise from the final diffusion timestep to zero.
-        y = self._run_reverse_diffusion(y, cond)
-
-        # Build the combined latent, keeping non-target channels persistent.
-        y_ntchw = y.reshape(b, self.n_forecast_steps, self.c_target, h, w)
-        return self._build_combined_latent(y_ntchw, x[:, -1])
+        b = y.shape[0]
+        device = y.device
+        for t_step in reversed(range(self.timesteps)):
+            t = torch.full((b,), t_step, dtype=torch.long, device=device)
+            pred_v = self.model(y, t, cond)
+            y = self.diffusion.p_sample(y, t, pred_v)
+        return y
 
     def _sample_autoregressive(self, x: TensorNTCHW) -> TensorNTCHW:
         """Autoregressive reverse diffusion sampling (one forecast step at a time).
@@ -477,3 +403,77 @@ class DDPMProcessor(BaseProcessor):
             all_predictions, dim=1
         )  # (B, T_fcst, C_target, H, W)
         return self._build_combined_latent(target_ntchw, x[:, -1])
+
+    def _sample_parallel(self, x: TensorNTCHW) -> TensorNTCHW:
+        """Non-autoregressive (parallel) reverse diffusion sampling.
+
+        This method generates the entire forecast sequence in a single
+        diffusion process applied to one joint output tensor. The forecast
+        steps are encoded as channels in a single tensor of shape
+        (B, n_forecast_steps * C_target, H, W), then reshaped back to NTCHW
+        and lifted into the combined latent for the frozen decoder.
+
+        Args:
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
+
+        Returns:
+            TensorNTCHW: Denoised forecast latent of shape
+                (B, n_forecast_steps, n_latent_channels_total, H, W).
+
+        Notes:
+            - Sampling starts from Gaussian noise.
+            - The model predicts v-parameterization at each diffusion step.
+            - All forecast steps are denoised together as a single object.
+
+        """
+        cond = x.flatten(start_dim=1, end_dim=2)
+
+        b, _, h, w = cond.shape
+        device = cond.device
+
+        y = torch.randn((b, self.n_forecast_steps * self.c_target, h, w), device=device)
+
+        # Iteratively denoise from the final diffusion timestep to zero.
+        y = self._run_reverse_diffusion(y, cond)
+
+        # Build the combined latent, keeping non-target channels persistent.
+        y_ntchw = y.reshape(b, self.n_forecast_steps, self.c_target, h, w)
+        return self._build_combined_latent(y_ntchw, x[:, -1])
+
+    def rollout(
+        self,
+        x: TensorNTCHW,
+        y: TensorNTCHW | None = None,
+    ) -> ProcessorOutput:
+        """Run the diffusion process in latent space.
+
+        Dispatches between two execution paths:
+
+        1. Training path (``y`` provided):
+        - Adds noise to the encoded target latent at a random diffusion timestep.
+        - Predicts v conditioned on the encoded history.
+        - Returns a v-prediction loss inside ``ProcessorOutput``, computed
+          by ``self.loss_fn`` (the configured loss).
+
+        2. Inference path (``y`` is None):
+        - Runs reverse diffusion from Gaussian noise conditioned on the encoded history.
+        - Autoregressive or parallel depending on ``self.use_autoregressive``.
+
+        Args:
+            x (TensorNTCHW): Encoded history tensor of shape
+                (B, n_history_steps, n_latent_channels_total, H, W).
+            y (TensorNTCHW | None): During training: encoded target latent of
+                shape (B, n_forecast_steps, n_latent_channels_target, H, W).
+                Otherwise: None.
+
+        Returns:
+            ProcessorOutput:
+            - prediction: (B, n_forecast_steps, n_latent_channels_total, H, W)
+            - loss: v-prediction loss from ``self.loss_fn`` (training only,
+                otherwise None)
+
+        """
+        if y is not None:
+            return self._rollout_training(x, y)
+        return self._rollout_inference(x)
