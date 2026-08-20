@@ -61,12 +61,10 @@ def plot(
     dataset: Annotated[
         str | None, typer.Option(help="Only plot the named configured dataset")
     ] = None,
-    output_dir: Annotated[
-        Path, typer.Option(help="Directory in which to save dataset plots")
-    ] = Path("dataset_plots"),
     timestep: Annotated[int, typer.Option(help="Dataset timestep index to plot")] = 0,
 ) -> None:
     """Plot one timestep of configured datasets."""
+    output_dir = Path(config["base_path"]).resolve() / "data" / "input_plots"
     matched_dataset = False
     for downloader in build_downloaders(config):
         if dataset is not None and downloader.name != dataset:

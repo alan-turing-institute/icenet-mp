@@ -92,7 +92,6 @@ class TestDatasetsCLI:
                 r"Usage: imp datasets plot \[OPTIONS\] \[overrides\]...",
                 r"Plot one timestep of configured datasets.",
                 r"--dataset\s+<str>\s+Only plot the named configured dataset",
-                r"--output-dir\s+<path>\s+Directory in which to save dataset plots",
                 r"--timestep\s+<int>\s+Dataset timestep index to plot",
             ],
         )
@@ -133,15 +132,15 @@ class TestDatasetsPlotCLI:
 
         monkeypatch.setattr("icenet_mp.cli.datasets.plot_dataset", fake_plot_dataset)
 
-        output_dir = tmp_path / "plots"
         result = CliRunner().invoke(
             app,
-            ["datasets", "plot", "--output-dir", str(output_dir), "--timestep", "1"],
+            ["datasets", "plot", f"base_path={tmp_path}", "--timestep", "1"],
             prog_name="imp",
         )
 
         assert result.exit_code == 0, result.output
-        assert calls == [("example", existing_path, output_dir, 1)]
+        expected_output_dir = tmp_path.resolve() / "data" / "input_plots"
+        assert calls == [("example", existing_path, expected_output_dir, 1)]
 
     def test_plot_rejects_unmatched_dataset_name(
         self,

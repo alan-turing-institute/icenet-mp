@@ -32,12 +32,15 @@ With the `--verbose` option it will also print statistical summaries of the vari
 ## `datasets plot`
 
 ```bash
-uv run imp datasets plot --dataset sic-icenet --output-dir dataset_plots --timestep 0
+uv run imp datasets plot --dataset samp-sicsouth-osisaf-25p0km-2020-2024-24h-v1 --timestep 0
 ```
 
-Creates one static PNG per variable for the selected timestep of a configured downloaded dataset. Plots are written below `--output-dir` in a subdirectory named after the dataset. Omit `--dataset` to plot every configured dataset. This is useful for inspecting raw inputs without running model training or evaluation.
+Creates one static PNG per variable for the selected timestep of a configured downloaded dataset.
+Plots are written to `${base_path}/data/input_plots` in a subdirectory named after the dataset.
+Running without `--dataset` will plot every configured dataset.
+This is useful for inspecting raw inputs without running model training or evaluation.
 
-Use `--timestep` to select another dataset index and the normal `--config-name` or Hydra overrides to choose the dataset configuration.
+Use `--timestep` to select another dataset index and the normal `--config-name` to choose the dataset configuration.
 
 ## `train`
 
