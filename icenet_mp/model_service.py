@@ -315,6 +315,7 @@ class ModelService:
                         logger_config,
                         job_type="multistage" if job_stage else "single-stage",
                         project=project,
+                        _convert_="all",
                     )
                 )
             else:
@@ -376,6 +377,9 @@ class ModelService:
                 wandb_run.save(
                     model_config_path, base_path=model_config_path.parent, policy="now"
                 )
+                # Ensure that losses are summarised by their minimum value
+                for loss_metric in ("train_loss", "validation_loss", "test_loss"):
+                    wandb_run.define_metric(loss_metric, summary="min")
 
         # Additional configuration for callbacks
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
@@ -427,14 +431,26 @@ class ModelService:
 
     def train(
         self, *, checkpoint_dir: Path | None = None, multistage: bool = False
-    ) -> None:
+    ) -> Trainer:
         """Train a model."""
         if multistage:
-            self.train_multistage(checkpoint_dir=checkpoint_dir)
-        else:
-            self._fit(config=self.config["train"])
+            return self.train_multistage(checkpoint_dir=checkpoint_dir)
+        if self.model.multistage_only:
+            msg = (
+                "This model cannot be trained in standard mode. The most likely "
+                "cause is that the decoder must be pretrained before processor "
+                "training. Use `imp train --multistage` instead."
+            )
+            raise ValueError(msg)
+        if checkpoint_dir is not None:
+            msg = (
+                "`checkpoint_dir` is only used for multistage training. Single-stage "
+                "training has no per-component checkpoints to resume from."
+            )
+            raise ValueError(msg)
+        return self._fit(config=self.config["train"])
 
-    def train_multistage(self, *, checkpoint_dir: Path | None = None) -> None:
+    def train_multistage(self, *, checkpoint_dir: Path | None = None) -> Trainer:
         """Train an EncodeProcessDecode model in multiple stages.
 
         1. encoders
@@ -481,7 +497,7 @@ class ModelService:
         )
 
         log.info("Preparing to finetune...")
-        self.train_stage_finetune(
+        return self.train_stage_finetune(
             processor_model=processor_model,
             config=self._merged_config("finetune"),
         )
@@ -612,7 +628,7 @@ class ModelService:
 
     def train_stage_finetune(
         self, *, config: DictConfig, processor_model: ProcessorStage
-    ) -> None:
+    ) -> Trainer:
         """Load pretrained weights from all stages into the full model and finetune end-to-end."""
         model = cast("EncodeProcessDecode", self.model)
         pretrained_encoders = {e.name: e for e in processor_model.encoders}
@@ -625,6 +641,7 @@ class ModelService:
         log.info("Loaded pretrained weights for decoder.")
         trainer = self._fit(config=config, job_stage="finetune")
         self._save_stage_checkpoint(trainer, "finetune")
+        return trainer
 
     def train_stage_processor(
         self,

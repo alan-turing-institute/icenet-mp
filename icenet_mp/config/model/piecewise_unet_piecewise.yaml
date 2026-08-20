@@ -36,3 +36,5 @@ decoder:
   mask_type: active
   restrict_range: clamp
   use_final_normalisation: false
+  skip_connection:
+    method: none
