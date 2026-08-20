@@ -30,17 +30,26 @@ class CommonDataModule(LightningDataModule):
 
         # Construct dataset groups
         self.dataset_groups = defaultdict(list)
+        self.dataset_variables: dict[str, set[str]] = defaultdict(set)
         for dataset in config["data"]["datasets"].values():
             self.dataset_groups[dataset["group_as"]].append(
                 (
                     self.base_path / "data" / "anemoi" / f"{dataset['name']}.zarr"
                 ).resolve()
             )
+            if variables := dataset.get("variables"):
+                self.dataset_variables[dataset["group_as"]].update(variables)
         logger.info("Found %d dataset groups.", len(self.dataset_groups))
         for idx, (name, paths) in enumerate(self.dataset_groups.items(), start=1):
             logger.info("%d) %s:", idx, name)
             for path in paths:
                 logger.info("%s - %s", " " * (len(str(idx)) + 1), path)
+            if name in self.dataset_variables:
+                logger.info(
+                    "%s selecting variables: %s",
+                    " " * (len(str(idx)) + 1),
+                    sorted(self.dataset_variables[name]),
+                )
 
         # Check prediction target
         self.target_group_name = config["predict"]["target"]["group_name"]
@@ -90,7 +99,11 @@ class CommonDataModule(LightningDataModule):
     def datasets(self) -> dict[str, SingleDataset]:
         """Return a dictionary of dataset group names to SingleDataset objects."""
         return {
-            name: SingleDataset(name, paths)
+            name: SingleDataset(
+                name,
+                paths,
+                variables=sorted(self.dataset_variables.get(name, ())),
+            )
             for name, paths in self.dataset_groups.items()
         }
 

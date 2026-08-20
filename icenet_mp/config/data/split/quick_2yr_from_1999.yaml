@@ -1,0 +1,27 @@
+batch_size: 2
+
+# Fast local dev/debug variant of full_dataset_from_1999.yaml: 2 years of training
+# data plus 1 year of validation, small enough for the combined working set to fit
+# in RAM/page cache on a single machine, rather than the full 1999-2024 record.
+# Validation year (2021) matches full_dataset_from_1999.yaml's validation range for
+# comparability. Not for final results -- see full_dataset_from_1999.yaml for that.
+
+# This data is a holdout set not to be used until we are ready to produce final outputs (e.g. a paper)
+predict:
+  - start: 2023-01-01
+    end: 2023-12-31
+
+# This data is a test set used to compare fully-trained models (e.g. on the project leaderboard)
+test:
+  - start: 2022-01-01
+    end: 2022-12-31
+
+# This data is used for training the model
+train:
+  - start: 2019-01-01
+    end: 2020-12-31
+
+# This data is used for validation during training (e.g. for early stopping etc.)
+validate:
+  - start: 2021-01-01
+    end: 2021-12-31

@@ -1,0 +1,12 @@
+# @package _global_
+# Opt-in advisory feature screening. Drops in scikit-learn's
+# HistGradientBoostingRegressor as the regressor backend while retaining every
+# other setting from the existing feature-screening baseline.
+defaults:
+  - /rf_screening/03_feature_screening
+  - _self_
+
+rf:
+  backend: hist_gradient_boosting
+  spatial:
+    plot_results: true

@@ -1,0 +1,13 @@
+# @package _global_
+# Opt-in feature-evidence registry: joins RF/VIF/PCA/EOF/correlation output per
+# physical parameter into a single evidence report. Inherits every RF setting
+# verbatim from 01_spatial_rf_screening; existing baselines are unchanged.
+defaults:
+  - /rf_screening/01_spatial_rf_screening
+  - /feature_evidence: registry_full_north
+  - _self_
+
+vif:
+  qualification:
+    enabled: true
+    minimum_sample_feature_ratio: 10.0

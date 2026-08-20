@@ -87,3 +87,28 @@ evaluate:
 
 Output directories, styling, and animation parameters can be altered by changing `config.evaluate.callbacks.plotting.plot_spec`.
 Any of these can be overridden at the command line.
+
+## `pre-feature-analysis`
+
+Runs the full input-feature screening pipeline (VIF, PCA, EOF, sampled-map
+Random Forest, correlation, and a consolidated evidence report) in one command:
+
+```bash
+uv run imp pre-feature-analysis --config-name rf_screening/03_feature_screening
+```
+
+The sampled-map Random Forest strand uses SIC, ERA5, and Argo inputs restricted
+to their configured shared training-date ranges. It samples valid-ocean
+locations stratified by the latest historical SIC map, then fits a separate
+temporally validated model for each forecast lead. For every lead, compare the
+RF metrics with the persistence metrics in the report. By default
+(`rf.importance_policy: qualified`), interpret grouped permutation importance
+only when the RF beats persistence on held-out data; set
+`rf.importance_policy: always` (e.g. via `rf_screening/03_feature_screening`) to
+retain and report importance regardless, explicitly labelled exploratory.
+Importance is predictive and model-specific, not causal: correlated predictors
+can substitute for one another, so a low score does not establish that a
+variable is unimportant.
+
+See [Run feature screening](../how-to/feature-screening.md) for the full
+walkthrough of every strand and how to read the evidence report.

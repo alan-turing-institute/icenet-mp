@@ -7,6 +7,8 @@ __pycache__
 .venv
 .vscode
 *local.yaml
+# Personal platform configs that point at host-specific drives; keep them out of the repo.
+icenet_mp/config/platform/ahbackup.yaml
 dist
 docs/_build
 docs/src/api/config.md

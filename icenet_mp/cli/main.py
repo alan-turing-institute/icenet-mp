@@ -8,6 +8,7 @@ from icenet_mp.compatibility import configure_external_libraries
 
 from .datasets import datasets_cli
 from .evaluate import evaluation_cli
+from .pre_feature_analysis import pre_feature_app
 from .train import training_cli
 
 # Configure logging
@@ -32,6 +33,7 @@ app = typer.Typer(
 app.add_typer(datasets_cli, name="datasets")
 app.add_typer(evaluation_cli)
 app.add_typer(training_cli)
+app.add_typer(pre_feature_app, name="pre-feature-analysis")
 
 
 def main() -> None:
@@ -49,7 +51,7 @@ def main() -> None:
                 "It will be slower than running natively on MPS."
             )
             log.error(msg)  # noqa: TRY400
-            typer.Exit(1)
+            raise typer.Exit(1) from exc
 
 
 if __name__ == "__main__":
