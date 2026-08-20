@@ -2,12 +2,12 @@ from collections.abc import Callable
 from functools import cached_property
 
 import torch
-from torch import nn
 
+from icenet_mp.models.common import Freezable
 from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
 
 
-class BaseEncoder(nn.Module):
+class BaseEncoder(Freezable):
     """Encoder that takes data in an input space and translates it to a smaller latent space.
 
     Input space:
