@@ -42,6 +42,14 @@ This is useful for inspecting raw inputs without running model training or evalu
 
 Use `--timestep` to select another dataset index and the normal `--config-name` to choose the dataset configuration.
 
+Pass `--video` to create an animation over consecutive timesteps instead of a single static plot:
+
+```bash
+uv run imp datasets plot --dataset samp-sicsouth-osisaf-25p0km-2020-2024-24h-v1 --video --timestep 0 --n-steps 30
+```
+
+This animates `--n-steps` consecutive timesteps starting at `--timestep`, writing one video file per variable to the same `input_plots` directory.
+
 ## `train`
 
 Standard (non-synthetic) runs use [Weights & Biases](https://docs.wandb.ai/models/quickstart).

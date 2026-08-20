@@ -91,8 +91,10 @@ class TestDatasetsCLI:
             expected_patterns=[
                 r"Usage: imp datasets plot \[OPTIONS\] \[overrides\]...",
                 r"Plot one timestep of configured datasets.",
-                r"--dataset\s+<str>\s+Only plot the named configured dataset",
+                r"--dataset\s+<str>\s+Only plot the named configured",
                 r"--timestep\s+<int>\s+Dataset timestep index to plot",
+                r"--video\s+--no-video\s+Animate --n-steps consecutive",
+                r"--n-steps\s+<int>\s+Number of consecutive timesteps to",
             ],
         )
 
@@ -130,7 +132,9 @@ class TestDatasetsPlotCLI:
             calls.append((name, path, output_dir, timestep))
             return 2
 
-        monkeypatch.setattr("icenet_mp.cli.datasets.plot_dataset", fake_plot_dataset)
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.plot_variables_static", fake_plot_dataset
+        )
 
         result = CliRunner().invoke(
             app,
@@ -141,6 +145,54 @@ class TestDatasetsPlotCLI:
         assert result.exit_code == 0, result.output
         expected_output_dir = tmp_path.resolve() / "data" / "input_plots"
         assert calls == [("example", existing_path, expected_output_dir, 1)]
+
+    def test_plot_video_calls_plot_dataset_video_with_n_steps(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Call plot_dataset_video instead of plot_dataset when --video is passed."""
+        existing_path = tmp_path / "example.zarr"
+        existing_path.mkdir()
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.build_downloaders",
+            lambda _config: [self.FakeDownloader("example", existing_path)],
+        )
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.plot_variables_static",
+            lambda *_args: pytest.fail(
+                "plot_variables_static should not be called with --video"
+            ),
+        )
+
+        calls = []
+
+        def fake_plot_dataset_video(
+            name: str, path: Path, output_dir: Path, timestep: int, n_steps: int
+        ) -> int:
+            calls.append((name, path, output_dir, timestep, n_steps))
+            return 4
+
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.plot_variables_video", fake_plot_dataset_video
+        )
+
+        result = CliRunner().invoke(
+            app,
+            [
+                "datasets",
+                "plot",
+                f"base_path={tmp_path}",
+                "--video",
+                "--n-steps",
+                "5",
+            ],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        expected_output_dir = tmp_path.resolve() / "data" / "input_plots"
+        assert calls == [("example", existing_path, expected_output_dir, 0, 5)]
 
     def test_plot_rejects_unmatched_dataset_name(
         self,
