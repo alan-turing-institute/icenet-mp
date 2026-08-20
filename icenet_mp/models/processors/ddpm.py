@@ -449,13 +449,12 @@ class DDPMProcessor(BaseProcessor):
               slice.
 
         """
-        history: TensorNTCHW = x.clone()  # (B, T_hist, C_combined, H, W)
+        cond_window: TensorNTCHW = x.clone()  # (B, T_hist, C_combined, H, W)
         b, _, _, h, w = x.shape
         device = x.device
         all_predictions: list[TensorNCHW] = []
 
         for _ in range(self.n_forecast_steps):
-            cond_window = history[:, -self.n_history_steps :]
             cond = cond_window.flatten(
                 start_dim=1, end_dim=2
             )  # (B, T_hist * C_combined, H, W)
@@ -468,10 +467,11 @@ class DDPMProcessor(BaseProcessor):
 
             all_predictions.append(y)
 
-            # Append the prediction to the history for the next forecast step.
-            last_frame: TensorNCHW = history[:, -1]  # (B, C_combined, H, W)
+            # Slide the history window forward: drop the oldest frame and
+            # append the new prediction for the next forecast step.
+            last_frame: TensorNCHW = cond_window[:, -1]  # (B, C_combined, H, W)
             new_frame: TensorNCHW = self._insert_target(last_frame, y).unsqueeze(1)
-            history = torch.cat([history, new_frame], dim=1)
+            cond_window = torch.cat([cond_window[:, 1:], new_frame], dim=1)
 
         target_ntchw = torch.stack(
             all_predictions, dim=1
