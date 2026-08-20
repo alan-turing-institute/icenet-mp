@@ -2,12 +2,12 @@ from collections.abc import Callable
 from functools import cached_property
 
 import torch
-from torch import nn
 
+from icenet_mp.models.common import Freezable
 from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
 
 
-class BaseEncoder(nn.Module):
+class BaseEncoder(Freezable):
     """Encoder that takes data in an input space and translates it to a smaller latent space.
 
     Input space:
@@ -58,12 +58,6 @@ class BaseEncoder(nn.Module):
         """
         msg = "If you are using the default rollout method, you must implement forward."
         raise NotImplementedError(msg)
-
-    def freeze(self) -> "BaseEncoder":
-        """Freeze the parameters of this encoder."""
-        for parameter in self.parameters():
-            parameter.requires_grad = False
-        return self.eval()
 
     def rollout(self, x: TensorNTCHW) -> TensorNTCHW:
         """Encode input space into latent space across multiple timesteps.

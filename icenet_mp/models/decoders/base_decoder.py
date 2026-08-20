@@ -1,8 +1,6 @@
 from typing import Any
 
-from torch import nn
-
-from icenet_mp.models.common import Mask, RestrictRange, SkipConnection
+from icenet_mp.models.common import Freezable, Mask, RestrictRange, SkipConnection
 from icenet_mp.types import (
     DataSpace,
     RangeRestriction,
@@ -12,7 +10,7 @@ from icenet_mp.types import (
 )
 
 
-class BaseDecoder(nn.Module):
+class BaseDecoder(Freezable):
     """Decoder that takes data in a latent space and translates it to a larger output space.
 
     Latent space:
@@ -124,12 +122,6 @@ class BaseDecoder(nn.Module):
         """
         msg = "If you are using the default rollout method, you must implement forward."
         raise NotImplementedError(msg)
-
-    def freeze(self) -> "BaseDecoder":
-        """Freeze the parameters of this decoder."""
-        for parameter in self.parameters():
-            parameter.requires_grad = False
-        return self.eval()
 
     def rollout(self, x: TensorNTCHW, persistence: TensorNTCHW | None) -> TensorNTCHW:
         """Decode latent space into output space across multiple timesteps.
