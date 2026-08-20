@@ -212,22 +212,26 @@ class DDPMProcessor(BaseProcessor):
         pred_x0_ntchw = pred_x0.reshape(b, self.n_forecast_steps, self.c_target, h, w)
         return self._build_combined_latent(pred_x0_ntchw, last_frame)
 
-    def _insert_target(self, base_frame: TensorNCHW, target: TensorNCHW) -> TensorNCHW:
+    def _insert_target(
+        self, base_frame: TensorNCHW | TensorNTCHW, target: TensorNCHW | TensorNTCHW
+    ) -> TensorNCHW | TensorNTCHW:
         """Return a copy of ``base_frame`` with its target slice overwritten by ``target``.
 
-        Used to produce a C_combined-channel prediction for the frozen decoder
-        while only forecasting the target-latent slice.
+        Used to produce a C_combined-channel prediction for the frozen decoder while
+        only forecasting the target-latent slice. Since the target-channel dimension is
+        always third-from-last, so this works for both a single timestep (NCHW) and a
+        series of timestep steps (NTCHW).
 
         Args:
-            base_frame (TensorNCHW): Combined-latent frame of shape (B, C_combined, H, W).
-            target (TensorNCHW): Target-latent slice of shape (B, C_target, H, W).
+            base_frame: Combined-latent tensor of shape (..., C_combined, H, W).
+            target: Target-latent slice of shape (..., C_target, H, W).
 
         Returns:
-            TensorNCHW: Combined-latent frame of shape (B, C_combined, H, W).
+            torch.Tensor: Combined-latent tensor of shape (..., C_combined, H, W).
 
         """
         result = base_frame.clone()
-        result[:, self.target_slice_start : self.target_slice_end] = target
+        result[..., self.target_slice_start : self.target_slice_end, :, :] = target
         return result
 
     def _build_combined_latent(
@@ -251,13 +255,10 @@ class DDPMProcessor(BaseProcessor):
 
         """
         b, _, h, w = last_frame.shape
-        combined = (
-            last_frame.unsqueeze(1)
-            .expand(b, self.n_forecast_steps, self.c_combined, h, w)
-            .clone()
+        expanded: TensorNTCHW = last_frame.unsqueeze(1).expand(
+            b, self.n_forecast_steps, self.c_combined, h, w
         )
-        combined[:, :, self.target_slice_start : self.target_slice_end] = target_ntchw
-        return combined
+        return self._insert_target(expanded, target_ntchw)
 
     def _run_reverse_diffusion(self, y: TensorNCHW, cond: TensorNCHW) -> TensorNCHW:
         """Iteratively denoise ``y`` from t=timesteps-1 down to t=0.
@@ -448,7 +449,7 @@ class DDPMProcessor(BaseProcessor):
               slice.
 
         """
-        history = x.clone()  # (B, T_hist, C_combined, H, W)
+        history: TensorNTCHW = x.clone()  # (B, T_hist, C_combined, H, W)
         b, _, _, h, w = x.shape
         device = x.device
         all_predictions: list[TensorNCHW] = []
@@ -468,8 +469,8 @@ class DDPMProcessor(BaseProcessor):
             all_predictions.append(y)
 
             # Append the prediction to the history for the next forecast step.
-            last_frame = history[:, -1]  # (B, C_combined, H, W)
-            new_frame = self._insert_target(last_frame, y).unsqueeze(1)
+            last_frame: TensorNCHW = history[:, -1]  # (B, C_combined, H, W)
+            new_frame: TensorNCHW = self._insert_target(last_frame, y).unsqueeze(1)
             history = torch.cat([history, new_frame], dim=1)
 
         target_ntchw = torch.stack(
