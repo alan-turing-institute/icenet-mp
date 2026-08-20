@@ -3,12 +3,10 @@ import logging
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
-import torch
 from omegaconf import DictConfig
 from typing_extensions import override
 
-from icenet_mp.models import BaseModel
-from icenet_mp.types import ModelStepOutput, TensorNTCHW
+from icenet_mp.models import BaseModel, EncodeProcessDecode
 
 from .decoder_stage import DecoderStage
 from .encoder_stage import EncoderStage
@@ -19,9 +17,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ProcessorStage(BaseModel):
+class ProcessorStage(EncodeProcessDecode):
     # Parameters that should be excluded from hyperparameter logging
-    ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {
+    ignored_hparams: ClassVar[frozenset[str]] = EncodeProcessDecode.ignored_hparams | {
         "decoder_model",
         "target_encoder",
     }
@@ -34,20 +32,21 @@ class ProcessorStage(BaseModel):
         **kwargs: Any,
     ) -> None:
         """Initialise a ProcessorStage with frozen encoders, a frozen decoder, and a trainable processor."""
-        super().__init__(**kwargs)
+        # We skip EncodeProcessDecode initialisation since we want to use pre-trained
+        # encoders, processor and decoder. This relies on the assumption that nothing
+        # else is done during initialisation aside from creating these modules.
+        BaseModel.__init__(self, **kwargs)
 
         # Copy encoders from DecoderStage, freeze their parameters and register them.
         self.encoder_names = decoder_model.encoder_names
-        self.encoders = [copy.deepcopy(encoder) for encoder in decoder_model.encoders]
+        self.encoders = [
+            copy.deepcopy(encoder).freeze() for encoder in decoder_model.encoders
+        ]
         for encoder in self.encoders:
-            for param in encoder.parameters():
-                param.requires_grad = False
             self.add_module(encoder.name, encoder)
 
         # Load the target encoder and freeze it
-        self.target_encoder = target_encoder.encoder
-        for param in self.target_encoder.parameters():
-            param.requires_grad = False
+        self.target_encoder = target_encoder.encoder.freeze()
 
         # Verify the output channels for each encoder
         for encoder in (*self.encoders, self.target_encoder):
@@ -57,9 +56,7 @@ class ProcessorStage(BaseModel):
         combined_latent_space = decoder_model.decoder.data_space_in
 
         # Copy decoder from DecoderStage and freeze it
-        self.decoder = copy.deepcopy(decoder_model.decoder)
-        for param in self.decoder.parameters():
-            param.requires_grad = False
+        self.decoder = copy.deepcopy(decoder_model.decoder).freeze()
         self.target_variable_indices = decoder_model.target_variable_indices
 
         # Trainable processor
@@ -69,6 +66,7 @@ class ProcessorStage(BaseModel):
             data_space_target=self.target_encoder.data_space_out,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_channel_offset=self.find_target_channel_offset(),
         )
 
     @classmethod
@@ -95,33 +93,6 @@ class ProcessorStage(BaseModel):
             target_encoder=target_encoder,
         )
 
-    def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Encode all input datasets and concatenate along the channel dimension."""
-        latent_inputs: list[TensorNTCHW] = [
-            encoder.rollout(inputs[encoder.name]) for encoder in self.encoders
-        ]
-        return torch.cat(latent_inputs, dim=2)
-
-    def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Forward step of the model (used for inference).
-
-        - encode each input with frozen encoder.rollout() -> NTCHW latents
-        - concatenate latents along the channel dimension
-        - process in latent space with trainable processor.rollout() -> NTCHW
-        - decode with frozen decoder.rollout() -> output space NTCHW
-        """
-        combined_latent: TensorNTCHW = self.encode_inputs(inputs)
-        processed = self.processor.rollout(combined_latent).prediction
-        return self.decoder.rollout(processed, self.get_persistence(inputs))
-
-    def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
-        """Extract persistence if needed for a skip connection."""
-        if self.decoder.skip_connection:
-            return None
-        return inputs[self.output_space.name][
-            :, -1, self.target_variable_indices, :, :
-        ].unsqueeze(1)
-
     @override
     def train(self, mode: bool = True) -> "ProcessorStage":
         """Set training mode, but keep frozen modules in eval mode."""
@@ -132,70 +103,3 @@ class ProcessorStage(BaseModel):
             self.target_encoder.eval()
             self.decoder.eval()
         return self
-
-    @override
-    def training_step(
-        self,
-        batch: dict[str, TensorNTCHW],
-        _batch_idx: int,
-    ) -> ModelStepOutput:
-        """Run the training step.
-
-        If the processor returns a loss in its `ProcessorOutput` (rather than `None`),
-        this is used for backpropagation. We use `no_grad` to compute the decoded
-        prediction, which allows us to calculate metrics and log outputs, but the
-        usefulness of these will depend on what `ProcessorOutput.prediction` contains.
-
-        Otherwise, the standard encode-process-decode path is used and the loss is
-        computed by comparing the decoded prediction to the target.
-
-        Args:
-            batch: Dictionary with one NTCHW entry per input dataset (n_history_steps)
-                   and a "target" entry (n_forecast_steps).
-
-        Returns:
-            A ModelStepOutput containing the prediction, target and loss.
-
-        """
-        target = batch["target"].clone().detach()
-        combined_latent = self.encode_inputs(batch)
-
-        # Attempt to encode the target to latent space and pass it to the processor
-        expected_chw = self.target_encoder.data_space_in.chw
-        if tuple(target.shape[2:]) != expected_chw:
-            msg = (
-                f"Target CHW {tuple(target.shape[2:])} does not match "
-                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
-            )
-            raise ValueError(msg)
-        target_latent = self.target_encoder.rollout(target)
-        processor_output = self.processor.rollout(combined_latent, target_latent)
-
-        # Add persistence skip connection if requested
-        persistence = self.get_persistence(batch)
-
-        if processor_output.loss is None:
-            # Standard path: compare decoded output to target.
-            prediction = self.decoder.rollout(processor_output.prediction, persistence)
-            loss = self.loss(prediction, target)
-        else:
-            # Custom loss path: processor owns the training signal.
-            # Decode under no_grad for metrics/callbacks only.
-            loss = processor_output.loss
-            with torch.no_grad():
-                prediction = self.decoder.rollout(
-                    processor_output.prediction, persistence
-                )
-
-        # Log metrics; computation will be done at epoch end
-        self.log(
-            "train_loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            sync_dist=True,
-        )
-        self.train_metrics.update(prediction, target)
-
-        return ModelStepOutput(prediction, target, loss)

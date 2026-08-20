@@ -432,14 +432,22 @@ class ModelService:
     def train(
         self, *, checkpoint_dir: Path | None = None, multistage: bool = False
     ) -> Trainer:
-        """Train a model.
-
-        `checkpoint_dir` is only used for multistage training; it has no effect
-        otherwise, since single-stage training has no per-component checkpoints to
-        resume from.
-        """
+        """Train a model."""
         if multistage:
             return self.train_multistage(checkpoint_dir=checkpoint_dir)
+        if self.model.multistage_only:
+            msg = (
+                "This model cannot be trained in standard mode. The most likely "
+                "cause is that the decoder must be pretrained before processor "
+                "training. Use `imp train --multistage` instead."
+            )
+            raise ValueError(msg)
+        if checkpoint_dir is not None:
+            msg = (
+                "`checkpoint_dir` is only used for multistage training. Single-stage "
+                "training has no per-component checkpoints to resume from."
+            )
+            raise ValueError(msg)
         return self._fit(config=self.config["train"])
 
     def train_multistage(self, *, checkpoint_dir: Path | None = None) -> Trainer:
