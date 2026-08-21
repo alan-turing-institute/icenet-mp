@@ -1,12 +1,12 @@
 # Sea-ice concentration data selection
 
-IceNet-MP currently uses a continuous 25 km OSI SAF sea-ice concentration record assembled from the reprocessed products that cover the required historical period. The northern and southern full dataset descriptors use the same product transitions for their respective hemispheres.
+IceNet-MP currently uses a continuous 25 km OSI SAF sea-ice concentration record from 1979 through 2025, assembled from the reprocessed products that cover the required historical period. The northern and southern full dataset descriptors use the same product transitions for their respective hemispheres.
 
 ## Current 25 km record
 
 | Period | Product | Sensor family |
 | --- | --- | --- |
-| 1978-2002 | OSI-450-a1 | SMMR, SSM/I, SSMIS |
+| 1979-2002 | OSI-450-a1 | SMMR, SSM/I, SSMIS |
 | 2003 to 2011-10-04 | OSI-458 | AMSR-E |
 | 2011-10-05 to 2012-07-23 | OSI-450-a1 | SSMIS |
 | 2012-07-24 to 2020 | OSI-458 | AMSR-2 |
