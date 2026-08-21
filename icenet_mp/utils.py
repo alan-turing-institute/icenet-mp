@@ -20,7 +20,7 @@ def mask_dir(base_path: Path, dataset_name: str) -> Path:
     used both when active masks are written (in dataset creation) and when they are read
     (during model build), so they never diverge.
     """
-    return base_path / "data" / "preprocessing" / "masks" / dataset_name
+    return base_path / "data" / "masks" / dataset_name
 
 
 def get_device_name(accelerator_name: str) -> str:
