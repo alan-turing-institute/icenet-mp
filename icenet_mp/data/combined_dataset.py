@@ -62,7 +62,7 @@ class CombinedDataset(Dataset):
             # This auxiliary variable is observational sigma, not a model input. Keep
             # the ingested physical fraction (and sentinel values) intact rather than
             # applying SingleDataset's model-input min-max normalisation.
-            self.target_uncertainty._normalise = False  # noqa: SLF001
+            self.target_uncertainty._normalise = False
 
         self.inputs = list(datasets)
 
