@@ -34,6 +34,7 @@ def _make_model() -> IdentityModel:
 
 
 def test_base_model_dispatches_uncertainty_to_loss() -> None:
+    """Dispatch uncertainty tensors to uncertainty-aware losses."""
     model = _make_model()
     prediction = torch.tensor([[[[[1.0, 2.0], [0.0, 0.0]]]]])
     target = torch.zeros_like(prediction)
@@ -45,6 +46,7 @@ def test_base_model_dispatches_uncertainty_to_loss() -> None:
 
 
 def test_base_model_reports_missing_uncertainty() -> None:
+    """Raise a clear error when required target uncertainty is absent."""
     model = _make_model()
     prediction = torch.zeros(1, 1, 1, 2, 2)
 
