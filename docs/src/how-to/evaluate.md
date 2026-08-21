@@ -62,3 +62,18 @@ Once evaluation completes, the run appears in the W&B project `evaluate` under t
 | `input_static` | Static images of the raw input data (if `make_input_plots: true`). |
 | `input_video` | Animated raw input data (if `make_input_plots: true`). |
 | `Custom Charts` | Per-forecast-day metrics, allowing skill to be assessed at longer lead times. |
+
+### How to interpret forecast days and example videos
+
+The per-forecast-day charts and the example videos summarise different dimensions of the same evaluation run.
+
+For each valid start date in the configured evaluation period, the model produces `n_forecast_steps` lead times. A metric shown for forecast day 1, 2, 3, and so on is aggregated across all evaluation start dates at that lead time. For example, the value at forecast day 3 answers: "how accurate was the third forecast step, averaged over the evaluation period?"
+
+The videos are not one frame per evaluation start date. They use a small set of representative start dates sampled across the evaluation period, and each video contains the forecast sequence for that selected start date. As a result, it is normal for a run to show many forecast-day metric points while only producing a few example videos.
+
+In short:
+
+- `Custom Charts` show performance by lead time, aggregated across the evaluation period.
+- `output_video` shows a small number of representative forecast sequences from within that period.
+
+This distinction is useful when checking whether skill degrades with lead time without generating a video for every possible forecast start date.
