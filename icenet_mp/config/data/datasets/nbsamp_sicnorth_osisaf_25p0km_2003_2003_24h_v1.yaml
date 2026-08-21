@@ -1,13 +1,13 @@
 nbsamp-sicnorth-osisaf-25p0km-2003-2003-24h-v1:
   name: nbsamp-sicnorth-osisaf-25p0km-2003-2003-24h-v1
   group_as: sic-osisaf
-  description: Sea ice concentration from SMMR/SSMI/SSMIS for northern hemisphere - Summer 2003 (August-September)
+  description: Sea ice concentration from AMSR-E for northern hemisphere
   attribution: EUMETSAT
   licence: CC-BY-4.0
 
   dates:
-    start: '2003-08-01T00:00:00'
-    end: '2003-09-30T23:00:00'
+    start: '2003-08-01T12:00:00'
+    end: '2003-09-30T12:00:00'
     frequency: 24h
 
   postprocessors:

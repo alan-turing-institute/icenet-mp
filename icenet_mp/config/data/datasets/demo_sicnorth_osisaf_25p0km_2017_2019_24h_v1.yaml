@@ -1,13 +1,13 @@
 demo-sicnorth-osisaf-25p0km-2017-2019-24h-v1:
   name: demo-sicnorth-osisaf-25p0km-2017-2019-24h-v1
   group_as: sic-osisaf
-  description: Sea ice concentration from SMMR/SSMI/SSMIS + AMSR-E/AMSR-2 + AMSR2 for northern hemisphere
+  description: Sea ice concentration from AMSR2 for northern hemisphere
   attribution: EUMETSAT/OSISAF
   licence: CC-BY-4.0
 
   dates:
-    start: '2017-01-01T00:00:00'
-    end: '2019-12-31T23:00:00'
+    start: '2017-01-01T12:00:00'
+    end: '2019-12-31T12:00:00'
     frequency: 24h
     missing:
     - '2018-06-08T12:00:00'
