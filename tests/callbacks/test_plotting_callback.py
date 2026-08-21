@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -17,7 +18,7 @@ class FakeTimeTraceModel(BaseModel):
     """A single-channel, 3-step BaseModel subclass used to drive PlottingCallback."""
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize the model with a single input and output channel, and 3 forecast steps."""
+        """Initialise the model with a single input/output channel, over 3 forecast steps."""
         super().__init__(
             hemisphere="north",
             input_spaces=[
@@ -97,3 +98,45 @@ class TestMakePlotsTimeTrace:
         call_kwargs = image_logger.log_image.call_args.kwargs
         assert call_kwargs["key"] == expected_key
         assert len(call_kwargs["images"]) == 1
+
+    def test_logs_warning_on_index_error(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """make_plots should log a warning, not raise, on an out-of-bounds index."""
+        callback = PlottingCallback(
+            make_static_plots=False,
+            make_time_trace_plots=True,
+            make_video_plots=False,
+            plot_spec=PlotSpec(dpi=72),
+        )
+        callback.cache_batch(
+            batch_idx=0,
+            dataloader_idx=0,
+            outputs=ModelStepOutput(
+                # An empty batch dimension makes outputs.target[0, ...] raise
+                # IndexError once log_time_trace_outputs indexes into it.
+                prediction=torch.rand(0, 3, 1, 4, 4),
+                target=torch.rand(0, 3, 1, 4, 4),
+                loss=torch.tensor(0.0),
+            ),
+        )
+
+        trainer = MagicMock(spec=Trainer)
+        trainer.current_epoch = 0
+        trainer.loggers = [MagicMock()]
+        trainer.datamodule = MagicMock()
+        trainer.datamodule.mask_directory = None
+
+        dataset = MagicMock(spec=CombinedDataset)
+        dataset.dates = [np.datetime64("2020-01-01")]
+        dataset.get_forecast_steps.return_value = [
+            np.datetime64("2020-01-02"),
+            np.datetime64("2020-01-03"),
+            np.datetime64("2020-01-04"),
+        ]
+
+        with caplog.at_level(logging.WARNING):
+            callback.make_plots(trainer, FakeTimeTraceModel(), dataset, batch_size=1)
+
+        trainer.loggers[0].log_image.assert_not_called()
+        assert "Time-trace plotting failed" in caplog.text

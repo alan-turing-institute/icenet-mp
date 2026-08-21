@@ -154,7 +154,7 @@ class Plotter:
                         )
         except InvalidArrayError as exc:
             logger.warning("Time-trace plotting skipped due to invalid arrays: %s", exc)
-        except (ValueError, MemoryError, OSError) as exc:
+        except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Time-trace plotting failed: %s", exc)
 
     def log_video_inputs(
