@@ -2,15 +2,16 @@ from typing import ClassVar
 
 import torch
 from torch import Tensor, nn
-from torch.nn import functional as F
+from torch.nn import functional
 
 
 class UncertaintyWeightedLoss(nn.Module):
     """Huber loss weighted by known per-pixel observational uncertainty.
 
     For valid uncertainty values ``sigma``, each point receives inverse-uncertainty
-    weight ``sigma ** -power``. The weighted loss is normalised by the sum of weights,
-    so changing uncertainty units by a common scale factor does not change the loss.
+    weight ``sigma ** -power``. The weighted loss is normalised by the sum of weights.
+    Away from configured clipping and validity thresholds, multiplying every
+    uncertainty value by the same positive constant leaves the objective unchanged.
 
     Invalid, zero, negative, or sentinel-like uncertainty values are excluded. If a
     batch contains no valid uncertainty values, the loss falls back to ordinary Huber
@@ -55,7 +56,7 @@ class UncertaintyWeightedLoss(nn.Module):
         self, preds: Tensor, targets: Tensor, uncertainty: Tensor | None = None
     ) -> Tensor:
         """Compute inverse-uncertainty-weighted Huber loss."""
-        pointwise_loss = F.huber_loss(
+        pointwise_loss = functional.huber_loss(
             preds,
             targets,
             reduction="none",
