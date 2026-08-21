@@ -18,12 +18,19 @@ class CombinedDataset(Dataset):
         *,
         n_forecast_steps: int = 1,
         n_history_steps: int = 1,
+        target_uncertainty_variable: str | None = None,
     ) -> None:
         """Initialise a combined dataset from a sequence of SingleDatasets.
 
         One of the datasets must be the target and all must have the same frequency. The
         number of forecast and history steps can be set, which will determine the shape
         of the NTCHW tensors returned by __getitem__.
+
+        If ``target_uncertainty_variable`` is set, the corresponding variable is read
+        for the same forecast dates as the target and returned under the
+        ``target_uncertainty`` key. Uncertainty is kept in its ingested physical scale
+        rather than min-max normalised so invalid sentinels and uncertainty thresholds
+        retain their meaning.
         """
         super().__init__()
 
@@ -32,9 +39,31 @@ class CombinedDataset(Dataset):
         self.n_history_steps = n_history_steps
 
         # Create a new dataset for the target with only the selected variables
-        self.target = next(
-            ds for ds in datasets if ds.name == target_group_name
-        ).subset(variables=target_variables)
+        target_source = next(ds for ds in datasets if ds.name == target_group_name)
+        self.target = target_source.subset(variables=target_variables)
+        self.target_uncertainty: SingleDataset | None = None
+        if target_uncertainty_variable is not None:
+            if len(target_variables) != 1:
+                msg = (
+                    "Uncertainty-weighted targets currently require exactly one "
+                    f"predicted variable, found {list(target_variables)}."
+                )
+                raise ValueError(msg)
+            if target_uncertainty_variable not in target_source.variable_names:
+                msg = (
+                    f"Target uncertainty variable {target_uncertainty_variable!r} was "
+                    f"not found in dataset {target_group_name!r}. Available variables: "
+                    f"{target_source.variable_names}."
+                )
+                raise ValueError(msg)
+            self.target_uncertainty = target_source.subset(
+                variables=[target_uncertainty_variable]
+            )
+            # This auxiliary variable is observational sigma, not a model input. Keep
+            # the ingested physical fraction (and sentinel values) intact rather than
+            # applying SingleDataset's model-input min-max normalisation.
+            self.target_uncertainty._normalise = False  # noqa: SLF001
+
         self.inputs = list(datasets)
 
         # Require that all datasets have the same frequency
@@ -99,19 +128,28 @@ class CombinedDataset(Dataset):
             The shape of each array is:
             - input datasets: [n_history_steps, C_input_k, H_input_k, W_input_k]
             - target dataset: [n_forecast_steps, C_target, H_target, W_target]
+            - target_uncertainty, when configured: same shape as the target
 
         """
         start_date = self.dates[idx]
-        return {
+        target_start = start_date + self.n_history_steps * self.frequency
+        batch = {
             ds.name: ds.get_tchw_slice(start_date, self.n_history_steps, check=False)
             for ds in self.inputs
         } | {
             "target": self.target.get_tchw_slice(
-                start_date + self.n_history_steps * self.frequency,
+                target_start,
                 self.n_forecast_steps,
                 check=False,
             )
         }
+        if self.target_uncertainty is not None:
+            batch["target_uncertainty"] = self.target_uncertainty.get_tchw_slice(
+                target_start,
+                self.n_forecast_steps,
+                check=False,
+            )
+        return batch
 
     def get_forecast_steps(self, start_date: np.datetime64) -> list[np.datetime64]:
         """Return list of consecutive forecast dates for a given start date."""
