@@ -45,31 +45,16 @@ Trains the model end-to-end:
 uv run imp train
 ```
 
-To keep a W&B run local while debugging, set the logger's `offline` option. Metrics,
-figures, and other run data are written locally without being uploaded to W&B:
+??? warning "macOS: MPS fallback"
+    You may need to set `PYTORCH_ENABLE_MPS_FALLBACK=1`:
 
-```bash
-uv run imp train loggers.wandb.offline=true
-```
+    ```bash
+    PYTORCH_ENABLE_MPS_FALLBACK=1 uv run imp train
+    ```
 
-The same override works during evaluation:
-
-```bash
-uv run imp evaluate --checkpoint PATH_TO_A_CHECKPOINT loggers.wandb.offline=true
-```
-
-Alternatively, W&B's `WANDB_MODE=offline` environment variable can be used with either
-command.
-
-Synthetic experiments do not use W&B. Use the synthetic configuration, which
-saves metrics and plotting artefacts locally under `${BASE_DIR}/report`:
-
-```bash
-uv run imp train --config-name synthetic
-```
+### Multistage training
 
 For `EncodeProcessDecode` models, pass `--multistage` to train each component separately before finetuning.
-See [Train in stages](../how-to/train-multistage.md) for a full walkthrough.
 
 ```bash
 uv run imp train --multistage
@@ -77,12 +62,25 @@ uv run imp train --multistage
 
 Checkpoints are saved to `${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints/<name>.ckpt`, where `BASE_DIR` is the base path defined in your config.
 
-??? warning "macOS: MPS fallback"
-    You may need to set `PYTORCH_ENABLE_MPS_FALLBACK=1`:
+See [Train in stages](../how-to/train-multistage.md) for a full walkthrough.
 
-    ```bash
-    PYTORCH_ENABLE_MPS_FALLBACK=1 uv run imp train
-    ```
+### Weights & Biases logging
+
+To disable logging to W&B, set either `loggers.wandb.offline=true` or the `WANDB_MODE=offline` environment variable
+
+```bash
+uv run imp train loggers.wandb.offline=true
+WANDB_MODE=offline uv run imp train
+```
+
+Run data such as metrics and figures will still be written locally, but will not be uploaded.
+
+Synthetic experiments do not use W&B.
+Use the synthetic configuration, which saves metrics and plotting artefacts locally under `${BASE_DIR}/report`:
+
+```bash
+uv run imp train --config-name synthetic
+```
 
 ## `evaluate`
 
