@@ -1,9 +1,9 @@
 # Metrics
 
 `icenet_mp.metrics` ([API reference](../api/metrics.md)) implements several
-`torchmetrics.Metric` classes, each computed per forecast lead time. Using a combination of these metrics it is possible to understand why model results differ. 
+`torchmetrics.Metric` classes, each computed per forecast lead time. Using a combination of these metrics it is possible to understand why model results differ.
 Here we use six synthetic scenarios to show what each metric actually
-captures and what it's strengths and weaknesses are. 
+captures and what it's strengths and weaknesses are.
 
 ## The scenarios
 
@@ -82,13 +82,13 @@ despite being some of the worst-performing scenarios by every area-based metric.
 
 ## Threshold-based (sea ice) metrics
 
-These metrics have been developed specifically for quantifying errors in sea ice predictions. 
+These metrics have been developed specifically for quantifying errors in sea ice predictions.
 They work by first using a threshold (0.15 concentration) to get a binary ice/no-ice
 mask and then compare *that*, rather than the raw concentration.
 
 ### Accuracy
 
-`IceNetAccuracyPerForecastDay` reports the fraction of pixels that are correctly classified 
+`IceNetAccuracyPerForecastDay` reports the fraction of pixels that are correctly classified
 as either ice or no ice.
 
 **Limitations:** accuracy only cares which side of the threshold a pixel lands on,
@@ -212,4 +212,3 @@ systematically — not just locally — wrong.
   assessment: from error visibility to structural similarity. *IEEE Transactions on
   Image Processing*, 13(4), 600–612.
   [doi:10.1109/TIP.2003.819861](https://doi.org/10.1109/TIP.2003.819861)
-
