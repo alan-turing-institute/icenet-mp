@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+import re
+from datetime import UTC
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -50,10 +51,7 @@ def test_get_device_name_handles_unavailable_cuda(monkeypatch: pytest.MonkeyPatc
 
 
 def test_get_timestamp_has_expected_utc_format() -> None:
-    timestamp = get_timestamp()
-
-    parsed = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
-    assert parsed.strftime("%Y%m%d_%H%M%S") == timestamp
+    assert re.fullmatch(r"\d{8}_\d{6}", get_timestamp())
 
 
 def test_get_wandb_run_returns_none_without_wandb_logger() -> None:
