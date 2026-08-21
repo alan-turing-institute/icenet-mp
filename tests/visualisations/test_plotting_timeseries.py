@@ -25,6 +25,17 @@ class TestSpatialMean:
 
         np.testing.assert_allclose(_spatial_mean(values), [2 / 3, 1 / 3])
 
+    def test_ignores_infinite_values(self) -> None:
+        values = np.array(
+            [
+                [[1.0, np.inf], [0.0, 1.0]],
+                [[0.0, -np.inf], [np.nan, 1.0]],
+            ],
+            dtype=np.float32,
+        )
+
+        np.testing.assert_allclose(_spatial_mean(values), [2 / 3, 1 / 2])
+
 
 class TestPlotTimeTrace:
     def test_returns_image_from_forecast_fixture(
