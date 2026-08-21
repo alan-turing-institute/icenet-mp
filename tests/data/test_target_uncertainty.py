@@ -10,6 +10,7 @@ from icenet_mp.data.single_dataset import SingleDataset
 def test_combined_dataset_returns_physical_target_uncertainty(
     mock_dataset: Path, dates_as_np: tuple[np.datetime64, ...]
 ) -> None:
+    """Return target uncertainty without model-input normalisation."""
     dataset = SingleDataset(name="target", input_files=[mock_dataset])
     combined = CombinedDataset(
         datasets=[dataset],
@@ -39,9 +40,10 @@ def test_combined_dataset_returns_physical_target_uncertainty(
 def test_combined_dataset_rejects_missing_uncertainty_variable(
     mock_dataset: Path,
 ) -> None:
+    """Reject an uncertainty variable absent from the target dataset."""
     dataset = SingleDataset(name="target", input_files=[mock_dataset])
 
-    with pytest.raises(ValueError, match="uncertainty variable.*not found"):
+    with pytest.raises(ValueError, match=r"uncertainty variable.*not found"):
         CombinedDataset(
             datasets=[dataset],
             target_group_name="target",
@@ -53,6 +55,7 @@ def test_combined_dataset_rejects_missing_uncertainty_variable(
 def test_uncertainty_weighting_requires_single_target_variable(
     mock_dataset: Path,
 ) -> None:
+    """Reject uncertainty weighting for multiple predicted target variables."""
     dataset = SingleDataset(name="target", input_files=[mock_dataset])
 
     with pytest.raises(ValueError, match="exactly one predicted variable"):
