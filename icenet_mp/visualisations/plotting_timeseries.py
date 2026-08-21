@@ -19,7 +19,7 @@ def _spatial_mean(values: np.ndarray) -> np.ndarray:
     """Return the finite-value spatial mean for every timestep."""
     finite = np.isfinite(values)
     counts = finite.sum(axis=(1, 2))
-    sums = np.nansum(values, axis=(1, 2))
+    sums = np.where(finite, values, 0.0).sum(axis=(1, 2))
     return np.divide(
         sums,
         counts,
