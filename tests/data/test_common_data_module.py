@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 import numpy as np
+import pytest
 from omegaconf import DictConfig
 
 from icenet_mp.data.common_data_module import CommonDataModule
@@ -50,6 +51,23 @@ class TestCommonDataModule:
         assert dm.train_periods[0]["start"] is None
         assert dm.train_periods[1]["end"] is None
         assert dm.val_periods[0]["end"] == "2020-03-31"
+
+    def test_missing_target_group_explains_checkpoint_mismatch(
+        self, cfg_common_data_module: DictConfig
+    ) -> None:
+        """A missing evaluation target should explain how to align dataset groups."""
+        available_group = next(
+            iter(cfg_common_data_module["data"]["datasets"].values())
+        )["group_as"]
+        cfg_common_data_module["predict"]["target"]["group_name"] = "missing-target"
+
+        with pytest.raises(ValueError, match="missing-target") as exc_info:
+            CommonDataModule(cfg_common_data_module)
+
+        message = str(exc_info.value)
+        assert str(available_group) in message
+        assert "group_as" in message
+        assert "predict.target.group_name" in message
 
 
 class TestTargetMaskDir:
