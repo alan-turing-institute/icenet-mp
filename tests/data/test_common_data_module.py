@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -68,6 +69,45 @@ class TestCommonDataModule:
         assert str(available_group) in message
         assert "group_as" in message
         assert "predict.target.group_name" in message
+
+    @pytest.mark.parametrize(
+        "loader_name",
+        (
+            "predict_dataloader",
+            "test_dataloader",
+            "train_dataloader",
+            "val_dataloader",
+        ),
+    )
+    def test_uncertainty_variable_is_forwarded_to_all_splits(
+        self,
+        cfg_common_data_module: DictConfig,
+        monkeypatch: pytest.MonkeyPatch,
+        loader_name: str,
+    ) -> None:
+        """Pass the configured target uncertainty variable to every data split."""
+        uncertainty_variable = "total_standard_uncertainty"
+        cfg_common_data_module["loss"] = {
+            "uncertainty_variable": uncertainty_variable
+        }
+        cfg_common_data_module["predict"]["target"]["variables"] = ["ice_conc"]
+        dm = CommonDataModule(cfg_common_data_module)
+
+        fake_dataset = MagicMock()
+        fake_dataset.__len__.return_value = 1
+        fake_dataset.start_date = np.datetime64("2020-01-01")
+        fake_dataset.end_date = np.datetime64("2020-01-01")
+        combined_dataset = MagicMock(return_value=fake_dataset)
+        monkeypatch.setattr(
+            "icenet_mp.data.common_data_module.CombinedDataset", combined_dataset
+        )
+
+        getattr(dm, loader_name)()
+
+        assert (
+            combined_dataset.call_args.kwargs["target_uncertainty_variable"]
+            == uncertainty_variable
+        )
 
 
 class TestTargetMaskDir:
