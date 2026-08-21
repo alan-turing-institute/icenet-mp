@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
 from functools import cached_property, partial
+from pathlib import Path
 from typing import Any, ClassVar
 
 import hydra
@@ -27,7 +28,14 @@ from icenet_mp.metrics import (
     SeaIceExtentErrorPerForecastDay,
     SSIMPerForecastDay,
 )
-from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
+from icenet_mp.models.common import Mask
+from icenet_mp.types import (
+    DataSpace,
+    Hemisphere,
+    MaskType,
+    ModelStepOutput,
+    TensorNTCHW,
+)
 
 
 class BaseModel(LightningModule, ABC):
@@ -35,7 +43,7 @@ class BaseModel(LightningModule, ABC):
 
     # Parameters that should be excluded from hyperparameter logging
     ignored_hparams: ClassVar[frozenset[str]] = frozenset(
-        ("latitudes_fn", "longitudes_fn")
+        ("latitudes_fn", "longitudes_fn", "mask_dir")
     )
 
     def __init__(  # noqa: PLR0913
@@ -46,6 +54,7 @@ class BaseModel(LightningModule, ABC):
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         loss: DictConfig,
+        mask_dir: str | Path | None = None,
         metrics: list[str] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
@@ -61,6 +70,11 @@ class BaseModel(LightningModule, ABC):
         of forecast and history steps.
 
         Optimizer configuration is also set here.
+
+        ``mask_dir``, if given, is a directory holding `land_mask.npy` (generated for
+        SSMIS datasets by `datasets create`). When present, the ``"diiee"``/``"fss_*"``
+        metrics use it to exclude land/ice boundaries from ice-edge detection, so only
+        ocean ice/no-ice transitions count as the sea-ice edge.
 
         The ``metrics`` parameter controls which metrics are computed during training,
         validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
@@ -105,19 +119,42 @@ class BaseModel(LightningModule, ABC):
         self.scheduler_cfg = scheduler
         self.loss_cfg = loss
 
+        # Land mask for ice-edge metrics (excludes land/ice boundaries from FSS/DIIEE)
+        land_mask: torch.Tensor | None = None
+        if mask_dir is not None:
+            land_mask = Mask(
+                mask_type=MaskType.LAND,
+                output_shape=self.output_space.shape,
+                mask_dir=mask_dir,
+            ).mask.bool()
+
         # Metrics
         _metric_classes: dict[str, Callable[[], Metric]] = {
-            "accuracy": IceNetAccuracyPerForecastDay,
-            "mae": MAEPerForecastDay,
-            "rmse": RMSEPerForecastDay,
-            "sieerror": SeaIceExtentErrorPerForecastDay,
-            "iiee": IntegratedIceEdgeErrorPerForecastDay,
-            "diiee": DistanceAveragedIceEdgeErrorPerForecastDay,
-            "centroid_error": CentroidErrorPerForecastDay,
-            "fss_1": partial(FractionalSkillScorePerForecastDay, neighborhood_size=1),
-            "fss_5": partial(FractionalSkillScorePerForecastDay, neighborhood_size=5),
-            "fss_15": partial(FractionalSkillScorePerForecastDay, neighborhood_size=15),
-            "ssim": SSIMPerForecastDay,
+            "accuracy": partial(IceNetAccuracyPerForecastDay, land_mask=land_mask),
+            "mae": partial(MAEPerForecastDay, land_mask=land_mask),
+            "rmse": partial(RMSEPerForecastDay, land_mask=land_mask),
+            "sieerror": partial(SeaIceExtentErrorPerForecastDay, land_mask=land_mask),
+            "iiee": partial(IntegratedIceEdgeErrorPerForecastDay, land_mask=land_mask),
+            "diiee": partial(
+                DistanceAveragedIceEdgeErrorPerForecastDay, land_mask=land_mask
+            ),
+            "centroid_error": partial(CentroidErrorPerForecastDay, land_mask=land_mask),
+            "fss_1": partial(
+                FractionalSkillScorePerForecastDay,
+                neighborhood_size=1,
+                land_mask=land_mask,
+            ),
+            "fss_5": partial(
+                FractionalSkillScorePerForecastDay,
+                neighborhood_size=5,
+                land_mask=land_mask,
+            ),
+            "fss_15": partial(
+                FractionalSkillScorePerForecastDay,
+                neighborhood_size=15,
+                land_mask=land_mask,
+            ),
+            "ssim": partial(SSIMPerForecastDay, land_mask=land_mask),
         }
         metric_names = (
             metrics

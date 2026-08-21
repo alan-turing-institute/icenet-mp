@@ -11,22 +11,29 @@ class SeaIceExtentErrorPerForecastDay(Metric):
 
     The SIE error is calculated as the difference between the predicted and
     true sea ice extent for each forecast day. Sea ice presence is defined by having
-    a probability greater than the threshold value.
+    a concentration greater than the threshold value.
     """
 
-    def __init__(self, pixel_size: int = 25) -> None:
+    def __init__(
+        self, pixel_size: int = 25, land_mask: torch.Tensor | None = None
+    ) -> None:
         """Initialize the SIEError metric.
 
         Parameters
         ----------
         pixel_size: int, optional
             Physical size of one pixel in kilometers (default is 25 km -> OSISAF).
+        land_mask: torch.Tensor, optional
+            Boolean tensor of shape (H, W), True for ocean cells and False for land.
+            When given, land cells never count toward extent on either side.
 
         """
         super().__init__()
         self.sum_errors: torch.Tensor
         self.sample_count: torch.Tensor
         self.pixel_size = pixel_size
+        if land_mask is not None:
+            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
 
         # States initialized lazily on first update
         self.add_state("sum_errors", default=torch.tensor([]), dist_reduce_fx="sum")
@@ -49,6 +56,10 @@ class SeaIceExtentErrorPerForecastDay(Metric):
         """
         preds = preds > SEA_ICE_THRESHOLD
         target = target > SEA_ICE_THRESHOLD
+        land_mask = getattr(self, "land_mask", None)
+        if land_mask is not None:
+            preds = preds & land_mask
+            target = target & land_mask
 
         # Calculate the SIE for each day of the forecast
         pred_sie = torch.sum(preds, dim=(2, 3, 4))  # Shape: (B, T)

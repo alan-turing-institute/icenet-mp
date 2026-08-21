@@ -4,16 +4,26 @@ import torch
 import torch.nn.functional as F
 
 
-def binary_edge(ice_mask: torch.Tensor) -> torch.Tensor:
-    """Boolean ice-edge map: True for ice cells that border a non-ice cell.
+def binary_edge(
+    ice_mask: torch.Tensor, land_mask: torch.Tensor | None = None
+) -> torch.Tensor:
+    """Boolean ice-edge map: True for ice cells that border a non-ice ocean cell.
 
     Parameters
     ----------
     ice_mask : torch.Tensor
         Boolean tensor of shape (N, H, W).
+    land_mask : torch.Tensor, optional
+        Boolean tensor of shape (H, W), True for ocean cells and False for land.
+        When given, land cells are excluded from the edge test: an ice cell
+        bordering only land is not counted as an edge cell, though it is still
+        counted if it also borders true open water.
 
     """
-    padded = F.pad(ice_mask.float(), (1, 1, 1, 1), value=0.0).bool()
+    comparison_mask = ice_mask
+    if land_mask is not None:
+        comparison_mask = ice_mask | ~land_mask.bool()
+    padded = F.pad(comparison_mask.float(), (1, 1, 1, 1), value=0.0).bool()
     up = padded[:, :-2, 1:-1]
     down = padded[:, 2:, 1:-1]
     left = padded[:, 1:-1, :-2]

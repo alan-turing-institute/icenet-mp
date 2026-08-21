@@ -31,7 +31,9 @@ class FractionalSkillScorePerForecastDay(Metric):
     neighbourhood size of interest and compare where the resulting curve crosses 0.5.
     """
 
-    def __init__(self, neighborhood_size: int = 1) -> None:
+    def __init__(
+        self, neighborhood_size: int = 1, land_mask: torch.Tensor | None = None
+    ) -> None:
         """Initialize the FSS metric.
 
         Parameters
@@ -39,6 +41,10 @@ class FractionalSkillScorePerForecastDay(Metric):
         neighborhood_size: int, optional
             Size (in pixels) of the square neighbourhood window used to compute local
             edge-cell fractions. Must be a positive odd integer (default is 1).
+        land_mask: torch.Tensor, optional
+            Boolean tensor of shape (H, W), True for ocean cells and False for land.
+            When given, land/ice boundaries are excluded from the ice-edge detection,
+            so only ocean ice/no-ice transitions count as the sea-ice edge.
 
         """
         super().__init__()
@@ -46,6 +52,8 @@ class FractionalSkillScorePerForecastDay(Metric):
             msg = "neighborhood_size must be a positive odd integer."
             raise ValueError(msg)
         self.neighborhood_size = neighborhood_size
+        if land_mask is not None:
+            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
 
         self.sum_mse: torch.Tensor
         self.sum_mse_ref: torch.Tensor
@@ -139,8 +147,9 @@ class FractionalSkillScorePerForecastDay(Metric):
         preds_mask = (preds > SEA_ICE_THRESHOLD).reshape(-1, height, width)
         target_mask = (target > SEA_ICE_THRESHOLD).reshape(-1, height, width)
 
-        lambda_model = self._neighborhood_fraction(binary_edge(preds_mask))
-        lambda_truth = self._neighborhood_fraction(binary_edge(target_mask))
+        land_mask = getattr(self, "land_mask", None)
+        lambda_model = self._neighborhood_fraction(binary_edge(preds_mask, land_mask))
+        lambda_truth = self._neighborhood_fraction(binary_edge(target_mask, land_mask))
 
         mse, mse_ref = self._config_stats(lambda_truth, lambda_model)
 

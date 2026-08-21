@@ -44,8 +44,16 @@ class CentroidErrorPerForecastDay(BaseErrorMetricDaily):
     def _compute_batch_stats(
         self, preds: torch.Tensor, target: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        pred_centroids, _ = self._centroids(preds.clamp(min=0))
-        target_centroids, target_mass = self._centroids(target.clamp(min=0))
+        preds_values = preds.clamp(min=0)
+        target_values = target.clamp(min=0)
+        land_mask = getattr(self, "land_mask", None)
+        if land_mask is not None:
+            mask = land_mask.to(dtype=preds_values.dtype)
+            preds_values = preds_values * mask
+            target_values = target_values * mask
+
+        pred_centroids, _ = self._centroids(preds_values)
+        target_centroids, target_mass = self._centroids(target_values)
 
         distances = torch.linalg.norm(pred_centroids - target_centroids, dim=-1)
         valid = (target_mass > _EMPTY_MASS_THRESHOLD).float()

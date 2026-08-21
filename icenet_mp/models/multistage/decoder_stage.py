@@ -32,7 +32,7 @@ class DecoderStage(BaseModel):
         **kwargs: Any,
     ) -> None:
         """Initialise a DecoderStage with multiple frozen encoders and a trainable decoder."""
-        super().__init__(**kwargs)
+        super().__init__(mask_dir=mask_dir, **kwargs)
 
         # We require at least two history steps to train the decoder
         if self.n_history_steps < 2:  # noqa: PLR2004

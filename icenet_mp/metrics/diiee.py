@@ -36,23 +36,34 @@ class DistanceAveragedIceEdgeErrorPerForecastDay(Metric):
 
     Edge length is approximated on the raster grid as
     ``(edge cell count) * pixel_size``; this is coarser than a true vector polygon
-    perimeter but requires no vector geometry or land-mask polygon. Lead times where
-    both fields are entirely ice or entirely ice-free (combined edge length zero) are
-    undefined and reported as NaN, rather than the ``-9999.99`` sentinel used
-    upstream, to compose correctly with tensor reductions (e.g. `nanmean`).
+    perimeter, and needs no vector geometry, though an optional ``land_mask`` can be
+    supplied to exclude land/ice boundaries from the edge count (see `__init__`).
+    Lead times where both fields are entirely ice or entirely ice-free (combined edge
+    length zero) are undefined and reported as NaN, rather than the ``-9999.99``
+    sentinel used upstream, to compose correctly with tensor reductions (e.g.
+    `nanmean`).
     """
 
-    def __init__(self, pixel_size: int = 25) -> None:
+    def __init__(
+        self, pixel_size: int = 25, land_mask: torch.Tensor | None = None
+    ) -> None:
         """Initialize the DIIEE metric.
 
         Parameters
         ----------
         pixel_size: int, optional
             Physical size of one pixel in kilometers (default is 25 km -> OSISAF).
+        land_mask: torch.Tensor, optional
+            Boolean tensor of shape (H, W), True for ocean cells and False for land.
+            When given, land/ice boundaries are excluded from the ice-edge detection,
+            so only ocean ice/no-ice transitions contribute to the edge-length
+            denominator.
 
         """
         super().__init__()
         self.pixel_size = pixel_size
+        if land_mask is not None:
+            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
 
         self.sum_mismatch_area: torch.Tensor
         self.sum_edge_length: torch.Tensor
@@ -88,17 +99,23 @@ class DistanceAveragedIceEdgeErrorPerForecastDay(Metric):
 
         preds_extent = (preds > SEA_ICE_THRESHOLD).reshape(-1, height, width)
         target_extent = (target > SEA_ICE_THRESHOLD).reshape(-1, height, width)
+        land_mask = getattr(self, "land_mask", None)
 
         # Combined over- and under-estimation area (the IIEE integral)
-        mismatch = (preds_extent != target_extent).sum(dim=(-2, -1)).float()
+        mismatch_map = (preds_extent != target_extent).float()
+        if land_mask is not None:
+            mismatch_map = mismatch_map * land_mask.to(dtype=mismatch_map.dtype)
+        mismatch = mismatch_map.sum(dim=(-2, -1))
         mismatch_area = (
             mismatch.view(batch_size, n_steps, n_channels).sum(dim=(0, 2))
             * self.pixel_size**2
         )
 
         # Combined predicted + true ice-edge length
-        pred_edge_cells = binary_edge(preds_extent).sum(dim=(-2, -1)).float()
-        target_edge_cells = binary_edge(target_extent).sum(dim=(-2, -1)).float()
+        pred_edge_cells = binary_edge(preds_extent, land_mask).sum(dim=(-2, -1)).float()
+        target_edge_cells = (
+            binary_edge(target_extent, land_mask).sum(dim=(-2, -1)).float()
+        )
         edge_length = (pred_edge_cells + target_edge_cells).view(
             batch_size, n_steps, n_channels
         ).sum(dim=(0, 2)) * self.pixel_size

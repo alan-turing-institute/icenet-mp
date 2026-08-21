@@ -39,6 +39,7 @@ class SSIMPerForecastDay(BaseErrorMetricDaily):
         filter_sigma: float = 1.5,
         k1: float = 0.01,
         k2: float = 0.03,
+        land_mask: torch.Tensor | None = None,
     ) -> None:
         """Initialize the SSIM metric.
 
@@ -55,9 +56,15 @@ class SSIMPerForecastDay(BaseErrorMetricDaily):
             One of the SSIM dampening parameters (> 0.) (default is 0.01).
         k2: float, optional
             One of the SSIM dampening parameters (> 0.) (default is 0.03).
+        land_mask: torch.Tensor, optional
+            Boolean tensor of shape (H, W), True for ocean cells and False for land.
+            When given, land cells are excluded from the final averaged score. Note
+            this does not prevent land values from influencing the SSIM of nearby
+            ocean cells via the Gaussian filter window, which is applied before
+            masking.
 
         """
-        super().__init__()
+        super().__init__(land_mask=land_mask)
         if filter_size < 1 or filter_size % 2 == 0:
             msg = "filter_size must be a positive odd integer."
             raise ValueError(msg)

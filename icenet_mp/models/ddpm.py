@@ -96,7 +96,7 @@ class DDPM(BaseModel):
             **kwargs: Additional arguments passed to ``BaseModel``.
 
         """
-        super().__init__(**kwargs)
+        super().__init__(mask_dir=mask_dir, **kwargs)
 
         self.use_autoregressive = use_autoregressive
         self.osisaf_key = self.output_space.name

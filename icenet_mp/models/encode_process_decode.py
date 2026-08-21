@@ -32,7 +32,7 @@ class EncodeProcessDecode(BaseModel):
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
-        super().__init__(**kwargs)
+        super().__init__(mask_dir=mask_dir, **kwargs)
 
         # Check that the number of variable indices provided matches the number of
         # channels in the output space.
