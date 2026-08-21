@@ -72,12 +72,12 @@ class TestCommonDataModule:
 
     @pytest.mark.parametrize(
         "loader_name",
-        (
+        [
             "predict_dataloader",
             "test_dataloader",
             "train_dataloader",
             "val_dataloader",
-        ),
+        ],
     )
     def test_uncertainty_variable_is_forwarded_to_all_splits(
         self,
@@ -87,9 +87,7 @@ class TestCommonDataModule:
     ) -> None:
         """Pass the configured target uncertainty variable to every data split."""
         uncertainty_variable = "total_standard_uncertainty"
-        cfg_common_data_module["loss"] = {
-            "uncertainty_variable": uncertainty_variable
-        }
+        cfg_common_data_module["loss"] = {"uncertainty_variable": uncertainty_variable}
         cfg_common_data_module["predict"]["target"]["variables"] = ["ice_conc"]
         dm = CommonDataModule(cfg_common_data_module)
 
