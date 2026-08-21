@@ -1,11 +1,12 @@
 """Tests for the Argo data source."""
 
 from datetime import datetime, timedelta
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
+import requests
 from anemoi.datasets.create.recipe.dates import StartEndDates
 from anemoi.datasets.dates.groups import GroupOfDates
 from anemoi.utils.registry import Registry
@@ -24,6 +25,19 @@ class TestArgoSource:
         frequency=timedelta(days=1),
     )
     dates: ClassVar[GroupOfDates] = GroupOfDates(list(date_range), provider=date_range)
+
+    @pytest.fixture(autouse=True)
+    def _patch_erddap_get(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prevent erddapy from making a real request to GitHub."""
+        original_get = requests.get
+
+        def _failed_get(url: str, *args: Any, **kwargs: Any) -> requests.Response:
+            if "erddaps.json" in url:
+                msg = "Force erddapy to use a local server list fallback"
+                raise requests.HTTPError(msg)
+            return original_get(url, *args, **kwargs)
+
+        monkeypatch.setattr(requests, "get", _failed_get)
 
     def test_argo_source_registration(self) -> None:
         """Test that ArgoSource is properly registered."""
@@ -217,7 +231,7 @@ class TestArgoSource:
             result = source.execute(argument=self.dates)
 
         assert len(result) == len(self.dates.dates)
-        for field, date in zip(result, sorted(self.dates.dates), strict=True):
+        for field, date in zip(iter(result), sorted(self.dates.dates), strict=True):
             assert field.metadata("valid_datetime") == date.isoformat()
             assert field.to_numpy().shape == (2, 2)
         context.trace.assert_called_once()

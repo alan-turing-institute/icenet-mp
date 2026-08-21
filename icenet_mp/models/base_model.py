@@ -127,6 +127,10 @@ class BaseModel(LightningModule, ABC):
     def longitudes(self) -> dict[str, list[float]]:
         return {} if not self.longitudes_fn else self.longitudes_fn()
 
+    @property
+    def multistage_only(self) -> bool:
+        return False
+
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""
         # Optimizer

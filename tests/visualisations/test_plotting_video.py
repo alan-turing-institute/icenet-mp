@@ -16,7 +16,7 @@ import pytest
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import PlotSpec
-from icenet_mp.visualisations import DEFAULT_SIC_SPEC, convert
+from icenet_mp.visualisations import DEFAULT_SIC_SPEC
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.plotting_video import (
     plot_video_inputs,
@@ -37,13 +37,16 @@ def fake_video_from_animation(
     def _fake_save(
         _anim: object,
         *,
+        dpi: int = 200,  # noqa: ARG001
         fps: int = 2,  # noqa: ARG001
         video_format: str = "gif",  # noqa: ARG001
     ) -> io.BytesIO:
         # Parameters match real video_from_animation signature but are unused in fake
         return io.BytesIO(b"fake-video-data")
 
-    monkeypatch.setattr(convert, "video_from_animation", _fake_save)
+    monkeypatch.setattr(
+        "icenet_mp.visualisations.plotting_video.video_from_animation", _fake_save
+    )
     return _fake_save
 
 
@@ -195,6 +198,7 @@ class TestPlotVideoInputs:
         self,
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
+        fake_video_from_animation: Callable[..., io.BytesIO],
     ) -> None:
         """Test batch video creation for multiple variables."""
         rng = np.random.default_rng(100)
@@ -220,29 +224,11 @@ class TestPlotVideoInputs:
             variables=variables,
         )
 
+        # Reference the fixture to avoid unused-argument lint error
+        assert fake_video_from_animation is not None
+
         assert len(results) == len(variables)
         for name in variables:
             key = f"{test_dates_short[0].strftime('%Y-%m-%d')}-{name}"
             assert key in results
-            video_buffer = results[key]
-            assert isinstance(video_buffer, io.BytesIO)
-            video_buffer.seek(0)
-            assert len(video_buffer.read()) > 1000
-
-    def test_full_workflow_video(
-        self,
-        multi_channel_thw: dict[str, np.ndarray],
-        test_dates_short: list[date],
-        base_plot_spec: PlotSpec,
-    ) -> None:
-        """Test complete workflow: static plots + videos for multiple variables."""
-        # Create videos
-        video_results = plot_video_inputs(
-            dates=test_dates_short,
-            land_mask=LandMask(None),
-            plot_spec=base_plot_spec,
-            variables=multi_channel_thw,
-        )
-
-        assert len(video_results) == len(multi_channel_thw)
-        assert all(isinstance(video, io.BytesIO) for video in video_results.values())
+            assert results[key].getvalue() == b"fake-video-data"

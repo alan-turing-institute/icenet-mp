@@ -29,6 +29,27 @@ uv run imp datasets inspect
 Prints basic properties of each dataset.
 With the `--verbose` option it will also print statistical summaries of the variables.
 
+## `datasets plot`
+
+```bash
+uv run imp datasets plot --dataset samp-sicsouth-osisaf-25p0km-2020-2024-24h-v1 --timestep 0
+```
+
+Creates one static PNG per variable for the selected timestep of a configured downloaded dataset.
+Plots are written to `${base_path}/data/input_plots` in a subdirectory named after the dataset.
+Running without `--dataset` will plot every configured dataset.
+This is useful for inspecting raw inputs without running model training or evaluation.
+
+Use `--timestep` to select another dataset index and the normal `--config-name` to choose the dataset configuration.
+
+Pass `--video` to create an animation over consecutive timesteps instead of a single static plot:
+
+```bash
+uv run imp datasets plot --dataset samp-sicsouth-osisaf-25p0km-2020-2024-24h-v1 --video --timestep 0 --n-steps 30
+```
+
+This animates `--n-steps` consecutive timesteps starting at `--timestep`, writing one video file per variable to the same `input_plots` directory.
+
 ## `train`
 
 Standard (non-synthetic) runs use [Weights & Biases](https://docs.wandb.ai/models/quickstart).
@@ -81,6 +102,34 @@ Use the synthetic configuration, which saves metrics and plotting artefacts loca
 ```bash
 uv run imp train --config-name synthetic
 ```
+
+## `sweep initialise`
+
+```bash
+uv run imp sweep initialise --sweep-yaml example.sweep.yaml --config-name baseline/02_cnn_unet_cnn
+```
+
+Creates a W&B sweep and initialises a local Optuna study directory; hyperparameters are sampled per trial at runtime.
+See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
+
+## `sweep trial`
+
+```bash
+uv run imp sweep trial --sweep-path <path to sweep directory created above>
+```
+
+Runs a single hyperparameter trial as part of a W&B sweep.
+See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
+
+## `sweep summarise`
+
+```bash
+uv run imp sweep summarise --sweep-path <path to sweep directory created above>
+```
+
+Reads the local Optuna study and reports the number of completed trials, plus the value and hyperparameters for the best trial.
+This works without a W&B connection.
+See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
 
 ## `evaluate`
 
