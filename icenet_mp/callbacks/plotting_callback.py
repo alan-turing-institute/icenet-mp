@@ -3,6 +3,7 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
 from omegaconf import DictConfig
@@ -11,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
-from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
+from icenet_mp.types import ArrayTHW, Metadata, ModelStepOutput, PlotSpec
 from icenet_mp.utils import datetime_from_npdatetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
 from icenet_mp.visualisations.land_mask import LandMask
@@ -118,6 +119,62 @@ class PlottingCallback(Callback):
             return None
         return (dataset, batch_size)
 
+    @staticmethod
+    def load_target_uncertainties(
+        dataset: CombinedDataset, dates: list
+    ) -> dict[int, ArrayTHW]:
+        """Load SSMIS SIC uncertainty in the same normalised scale as the target."""
+        target_variable = "ice_conc"
+        uncertainty_variable = "total_standard_uncertainty"
+
+        if target_variable not in dataset.target.variable_names:
+            return {}
+        target_idx = dataset.target.variable_names.index(target_variable)
+
+        source = next(
+            (
+                input_ds
+                for input_ds in dataset.inputs
+                if input_ds.name == dataset.target.name
+                and uncertainty_variable in input_ds.variable_names
+            ),
+            None,
+        )
+        if source is None:
+            return {}
+
+        uncertainty_ds = source.subset(variables=[uncertainty_variable])
+        np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
+        try:
+            normalised = uncertainty_ds.get_tchw(np_dates)[:, 0]
+        except (IndexError, ValueError) as exc:
+            logger.warning("Could not load target uncertainty: %s", exc)
+            return {}
+
+        uncertainty_min = float(uncertainty_ds.statistics["minimum"][0])
+        uncertainty_max = float(uncertainty_ds.statistics["maximum"][0])
+        uncertainty = normalised * (uncertainty_max - uncertainty_min) + uncertainty_min
+
+        # SSMIS uncertainties are fractions after ingestion. The source uses 99 as a
+        # sentinel for missing uncertainty, so mask values outside the physical range.
+        uncertainty = np.where(
+            np.isfinite(uncertainty) & (uncertainty > 0) & (uncertainty <= 1),
+            uncertainty,
+            np.nan,
+        )
+
+        target_min = float(dataset.target.statistics["minimum"][target_idx])
+        target_max = float(dataset.target.statistics["maximum"][target_idx])
+        target_range = target_max - target_min
+        if not np.isfinite(target_range) or target_range <= 0:
+            logger.warning(
+                "Could not scale target uncertainty because target range is %s.",
+                target_range,
+            )
+            return {}
+
+        return {target_idx: uncertainty / target_range}
+
     def make_plots(
         self,
         trainer: Trainer,
@@ -165,12 +222,14 @@ class PlottingCallback(Callback):
         channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
 
         if self.make_static_plots:
+            uncertainties = self.load_target_uncertainties(dataset, dates)
             self.plotter.log_static_outputs(
                 self.cached_outputs_,
                 dates,
                 image_loggers,
                 channel_names,
                 prefix=self.prefix,
+                uncertainties=uncertainties,
             )
             if self.make_input_plots:
                 self.plotter.log_static_inputs(
