@@ -34,8 +34,9 @@ Directly downloaded SSMIS datasets include `total_standard_uncertainty`, which i
 rescaled to a fraction during ingestion. `loss=uncertainty_weighted` reads that
 variable for the same dates as the forecast target and computes a Huber loss weighted
 by `sigma^-power` (inverse variance when `power=2`). The weighted mean is normalised by
-the sum of weights, so multiplying every uncertainty value by the same constant does
-not alter the objective.
+the sum of weights. A common positive rescaling of valid uncertainties therefore does
+not change the objective unless it moves values across the configured clipping or
+validity thresholds.
 
 ```bash
 imp train --config-name <config> loss=uncertainty_weighted
