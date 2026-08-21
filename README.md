@@ -7,7 +7,7 @@
 
 IceNet-MP is an **AI/ML framework for multimodal sea-ice forecasting**.
 
-![Example IceNet-MP sea ice concentration forecast compared with observations](assets/prediction-fullsouth-ddpm-v2026.07.png)
+![Example IceNet-MP sea ice concentration forecast compared with observations](docs/src/assets/prediction-fullsouth-ddpm-v2026.07.png)
 
 IceNet-MP fuses satellite observations, Argo float sensor data, and ERA5 reanalysis fields to produce short-term sea ice concentration forecasts. The encode-process-decode architecture translates each input dataset into a shared latent space, allowing new data sources and ML model components to be added without changing the full pipeline.
 
