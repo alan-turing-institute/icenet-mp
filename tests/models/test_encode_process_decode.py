@@ -6,7 +6,7 @@ from icenet_mp.models import EncodeProcessDecode
 from icenet_mp.types import ProcessorOutput
 
 
-def test_uncertainty_loss_rejects_processor_owned_training_loss(  # noqa: PLR0913
+def test_uncertainty_loss_rejects_processor_owned_training_loss(
     cfg_decoder: DictConfig,
     cfg_encoders: DictConfig,
     cfg_processor: DictConfig,
