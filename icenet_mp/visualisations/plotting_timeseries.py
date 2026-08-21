@@ -54,7 +54,7 @@ def plot_time_trace(
             count does not match the time dimension.
 
     """
-    if ground_truth.ndim != 3 or prediction.ndim != 3:
+    if ground_truth.ndim != 3 or prediction.ndim != 3:  # noqa: PLR2004
         msg = (
             "Time-trace inputs must have shape [T, H, W], got "
             f"{ground_truth.shape} and {prediction.shape}."
@@ -77,8 +77,8 @@ def plot_time_trace(
     prediction_mean = _spatial_mean(land_mask.apply_to(prediction))
 
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(dates, ground_truth_mean, marker="o", label="Ground Truth")
-    ax.plot(dates, prediction_mean, marker="o", label="Prediction")
+    ax.plot(dates, ground_truth_mean, marker="o", label="Ground Truth")  # type: ignore[arg-type]
+    ax.plot(dates, prediction_mean, marker="o", label="Prediction")  # type: ignore[arg-type]
     ax.set_xlabel("Forecast date")
     ax.set_ylabel(f"Spatial mean {variable_name}")
     ax.set_title(f"{variable_name} forecast trace")

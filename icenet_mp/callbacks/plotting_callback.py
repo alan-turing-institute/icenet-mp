@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class PlottingCallback(Callback):
     """A callback to create plots during evaluation."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         frequency: dict[str, int] | None = None,
