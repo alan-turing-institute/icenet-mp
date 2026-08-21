@@ -47,6 +47,13 @@ class TestHydraConfigLoading:
         cfg = self.load_config(overrides=["loss.delta=1.0"])
         assert cfg.loss.delta == pytest.approx(1.0)
 
+    def test_wandb_offline_override(self) -> None:
+        cfg = self.load_config()
+        assert cfg.loggers.wandb.offline is False
+
+        cfg = self.load_config(overrides=["loggers.wandb.offline=true"])
+        assert cfg.loggers.wandb.offline is True
+
     def test_config_group_override_swaps_loss(self) -> None:
         cfg = self.load_config(overrides=["loss=mse"])
         assert cfg.loss._target_ == "torch.nn.MSELoss"

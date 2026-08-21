@@ -66,15 +66,16 @@ Trains the model end-to-end:
 uv run imp train
 ```
 
-Synthetic experiments do not use W&B. Use the synthetic configuration, which
-saves metrics and plotting artefacts locally under `${BASE_DIR}/report`:
+??? warning "macOS: MPS fallback"
+    You may need to set `PYTORCH_ENABLE_MPS_FALLBACK=1`:
 
-```bash
-uv run imp train --config-name synthetic
-```
+    ```bash
+    PYTORCH_ENABLE_MPS_FALLBACK=1 uv run imp train
+    ```
+
+### Multistage training
 
 For `EncodeProcessDecode` models, pass `--multistage` to train each component separately before finetuning.
-See [Train in stages](../how-to/train-multistage.md) for a full walkthrough.
 
 ```bash
 uv run imp train --multistage
@@ -82,12 +83,25 @@ uv run imp train --multistage
 
 Checkpoints are saved to `${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints/<name>.ckpt`, where `BASE_DIR` is the base path defined in your config.
 
-??? warning "macOS: MPS fallback"
-    You may need to set `PYTORCH_ENABLE_MPS_FALLBACK=1`:
+See [Train in stages](../how-to/train-multistage.md) for a full walkthrough.
 
-    ```bash
-    PYTORCH_ENABLE_MPS_FALLBACK=1 uv run imp train
-    ```
+### Weights & Biases logging
+
+To disable logging to W&B, set either `loggers.wandb.offline=true` or the `WANDB_MODE=offline` environment variable
+
+```bash
+uv run imp train loggers.wandb.offline=true
+WANDB_MODE=offline uv run imp train
+```
+
+Run data such as metrics and figures will still be written locally, but will not be uploaded.
+
+Synthetic experiments do not use W&B.
+Use the synthetic configuration, which saves metrics and plotting artefacts locally under `${BASE_DIR}/report`:
+
+```bash
+uv run imp train --config-name synthetic
+```
 
 ## `sweep initialise`
 
