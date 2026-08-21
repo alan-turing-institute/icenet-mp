@@ -19,6 +19,7 @@ from .land_mask import LandMask
 from .metadata import build_metadata, format_metadata_subtitle
 from .plotting_static import plot_static_inputs, plot_static_prediction
 from .plotting_video import plot_video_inputs, plot_video_prediction
+from .uncertainty import plot_static_uncertainty
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +79,9 @@ class Plotter:
         image_loggers: list,
         channel_names: list[str],
         prefix: str | None = None,
+        uncertainties: dict[int, ArrayTHW] | None = None,
     ) -> None:
-        """Create and log static output plots."""
+        """Create and log static output plots, including uncertainty when available."""
         try:
             idx_date = self.plot_spec.selected_timestep
             log_path = f"{prefix}/output_static" if prefix else "output_static"
@@ -105,6 +107,21 @@ class Plotter:
                     plot_spec=self.plot_spec,
                     variable_name=variable_name,
                 )
+                uncertainty = (
+                    uncertainties.get(idx_channel) if uncertainties is not None else None
+                )
+                if uncertainty is not None:
+                    images.update(
+                        plot_static_uncertainty(
+                            ground_truth,
+                            prediction,
+                            uncertainty[idx_date],
+                            date=dates[idx_date],
+                            land_mask=self.land_mask,
+                            plot_spec=self.plot_spec,
+                            variable_name=variable_name,
+                        )
+                    )
                 for image_name, image_list in images.items():
                     for image_logger in image_loggers:
                         image_logger.log_image(
