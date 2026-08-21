@@ -47,9 +47,11 @@ The default configuration uses `power=2`, clips very small valid uncertainties a
 If every uncertainty value in a batch is invalid, the loss falls back to ordinary
 Huber loss for that batch rather than producing `NaN`.
 
-The uncertainty is an auxiliary target field and is not added to the model inputs or
-metrics. At present this loss supports exactly one predicted target variable, which
-matches the standard SIC configuration.
+The loss receives uncertainty through a separate `target_uncertainty` batch field.
+This does not add a new model-input channel or metric; any uncertainty already present
+among a dataset group's ordinary input variables is unchanged. At present this loss
+supports exactly one predicted target variable, which matches the standard SIC
+configuration.
 
 ## Why an anti-blur loss exists (the double penalty, in two sentences)
 
