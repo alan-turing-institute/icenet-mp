@@ -78,9 +78,9 @@ class TestPlotDataset:
             fake_plot_static_inputs,
         )
 
-        output_dir = tmp_path / "plots"
-        saved = plot_variables_static("example", dataset_path, output_dir, 0)
+        saved = plot_variables_static("example", dataset_path, 0, base_path=tmp_path)
 
+        output_dir = tmp_path / "data" / "input_plots"
         assert saved == 2
         assert (output_dir / "example" / "2020-01-01-example_ice_conc.png").is_file()
         assert (output_dir / "example" / "2020-01-01-example_temperature.png").is_file()
@@ -99,7 +99,7 @@ class TestPlotDataset:
         )
 
         with pytest.raises(IndexError, match="Timestep 2 is out of range"):
-            plot_variables_static("example", dataset_path, tmp_path / "plots", 2)
+            plot_variables_static("example", dataset_path, 2, base_path=tmp_path)
 
 
 class TestPlotDatasetVideo:
@@ -127,9 +127,9 @@ class TestPlotDatasetVideo:
             fake_plot_video_inputs,
         )
 
-        output_dir = tmp_path / "plots"
-        saved = plot_variables_video("example", dataset_path, output_dir, 0, 3)
+        saved = plot_variables_video("example", dataset_path, 0, 3, base_path=tmp_path)
 
+        output_dir = tmp_path / "data" / "input_plots"
         assert saved == 2
         assert (output_dir / "example" / "2020-01-01-example_ice_conc.mp4").is_file()
         assert (output_dir / "example" / "2020-01-01-example_temperature.mp4").is_file()
@@ -148,4 +148,4 @@ class TestPlotDatasetVideo:
         )
 
         with pytest.raises(IndexError, match="Timesteps 2:5 are out of range"):
-            plot_variables_video("example", dataset_path, tmp_path / "plots", 2, 3)
+            plot_variables_video("example", dataset_path, 2, 3, base_path=tmp_path)

@@ -74,7 +74,7 @@ def plot(
     ] = 10,
 ) -> None:
     """Plot one timestep of configured datasets."""
-    output_dir = Path(config["base_path"]).resolve() / "data" / "input_plots"
+    base_path = Path(config["base_path"]).resolve()
     matched_dataset = False
     for downloader in build_downloaders(config):
         if dataset is not None and downloader.name != dataset:
@@ -86,21 +86,19 @@ def plot(
                 plot_variables_video(
                     downloader.name,
                     downloader.path_dataset,
-                    output_dir,
                     timestep,
                     n_steps,
+                    base_path=base_path,
                 )
                 if video
                 else plot_variables_static(
-                    downloader.name, downloader.path_dataset, output_dir, timestep
+                    downloader.name,
+                    downloader.path_dataset,
+                    timestep,
+                    base_path=base_path,
                 )
             )
-            logger.info(
-                "Saved %d plots for dataset %s under %s.",
-                n_saved,
-                downloader.name,
-                output_dir / downloader.name,
-            )
+            logger.info("Saved %d plots for dataset %s.", n_saved, downloader.name)
         else:
             logger.error(
                 "Dataset %s not found at %s", downloader.name, downloader.path_dataset

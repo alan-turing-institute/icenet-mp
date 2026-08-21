@@ -127,9 +127,9 @@ class TestDatasetsPlotCLI:
         calls = []
 
         def fake_plot_dataset(
-            name: str, path: Path, output_dir: Path, timestep: int
+            name: str, path: Path, timestep: int, *, base_path: Path
         ) -> int:
-            calls.append((name, path, output_dir, timestep))
+            calls.append((name, path, timestep, base_path))
             return 2
 
         monkeypatch.setattr(
@@ -143,8 +143,7 @@ class TestDatasetsPlotCLI:
         )
 
         assert result.exit_code == 0, result.output
-        expected_output_dir = tmp_path.resolve() / "data" / "input_plots"
-        assert calls == [("example", existing_path, expected_output_dir, 1)]
+        assert calls == [("example", existing_path, 1, tmp_path.resolve())]
 
     def test_plot_video_calls_plot_dataset_video_with_n_steps(
         self,
@@ -168,9 +167,14 @@ class TestDatasetsPlotCLI:
         calls = []
 
         def fake_plot_dataset_video(
-            name: str, path: Path, output_dir: Path, timestep: int, n_steps: int
+            name: str,
+            path: Path,
+            timestep: int,
+            n_steps: int,
+            *,
+            base_path: Path,
         ) -> int:
-            calls.append((name, path, output_dir, timestep, n_steps))
+            calls.append((name, path, timestep, n_steps, base_path))
             return 4
 
         monkeypatch.setattr(
@@ -191,8 +195,7 @@ class TestDatasetsPlotCLI:
         )
 
         assert result.exit_code == 0, result.output
-        expected_output_dir = tmp_path.resolve() / "data" / "input_plots"
-        assert calls == [("example", existing_path, expected_output_dir, 0, 5)]
+        assert calls == [("example", existing_path, 0, 5, tmp_path.resolve())]
 
     def test_plot_rejects_unmatched_dataset_name(
         self,

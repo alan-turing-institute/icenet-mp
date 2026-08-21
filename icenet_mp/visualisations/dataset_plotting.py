@@ -2,7 +2,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from icenet_mp.data import SingleDataset
-from icenet_mp.utils import datetime_from_npdatetime
+from icenet_mp.utils import datetime_from_npdatetime, mask_dir
 
 from .helpers import DEFAULT_SIC_SPEC
 from .land_mask import LandMask
@@ -13,10 +13,12 @@ from .plotting_video import plot_video_inputs
 def plot_variables_static(
     dataset_name: str,
     dataset_path: Path,
-    output_dir: Path,
     timestep: int,
+    *,
+    base_path: Path,
 ) -> int:
     """Save static plots for one timestep of a downloaded dataset."""
+    output_dir = base_path / "data" / "input_plots"
     dataset = SingleDataset(
         name=dataset_name,
         input_files=[dataset_path],
@@ -35,9 +37,10 @@ def plot_variables_static(
         f"{dataset.name}:{variable_name}": dataset[timestep][channel]
         for channel, variable_name in enumerate(dataset.variable_names)
     }
+    land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
     images = plot_static_inputs(
         variables,
-        land_mask=LandMask(None),
+        land_mask=LandMask(land_mask_path),
         plot_spec=plot_spec,
         when=when,
     )
@@ -57,11 +60,13 @@ def plot_variables_static(
 def plot_variables_video(
     dataset_name: str,
     dataset_path: Path,
-    output_dir: Path,
     timestep: int,
     n_steps: int,
+    *,
+    base_path: Path,
 ) -> int:
     """Save one animation per variable for a run of consecutive timesteps."""
+    output_dir = base_path / "data" / "input_plots"
     dataset = SingleDataset(
         name=dataset_name,
         input_files=[dataset_path],
@@ -84,10 +89,11 @@ def plot_variables_video(
         f"{dataset.name}:{variable_name}": tchw[:, channel]
         for channel, variable_name in enumerate(dataset.variable_names)
     }
+    land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
     videos = plot_video_inputs(
         variables,
         dates=dates,
-        land_mask=LandMask(None),
+        land_mask=LandMask(land_mask_path),
         plot_spec=plot_spec,
     )
 
