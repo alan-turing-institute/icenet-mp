@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from datetime import date, datetime
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL.ImageFile import ImageFile
@@ -84,6 +85,8 @@ def plot_time_trace(
     ax.set_title(f"{variable_name} forecast trace")
     ax.grid(alpha=0.25)
     ax.legend()
+    ax.set_xticks(list(dates))  # type: ignore[arg-type]
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d"))
     fig.autofmt_xdate()
     fig.tight_layout()
 
