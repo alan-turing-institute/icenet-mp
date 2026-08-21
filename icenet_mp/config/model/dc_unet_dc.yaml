@@ -54,3 +54,5 @@ decoder:
   pixel_shuffle: true
   restrict_range: tanh
   stride: 3
+  skip_connection:
+    method: none
