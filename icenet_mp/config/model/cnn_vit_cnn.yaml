@@ -35,3 +35,5 @@ decoder:
   mask_type: active
   norm_type: groupnorm
   restrict_range: clamp
+  skip_connection:
+    method: none
