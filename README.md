@@ -11,6 +11,10 @@ IceNet-MP is an **AI/ML framework for multimodal sea-ice forecasting**.
 
 IceNet-MP fuses satellite observations, Argo float sensor data, and ERA5 reanalysis fields to produce short-term sea ice concentration forecasts. The encode-process-decode architecture translates each input dataset into a shared latent space, allowing new data sources and ML model components to be added without changing the full pipeline.
 
+![Encode-process-decode pipeline diagram](docs/src/assets/pipeline-encode-process-decode.png)
+
+See [Add a model](https://alan-turing-institute.github.io/icenet-mp/how-to/add-a-model/) for the standalone and encode-process-decode model interfaces in more detail.
+
 ## Quick start
 
 ```bash
