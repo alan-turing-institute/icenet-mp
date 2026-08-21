@@ -234,6 +234,7 @@ class EncodeProcessDecode(BaseModel):
 
         """
         batch = self.process_batch(batch)
+        uncertainty = batch.pop("target_uncertainty", None)
         target = batch["target"].clone().detach()
         combined_latent = self.encode_inputs(batch)
 
@@ -256,8 +257,14 @@ class EncodeProcessDecode(BaseModel):
         if processor_output.loss is None:
             # Standard path: compare decoded output to target.
             prediction = self.decoder.rollout(processor_output.prediction, persistence)
-            loss = self.loss(prediction, target)
+            loss = self.loss(prediction, target, uncertainty)
         else:
+            if getattr(self.loss_fn, "requires_uncertainty", False):
+                msg = (
+                    "Uncertainty-weighted output loss cannot be used when the processor "
+                    "owns the training loss in latent space."
+                )
+                raise ValueError(msg)
             # Custom loss path: processor owns the training signal.
             # Decode under no_grad for metrics/callbacks only.
             loss = processor_output.loss
