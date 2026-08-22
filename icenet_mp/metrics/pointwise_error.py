@@ -1,4 +1,9 @@
-"""Calculating RMSE, MAE by forecast step."""
+"""Pixel-wise error metrics (MAE, RMSE) and their shared accumulation base class.
+
+The base classes here are also reused by `icenet_mp.metrics.ssim` and
+`icenet_mp.metrics.centroid_error`, which need the same per-timestep
+sufficient-statistics accumulation but compute a different per-batch error.
+"""
 
 import torch
 from torchmetrics import Metric

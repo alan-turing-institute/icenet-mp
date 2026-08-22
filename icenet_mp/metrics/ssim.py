@@ -10,7 +10,7 @@ https://github.com/openclimatefix/cloudcasting/blob/main/src/cloudcasting/metric
 import torch
 import torch.nn.functional as F
 
-from .daily_metrics import BaseErrorMetricDaily
+from .pointwise_error import BaseErrorMetricDaily
 
 
 def _gaussian_kernel(filter_size: int, filter_sigma: float) -> torch.Tensor:

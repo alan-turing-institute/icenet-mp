@@ -2,7 +2,7 @@
 
 import torch
 
-from .daily_metrics import BaseErrorMetricDaily
+from .pointwise_error import BaseErrorMetricDaily
 
 # Frames whose target has less total mass than this are treated as empty (undefined
 # centroid) and excluded from the average; it also floors the denominator so the
