@@ -11,6 +11,7 @@ from icenet_mp.visualisations import Plotter
 
 class ImageLogger:
     def __init__(self) -> None:
+        """Initialise recorded image-log calls."""
         self.calls: list[tuple[str, list[object]]] = []
 
     def log_image(self, *, key: str, images: list[object]) -> None:
@@ -19,6 +20,7 @@ class ImageLogger:
 
 class VideoLogger:
     def __init__(self) -> None:
+        """Initialise recorded video-log calls."""
         self.calls: list[tuple[str, int, list[str]]] = []
 
     def log_video(
