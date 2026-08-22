@@ -10,6 +10,7 @@ from icenet_mp.model_service import ModelService
 
 class FakeModelService:
     def __init__(self) -> None:
+        """Initialise evaluation-call tracking."""
         self.evaluate_calls = 0
 
     def evaluate(self) -> None:
