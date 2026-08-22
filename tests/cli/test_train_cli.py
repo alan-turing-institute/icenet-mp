@@ -10,6 +10,7 @@ from icenet_mp.model_service import ModelService
 
 class FakeModelService:
     def __init__(self) -> None:
+        """Initialise recorded training calls."""
         self.calls: list[tuple[Path | None, bool]] = []
 
     def train(
