@@ -118,11 +118,7 @@ class LatentFusion(nn.Module):
 
         weights = self.attention_weights(inputs)
         weighted_inputs = [
-            tensor
-            * weights[..., idx]
-            .unsqueeze(-1)
-            .unsqueeze(-1)
-            .unsqueeze(-1)
+            tensor * weights[..., idx].unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
             for idx, tensor in enumerate(inputs)
         ]
         return torch.cat(weighted_inputs, dim=2)
