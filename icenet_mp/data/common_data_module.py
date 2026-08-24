@@ -80,6 +80,11 @@ class CommonDataModule(LightningDataModule):
         self.n_forecast_steps = int(config["predict"].get("n_forecast_steps", 1))
         self.n_history_steps = int(config["predict"].get("n_history_steps", 1))
 
+        missing_input_value = config["data"].get("missing_input_value")
+        self.missing_input_value = (
+            None if missing_input_value is None else float(missing_input_value)
+        )
+
         # Set common arguments for the dataloader
         self._common_dataloader_kwargs = DataloaderArgs(
             batch_sampler=None,
@@ -196,6 +201,7 @@ class CommonDataModule(LightningDataModule):
                 ds.subset(date_ranges=self.predict_periods)
                 for ds in self.datasets.values()
             ],
+            missing_input_value=self.missing_input_value,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
@@ -215,6 +221,7 @@ class CommonDataModule(LightningDataModule):
         """Construct test dataloader."""
         dataset = CombinedDataset(
             [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
+            missing_input_value=self.missing_input_value,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
@@ -237,6 +244,7 @@ class CommonDataModule(LightningDataModule):
                 ds.subset(date_ranges=self.train_periods)
                 for ds in self.datasets.values()
             ],
+            missing_input_value=self.missing_input_value,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
@@ -256,6 +264,7 @@ class CommonDataModule(LightningDataModule):
         """Construct validation dataloader."""
         dataset = CombinedDataset(
             [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
+            missing_input_value=self.missing_input_value,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
