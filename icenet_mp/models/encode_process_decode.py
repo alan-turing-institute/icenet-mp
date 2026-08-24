@@ -112,13 +112,14 @@ class EncodeProcessDecode(BaseModel):
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
             shape=latent_shapes.pop(),
         )
+        target_channel_offset = self.find_target_channel_offset()
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
             data_space=combined_latent_space,
             data_space_target=self.target_encoder.data_space_out,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
-            target_channel_offset=self.find_target_channel_offset(),
+            target_channel_offset=target_channel_offset,
         )
 
         # Add a decoder
@@ -127,6 +128,7 @@ class EncodeProcessDecode(BaseModel):
             data_space_in=combined_latent_space,
             data_space_out=self.output_space,
             mask_dir=mask_dir,
+            target_channel_offset=target_channel_offset,
         )
 
         # Freeze unused modules
