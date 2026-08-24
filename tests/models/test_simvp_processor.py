@@ -10,13 +10,13 @@ from icenet_mp.types import DataSpace
 
 def _processor(**kwargs: int) -> SimVPProcessor:
     """Build a small SimVP processor for unit tests."""
+    config = {"hidden_channels": 8, "n_mixer_blocks": 2}
+    config.update(kwargs)
     return SimVPProcessor(
         data_space=DataSpace(name="latent", channels=3, shape=(8, 8)),
         n_forecast_steps=2,
         n_history_steps=3,
-        hidden_channels=8,
-        n_mixer_blocks=2,
-        **kwargs,
+        **config,
     )
 
 
