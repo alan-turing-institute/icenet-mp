@@ -3,6 +3,7 @@ from .cnn_encoder import CNNEncoder
 from .deep_compression_encoder import DeepCompressionEncoder
 from .naive_linear_encoder import NaiveLinearEncoder
 from .piecewise_encoder import PiecewiseEncoder
+from .pretrained_embedding_encoder import PretrainedEmbeddingEncoder
 from .reprojection_encoder import ReprojectionEncoder
 
 __all__ = [
@@ -11,5 +12,6 @@ __all__ = [
     "DeepCompressionEncoder",
     "NaiveLinearEncoder",
     "PiecewiseEncoder",
+    "PretrainedEmbeddingEncoder",
     "ReprojectionEncoder",
 ]
