@@ -31,6 +31,7 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             loss=cfg_loss,
             target_variable_indices=[0],
         )
@@ -71,6 +72,7 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             target_variable_indices=[0],
         )
         result: torch.Tensor = model(
@@ -155,6 +157,7 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             target_variable_indices=[0],
         )
         assert model.multistage_only is True
