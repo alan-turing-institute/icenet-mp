@@ -18,6 +18,7 @@ from icenet_mp.types import (
 from .land_mask import LandMask
 from .metadata import build_metadata, format_metadata_subtitle
 from .plotting_static import plot_static_inputs, plot_static_prediction
+from .plotting_timeseries import plot_time_trace
 from .plotting_video import plot_video_inputs, plot_video_prediction
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,47 @@ class Plotter:
             logger.warning("Static plotting skipped due to invalid arrays: %s", err)
         except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Static plotting failed: %s", exc)
+
+    def log_time_trace_outputs(
+        self,
+        outputs: ModelStepOutput,
+        dates: list[datetime],
+        image_loggers: list,
+        channel_names: list[str],
+        prefix: str | None = None,
+    ) -> None:
+        """Create and log prediction-vs-ground-truth time traces."""
+        try:
+            log_path = f"{prefix}/output_time_trace" if prefix else "output_time_trace"
+            for idx_channel in range(outputs.target.shape[2]):
+                ground_truth: ArrayTHW = (
+                    outputs.target[0, :, idx_channel].detach().cpu().numpy()
+                )
+                prediction: ArrayTHW = (
+                    outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
+                )
+                variable_name = (
+                    channel_names[idx_channel]
+                    if idx_channel < len(channel_names)
+                    else f"channel_{idx_channel}"
+                )
+                images = plot_time_trace(
+                    ground_truth,
+                    prediction,
+                    dates=dates,
+                    land_mask=self.land_mask,
+                    variable_name=variable_name,
+                    dpi=self.plot_spec.dpi,
+                )
+                for image_name, image_list in images.items():
+                    for image_logger in image_loggers:
+                        image_logger.log_image(
+                            key=f"{log_path}/{image_name}", images=image_list
+                        )
+        except InvalidArrayError as exc:
+            logger.warning("Time-trace plotting skipped due to invalid arrays: %s", exc)
+        except (IndexError, ValueError, MemoryError, OSError) as exc:
+            logger.warning("Time-trace plotting failed: %s", exc)
 
     def log_video_inputs(
         self,
