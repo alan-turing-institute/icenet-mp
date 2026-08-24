@@ -11,3 +11,8 @@ defaults:
   - train: default
   - platform: default
   - _self_
+
+data:
+  # Set to a value such as -1.0 to keep windows with missing input dates.
+  # Forecast target dates are always required and are never filled.
+  missing_input_value: null
