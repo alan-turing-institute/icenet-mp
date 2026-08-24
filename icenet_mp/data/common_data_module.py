@@ -44,8 +44,8 @@ class CommonDataModule(LightningDataModule):
 
         # Load optional per-input-group variable selection.
         self._input_variables: dict[str, list[str]] = {}
-        for group_name, input_config in (config.get("inputs", {}) or {}).items():
-            group_name = str(group_name)
+        for raw_group_name, input_config in (config.get("inputs", {}) or {}).items():
+            group_name = str(raw_group_name)
             if group_name not in self.dataset_groups:
                 available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
                 msg = (
@@ -53,7 +53,9 @@ class CommonDataModule(LightningDataModule):
                     f"datasets. Available groups: {available_groups}."
                 )
                 raise ValueError(msg)
-            variables = [str(variable) for variable in input_config.get("variables", [])]
+            variables = [
+                str(variable) for variable in input_config.get("variables", [])
+            ]
             if variables:
                 self._input_variables[group_name] = variables
 
@@ -126,7 +128,9 @@ class CommonDataModule(LightningDataModule):
                 continue
 
             missing = [
-                variable for variable in variables if variable not in dataset.variable_names
+                variable
+                for variable in variables
+                if variable not in dataset.variable_names
             ]
             if missing:
                 msg = (
@@ -209,7 +213,9 @@ class CommonDataModule(LightningDataModule):
         """Return target-variable indices within the selected target input channels."""
         input_names = self.input_variable_names[self.target_group_name]
         missing = [
-            variable for variable in self.target_variables if variable not in input_names
+            variable
+            for variable in self.target_variables
+            if variable not in input_names
         ]
         if missing:
             msg = (
