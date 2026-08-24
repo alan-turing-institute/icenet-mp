@@ -1,0 +1,5 @@
+# @package _global_
+defaults:
+  - /base
+  - override /model: dc_gsta_dc
+  - _self_
