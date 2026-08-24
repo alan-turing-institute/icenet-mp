@@ -94,6 +94,11 @@ def test_unimplemented_earthkit_grid_methods_raise() -> None:
     """Keep unsupported EarthKit geography methods explicit rather than silent."""
     grid = epsg_4326n_builder("1p0", (2, 2))
 
-    for method in (grid._unique_grid_id, grid.gridspec, grid.grid_spec, grid.projection):
+    for method in (
+        grid._unique_grid_id,
+        grid.gridspec,
+        grid.grid_spec,
+        grid.projection,
+    ):
         with pytest.raises(NotImplementedError):
             method()
