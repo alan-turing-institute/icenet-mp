@@ -59,28 +59,30 @@ def test_warmup_cosine_never_restarts_after_training_horizon() -> None:
 
 
 @pytest.mark.parametrize(
-    "override",
+    ("total_epochs", "warmup_epochs", "start_factor", "eta_min"),
     [
-        {"total_epochs": 0},
-        {"warmup_epochs": -1},
-        {"warmup_epochs": 10},
-        {"start_factor": 0.0},
-        {"start_factor": 1.1},
-        {"eta_min": -1e-6},
+        (0, 2, 0.1, 0.01),
+        (10, -1, 0.1, 0.01),
+        (10, 10, 0.1, 0.01),
+        (10, 2, 0.0, 0.01),
+        (10, 2, 1.1, 0.01),
+        (10, 2, 0.1, -1e-6),
     ],
 )
 def test_warmup_cosine_rejects_invalid_configuration(
-    override: dict[str, int | float],
+    total_epochs: int,
+    warmup_epochs: int,
+    start_factor: float,
+    eta_min: float,
 ) -> None:
     parameter = torch.nn.Parameter(torch.tensor(1.0))
     optimizer = torch.optim.SGD([parameter], lr=1.0)
-    config: dict[str, int | float] = {
-        "total_epochs": 10,
-        "warmup_epochs": 2,
-        "start_factor": 0.1,
-        "eta_min": 0.01,
-    }
-    config.update(override)
 
     with pytest.raises(ValueError):
-        WarmupCosineAnnealingLR(optimizer, **config)
+        WarmupCosineAnnealingLR(
+            optimizer,
+            total_epochs=total_epochs,
+            warmup_epochs=warmup_epochs,
+            start_factor=start_factor,
+            eta_min=eta_min,
+        )
