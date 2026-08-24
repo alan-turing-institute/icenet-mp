@@ -57,8 +57,8 @@ class Plotter:
         self, videos: dict[str, Any], video_loggers: list[Any], log_path: str
     ) -> None:
         """Rewind and send rendered videos to every configured video logger."""
-        for video_name, video_buffer in videos.items():
-            for video_logger in video_loggers:
+        for video_logger in video_loggers:
+            for video_name, video_buffer in videos.items():
                 video_buffer.seek(0)
                 video_logger.log_video(
                     key=f"{log_path}/{video_name}",
