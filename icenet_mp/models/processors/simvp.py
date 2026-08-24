@@ -1,6 +1,5 @@
 from typing import Any
 
-import torch
 from torch import nn
 
 from icenet_mp.types import TensorNCHW
