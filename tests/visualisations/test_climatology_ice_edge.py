@@ -20,6 +20,7 @@ from icenet_mp.visualisations.plotting_static import (
 def test_draw_climatology_ice_edge_uses_distinct_contours(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Draw prediction and climatology ice edges with distinct contour styles."""
     fig, ax = plt.subplots()
     contour = MagicMock()
     monkeypatch.setattr(ax, "contour", contour)
@@ -45,6 +46,7 @@ def test_draw_climatology_ice_edge_uses_distinct_contours(
 
 
 def test_draw_climatology_ice_edge_rejects_shape_mismatch() -> None:
+    """Reject climatology arrays that do not match the prediction shape."""
     fig, ax = plt.subplots()
     try:
         with pytest.raises(InvalidArrayError, match="different shape"):
@@ -59,6 +61,7 @@ def test_draw_climatology_ice_edge_rejects_shape_mismatch() -> None:
 
 
 def test_static_prediction_accepts_climatology_overlay() -> None:
+    """Render a static prediction plot when a climatology overlay is supplied."""
     x = np.linspace(0.0, 1.0, 48, dtype=np.float32)
     prediction = np.tile(x, (48, 1))
     ground_truth = np.roll(prediction, 1, axis=1)
