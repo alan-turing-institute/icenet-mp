@@ -39,8 +39,13 @@ def test_simvp_backpropagates_through_spatial_and_temporal_blocks() -> None:
 
     assert inputs.grad is not None
     assert processor.spatial_encoder[0].weight.grad is not None
-    first_mixer = processor.temporal_mixer[0]
-    assert first_mixer.block[0].weight.grad is not None
+    mixer_gradients = [
+        parameter.grad
+        for parameter in processor.temporal_mixer.parameters()
+        if parameter.grad is not None
+    ]
+    assert mixer_gradients
+    assert any(torch.count_nonzero(gradient) > 0 for gradient in mixer_gradients)
 
 
 def test_simvp_prediction_depends_on_history_order() -> None:
