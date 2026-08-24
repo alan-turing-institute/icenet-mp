@@ -12,6 +12,7 @@ def _datasets_with_missing_input_date(
     mock_dataset: Path,
     dates_as_np: tuple[np.datetime64, ...],
 ) -> tuple[SingleDataset, SingleDataset]:
+    """Build a complete target dataset and an input dataset missing one date."""
     target = SingleDataset(name="target", input_files=[mock_dataset])
     sparse = SingleDataset(name="sparse", input_files=[mock_dataset])
     sparse.dates = [dates_as_np[0], *dates_as_np[2:]]
@@ -22,6 +23,7 @@ def test_missing_input_sentinel_keeps_otherwise_valid_window(
     mock_dataset: Path,
     dates_as_np: tuple[np.datetime64, ...],
 ) -> None:
+    """Sentinel filling should retain a window lost by strict intersection."""
     target, sparse = _datasets_with_missing_input_date(mock_dataset, dates_as_np)
 
     strict = CombinedDataset(
@@ -55,6 +57,7 @@ def test_missing_target_forecast_date_is_never_filled(
     mock_dataset: Path,
     dates_as_np: tuple[np.datetime64, ...],
 ) -> None:
+    """Forecast targets should remain mandatory even when inputs may be filled."""
     target, sparse = _datasets_with_missing_input_date(mock_dataset, dates_as_np)
     combined = CombinedDataset(
         datasets=[target, sparse],
@@ -73,6 +76,7 @@ def test_missing_target_forecast_date_is_never_filled(
 def test_missing_input_value_is_read_from_data_config(
     cfg_common_data_module: DictConfig,
 ) -> None:
+    """CommonDataModule should expose the configured input sentinel value."""
     cfg_common_data_module["data"]["missing_input_value"] = -1.0
 
     data_module = CommonDataModule(cfg_common_data_module)
