@@ -1,7 +1,7 @@
 from io import BytesIO
-from types import SimpleNamespace
 from unittest.mock import MagicMock, call
 
+from icenet_mp.types import PlotSpec
 from icenet_mp.visualisations.plotter import Plotter
 
 
@@ -35,7 +35,7 @@ def test_log_images_fans_out_to_all_loggers() -> None:
 
 def test_log_videos_rewinds_for_each_logger_and_preserves_format() -> None:
     """Rewind shared buffers before every logger handoff."""
-    plotter = Plotter(SimpleNamespace(video_format="mp4"))  # type: ignore[arg-type]
+    plotter = Plotter(PlotSpec(video_format="mp4"))
     first = MagicMock()
     second = MagicMock()
     buffer = BytesIO(b"video")
