@@ -15,9 +15,11 @@ def binary_edge(
         Boolean tensor of shape (N, H, W).
     land_mask : torch.Tensor, optional
         Boolean tensor of shape (H, W), True for ocean cells and False for land.
-        When given, land cells are excluded from the edge test: an ice cell
-        bordering only land is not counted as an edge cell, though it is still
-        counted if it also borders true open water.
+        When given, land cells are excluded from the edge test — both as neighbors
+        (an ice cell bordering only land is not counted as an edge cell, though it
+        is still counted if it also borders true open water) and from the returned
+        map itself, so a land cell is never reported as an edge cell even if its raw
+        (unmasked) value happens to read as "ice".
 
     """
     comparison_mask = ice_mask
@@ -28,6 +30,9 @@ def binary_edge(
     down = padded[:, 2:, 1:-1]
     left = padded[:, 1:-1, :-2]
     right = padded[:, 1:-1, 2:]
-    return ice_mask & (
+    edge = ice_mask & (
         (ice_mask != up) | (ice_mask != down) | (ice_mask != left) | (ice_mask != right)
     )
+    if land_mask is not None:
+        edge = edge & land_mask.bool()
+    return edge

@@ -113,7 +113,7 @@ class _MeanIceAreaMetric(_IceAreaMetricBase):
 class SeaIceExtentErrorPerForecastDay(_MeanIceAreaMetric):
     """Sea Ice Extent error (SIEError) metric (in km^2) for use at multiple lead times.
 
-    The SIE error is calculated as the difference between the predicted and
+    The SIE error is calculated as the signed difference between the predicted and
     true sea ice extent for each forecast day. Sea ice presence is defined by having
     a concentration greater than the threshold value.
     """
