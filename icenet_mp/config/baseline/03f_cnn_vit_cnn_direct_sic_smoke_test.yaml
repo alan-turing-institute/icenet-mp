@@ -1,0 +1,14 @@
+# @package _global_
+defaults:
+  - /baseline/03e_cnn_vit_cnn_direct_sic_only
+  - override /data/split: smoke_test_1yr
+  - _self_
+
+# Fastest possible end-to-end verification of baseline/03e_cnn_vit_cnn_direct_sic_only:
+# same model/data/predict setup, but restricted to a single calendar year (see
+# data/split/smoke_test_1yr.yaml) and 2 epochs, purely to confirm the pipeline (data
+# loading, training, checkpointing, evaluation) runs against real data. Not for real
+# results -- use baseline/03e_cnn_vit_cnn_direct_sic_only for that.
+train:
+  trainer:
+    max_epochs: 2

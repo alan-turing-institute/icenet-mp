@@ -1,0 +1,27 @@
+batch_size: 2
+
+# Fastest possible dev/debug variant: a single calendar year (2020), split into train
+# (9 months) / validate / test / predict (1 month each), so an end-to-end run against
+# real data finishes in minutes rather than hours. Not for real results -- purely to
+# verify the pipeline (data loading, training, checkpointing, evaluation) actually
+# works; see quick_2yr_from_1999.yaml or full_dataset_from_1999.yaml for real splits.
+
+# This data is used for training the model
+train:
+  - start: 2020-01-01
+    end: 2020-09-30
+
+# This data is used for validation during training (e.g. for early stopping etc.)
+validate:
+  - start: 2020-10-01
+    end: 2020-10-31
+
+# This data is a test set used to compare fully-trained models (e.g. on the project leaderboard)
+test:
+  - start: 2020-11-01
+    end: 2020-11-30
+
+# This data is a holdout set not to be used until we are ready to produce final outputs (e.g. a paper)
+predict:
+  - start: 2020-12-01
+    end: 2020-12-31
