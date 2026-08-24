@@ -1,6 +1,5 @@
 from typing import Any, Literal
 
-import torch
 from torch import nn
 from torch.nn import functional as F
 
@@ -35,7 +34,8 @@ class PretrainedEmbeddingEncoder(BaseEncoder):
         **kwargs: Any,
     ) -> None:
         """Initialise the pretrained-embedding adapter."""
-        output_channels = output_channels or data_space_in.channels
+        if output_channels is None:
+            output_channels = data_space_in.channels
         if output_channels <= 0:
             msg = "output_channels must be greater than 0."
             raise ValueError(msg)
