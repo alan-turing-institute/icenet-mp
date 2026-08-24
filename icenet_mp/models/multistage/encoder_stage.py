@@ -86,6 +86,7 @@ class EncoderStage(BaseModel):
             latent_space=template.encoders[0].data_space_out.shape,
             latitudes_fn=template.latitudes_fn,
             longitudes_fn=template.longitudes_fn,
+            lr_scheduler=copy.deepcopy(template.lr_scheduler_cfg),
             n_forecast_steps=template.n_forecast_steps,
             n_history_steps=template.n_history_steps,
             name=f"{dataset}_encoder".replace("-", "_"),

@@ -4,7 +4,7 @@ defaults:
   - evaluate: default
   - loggers:
     - wandb
-  - loss: huber
+  - loss: amse
   - model: quick_test
   - predict: sic-osisaf-2d
   - random: default
