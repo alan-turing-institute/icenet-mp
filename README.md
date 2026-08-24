@@ -72,9 +72,9 @@
 | icenet\_mp/metrics/icenet\_accuracy.py                               |       24 |        3 |     88% |46, 51, 55 |
 | icenet\_mp/metrics/sie\_error.py                                     |       17 |       10 |     41% |27-31, 51-55, 59 |
 | icenet\_mp/metrics/sie\_error\_abs.py                                |       26 |        2 |     92% |    70, 76 |
-| icenet\_mp/model\_service.py                                         |      261 |      176 |     33% |37-40, 54-55, 102-103, 118-120, 143-144, 158-159, 181-212, 216, 237-265, 270-275, 300-411, 416-427, 437, 446-450, 471-500, 513-555, 561-627, 633-644, 655-690 |
+| icenet\_mp/model\_service.py                                         |      262 |      177 |     32% |37-40, 54-55, 103-104, 119-121, 144-145, 159-160, 182-214, 218, 239-267, 272-277, 302-413, 418-429, 439, 448-452, 473-502, 515-557, 563-629, 635-646, 657-692 |
 | icenet\_mp/models/\_\_init\_\_.py                                    |        5 |        0 |    100% |           |
-| icenet\_mp/models/base\_model.py                                     |       96 |        5 |     95% |124, 128, 132, 186-190 |
+| icenet\_mp/models/base\_model.py                                     |       98 |        5 |     95% |130, 134, 138, 199-203 |
 | icenet\_mp/models/common/\_\_init\_\_.py                             |       23 |        0 |    100% |           |
 | icenet\_mp/models/common/activations.py                              |        2 |        0 |    100% |           |
 | icenet\_mp/models/common/channel\_adaptor.py                         |       18 |        0 |    100% |           |
@@ -159,7 +159,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       65 |        5 |     92% |132-134, 237-238 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       23 |     80% |106-107, 109-112, 142-147, 183-185, 193-194, 198-218, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **6191** | **1323** | **79%** |           |
+| **TOTAL**                                                            | **6194** | **1324** | **79%** |           |
 
 
 ## Setup coverage badge
