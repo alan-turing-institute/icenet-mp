@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -152,3 +153,106 @@ class TestModelService:
             service.train()
 
         mock_fit.assert_called_once_with(config="train_config")
+
+    def test_train_standard_mode_rejects_multistage_checkpoint_dir(
+        self, tmp_path: Path
+    ) -> None:
+        """Reject stage checkpoint directories during single-stage training."""
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+
+        with pytest.raises(ValueError, match="checkpoint_dir"):
+            service.train(checkpoint_dir=tmp_path)
+
+    def test_merged_config_applies_stage_overrides(self) -> None:
+        """Merge stage-specific values over the common training configuration."""
+        service = ModelService.__new__(ModelService)
+        service.config_ = OmegaConf.create(
+            {
+                "train": {
+                    "optimizer": {"lr": 0.001, "weight_decay": 0.01},
+                    "trainer": {"max_epochs": 20, "accelerator": "auto"},
+                    "multistage": {
+                        "processor": {
+                            "optimizer": {"lr": 0.01},
+                            "trainer": {"max_epochs": 3},
+                        }
+                    },
+                }
+            }
+        )
+
+        merged = service._merged_config("processor")
+
+        assert merged["optimizer"]["lr"] == 0.01
+        assert merged["optimizer"]["weight_decay"] == 0.01
+        assert merged["trainer"]["max_epochs"] == 3
+        assert merged["trainer"]["accelerator"] == "auto"
+
+    def test_save_stage_checkpoint_saves_when_no_best_checkpoint(
+        self, tmp_path: Path
+    ) -> None:
+        """Save a deterministic stage checkpoint when callbacks have no best path."""
+        service = ModelService.__new__(ModelService)
+        trainer = MagicMock()
+        trainer.current_epoch = 4
+        trainer.global_step = 17
+        trainer.checkpoint_callbacks = []
+        trainer.is_global_zero = True
+        run_dir = tmp_path / "run"
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "build_run_directory", lambda _trainer: run_dir)
+            result = service._save_stage_checkpoint(trainer, "processor")
+
+        expected = run_dir / "checkpoints" / "processor.epoch=4-step=17.ckpt"
+        trainer.save_checkpoint.assert_called_once_with(expected, weights_only=False)
+        assert result == expected
+
+    def test_save_stage_checkpoint_moves_single_best_checkpoint(
+        self, tmp_path: Path
+    ) -> None:
+        """Move one callback-selected best checkpoint to the stage checkpoint path."""
+        service = ModelService.__new__(ModelService)
+        run_dir = tmp_path / "run"
+        (run_dir / "checkpoints").mkdir(parents=True)
+        best_path = tmp_path / "best.ckpt"
+        best_path.write_text("checkpoint")
+
+        trainer = MagicMock()
+        trainer.current_epoch = 2
+        trainer.global_step = 8
+        trainer.is_global_zero = True
+        trainer.checkpoint_callbacks = [
+            SimpleNamespace(best_model_path=str(best_path))
+        ]
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "build_run_directory", lambda _trainer: run_dir)
+            result = service._save_stage_checkpoint(trainer, "decoder")
+
+        expected = run_dir / "checkpoints" / "decoder.best.ckpt"
+        assert result == expected
+        assert expected.read_text() == "checkpoint"
+        trainer.save_checkpoint.assert_not_called()
+        trainer.strategy.barrier.assert_called_once_with()
+
+    def test_save_stage_checkpoint_rejects_multiple_best_paths(
+        self, tmp_path: Path
+    ) -> None:
+        """Reject ambiguous checkpoint selection from multiple callbacks."""
+        service = ModelService.__new__(ModelService)
+        trainer = MagicMock()
+        trainer.current_epoch = 1
+        trainer.global_step = 2
+        trainer.checkpoint_callbacks = [
+            SimpleNamespace(best_model_path=str(tmp_path / "a.ckpt")),
+            SimpleNamespace(best_model_path=str(tmp_path / "b.ckpt")),
+        ]
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "build_run_directory", lambda _trainer: tmp_path)
+            with pytest.raises(ValueError, match="2 checkpoints"):
+                service._save_stage_checkpoint(trainer, "encoder")
