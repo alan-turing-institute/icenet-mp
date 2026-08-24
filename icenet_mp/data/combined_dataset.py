@@ -109,10 +109,7 @@ class CombinedDataset(Dataset):
         else:
             history_dates = self.get_history_steps(start_date)
             forecast_dates = self.get_forecast_steps(start_date)
-            inputs = {
-                ds.name: ds.get_tchw(history_dates)
-                for ds in self.inputs
-            }
+            inputs = {ds.name: ds.get_tchw(history_dates) for ds in self.inputs}
             target = self.target.get_tchw(forecast_dates)
 
         return inputs | {"target": target}
