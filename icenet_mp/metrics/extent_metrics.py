@@ -11,9 +11,11 @@ shared with `icenet_mp.metrics.fss`) rather than via vector polygon boundaries.
 The original pipeline also excludes, from each edge-length calculation, any polygon
 boundary that coincides with the edge of the satellite product's coverage extent (so
 a "fake" ice edge created by clipping to the swath isn't counted as real). IceNet-MP
-grids have no such clipped-extent concept -- the ice edge measured here therefore
-does not exclude the grid's own domain boundary, consistent with the (pre-existing)
-`icenet_mp.metrics.fss` edge detection, which has the same simplification.
+grids have no such clipped-extent concept, but the equivalent raster case -- the
+grid's own domain boundary manufacturing a fake edge -- is excluded via replicate
+padding in `icenet_mp.metrics.ice_edge.binary_edge` (shared with
+`icenet_mp.metrics.fss`), which treats cells beyond the grid as matching whatever
+they border rather than as non-ice.
 """
 
 import torch

@@ -167,7 +167,7 @@ time-dependent, DIIEE is not a fixed rescaling of IIEE — the two curves for th
 scenario can have very different shapes. `shifted edge` illustrates this clearly: its
 IIEE declines steadily across the forecast (220,625 km² on day 0 down to
 142,500 km² by day 5), which on its own looks like the forecast is improving, but its
-DIIEE stays pretty constant at around 105 km. The displacement
+DIIEE stays within a narrow band around 110 km throughout. The displacement
 itself never changes — the ice cap is always offset sideways by the same fixed
 distance — what's actually happening is that the cap is simply melting and getting
 smaller, so there is less total area available to disagree over, which is enough on

@@ -21,11 +21,18 @@ def binary_edge(
         map itself, so a land cell is never reported as an edge cell even if its raw
         (unmasked) value happens to read as "ice".
 
+    Cells beyond the grid boundary are treated as matching the cell they border (via
+    replicate padding), rather than being manufactured as non-ice: the domain's own
+    edge is not itself an ice/ocean transition, so it should not be able to invent a
+    disagreement just because a real edge would need one more ring of pixels to
+    resolve. A genuine ice edge that runs along the domain boundary is still detected
+    normally, since it disagrees with its interior (in-grid) neighbors regardless.
+
     """
     comparison_mask = ice_mask
     if land_mask is not None:
         comparison_mask = ice_mask | ~land_mask.bool()
-    padded = F.pad(comparison_mask.float(), (1, 1, 1, 1), value=0.0).bool()
+    padded = F.pad(comparison_mask.float(), (1, 1, 1, 1), mode="replicate").bool()
     up = padded[:, :-2, 1:-1]
     down = padded[:, 2:, 1:-1]
     left = padded[:, 1:-1, :-2]
