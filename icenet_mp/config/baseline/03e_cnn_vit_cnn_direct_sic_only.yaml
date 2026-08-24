@@ -1,0 +1,31 @@
+# @package _global_
+defaults:
+  - /baseline/03d_cnn_vit_cnn_direct
+  - override /data: full_north_from_1999
+  - override /data/split: quick_2yr_from_1999
+  - override /data/datasets:
+    - full_sicnorth_ssmis_25p0km_1979_2024_24h_v2
+  - override /predict: sic-ssmis-14d
+  - override /loggers:
+    - local_files
+  - override /train/callbacks:
+    - best_checkpoint
+    - early_stopping
+    - learning_rate
+    - metric_summary
+    - plotting
+  - _self_
+
+# The "exposure-bias" / direct-decode experiment (see AGENTS.md): baseline/03d's
+# one-shot VitDirectProcessor, restricted to SIC-`ice_conc`-only input on the quick
+# 2-year split (train 2019-20, val 2021, test 2022), 14-day forecast, compared against
+# persistence. EMA weight averaging is dropped since it isn't meaningful over the
+# handful of epochs this quick setup trains for.
+data:
+  datasets:
+    full-sicnorth-ssmis-25p0km-1979-2024-24h-v2:
+      variables: [ice_conc]
+
+train:
+  trainer:
+    max_epochs: 20
