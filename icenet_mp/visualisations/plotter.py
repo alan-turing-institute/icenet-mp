@@ -52,9 +52,7 @@ class Plotter:
                     key=f"{log_path}/{image_name}", images=image_list
                 )
 
-    def _log_videos(
-        self, videos: dict, video_loggers: list, log_path: str
-    ) -> None:
+    def _log_videos(self, videos: dict, video_loggers: list, log_path: str) -> None:
         """Rewind and send rendered videos to every configured video logger."""
         for video_logger in video_loggers:
             for video_name, video_buffer in videos.items():
