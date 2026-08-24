@@ -70,6 +70,12 @@ def test_standalone_adapter_instantiates_hydra_module_config() -> None:
     assert processor(torch.randn(1, 4, 8, 8)).shape == (1, 2, 8, 8)
 
 
+def test_standalone_adapter_rejects_hydra_config_without_module() -> None:
+    """Reject Hydra configurations that do not instantiate an nn.Module."""
+    with pytest.raises(TypeError, match=r"must instantiate to torch\.nn\.Module"):
+        _processor(DictConfig({"_target_": "builtins.dict"}))
+
+
 def test_standalone_adapter_rejects_wrong_output_shape() -> None:
     """Reject standalone models that violate the processor latent shape contract."""
     processor = _processor(nn.Conv2d(4, 3, kernel_size=1))
@@ -82,5 +88,5 @@ def test_standalone_adapter_rejects_non_tensor_output() -> None:
     """Reject standalone models that do not return a tensor."""
     processor = _processor(NonTensorModule())
 
-    with pytest.raises(TypeError, match="must return a torch.Tensor"):
+    with pytest.raises(TypeError, match=r"must return a torch\.Tensor"):
         processor(torch.randn(1, 4, 8, 8))
