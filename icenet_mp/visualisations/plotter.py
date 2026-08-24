@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 from omegaconf import DictConfig
@@ -29,6 +30,42 @@ class Plotter:
         self.plot_spec = plot_spec
         self.land_mask = LandMask(None)
 
+    @staticmethod
+    def _log_path(prefix: str | None, name: str) -> str:
+        """Build a consistent logger namespace."""
+        return f"{prefix}/{name}" if prefix else name
+
+    @staticmethod
+    def _channel_name(channel_names: list[str], idx_channel: int) -> str:
+        """Return the configured channel name or a stable fallback."""
+        if idx_channel < len(channel_names):
+            return channel_names[idx_channel]
+        return f"channel_{idx_channel}"
+
+    @staticmethod
+    def _log_images(
+        images: dict[str, list[Any]], image_loggers: list[Any], log_path: str
+    ) -> None:
+        """Send rendered image groups to every configured image logger."""
+        for image_name, image_list in images.items():
+            for image_logger in image_loggers:
+                image_logger.log_image(
+                    key=f"{log_path}/{image_name}", images=image_list
+                )
+
+    def _log_videos(
+        self, videos: dict[str, Any], video_loggers: list[Any], log_path: str
+    ) -> None:
+        """Rewind and send rendered videos to every configured video logger."""
+        for video_name, video_buffer in videos.items():
+            for video_logger in video_loggers:
+                video_buffer.seek(0)
+                video_logger.log_video(
+                    key=f"{log_path}/{video_name}",
+                    videos=[video_buffer],
+                    format=[self.plot_spec.video_format],
+                )
+
     def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
         """Get metadata for the plotter based on the model test output."""
         return build_metadata(config, model_name)
@@ -47,25 +84,19 @@ class Plotter:
         """Extract and log static raw input plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
-            log_path = f"{prefix}/input_static" if prefix else "input_static"
+            log_path = self._log_path(prefix, "input_static")
             for input_ds in inputs:
-                # Get static data for this timestep
                 variables = {
                     f"{input_ds.name}:{v_name}": input_ds[idx_date][channel, :]
                     for channel, v_name in enumerate(input_ds.variable_names)
                 }
-                # Plot and log input static images
                 images = plot_static_inputs(
                     variables,
                     land_mask=self.land_mask,
                     plot_spec=self.plot_spec,
                     when=dates[idx_date],
                 )
-                for image_name, image_list in images.items():
-                    for image_logger in image_loggers:
-                        image_logger.log_image(
-                            key=f"{log_path}/{image_name}", images=image_list
-                        )
+                self._log_images(images, image_loggers, log_path)
         except InvalidArrayError as exc:
             logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
         except (IndexError, ValueError, MemoryError, OSError) as exc:
@@ -82,8 +113,7 @@ class Plotter:
         """Create and log static output plots."""
         try:
             idx_date = self.plot_spec.selected_timestep
-            log_path = f"{prefix}/output_static" if prefix else "output_static"
-            # Use all channels from the first batch -> [H,W]
+            log_path = self._log_path(prefix, "output_static")
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayHW = (
                     outputs.target[0, idx_date, idx_channel].detach().cpu().numpy()
@@ -91,25 +121,15 @@ class Plotter:
                 prediction: ArrayHW = (
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
-                variable_name = (
-                    channel_names[idx_channel]
-                    if idx_channel < len(channel_names)
-                    else f"channel_{idx_channel}"
-                )
-                # Plot and log output static images
                 images = plot_static_prediction(
                     ground_truth,
                     prediction,
                     date=dates[idx_date],
                     land_mask=self.land_mask,
                     plot_spec=self.plot_spec,
-                    variable_name=variable_name,
+                    variable_name=self._channel_name(channel_names, idx_channel),
                 )
-                for image_name, image_list in images.items():
-                    for image_logger in image_loggers:
-                        image_logger.log_image(
-                            key=f"{log_path}/{image_name}", images=image_list
-                        )
+                self._log_images(images, image_loggers, log_path)
         except InvalidArrayError as err:
             logger.warning("Static plotting skipped due to invalid arrays: %s", err)
         except (IndexError, ValueError, MemoryError, OSError) as exc:
@@ -123,9 +143,8 @@ class Plotter:
         prefix: str | None = None,
     ) -> None:
         """Extract and log raw input videos."""
-        log_path = f"{prefix}/input_video" if prefix else "input_video"
+        log_path = self._log_path(prefix, "input_video")
         for input_ds in inputs:
-            # Create animations for all variables
             np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
             variables = {
                 f"{input_ds.name}:{v_name}": input_ds.get_tchw(np_dates)[:, channel, :]
@@ -137,16 +156,7 @@ class Plotter:
                 plot_spec=self.plot_spec,
                 land_mask=self.land_mask,
             )
-
-            # Log input videos
-            for video_logger in video_loggers:
-                for video_name, video_buffer in videos.items():
-                    video_buffer.seek(0)
-                    video_logger.log_video(
-                        key=f"{log_path}/{video_name}",
-                        videos=[video_buffer],
-                        format=[self.plot_spec.video_format],
-                    )
+            self._log_videos(videos, video_loggers, log_path)
 
     def log_video_outputs(
         self,
@@ -158,8 +168,7 @@ class Plotter:
     ) -> None:
         """Create and log output videos."""
         try:
-            log_path = f"{prefix}/output_video" if prefix else "output_video"
-            # Use all channels from the first batch -> [T, H,W]
+            log_path = self._log_path(prefix, "output_video")
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayTHW = (
                     outputs.target[0, :, idx_channel].detach().cpu().numpy()
@@ -167,27 +176,15 @@ class Plotter:
                 prediction: ArrayTHW = (
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
-                variable_name = (
-                    channel_names[idx_channel]
-                    if idx_channel < len(channel_names)
-                    else f"channel_{idx_channel}"
-                )
                 video_data = plot_video_prediction(
                     ground_truth,
                     prediction,
                     dates=dates,
                     land_mask=self.land_mask,
                     plot_spec=self.plot_spec,
-                    variable_name=variable_name,
+                    variable_name=self._channel_name(channel_names, idx_channel),
                 )
-                for video_logger in video_loggers:
-                    for video_name, video_buffer in video_data.items():
-                        video_buffer.seek(0)
-                        video_logger.log_video(
-                            key=f"{log_path}/{video_name}",
-                            videos=[video_buffer],
-                            format=[self.plot_spec.video_format],
-                        )
+                self._log_videos(video_data, video_loggers, log_path)
         except (InvalidArrayError, VideoRenderError) as err:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):
