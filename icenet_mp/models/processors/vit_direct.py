@@ -14,7 +14,11 @@ from typing import Any
 import torch
 from torch import nn
 
-from icenet_mp.models.common import CommonConvBlock, PatchEmbedding, TransformerEncoderBlock
+from icenet_mp.models.common import (
+    CommonConvBlock,
+    PatchEmbedding,
+    TransformerEncoderBlock,
+)
 from icenet_mp.types import ProcessorOutput, TensorNCHW, TensorNTCHW
 
 from .base_processor import BaseProcessor
@@ -23,7 +27,7 @@ from .base_processor import BaseProcessor
 class VitDirectProcessor(BaseProcessor):
     """Vision Transformer processor that predicts all forecast steps in one pass."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         depth: int = 3,

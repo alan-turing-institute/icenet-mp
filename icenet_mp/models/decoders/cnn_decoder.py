@@ -26,7 +26,7 @@ class CNNDecoder(BaseDecoder):
         TensorNTCHW with (batch_size, n_timeslices, output_channels, output_height, output_width)
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         activation: str = "ReLU",
