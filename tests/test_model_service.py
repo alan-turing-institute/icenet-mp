@@ -68,6 +68,7 @@ class TestModelService:
         assert kwargs["n_history_steps"] == 3
         assert kwargs["optimizer"] is cfg_model_service["train"]["optimizer"]
         assert kwargs["scheduler"] is cfg_model_service["train"]["scheduler"]
+        assert kwargs["lr_scheduler"] is cfg_model_service["train"]["lr_scheduler"]
         assert kwargs["_recursive_"] is False
         assert kwargs["_convert_"] == "object"
 

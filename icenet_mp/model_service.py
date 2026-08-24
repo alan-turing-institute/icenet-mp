@@ -77,6 +77,7 @@ class ModelService:
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
             loss=config["loss"],
+            lr_scheduler=config["train"]["lr_scheduler"],
             mask_dir=str(builder.data_module.mask_directory),
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
@@ -182,6 +183,7 @@ class ModelService:
         current_model = model or self.model
         current_model.optimizer_cfg = config["optimizer"]
         current_model.scheduler_cfg = config["scheduler"]
+        current_model.lr_scheduler_cfg = config["lr_scheduler"]
         if "loss" in config:
             current_model.loss_cfg = config["loss"]
         trainer = self.build_trainer(
