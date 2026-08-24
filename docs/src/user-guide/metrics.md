@@ -3,7 +3,7 @@
 `icenet_mp.metrics` ([API reference](../api/metrics.md)) implements several
 `torchmetrics.Metric` classes, each computed per forecast lead time. Using a combination of these metrics it is possible to understand why model results differ.
 Here we use six synthetic scenarios to show what each metric actually
-captures and what it's strengths and weaknesses are.
+captures and what its strengths and weaknesses are.
 
 ## Selecting which metrics run
 
