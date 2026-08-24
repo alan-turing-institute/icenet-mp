@@ -12,6 +12,7 @@ class ReusedLayerModel(nn.Module):
     """Tiny model that calls the same layer twice in one forward pass."""
 
     def __init__(self) -> None:
+        """Initialise the repeated-layer test model."""
         super().__init__()
         self.shared = nn.Linear(2, 2, bias=False)
         with torch.no_grad():
