@@ -10,7 +10,9 @@ is learning at all, in seconds rather than the hours a real training run takes.
 import json
 import logging
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from omegaconf import DictConfig, OmegaConf
@@ -21,6 +23,7 @@ from icenet_mp.types import ArrayTHW
 from .debug_video import write_full_dataset_video, write_full_rollout_video
 from .report import plot_loss_curve
 from .trajectories import (
+    MovingCircleConfig,
     TrajectorySpan,
     default_trajectory_configs,
     generate_multi_trajectory_dataset,
@@ -32,6 +35,23 @@ logger = logging.getLogger(__name__)
 SYNTHETIC_DATASET_NAME = "synthetic-sic"
 SYNTHETIC_VARIABLE_NAME = "ice_conc"
 WANDB_ENTITY = "turing-seaice"
+
+# Arbitrary anchor: the pipeline check has no real calendar, so trajectories are just
+# laid out back-to-back with a fixed gap, starting here.
+_SYNTHETIC_ANCHOR_DATE = datetime(2020, 1, 1)  # noqa: DTZ001
+_SYNTHETIC_GAP_DAYS = 2
+
+
+def _sequential_start_dates(
+    trajectories: Sequence[MovingCircleConfig],
+) -> list[datetime]:
+    """Lay trajectories back-to-back with a fixed gap, starting from a fixed anchor."""
+    start_dates = []
+    cursor = _SYNTHETIC_ANCHOR_DATE
+    for trajectory in trajectories:
+        start_dates.append(cursor)
+        cursor += timedelta(days=trajectory.n_timesteps + _SYNTHETIC_GAP_DAYS)
+    return start_dates
 
 
 @dataclass
@@ -105,7 +125,9 @@ def _generate_dataset(
     trajectories = default_trajectory_configs(
         height=grid_size, width=grid_size, n_trajectories=n_trajectories
     )
-    dataset = generate_multi_trajectory_dataset(trajectories)
+    dataset = generate_multi_trajectory_dataset(
+        trajectories, _sequential_start_dates(trajectories)
+    )
     zarr_path = output_dir / "data" / "anemoi" / f"{SYNTHETIC_DATASET_NAME}.zarr"
     write_synthetic_zarr(
         zarr_path,
