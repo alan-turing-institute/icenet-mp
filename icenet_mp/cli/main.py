@@ -8,6 +8,7 @@ from icenet_mp.compatibility import configure_external_libraries
 
 from .datasets import datasets_cli
 from .evaluate import evaluation_cli
+from .sweep import sweep_cli
 from .synthetic_check import synthetic_cli
 from .train import training_cli
 
@@ -23,6 +24,7 @@ log = logging.getLogger(__name__)
 # Configure external libraries
 configure_external_libraries()
 
+
 # Create the typer app
 app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -31,6 +33,7 @@ app = typer.Typer(
 )
 app.add_typer(datasets_cli, name="datasets")
 app.add_typer(evaluation_cli)
+app.add_typer(sweep_cli, name="sweep")
 app.add_typer(synthetic_cli, name="synthetic")
 app.add_typer(training_cli)
 

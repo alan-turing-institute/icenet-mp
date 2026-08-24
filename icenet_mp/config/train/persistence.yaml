@@ -9,3 +9,4 @@ defaults:
 
 trainer:
   max_epochs: 1
+  gradient_clip_val: null

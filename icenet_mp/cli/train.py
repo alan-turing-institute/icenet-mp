@@ -23,9 +23,10 @@ def train(
         str | None,
         typer.Option(
             help=(
-                "Path to a directory of existing checkpoints. If a checkpoint exists "
-                "in this directory for any model component, it will be loaded and "
-                "training will be skipped for that component. "
+                "Only applicable with --multistage. Path to a directory of existing "
+                "checkpoints. If a checkpoint exists in this directory for any model "
+                "component, it will be loaded and training will be skipped for that "
+                "component."
             )
         ),
     ] = None,
@@ -35,9 +36,8 @@ def train(
         typer.Option(
             "--multistage",
             help=(
-                "Train an EncodeProcessDecode model in multiple stages (encoders, then "
-                "decoder, then processor, then finetune). Default is single-stage "
-                "training."
+                "Train an EncodeProcessDecode model in multiple stages (encoders, "
+                "decoder, processor, then finetune). Default is single-stage training."
             ),
         ),
     ] = False,

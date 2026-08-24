@@ -1,10 +1,12 @@
 import logging
+from pathlib import Path
 from typing import Annotated
 
 import typer
 from omegaconf import DictConfig
 
-from icenet_mp.data_processors import DataDownloaderFactory
+from icenet_mp.ingestion import build_downloaders
+from icenet_mp.visualisations import plot_variables_static, plot_variables_video
 
 from .hydra import hydra_adaptor
 
@@ -24,8 +26,7 @@ def create(
     ] = False,
 ) -> None:
     """Create all datasets."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
+    for downloader in build_downloaders(config):
         logger.info("Creating dataset %s.", downloader.name)
         try:
             downloader.create(overwrite=overwrite)
@@ -44,13 +45,69 @@ def inspect(
     ] = False,
 ) -> None:
     """Inspect all datasets."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
+    for downloader in build_downloaders(config):
         logger.info("Inspecting dataset %s.", downloader.name)
         try:
             downloader.inspect(verbose=verbose)
         except RuntimeError:
             logger.error("Inspecting dataset %s failed, skipping.", downloader.name)  # noqa: TRY400
+
+
+@datasets_cli.command("plot")
+@hydra_adaptor
+def plot(
+    config: DictConfig,
+    *,
+    dataset: Annotated[
+        str | None, typer.Option(help="Only plot the named configured dataset")
+    ] = None,
+    timestep: Annotated[int, typer.Option(help="Dataset timestep index to plot")] = 0,
+    video: Annotated[
+        bool,
+        typer.Option(
+            help="Animate --n-steps consecutive timesteps instead of plotting one"
+        ),
+    ] = False,
+    n_steps: Annotated[
+        int,
+        typer.Option(help="Number of consecutive timesteps to animate with --video"),
+    ] = 10,
+) -> None:
+    """Plot one timestep of configured datasets."""
+    output_dir = Path(config["base_path"]).resolve() / "data" / "input_plots"
+    matched_dataset = False
+    for downloader in build_downloaders(config):
+        if dataset is not None and downloader.name != dataset:
+            continue
+        matched_dataset = True
+        logger.info("Plotting dataset %s.", downloader.name)
+        if downloader.path_dataset.exists():
+            n_saved = (
+                plot_variables_video(
+                    downloader.name,
+                    downloader.path_dataset,
+                    output_dir,
+                    timestep,
+                    n_steps,
+                )
+                if video
+                else plot_variables_static(
+                    downloader.name, downloader.path_dataset, output_dir, timestep
+                )
+            )
+            logger.info(
+                "Saved %d plots for dataset %s under %s.",
+                n_saved,
+                downloader.name,
+                output_dir / downloader.name,
+            )
+        else:
+            logger.error(
+                "Dataset %s not found at %s", downloader.name, downloader.path_dataset
+            )
+    if dataset is not None and not matched_dataset:
+        logger.error("Configured dataset %s was not found.", dataset)
+        raise typer.Exit(1)
 
 
 @datasets_cli.command("masks")
@@ -63,10 +120,9 @@ def masks(
     ] = False,
 ) -> None:
     """Create land / active grid cell masks."""
-    factory = DataDownloaderFactory(config)
-    for downloader in factory.downloaders:
+    for downloader in build_downloaders(config):
         logger.info("Generating masks for dataset %s.", downloader.name)
-        downloader.generate_masks(overwrite=overwrite)
+        downloader.postprocessor.process(downloader.path_dataset, overwrite=overwrite)
 
 
 if __name__ == "__main__":

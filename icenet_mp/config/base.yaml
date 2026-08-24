@@ -1,12 +1,12 @@
 # Base config inherited by all other configs
 defaults:
-  - data: sample
+  - data: sample_south
   - evaluate: default
   - loggers:
     - wandb
-  - loss: huber
+  - loss: amse
   - model: quick_test
-  - predict: sic-ssmis-2d
+  - predict: sic-osisaf-2d
   - random: default
   - train: default
   - platform: default

@@ -1,10 +1,11 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 import torch
 from omegaconf import DictConfig
+from typing_extensions import override
 
-from icenet_mp.types import DataSpace, TensorNTCHW
+from icenet_mp.types import DataSpace, ModelStepOutput, TensorNTCHW
 
 from .base_model import BaseModel
 
@@ -15,18 +16,21 @@ if TYPE_CHECKING:
 
 
 class EncodeProcessDecode(BaseModel):
+    """Model that encodes to latent space, processes, then decodes back."""
+
+    # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
+    ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
+
     def __init__(
         self,
         *,
         encoders: DictConfig,
         processor: DictConfig,
         decoder: DictConfig,
+        target_variable_indices: list[int],
         mask_dir: str | None = None,
-        use_skip_connection: bool = False,
         use_motion_channels: bool = False,
         use_day_order_channels: bool = False,
-        use_residual_output: bool = False,
-        target_variable_indices: list[int] | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model.
@@ -36,13 +40,6 @@ class EncodeProcessDecode(BaseModel):
             processor: Processor config.
             decoder: Decoder config.
             mask_dir: Optional directory containing land/active masks.
-            use_skip_connection: If True, concatenate the most recent encoded history
-                timestep onto the processor's output before decoding (channel dim),
-                broadcasting it across all forecast steps. Processors that route
-                everything through a bottleneck with no spatial skip path of their own
-                (e.g. a patchified ViT) lose fine boundary detail that a skip
-                connection lets the decoder recover directly from the input, the same
-                way UNetProcessor's own internal skip connections do.
             use_motion_channels: If True, concatenate frame-to-frame differences of
                 each input dataset's history window onto its raw frames (channel dim)
                 before encoding, giving every encoder an explicit velocity cue instead
@@ -57,49 +54,13 @@ class EncodeProcessDecode(BaseModel):
                 encoder an explicit day-order cue rather than relying on order being
                 inferred from channel position alone. Adds one to each encoder's
                 expected input channel count.
-            use_residual_output: If True, the decoded output is treated as a *change*
-                relative to the most recent observed target frame (persistence) rather
-                than the full field: final output = clamp(last_frame + delta, 0, 1).
-                Routing only the delta through the processor bottleneck means a
-                zero-output network already matches persistence, so capacity is spent
-                on what changes instead of reconstructing the whole field through the
-                patch bottleneck. The target's group must be one of the input datasets.
-                Pair this with ``decoder.restrict_range: none`` -- the delta must be
-                allowed to go negative; the [0, 1] clamp here bounds the final sum.
             target_variable_indices: Channel indices of the target variables within
-                the target group's input tensor, used to select the persistence base
-                frame when ``use_residual_output`` is set (ModelService passes this
-                automatically). Defaults to the first ``output_space.channels``
-                channels if not given.
+                the target group's input tensor.
 
         """
         super().__init__(**kwargs)
-        self.use_skip_connection = use_skip_connection
         self.use_motion_channels = use_motion_channels
         self.use_day_order_channels = use_day_order_channels
-        self.use_residual_output = use_residual_output
-        if use_residual_output:
-            input_names = {space.name for space in self.input_spaces}
-            if self.output_space.name not in input_names:
-                msg = (
-                    f"use_residual_output requires the target group "
-                    f"'{self.output_space.name}' to be one of the input datasets "
-                    f"{sorted(input_names)}, so the last observed frame is available "
-                    f"as the persistence base."
-                )
-                raise ValueError(msg)
-            indices = (
-                list(target_variable_indices)
-                if target_variable_indices is not None
-                else list(range(self.output_space.channels))
-            )
-            if len(indices) != self.output_space.channels:
-                msg = (
-                    f"target_variable_indices selects {len(indices)} channels but the "
-                    f"output space has {self.output_space.channels}."
-                )
-                raise ValueError(msg)
-            self.residual_variable_indices = indices
 
         def encoder_input_space(input_space: DataSpace) -> DataSpace:
             channels = input_space.channels
@@ -114,6 +75,17 @@ class EncodeProcessDecode(BaseModel):
                 name=input_space.name,
                 shape=input_space.shape,
             )
+
+        # Check that the number of variable indices provided matches the number of
+        # channels in the output space.
+        if self.output_space.channels != len(target_variable_indices):
+            msg = (
+                f"output_space has {self.output_space.channels} channel(s) but "
+                f"target_variable_indices selects {len(target_variable_indices)}; "
+                f"check that predict.target.variables is set correctly."
+            )
+            raise ValueError(msg)
+        self.target_variable_indices = target_variable_indices
 
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
@@ -172,6 +144,10 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
+        # Verify the output channels for each encoder
+        for encoder in (*self.encoders, self.target_encoder):
+            encoder.verify_output_channels(self.device)
+
         # Add a processor
         combined_latent_space = DataSpace(
             name="combined_latent_space",
@@ -181,28 +157,22 @@ class EncodeProcessDecode(BaseModel):
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
             data_space=combined_latent_space,
+            data_space_target=self.target_encoder.data_space_out,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_channel_offset=self.find_target_channel_offset(),
         )
 
-        # Add a decoder. If a skip connection is used, the decoder receives the
-        # processor's output concatenated with the most recent encoded history
-        # timestep, so it has twice as many input channels.
-        decoder_data_space_in = (
-            DataSpace(
-                name=combined_latent_space.name,
-                channels=combined_latent_space.channels * 2,
-                shape=combined_latent_space.shape,
-            )
-            if use_skip_connection
-            else combined_latent_space
-        )
+        # Add a decoder
         self.decoder: BaseDecoder = hydra.utils.instantiate(
             decoder,
-            data_space_in=decoder_data_space_in,
+            data_space_in=combined_latent_space,
             data_space_out=self.output_space,
             mask_dir=mask_dir,
         )
+
+        # Freeze unused modules
+        self._freeze_unused_modules()
 
     @staticmethod
     def _with_motion_channels(x: TensorNTCHW) -> TensorNTCHW:
@@ -234,59 +204,154 @@ class EncodeProcessDecode(BaseModel):
         )
         return torch.cat([x, labels], dim=2)
 
+    @property
+    def multistage_only(self) -> bool:
+        return self.processor.computes_loss_in_latent_space
+
+    def _freeze_unused_modules(self) -> None:
+        """Freeze unused modules."""
+        # Processors that compute loss in latent space do not touch the decoder.
+        # However, processors that do not do this, do not touch the target_encoder.
+        # We therefore explicitly freeze the unused modules.
+        if self.processor.computes_loss_in_latent_space:
+            self.decoder.freeze()
+        else:
+            self.target_encoder.freeze()
+
+    def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+        """Encode all input datasets and concatenate along the channel dimension.
+
+        Args:
+            inputs: Dictionary with one TensorNTCHW entry per input dataset with shape (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
+
+        Returns:
+            TensorNTCHW with shape (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+
+        """
+        latent_inputs: list[TensorNTCHW] = []
+        for encoder in self.encoders:
+            tensor = inputs[encoder.name]
+            if self.use_motion_channels:
+                tensor = self._with_motion_channels(tensor)
+            if self.use_day_order_channels:
+                tensor = self._with_day_order_channels(tensor)
+            latent_inputs.append(encoder.rollout(tensor))
+        return torch.cat(latent_inputs, dim=2)
+
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Forward step of the model.
+        """Forward step of the model (used for inference).
 
         - start with multiple [NTCHW] inputs each with shape [batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k]
         - encode inputs to [NTCHW] latent space [batch, n_history_steps, n_latent_channels, H_latent, W_latent]
         - concatenate inputs in [NTCHW] latent space [batch, n_history_steps, n_latent_channels_total, H_latent, W_latent]
         - process in latent space [NTCHW] [batch, n_forecast_steps, n_latent_channels_total, H_latent, W_latent]
         - decode back to [NTCHW] output space [batch, n_forecast_steps, n_output_channels, H_output, W_output]
+        - add a skip connection from the most recent target value to every forecast step
         """
-        encoder_inputs = inputs
-        if self.use_motion_channels:
-            encoder_inputs = {
-                name: self._with_motion_channels(tensor)
-                for name, tensor in encoder_inputs.items()
-            }
-        if self.use_day_order_channels:
-            encoder_inputs = {
-                name: self._with_day_order_channels(tensor)
-                for name, tensor in encoder_inputs.items()
-            }
+        # Encode inputs into latent space: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+        latent_input_combined: TensorNTCHW = self.encode_inputs(inputs)
 
-        # Encode inputs into latent space: list of tensors with (batch_size, n_history_steps, n_latent_channels, latent_height, latent_width)
-        latent_inputs: list[TensorNTCHW] = [
-            encoder.rollout(encoder_inputs[encoder.name]) for encoder in self.encoders
-        ]
-
-        # Combine in the variable dimension: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        latent_input_combined: TensorNTCHW = torch.cat(latent_inputs, dim=2)
-
-        # Process in latent space:
-        # combined input tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+        # Process in latent space: tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
         latent_output: TensorNTCHW = self.processor.rollout(
             latent_input_combined
         ).prediction
 
-        # Optionally skip the most recent encoded history timestep straight to the
-        # decoder (bypassing the processor), broadcast across every forecast step.
-        if self.use_skip_connection:
-            most_recent = latent_input_combined[:, -1:, :, :, :]
-            skip = most_recent.expand(-1, self.n_forecast_steps, -1, -1, -1)
-            latent_output = torch.cat([latent_output, skip], dim=2)
+        # Get persistence if required for skip connection
+        persistence = self.get_persistence(inputs)
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
-        output: TensorNTCHW = self.decoder.rollout(latent_output)
+        return self.decoder.rollout(latent_output, persistence)
 
-        # In residual mode the decoder output is a delta from persistence: add the
-        # most recent *raw* observed target frame (not the encoded one) and bound the
-        # sum to the valid concentration range.
-        if self.use_residual_output:
-            base = inputs[self.output_space.name][
-                :, -1:, self.residual_variable_indices, :, :
-            ]
-            output = (output + base).clamp(min=0.0, max=1.0)
+    def find_target_channel_offset(self) -> int | None:
+        """Find the channel offset of the target dataset within the combined latent space, if present."""
+        offset = 0
+        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
+            if input_space.name == self.output_space.name:
+                return offset
+            offset += encoder.data_space_out.channels
+        return None
 
-        # Return
-        return output
+    def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
+        """Extract persistence if needed for a skip connection."""
+        if self.decoder.skip_connection:
+            return inputs[self.output_space.name][
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1)
+        return None
+
+    @override
+    def train(self, mode: bool = True) -> "EncodeProcessDecode":
+        """Set training mode, with decoder frozen if computing loss in latent space."""
+        super().train(mode)
+        if mode:
+            self._freeze_unused_modules()
+        return self
+
+    def training_step(
+        self,
+        batch: dict[str, TensorNTCHW],
+        _batch_idx: int,
+    ) -> ModelStepOutput:
+        """Run the training step.
+
+        If the processor returns a loss in its `ProcessorOutput` (rather than `None`),
+        this is used for backpropagation. We use `no_grad` to compute the decoded
+        prediction, which allows us to calculate metrics and log outputs, but the
+        usefulness of these will depend on what `ProcessorOutput.prediction` contains.
+
+        Otherwise, the standard encode-process-decode path is used and the loss is
+        computed by comparing the decoded prediction to the target.
+
+        Args:
+            batch: Dictionary with one NTCHW entry per input dataset (n_history_steps)
+                   and a "target" entry (n_forecast_steps).
+
+        Returns:
+            A ModelStepOutput containing the prediction, target and loss.
+
+        """
+        batch = self.process_batch(batch)
+        target = batch["target"].clone().detach()
+        combined_latent = self.encode_inputs(batch)
+
+        expected_chw = self.target_encoder.data_space_in.chw
+        if tuple(target.shape[2:]) != expected_chw:
+            msg = (
+                f"Target CHW {tuple(target.shape[2:])} does not match "
+                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
+            )
+            raise ValueError(msg)
+
+        target_latent = None
+        if self.processor.computes_loss_in_latent_space:
+            target_latent = self.target_encoder.rollout(target)
+        processor_output = self.processor.rollout(combined_latent, target_latent)
+
+        # Get persistence if required for skip connection
+        persistence = self.get_persistence(batch)
+
+        if processor_output.loss is None:
+            # Standard path: compare decoded output to target.
+            prediction = self.decoder.rollout(processor_output.prediction, persistence)
+            loss = self.loss(prediction, target)
+        else:
+            # Custom loss path: processor owns the training signal.
+            # Decode under no_grad for metrics/callbacks only.
+            loss = processor_output.loss
+            with torch.no_grad():
+                prediction = self.decoder.rollout(
+                    processor_output.prediction, persistence
+                )
+
+        # Log metrics; computation will be done at epoch end
+        self.log(
+            "train_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.train_metrics.update(prediction, target)
+
+        return ModelStepOutput(prediction, target, loss)

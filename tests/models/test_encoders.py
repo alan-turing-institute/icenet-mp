@@ -4,6 +4,7 @@ import torch
 from icenet_mp.models.encoders import (
     BaseEncoder,
     CNNEncoder,
+    DeepCompressionEncoder,
     NaiveLinearEncoder,
     PiecewiseEncoder,
 )
@@ -43,6 +44,7 @@ class TestEncoders:
                 latent_space=test_latent_hw,
             ),
         }[test_encoder_cls]
+        encoder.verify_output_channels()
         result: torch.Tensor = encoder.rollout(
             torch.randn(
                 test_batch_size,
@@ -57,6 +59,72 @@ class TestEncoders:
             encoder.data_space_out.channels,
             *test_latent_hw,
         )
+
+
+class TestDeepCompressionEncoder:
+    @pytest.mark.parametrize("pixel_shuffle", [True, False])
+    @pytest.mark.parametrize(
+        ("patch_size", "stride", "hid_channels"),
+        [
+            (1, 2, (4, 8, 16)),
+            (2, 2, (4, 8, 16)),
+            (1, 3, (4, 8)),
+            (2, 1, (4,)),
+        ],
+    )
+    @pytest.mark.parametrize("latent_hw", [(4, 4), (2, 6), (5, 3)])
+    def test_forward_shape(
+        self,
+        *,
+        pixel_shuffle: bool,
+        patch_size: int,
+        stride: int,
+        hid_channels: tuple[int, ...],
+        latent_hw: tuple[int, int],
+    ) -> None:
+        hid_blocks = [1] * len(hid_channels)
+        spatial_factor = patch_size * stride ** (len(hid_channels) - 1)
+        input_space = DataSpace(
+            name="input",
+            channels=3,
+            shape=(spatial_factor * latent_hw[0], spatial_factor * latent_hw[1]),
+        )
+
+        encoder = DeepCompressionEncoder(
+            data_space_in=input_space,
+            latent_space=latent_hw,
+            hid_channels=hid_channels,
+            hid_blocks=hid_blocks,
+            patch_size=patch_size,
+            pixel_shuffle=pixel_shuffle,
+            stride=stride,
+        )
+        encoder.verify_output_channels()
+        result = encoder.rollout(torch.randn(2, 3, *input_space.chw))
+        assert result.shape == (2, 3, encoder.data_space_out.channels, *latent_hw)
+
+    def test_shape_mismatch_raises(self) -> None:
+        stride = 2
+        hid_channels = [4, 8, 16]
+        hid_blocks = [1, 1, 1]
+        spatial_factor = stride ** (len(hid_channels) - 1)
+        latent_hw = (4, 4)
+        input_space = DataSpace(
+            name="input",
+            channels=3,
+            shape=(
+                spatial_factor * latent_hw[0],
+                spatial_factor * (latent_hw[1] + 1),
+            ),
+        )
+        with pytest.raises(ValueError, match="will encode inputs of shape"):
+            DeepCompressionEncoder(
+                data_space_in=input_space,
+                latent_space=latent_hw,
+                hid_channels=hid_channels,
+                hid_blocks=hid_blocks,
+                stride=stride,
+            )
 
 
 class TestPiecewiseEncoder:
@@ -131,3 +199,76 @@ class TestPiecewiseEncoder:
                 torch.allclose(expected_patch, latent_ntchw_patch)
                 for latent_ntchw_patch in latent_ntchw_patches
             )
+
+
+class TestVerifyOutputChannels:
+    def _make_encoder(
+        self,
+        *,
+        declared_channels: int,
+        actual_channels: int,
+        name: str = "input",
+    ) -> NaiveLinearEncoder:
+        input_space = DataSpace(name=name, channels=actual_channels, shape=(8, 8))
+        encoder = NaiveLinearEncoder(data_space_in=input_space, latent_space=(4, 4))
+        # Override the declared output channels to simulate a mismatch with reality
+        encoder.data_space_out.channels = declared_channels
+        return encoder
+
+    def test_passes_when_declaration_matches_forward(self) -> None:
+        encoder = self._make_encoder(declared_channels=5, actual_channels=5)
+        encoder.verify_output_channels()
+
+    def test_raises_with_channel_counts_and_encoder_name(self) -> None:
+        encoder = self._make_encoder(
+            declared_channels=5, actual_channels=3, name="my-dataset"
+        )
+        with pytest.raises(ValueError, match="declared 5") as excinfo:
+            encoder.verify_output_channels()
+        assert "declared 5 output channel(s) but forward() actually produced 3" in str(
+            excinfo.value
+        )
+        assert "NaiveLinearEncoder ('my-dataset')" in str(excinfo.value)
+
+    @pytest.mark.parametrize("initial_training_mode", [True, False])
+    def test_restores_training_mode(self, *, initial_training_mode: bool) -> None:
+        encoder = self._make_encoder(declared_channels=5, actual_channels=5)
+        encoder.train(initial_training_mode)
+        encoder.verify_output_channels()
+        assert encoder.training is initial_training_mode
+
+    @pytest.mark.parametrize("initial_training_mode", [True, False])
+    def test_restores_training_mode_even_when_it_raises(
+        self, *, initial_training_mode: bool
+    ) -> None:
+        encoder = self._make_encoder(declared_channels=5, actual_channels=3)
+        encoder.train(initial_training_mode)
+        with pytest.raises(ValueError, match="declared 5"):
+            encoder.verify_output_channels()
+        assert encoder.training is initial_training_mode
+
+    @staticmethod
+    def _running_stats(
+        batch_norm: torch.nn.BatchNorm2d,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        assert batch_norm.running_mean is not None
+        assert batch_norm.running_var is not None
+        return batch_norm.running_mean.clone(), batch_norm.running_var.clone()
+
+    def test_does_not_mutate_batchnorm_running_stats(self) -> None:
+        # verify_output_channels feeds a zero probe through the encoder; it must not
+        # leak that probe into BatchNorm running statistics used by real training.
+        input_space = DataSpace(name="input", channels=3, shape=(8, 8))
+        encoder = NaiveLinearEncoder(data_space_in=input_space, latent_space=(4, 4))
+        batch_norm = next(
+            module
+            for module in encoder.modules()
+            if isinstance(module, torch.nn.BatchNorm2d)
+        )
+        running_mean_before, running_var_before = self._running_stats(batch_norm)
+
+        encoder.verify_output_channels()
+
+        running_mean_after, running_var_after = self._running_stats(batch_norm)
+        assert torch.equal(running_mean_after, running_mean_before)
+        assert torch.equal(running_var_after, running_var_before)

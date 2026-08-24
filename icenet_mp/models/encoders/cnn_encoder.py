@@ -4,7 +4,7 @@ from typing import Any
 from torch import nn
 
 from icenet_mp.models.common import ConvBlockDownsample, ResizingInterpolation
-from icenet_mp.types import TensorNCHW
+from icenet_mp.types import DataSpace, TensorNCHW
 
 from .base_encoder import BaseEncoder
 
@@ -28,6 +28,7 @@ class CNNEncoder(BaseEncoder):
         self,
         *,
         activation: str = "ReLU",
+        data_space_in: DataSpace,
         kernel_size: int = 3,
         n_layers: int = 3,
         n_subblocks: int = 2,
@@ -36,7 +37,13 @@ class CNNEncoder(BaseEncoder):
         **kwargs: Any,
     ) -> None:
         """Initialise a CNNEncoder."""
-        super().__init__(**kwargs)
+        # Initialise the base class with the correct number of output channels
+        output_channels = data_space_in.channels * scale_factor**n_layers
+        super().__init__(
+            data_space_in=data_space_in,
+            output_channels=output_channels,
+            **kwargs,
+        )
 
         # Construct list of layers
         layers: list[nn.Module] = []
@@ -75,9 +82,6 @@ class CNNEncoder(BaseEncoder):
                 n_channels,
             )
             n_channels *= scale_factor
-
-        # Set the number of output channels correctly
-        self.data_space_out.channels = n_channels
 
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)

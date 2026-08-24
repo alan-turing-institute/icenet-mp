@@ -13,6 +13,9 @@ encoders:
   sic-icenet:
     _target_: icenet_mp.models.encoders.CNNEncoder
     n_layers: 1
+  sic-osisaf:
+    _target_: icenet_mp.models.encoders.CNNEncoder
+    n_layers: 1
   sic-ssmis:
     _target_: icenet_mp.models.encoders.CNNEncoder
     n_layers: 1
@@ -30,4 +33,7 @@ decoder:
   _target_: icenet_mp.models.decoders.CNNDecoder
   n_layers: 1
   mask_type: active
-  restrict_range: sigmoid
+  norm_type: groupnorm
+  restrict_range: clamp
+  skip_connection:
+    method: none

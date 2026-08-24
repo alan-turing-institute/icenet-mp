@@ -10,14 +10,19 @@ encoders:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   sic-icenet:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
+  sic-osisaf:
+    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   sic-ssmis:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
 
 processor:
   _target_: icenet_mp.models.processors.UNetProcessor
+  kernel_size: 3
   start_out_channels: 128
 
 decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
   mask_type: active
   restrict_range: sigmoid
+  skip_connection:
+    method: none

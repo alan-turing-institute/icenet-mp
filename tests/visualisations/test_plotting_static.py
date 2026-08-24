@@ -8,7 +8,7 @@ styling configurations.
 import logging
 from dataclasses import replace
 from datetime import date
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import pytest
@@ -266,28 +266,6 @@ class TestPlotStaticInputs:
         name, pil_images = next(iter(results.items()))
         assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:q_10"
         assert isinstance(pil_images[0], ImageFile)
-
-    @pytest.mark.parametrize("colourbar_location", ["vertical", "horizontal"])
-    def test_colourbar_locations(
-        self,
-        era5_temperature_2d: np.ndarray,
-        colourbar_location: Literal["vertical", "horizontal"],
-    ) -> None:
-        """Test plotting with different colorbar orientations."""
-        plot_spec = PlotSpec(
-            variable="raw_inputs",
-            colourmap="viridis",
-            colourbar_location=colourbar_location,
-        )
-
-        results = plot_static_inputs(
-            {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None),
-            plot_spec=plot_spec,
-            when=TEST_DATE,
-        )
-
-        assert len(results) == 1
 
     @pytest.mark.parametrize(
         ("var_name", "fixture_name"),

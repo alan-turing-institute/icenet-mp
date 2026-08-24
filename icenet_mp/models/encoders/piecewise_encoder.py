@@ -3,7 +3,7 @@ from typing import Any
 from torch import nn
 
 from icenet_mp.models.common import CommonConvBlock, Permute
-from icenet_mp.types import TensorNCHW
+from icenet_mp.types import DataSpace, TensorNCHW
 
 from .base_encoder import BaseEncoder
 
@@ -24,6 +24,9 @@ class PiecewiseEncoder(BaseEncoder):
 
     def __init__(
         self,
+        *,
+        data_space_in: DataSpace,
+        latent_space: tuple[int, int],
         conv_activation: str = "SiLU",
         conv_kernel_size: int = 3,
         conv_subblocks_initial: int = 3,
@@ -31,36 +34,28 @@ class PiecewiseEncoder(BaseEncoder):
         **kwargs: Any,
     ) -> None:
         """Initialise a PiecewiseEncoder."""
-        super().__init__(**kwargs)
-
         # Calculate the number of patches required
         # We set the stride to be half the patch size to ensure overlap, which will
         # capture more of the spatial structure of the data.
-        strides = tuple(
-            max(1, patch_size // 2) for patch_size in self.data_space_out.shape
-        )
+        strides = tuple(max(1, patch_size // 2) for patch_size in latent_space)
         n_patches = (
-            (
-                self.data_space_in.shape[0]
-                + 2 * strides[0]
-                - 1 * (self.data_space_out.shape[0] - 1)
-                - 1
-            )
+            (data_space_in.shape[0] + 2 * strides[0] - 1 * (latent_space[0] - 1) - 1)
             // strides[0]
             + 1
         ) * (
-            (
-                self.data_space_in.shape[1]
-                + 2 * strides[1]
-                - 1 * (self.data_space_out.shape[1] - 1)
-                - 1
-            )
+            (data_space_in.shape[1] + 2 * strides[1] - 1 * (latent_space[1] - 1) - 1)
             // strides[1]
             + 1
         )
 
-        # Set the number of output channels correctly
-        self.data_space_out.channels = self.data_space_in.channels * n_patches
+        # Initialise the base class with the correct number of output channels
+        output_channels = data_space_in.channels * n_patches
+        super().__init__(
+            data_space_in=data_space_in,
+            latent_space=latent_space,
+            output_channels=output_channels,
+            **kwargs,
+        )
 
         # Construct the list of layers
         layers: list[nn.Module] = []

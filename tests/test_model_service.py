@@ -68,6 +68,7 @@ class TestModelService:
         assert kwargs["n_history_steps"] == 3
         assert kwargs["optimizer"] is cfg_model_service["train"]["optimizer"]
         assert kwargs["scheduler"] is cfg_model_service["train"]["scheduler"]
+        assert kwargs["lr_scheduler"] is cfg_model_service["train"]["lr_scheduler"]
         assert kwargs["_recursive_"] is False
         assert kwargs["_convert_"] == "object"
 
@@ -128,3 +129,26 @@ class TestModelService:
             expected_config["loggers"] = "will_overwrite"
             assert service.config == expected_config
             assert service.config["model"]["name"] != "will_not_overwrite"
+
+    def test_train_standard_mode_rejects_model_requiring_multistage(self) -> None:
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = True
+
+        with pytest.raises(ValueError, match="multistage"):
+            service.train()
+
+    def test_train_standard_mode_allows_model_not_requiring_multistage(
+        self,
+    ) -> None:
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_fit = MagicMock()
+            mp.setattr(service, "_fit", mock_fit)
+            service.train()
+
+        mock_fit.assert_called_once_with(config="train_config")

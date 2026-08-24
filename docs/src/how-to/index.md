@@ -8,5 +8,6 @@ Step-by-step guides for common tasks.
 - [Train in stages](train-multistage.md) - pretrain each component separately before finetuning
 - [Evaluate a model](evaluate.md) - evaluate a trained model
 - [Run the synthetic pipeline check](synthetic-check.md) - fast end-to-end sanity check on generated moving-shape data
+- [Run a hyperparameter sweep](sweeps.md) - run a W&B sweep of Optuna-sampled hyperparameters across platforms
 
 For developers, there is also a guide on the process to follow to [create a new release](release.md).

@@ -195,6 +195,7 @@ def cfg_model_service() -> DictConfig:
                 "callbacks": {},
                 "optimizer": {},
                 "scheduler": {},
+                "lr_scheduler": {},
                 "trainer": {},
             },
         }
@@ -231,10 +232,16 @@ def cfg_scheduler() -> DictConfig:
     return DictConfig(
         {
             "_target_": "torch.optim.lr_scheduler.LinearLR",
-            "lr_scheduler_parameters": {"frequency": 1, "interval": "epoch"},
-            "scheduler_parameters": {"start_factor": 0.2, "end_factor": 0.8},
+            "start_factor": 0.2,
+            "end_factor": 0.8,
         }
     )
+
+
+@pytest.fixture
+def cfg_lr_scheduler() -> DictConfig:
+    """Test configuration for a scheduler's Lightning `lr_scheduler_config` wrapper."""
+    return DictConfig({"frequency": 1, "interval": "epoch"})
 
 
 @pytest.fixture(scope="session")
@@ -482,7 +489,7 @@ def mock_dataset_missing_dates(
     return build_zarr(
         mock_data_path / "anemoi" / "mock_dataset_missing_dates.zarr",
         mock_data_missing_dates,
-        full_dates=list(dates_as_dt),
+        full_dates=mock_data_missing_dates["coords"]["time"]["data"],
         missing_dates=[dates_as_dt[1], dates_as_dt[3]],
     )
 

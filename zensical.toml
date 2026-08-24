@@ -22,6 +22,7 @@ nav = [
         { "Train a model in multiple stages" = "how-to/train-multistage.md" },
         { "Evaluate a model" = "how-to/evaluate.md" },
         { "Run the synthetic pipeline check" = "how-to/synthetic-check.md" },
+        { "Run a hyperparameter sweep" = "how-to/sweeps.md" },
         { "Create a release" = "how-to/release.md" },
     ] },
     { "API Reference" = [

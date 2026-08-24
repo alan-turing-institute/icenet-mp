@@ -1,0 +1,24 @@
+samp-sicsouth-icenet-25k-2017-2019-24h-v1:
+  name: samp-sicsouth-icenet-25k-2017-2019-24h-v1
+  group_as: sic-icenet
+  description: Sea ice concentration from SMMR/SSMI/SSMIS for southern hemisphere
+  attribution: EUMETSAT/OSISAF
+  licence: CC-BY-4.0
+
+  dates:
+    start: '2017-01-01T00:00:00'
+    end: '2019-01-31T23:00:00'
+    frequency: 24h
+
+  preprocessors:
+    icenet:
+      _target_: icenet_mp.ingestion.preprocessors.IceNetSICPreprocessor
+      hemisphere: south
+      dates:
+        start: ${....dates.start}
+        end: ${....dates.end}
+        frequency: ${....dates.frequency}
+
+  input:
+    netcdf:
+      path: ${base_path}/data/preprocessing/${...name}/icenet/data/osisaf/${...preprocessors.icenet.hemisphere}/siconca/*.nc

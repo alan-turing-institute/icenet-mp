@@ -1,6 +1,7 @@
 from imageio_ffmpeg import get_ffmpeg_exe
 from matplotlib import rcParams
 
+from .dataset_plotting import plot_variables_static, plot_variables_video
 from .helpers import DEFAULT_SIC_SPEC
 from .local_file_logger import LocalFileLogger
 from .plotter import Plotter
@@ -15,4 +16,6 @@ __all__ = [
     "DEFAULT_SIC_SPEC",
     "LocalFileLogger",
     "Plotter",
+    "plot_variables_static",
+    "plot_variables_video",
 ]

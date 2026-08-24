@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
 from functools import cached_property
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 import torch
 from lightning import LightningModule
 from lightning.pytorch.utilities.types import (
     LRSchedulerConfigType,
+    LRSchedulerTypeUnion,
     OptimizerConfig,
     OptimizerLRScheduler,
     OptimizerLRSchedulerConfig,
@@ -25,9 +26,17 @@ from icenet_mp.metrics import (
 )
 from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
 
+if TYPE_CHECKING:
+    from torch.optim import Optimizer
+
 
 class BaseModel(LightningModule, ABC):
     """A base class for all models used in the IceNet-MP project."""
+
+    # Parameters that should be excluded from hyperparameter logging
+    ignored_hparams: ClassVar[frozenset[str]] = frozenset(
+        ("latitudes_fn", "longitudes_fn")
+    )
 
     def __init__(  # noqa: PLR0913
         self,
@@ -36,14 +45,15 @@ class BaseModel(LightningModule, ABC):
         input_spaces: list[DictConfig],
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
+        loss: DictConfig,
+        lr_scheduler: DictConfig,
+        metrics: list[str] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
         optimizer: DictConfig,
         output_space: DictConfig,
         scheduler: DictConfig,
-        loss: DictConfig,
-        use_centroid_metric: bool = False,
         **_kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
@@ -53,12 +63,10 @@ class BaseModel(LightningModule, ABC):
 
         Optimizer configuration is also set here.
 
-        Args:
-            use_centroid_metric: If True, add the value-weighted centre-of-mass
-                distance metric to every metric collection. Only meaningful for the
-                synthetic moving-circle check, where the field is a single blob with a
-                well-defined centroid; on real multi-region sea ice it is not a useful
-                summary, so it is opt-in and enabled only by the synthetic baselines.
+        The ``metrics`` parameter controls which metrics are computed during training,
+        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror"]``;
+        pass ``"centroid_error"`` to add the value-weighted centre-of-mass distance
+        metric (only meaningful for synthetic checks where the field is a single blob).
         """
         super().__init__()
 
@@ -85,25 +93,37 @@ class BaseModel(LightningModule, ABC):
         # Store the optimizer, scheduler and loss configs
         self.optimizer_cfg = optimizer
         self.scheduler_cfg = scheduler
+        self.lr_scheduler_cfg = lr_scheduler
         self.loss_cfg = loss
 
         # Metrics
-        _common_metrics: dict[str, Metric | MetricCollection] = {
-            "accuracy": IceNetAccuracy(),
-            "mae": MAEPerForecastDay(),
-            "rmse": RMSEPerForecastDay(),
-            "sieerror": SeaIceExtentErrorPerForecastDay(),
+        _metric_classes: dict[str, type[Metric]] = {
+            "accuracy": IceNetAccuracy,
+            "mae": MAEPerForecastDay,
+            "rmse": RMSEPerForecastDay,
+            "sieerror": SeaIceExtentErrorPerForecastDay,
+            "centroid_error": CentroidErrorPerForecastDay,
         }
-        if use_centroid_metric:
-            _common_metrics["centroid_error"] = CentroidErrorPerForecastDay()
+        metric_names = (
+            metrics
+            if metrics is not None
+            else [
+                "accuracy",
+                "mae",
+                "rmse",
+                "sieerror",
+            ]
+        )
+        _common_metrics: dict[str, Metric | MetricCollection] = {
+            name: _metric_classes[name]() for name in metric_names
+        }
         self.test_metrics = MetricCollection(deepcopy(_common_metrics))
         self.train_metrics = MetricCollection(deepcopy(_common_metrics))
         self.validation_metrics = MetricCollection(deepcopy(_common_metrics))
 
-        # Save all non-ignored arguments to __init__ as hyperparameters
-        # This will also save the parameters of whichever child class is used
-        # Note that W&B will log all hyperparameters
-        self.save_hyperparameters(ignore=["latitudes_fn", "longitudes_fn"])
+        # All arguments to the ultimate child class will be logged as hyperparameters,
+        # and saved to W&B, unless explicitly ignored here.
+        self.save_hyperparameters(ignore=[*self.ignored_hparams])
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:
@@ -113,10 +133,14 @@ class BaseModel(LightningModule, ABC):
     def longitudes(self) -> dict[str, list[float]]:
         return {} if not self.longitudes_fn else self.longitudes_fn()
 
+    @property
+    def multistage_only(self) -> bool:
+        return False
+
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""
-        # Optimizer
-        optimizer = hydra.utils.instantiate(
+        # Create the optimizer
+        optimizer: Optimizer = hydra.utils.instantiate(
             self.optimizer_cfg,
             params=filter(lambda p: p.requires_grad, self.parameters()),
         )
@@ -125,19 +149,26 @@ class BaseModel(LightningModule, ABC):
         if not self.scheduler_cfg:
             return OptimizerConfig(optimizer=optimizer)
 
-        # Scheduler
-        scheduler = hydra.utils.instantiate(
-            self.scheduler_cfg["scheduler_parameters"],
-            _target_=self.scheduler_cfg["_target_"],
-            optimizer=optimizer,
+        # Create the scheduler
+        scheduler: LRSchedulerTypeUnion = hydra.utils.instantiate(
+            self.scheduler_cfg, optimizer=optimizer
+        )
+
+        # Create the Lightning LRScheduler wrapper
+        lr_scheduler = LRSchedulerConfigType(
+            frequency=self.lr_scheduler_cfg.get("frequency", 1),
+            interval=self.lr_scheduler_cfg.get("interval", "epoch"),
+            monitor=self.lr_scheduler_cfg.get("monitor"),
+            name=self.lr_scheduler_cfg.get("name"),
+            reduce_on_plateau=self.lr_scheduler_cfg.get("reduce_on_plateau", False),
+            scheduler=scheduler,
+            strict=self.lr_scheduler_cfg.get("strict", True),
         )
 
         # Return the optimizer and scheduler
         return OptimizerLRSchedulerConfig(
             optimizer=optimizer,
-            lr_scheduler=LRSchedulerConfigType(
-                scheduler=scheduler, **self.scheduler_cfg["lr_scheduler_parameters"]
-            ),
+            lr_scheduler=lr_scheduler,
         )
 
     @abstractmethod
