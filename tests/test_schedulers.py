@@ -4,9 +4,7 @@ import torch
 from icenet_mp.schedulers import WarmupCosineAnnealingLR
 
 
-def _make_scheduler(**kwargs: int | float) -> tuple[
-    torch.optim.SGD, WarmupCosineAnnealingLR
-]:
+def _make_scheduler() -> tuple[torch.optim.SGD, WarmupCosineAnnealingLR]:
     parameter = torch.nn.Parameter(torch.tensor(1.0))
     optimizer = torch.optim.SGD([parameter], lr=1.0)
     scheduler = WarmupCosineAnnealingLR(
@@ -15,9 +13,16 @@ def _make_scheduler(**kwargs: int | float) -> tuple[
         warmup_epochs=2,
         start_factor=0.1,
         eta_min=0.01,
-        **kwargs,
     )
     return optimizer, scheduler
+
+
+def _step_scheduler(
+    optimizer: torch.optim.Optimizer,
+    scheduler: WarmupCosineAnnealingLR,
+) -> None:
+    optimizer.step()
+    scheduler.step()
 
 
 def test_warmup_cosine_starts_low_and_warms_to_base_lr() -> None:
@@ -25,10 +30,10 @@ def test_warmup_cosine_starts_low_and_warms_to_base_lr() -> None:
 
     assert optimizer.param_groups[0]["lr"] == pytest.approx(0.1)
 
-    scheduler.step()
+    _step_scheduler(optimizer, scheduler)
     assert optimizer.param_groups[0]["lr"] == pytest.approx(0.55)
 
-    scheduler.step()
+    _step_scheduler(optimizer, scheduler)
     assert optimizer.param_groups[0]["lr"] == pytest.approx(1.0)
 
 
@@ -36,7 +41,7 @@ def test_warmup_cosine_decays_after_warmup() -> None:
     optimizer, scheduler = _make_scheduler()
 
     for _ in range(6):
-        scheduler.step()
+        _step_scheduler(optimizer, scheduler)
 
     assert 0.01 < optimizer.param_groups[0]["lr"] < 1.0
 
@@ -46,7 +51,7 @@ def test_warmup_cosine_never_restarts_after_training_horizon() -> None:
     learning_rates = []
 
     for _ in range(20):
-        scheduler.step()
+        _step_scheduler(optimizer, scheduler)
         learning_rates.append(optimizer.param_groups[0]["lr"])
 
     assert learning_rates[9] == pytest.approx(0.01)
@@ -54,7 +59,7 @@ def test_warmup_cosine_never_restarts_after_training_horizon() -> None:
 
 
 @pytest.mark.parametrize(
-    "kwargs",
+    "override",
     [
         {"total_epochs": 0},
         {"warmup_epochs": -1},
@@ -65,10 +70,17 @@ def test_warmup_cosine_never_restarts_after_training_horizon() -> None:
     ],
 )
 def test_warmup_cosine_rejects_invalid_configuration(
-    kwargs: dict[str, int | float],
+    override: dict[str, int | float],
 ) -> None:
     parameter = torch.nn.Parameter(torch.tensor(1.0))
     optimizer = torch.optim.SGD([parameter], lr=1.0)
+    config: dict[str, int | float] = {
+        "total_epochs": 10,
+        "warmup_epochs": 2,
+        "start_factor": 0.1,
+        "eta_min": 0.01,
+    }
+    config.update(override)
 
     with pytest.raises(ValueError):
-        WarmupCosineAnnealingLR(optimizer, total_epochs=10, **kwargs)
+        WarmupCosineAnnealingLR(optimizer, **config)
