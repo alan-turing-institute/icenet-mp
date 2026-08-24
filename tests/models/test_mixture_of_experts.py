@@ -1,3 +1,5 @@
+from importlib.resources import files
+
 import pytest
 import torch
 import yaml
@@ -7,7 +9,7 @@ from icenet_mp.models.processors import MixtureOfExpertsProcessor
 from icenet_mp.types import DataSpace
 
 
-def _processor(experts: list[dict]) -> MixtureOfExpertsProcessor:  # type: ignore[type-arg]
+def _processor(experts: list[dict[str, object]]) -> MixtureOfExpertsProcessor:
     """Build a small MoE processor for unit tests."""
     return MixtureOfExpertsProcessor(
         experts=[DictConfig(config) for config in experts],
@@ -73,7 +75,9 @@ def test_moe_backpropagates_to_gate_and_trainable_expert() -> None:
     prediction.square().mean().backward()
 
     gate_gradients = [
-        parameter.grad for parameter in processor.gate.parameters() if parameter.grad is not None
+        parameter.grad
+        for parameter in processor.gate.parameters()
+        if parameter.grad is not None
     ]
     expert_gradients = [
         parameter.grad
@@ -82,8 +86,8 @@ def test_moe_backpropagates_to_gate_and_trainable_expert() -> None:
     ]
     assert gate_gradients
     assert expert_gradients
-    assert any(torch.count_nonzero(gradient) > 0 for gradient in gate_gradients)
-    assert any(torch.count_nonzero(gradient) > 0 for gradient in expert_gradients)
+    assert any(torch.count_nonzero(gradient).item() > 0 for gradient in gate_gradients)
+    assert any(torch.count_nonzero(gradient).item() > 0 for gradient in expert_gradients)
 
 
 def test_moe_requires_at_least_one_expert() -> None:
@@ -94,8 +98,6 @@ def test_moe_requires_at_least_one_expert() -> None:
 
 def test_moe_model_config_keeps_expert_configs_non_recursive() -> None:
     """Keep nested expert configs intact until shared processor arguments are known."""
-    from importlib.resources import files
-
     config_path = files("icenet_mp.config") / "model" / "cnn_moe_cnn.yaml"
     config = yaml.safe_load(config_path.read_text())
 
