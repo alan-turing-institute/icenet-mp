@@ -19,6 +19,7 @@ from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
     CentroidErrorPerForecastDay,
+    FractionsSkillScorePerForecastDay,
     IceNetAccuracy,
     MAEPerForecastDay,
     RMSEPerForecastDay,
@@ -65,8 +66,9 @@ class BaseModel(LightningModule, ABC):
 
         The ``metrics`` parameter controls which metrics are computed during training,
         validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror"]``;
-        pass ``"centroid_error"`` to add the value-weighted centre-of-mass distance
-        metric (only meaningful for synthetic checks where the field is a single blob).
+        pass ``"fss"`` to add Fractions Skill Score or ``"centroid_error"`` to add the
+        value-weighted centre-of-mass distance metric (only meaningful for synthetic
+        checks where the field is a single blob).
         """
         super().__init__()
 
@@ -102,6 +104,7 @@ class BaseModel(LightningModule, ABC):
             "mae": MAEPerForecastDay,
             "rmse": RMSEPerForecastDay,
             "sieerror": SeaIceExtentErrorPerForecastDay,
+            "fss": FractionsSkillScorePerForecastDay,
             "centroid_error": CentroidErrorPerForecastDay,
         }
         metric_names = (
