@@ -43,7 +43,11 @@ encoders:
 
 processor:
   _target_: icenet_mp.models.processors.GSTAProcessor
+  dilation: 3
+  drop_path_prob: 0.1
   hid_channels: 256
+  kernel_size: 21
+  mlp_ratio: 4.0
   n_blocks: 8
 
 decoder:
