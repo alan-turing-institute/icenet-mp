@@ -41,7 +41,12 @@ def test_scaled_ddpm_scales_training_target_and_restores_prediction(
         self: DDPMProcessor, x_input: torch.Tensor, y_input: torch.Tensor
     ) -> ProcessorOutput:
         captured["target"] = y_input.clone()
-        prediction = torch.zeros(1, 1, 4, 8, 8)
+        prediction = torch.zeros(
+            x_input.shape[0],
+            self.n_forecast_steps,
+            self.c_combined,
+            *x_input.shape[-2:],
+        )
         prediction[..., self.target_slice_start : self.target_slice_end, :, :] = 3.0
         return ProcessorOutput(prediction=prediction, loss=torch.tensor(1.0))
 
@@ -50,11 +55,16 @@ def test_scaled_ddpm_scales_training_target_and_restores_prediction(
     output = processor._rollout_training(x, y)
 
     torch.testing.assert_close(captured["target"], y / 2.0)
+    target_prediction = output.prediction[
+        ..., processor.target_slice_start : processor.target_slice_end, :, :
+    ]
     torch.testing.assert_close(
-        output.prediction[..., processor.target_slice_start : processor.target_slice_end, :, :],
+        target_prediction,
         torch.full((1, 1, 2, 8, 8), 6.0),
     )
-    torch.testing.assert_close(output.prediction[..., 0, :, :], torch.zeros(1, 1, 8, 8))
+    torch.testing.assert_close(
+        output.prediction[..., 0, :, :], torch.zeros(1, 1, 8, 8)
+    )
 
 
 def test_scaled_ddpm_restores_scale_after_reverse_diffusion(
