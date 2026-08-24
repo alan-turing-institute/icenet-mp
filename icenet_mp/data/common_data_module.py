@@ -185,9 +185,7 @@ class CommonDataModule(LightningDataModule):
         self._common_dataloader_kwargs["persistent_workers"] = n_workers > 0
         self._common_dataloader_kwargs["prefetch_factor"] = 1 if n_workers > 0 else None
 
-    def _combined_dataset(
-        self, datasets: list[SingleDataset]
-    ) -> CombinedDataset:
+    def _combined_dataset(self, datasets: list[SingleDataset]) -> CombinedDataset:
         """Construct a combined dataset with the configured temporal spacing."""
         return CombinedDataset(
             datasets,
@@ -230,10 +228,7 @@ class CommonDataModule(LightningDataModule):
     def train_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct train dataloader."""
         dataset = self._combined_dataset(
-            [
-                ds.subset(date_ranges=self.train_periods)
-                for ds in self.datasets.values()
-            ]
+            [ds.subset(date_ranges=self.train_periods) for ds in self.datasets.values()]
         )
         logger.info(
             "Loaded training dataset with %d dates between %s and %s.",
