@@ -45,6 +45,6 @@ class TestBaselineConfigs:
                 overrides=["data=sample_north"],
             )
 
-        assert config.data.train
-        assert config.data.test
-        assert config.data.validate
+        assert config.data.split.train
+        assert config.data.split.test
+        assert config.data.split.validate
