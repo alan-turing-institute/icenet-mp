@@ -1,6 +1,6 @@
 import logging
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -38,7 +38,7 @@ def test_load_target_uncertainties_scales_and_masks() -> None:
     dataset, _ = _dataset_with_uncertainty()
 
     result = PlottingCallback.load_target_uncertainties(
-        dataset, [datetime(2026, 8, 21, tzinfo=timezone.utc)]
+        dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
     )
 
     assert set(result) == {0}
@@ -58,7 +58,7 @@ def test_load_target_uncertainties_skips_missing_source() -> None:
     dataset.inputs[0].name = "other"
 
     result = PlottingCallback.load_target_uncertainties(
-        dataset, [datetime(2026, 8, 21, tzinfo=timezone.utc)]
+        dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
     )
 
     assert result == {}
@@ -74,7 +74,7 @@ def test_load_target_uncertainties_handles_data_error(
 
     with caplog.at_level(logging.WARNING):
         result = PlottingCallback.load_target_uncertainties(
-            dataset, [datetime(2026, 8, 21, tzinfo=timezone.utc)]
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
     assert result == {}
@@ -90,7 +90,7 @@ def test_load_target_uncertainties_rejects_invalid_target_range(
 
     with caplog.at_level(logging.WARNING):
         result = PlottingCallback.load_target_uncertainties(
-            dataset, [datetime(2026, 8, 21, tzinfo=timezone.utc)]
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
     assert result == {}
@@ -120,7 +120,7 @@ def test_log_static_outputs_includes_uncertainty_image() -> None:
     ):
         plotter.log_static_outputs(
             outputs,
-            [datetime(2026, 8, 21, tzinfo=timezone.utc)],
+            [datetime(2026, 8, 21, tzinfo=UTC)],
             [image_logger],
             ["ice_conc"],
             uncertainties={0: uncertainty},
