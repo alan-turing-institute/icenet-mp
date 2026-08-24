@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
 from torch import nn
-from torch.nn import functional as F
+from torch.nn import functional
 
 from icenet_mp.models.common.normalisations import normalisation_from_name
 from icenet_mp.types import DataSpace, TensorNCHW
@@ -67,7 +67,7 @@ class PretrainedEmbeddingEncoder(BaseEncoder):
             kwargs: dict[str, bool] = {}
             if self.interpolation_mode in {"bilinear", "bicubic"}:
                 kwargs["align_corners"] = False
-            x = F.interpolate(
+            x = functional.interpolate(
                 x,
                 size=self.data_space_out.shape,
                 mode=self.interpolation_mode,
