@@ -1,4 +1,5 @@
 from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
+from .constants import SEA_ICE_THRESHOLD
 from .enums import (
     BetaSchedule,
     MaskType,
@@ -33,6 +34,7 @@ from .typedefs import (
 )
 
 __all__ = [
+    "SEA_ICE_THRESHOLD",
     "AnemoiCleanupArgs",
     "AnemoiDatasetStatus",
     "AnemoiFinaliseArgs",

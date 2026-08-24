@@ -7,7 +7,7 @@ Adapted from the IceNet implementation at:
 import torch
 from torchmetrics import Metric
 
-SEA_ICE_THRESHOLD = 0.15  # Threshold for binarizing predictions and targets
+from icenet_mp.types import SEA_ICE_THRESHOLD
 
 
 class IceNetAccuracyPerForecastDay(Metric):

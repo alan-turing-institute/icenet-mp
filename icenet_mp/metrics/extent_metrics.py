@@ -21,9 +21,9 @@ they border rather than as non-ice.
 import torch
 from torchmetrics import Metric
 
-from .ice_edge import binary_edge
+from icenet_mp.types import SEA_ICE_THRESHOLD
 
-SEA_ICE_THRESHOLD = 0.15  # Threshold for defining ice/no-ice, and hence the ice edge
+from .ice_edge import binary_edge
 
 
 class _IceAreaMetricBase(Metric):

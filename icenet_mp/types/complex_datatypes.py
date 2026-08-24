@@ -5,6 +5,7 @@ from typing import Any, Literal, Self, cast
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
+from .constants import SEA_ICE_THRESHOLD
 from .typedefs import DiffMode, DiffStrategy, TensorNTCHW
 
 
@@ -136,7 +137,7 @@ class PlotSpec:
 
     # Sea ice edge overlay
     include_ice_edge: bool = False
-    ice_edge_threshold: float = 0.15
+    ice_edge_threshold: float = SEA_ICE_THRESHOLD
 
     # Optional metadata for titling
     # hemisphere: "north" | "south" when known (used in titles)

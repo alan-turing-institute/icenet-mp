@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 from matplotlib.text import Text
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import ArrayHW, DiffColourmapSpec, PlotSpec
+from icenet_mp.types import SEA_ICE_THRESHOLD, ArrayHW, DiffColourmapSpec, PlotSpec
 
 from .land_mask import LandMask
 from .layout import (
@@ -42,7 +42,7 @@ DEFAULT_SIC_SPEC = PlotSpec(
     severe_outside=0.20,
     include_shared_range_mismatch_check=True,
     include_ice_edge=False,
-    ice_edge_threshold=0.15,
+    ice_edge_threshold=SEA_ICE_THRESHOLD,
 )
 
 logger = logging.getLogger(__name__)
