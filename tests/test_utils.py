@@ -1,5 +1,6 @@
 import re
 from datetime import UTC
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -15,7 +16,7 @@ def test_datetime_from_npdatetime_returns_utc_datetime() -> None:
     assert result.isoformat() == "2026-08-24T17:30:45.123000+00:00"
 
 
-def test_mask_dir_uses_shared_preprocessing_layout(tmp_path) -> None:  # noqa: ANN001
+def test_mask_dir_uses_shared_preprocessing_layout(tmp_path: Path) -> None:
     assert utils.mask_dir(tmp_path, "sic-osisaf") == (
         tmp_path / "data" / "preprocessing" / "masks" / "sic-osisaf"
     )
