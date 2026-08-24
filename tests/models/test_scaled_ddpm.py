@@ -25,6 +25,7 @@ def _make_processor(*, x0_scale: float = 2.0) -> ScaledDDPMProcessor:
 
 
 def test_scaled_ddpm_rejects_non_positive_x0_scale() -> None:
+    """Reject non-positive clean-target scaling factors."""
     with pytest.raises(ValueError, match="x0_scale must be positive"):
         ScaledDDPMProcessor(x0_scale=0.0)
 
@@ -32,6 +33,7 @@ def test_scaled_ddpm_rejects_non_positive_x0_scale() -> None:
 def test_scaled_ddpm_scales_training_target_and_restores_prediction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Scale the training target and restore target predictions afterward."""
     processor = _make_processor(x0_scale=2.0)
     x = torch.randn(1, 1, 4, 8, 8)
     y = torch.full((1, 1, 2, 8, 8), 4.0)
@@ -62,14 +64,13 @@ def test_scaled_ddpm_scales_training_target_and_restores_prediction(
         target_prediction,
         torch.full((1, 1, 2, 8, 8), 6.0),
     )
-    torch.testing.assert_close(
-        output.prediction[..., 0, :, :], torch.zeros(1, 1, 8, 8)
-    )
+    torch.testing.assert_close(output.prediction[..., 0, :, :], torch.zeros(1, 1, 8, 8))
 
 
 def test_scaled_ddpm_restores_scale_after_reverse_diffusion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Restore the original latent scale after reverse diffusion."""
     processor = _make_processor(x0_scale=2.5)
     noisy = torch.randn(1, 2, 8, 8)
     cond = torch.randn(1, 4, 8, 8)
