@@ -5,6 +5,7 @@ from icenet_mp.schedulers import WarmupCosineAnnealingLR
 
 
 def _make_scheduler() -> tuple[torch.optim.SGD, WarmupCosineAnnealingLR]:
+    """Build a small deterministic scheduler for unit tests."""
     parameter = torch.nn.Parameter(torch.tensor(1.0))
     optimizer = torch.optim.SGD([parameter], lr=1.0)
     scheduler = WarmupCosineAnnealingLR(
@@ -21,11 +22,13 @@ def _step_scheduler(
     optimizer: torch.optim.Optimizer,
     scheduler: WarmupCosineAnnealingLR,
 ) -> None:
+    """Advance the optimizer and scheduler by one epoch."""
     optimizer.step()
     scheduler.step()
 
 
 def test_warmup_cosine_starts_low_and_warms_to_base_lr() -> None:
+    """Warm-up should increase the learning rate to the configured base value."""
     optimizer, scheduler = _make_scheduler()
 
     assert optimizer.param_groups[0]["lr"] == pytest.approx(0.1)
@@ -38,6 +41,7 @@ def test_warmup_cosine_starts_low_and_warms_to_base_lr() -> None:
 
 
 def test_warmup_cosine_decays_after_warmup() -> None:
+    """Cosine decay should lower the learning rate after warm-up."""
     optimizer, scheduler = _make_scheduler()
 
     for _ in range(6):
@@ -47,6 +51,7 @@ def test_warmup_cosine_decays_after_warmup() -> None:
 
 
 def test_warmup_cosine_never_restarts_after_training_horizon() -> None:
+    """The learning rate should remain at eta_min beyond the training horizon."""
     optimizer, scheduler = _make_scheduler()
     learning_rates = []
 
@@ -59,14 +64,14 @@ def test_warmup_cosine_never_restarts_after_training_horizon() -> None:
 
 
 @pytest.mark.parametrize(
-    ("total_epochs", "warmup_epochs", "start_factor", "eta_min"),
+    ("total_epochs", "warmup_epochs", "start_factor", "eta_min", "expected"),
     [
-        (0, 2, 0.1, 0.01),
-        (10, -1, 0.1, 0.01),
-        (10, 10, 0.1, 0.01),
-        (10, 2, 0.0, 0.01),
-        (10, 2, 1.1, 0.01),
-        (10, 2, 0.1, -1e-6),
+        (0, 2, 0.1, 0.01, "total_epochs must be positive"),
+        (10, -1, 0.1, 0.01, "warmup_epochs must be non-negative"),
+        (10, 10, 0.1, 0.01, "warmup_epochs must be non-negative"),
+        (10, 2, 0.0, 0.01, "start_factor must be in"),
+        (10, 2, 1.1, 0.01, "start_factor must be in"),
+        (10, 2, 0.1, -1e-6, "eta_min must be non-negative"),
     ],
 )
 def test_warmup_cosine_rejects_invalid_configuration(
@@ -74,11 +79,13 @@ def test_warmup_cosine_rejects_invalid_configuration(
     warmup_epochs: int,
     start_factor: float,
     eta_min: float,
+    expected: str,
 ) -> None:
+    """Invalid scheduler settings should fail with an actionable error."""
     parameter = torch.nn.Parameter(torch.tensor(1.0))
     optimizer = torch.optim.SGD([parameter], lr=1.0)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=expected):
         WarmupCosineAnnealingLR(
             optimizer,
             total_epochs=total_epochs,
