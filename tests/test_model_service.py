@@ -225,9 +225,7 @@ class TestModelService:
         trainer.current_epoch = 2
         trainer.global_step = 8
         trainer.is_global_zero = True
-        trainer.checkpoint_callbacks = [
-            SimpleNamespace(best_model_path=str(best_path))
-        ]
+        trainer.checkpoint_callbacks = [SimpleNamespace(best_model_path=str(best_path))]
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(service, "build_run_directory", lambda _trainer: run_dir)
