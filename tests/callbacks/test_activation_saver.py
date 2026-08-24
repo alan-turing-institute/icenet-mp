@@ -18,10 +18,12 @@ class ReusedLayerModel(nn.Module):
             self.shared.weight.copy_(2 * torch.eye(2))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the shared layer twice."""
         return self.shared(self.shared(x))
 
 
 def test_attach_rejects_unknown_layer(tmp_path: Path) -> None:
+    """Reject unknown layer paths."""
     saver = ActivationSaver(["missing"], tmp_path)
     model = nn.Sequential(nn.Linear(2, 2))
 
@@ -30,6 +32,7 @@ def test_attach_rejects_unknown_layer(tmp_path: Path) -> None:
 
 
 def test_layer_hook_keeps_first_fire_per_batch(tmp_path: Path) -> None:
+    """Keep only the first activation when a layer fires twice."""
     saver = ActivationSaver(["shared"], tmp_path)
     model = ReusedLayerModel()
     saver.attach(model)
@@ -44,6 +47,7 @@ def test_layer_hook_keeps_first_fire_per_batch(tmp_path: Path) -> None:
 
 
 def test_batch_payload_and_metadata_are_written(tmp_path: Path) -> None:
+    """Write batch payloads and evaluation metadata."""
     saver = ActivationSaver(["0"], tmp_path, save_inputs=True)
     model = nn.Sequential(nn.Linear(2, 2, bias=False))
     saver.attach(model)
@@ -54,13 +58,7 @@ def test_batch_payload_and_metadata_are_written(tmp_path: Path) -> None:
     }
     saver.on_test_batch_start(None, None, batch, 7)  # type: ignore[arg-type]
     model(batch["sic"])
-    saver.on_test_batch_end(  # type: ignore[arg-type]
-        None,
-        None,
-        None,
-        batch,
-        7,
-    )
+    saver.on_test_batch_end(None, None, None, batch, 7)  # type: ignore[arg-type]
 
     payload_path = tmp_path / "batch_00007.pt"
     payload = torch.load(payload_path, weights_only=False)
@@ -81,6 +79,7 @@ def test_batch_payload_and_metadata_are_written(tmp_path: Path) -> None:
 
 
 def test_empty_layer_list_is_disabled(tmp_path: Path) -> None:
+    """Leave the callback disabled when no layers are configured."""
     output_dir = tmp_path / "activations"
     saver = ActivationSaver([], output_dir)
 
