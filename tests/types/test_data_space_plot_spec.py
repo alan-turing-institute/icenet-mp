@@ -4,6 +4,7 @@ from icenet_mp.types import DataSpace, PlotSpec
 
 
 def test_data_space_properties() -> None:
+    """Expose the expected DataSpace helper properties."""
     space = DataSpace(channels=3, name="sic", shape=(16, 24))
 
     assert space.channels == 3
@@ -14,6 +15,7 @@ def test_data_space_properties() -> None:
 
 
 def test_data_space_coerces_numeric_values_to_ints() -> None:
+    """Coerce numeric string values to integer dimensions."""
     space = DataSpace(channels="2", name="sic", shape=("8", "12"))  # type: ignore[arg-type]
 
     assert space.channels == 2
@@ -21,6 +23,7 @@ def test_data_space_coerces_numeric_values_to_ints() -> None:
 
 
 def test_data_space_round_trip_from_dictconfig() -> None:
+    """Round-trip DataSpace values through DictConfig."""
     config = DictConfig({"channels": 4, "name": "weather", "shape": [32, 48]})
 
     space = DataSpace.from_dict(config)
@@ -33,6 +36,7 @@ def test_data_space_round_trip_from_dictconfig() -> None:
 
 
 def test_plot_spec_dict_override_preserves_other_values() -> None:
+    """Apply dict overrides without changing unspecified PlotSpec values."""
     spec = PlotSpec(variable="sic", colourmap="viridis", video_fps=2)
 
     result = spec + {"colourmap": "magma", "video_fps": 5}
@@ -44,6 +48,7 @@ def test_plot_spec_dict_override_preserves_other_values() -> None:
 
 
 def test_plot_spec_accepts_dictconfig_override() -> None:
+    """Apply PlotSpec overrides supplied as DictConfig."""
     spec = PlotSpec(variable="sic")
     override = DictConfig(
         {
@@ -60,6 +65,7 @@ def test_plot_spec_accepts_dictconfig_override() -> None:
 
 
 def test_plot_spec_default_styles_are_not_shared() -> None:
+    """Keep default per-variable style dictionaries independent."""
     first = PlotSpec()
     second = PlotSpec()
 
@@ -69,6 +75,7 @@ def test_plot_spec_default_styles_are_not_shared() -> None:
 
 
 def test_plot_spec_add_none_returns_same_spec() -> None:
+    """Return the same PlotSpec when merging with None."""
     spec = PlotSpec(variable="sic")
 
     assert spec + None is spec
