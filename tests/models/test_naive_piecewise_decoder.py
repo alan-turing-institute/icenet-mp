@@ -54,10 +54,57 @@ def test_naive_piecewise_decoder_requires_target_layout_metadata() -> None:
         )
 
 
-def test_naive_piecewise_model_config_disables_encoder_and_decoder_convolutions() -> None:
+def test_naive_piecewise_decoder_requires_one_index_per_output_channel() -> None:
+    """Reject target layouts that select the wrong number of output variables."""
+    with pytest.raises(ValueError, match="Expected 1 target variable indices"):
+        PiecewiseDecoder(
+            data_space_in=DataSpace(name="combined", channels=90, shape=(4, 4)),
+            data_space_out=DataSpace(name="sic", channels=1, shape=(8, 8)),
+            target_channel_offset=10,
+            target_group_channels=3,
+            target_variable_indices=[0, 1],
+            conv_subblocks_initial=0,
+            conv_subblocks_final=0,
+            use_final_normalisation=False,
+        )
+
+
+def test_naive_piecewise_decoder_rejects_invalid_target_variable_index() -> None:
+    """Require selected variables to exist inside the target input group."""
+    with pytest.raises(ValueError, match="must refer to channels in the target input group"):
+        PiecewiseDecoder(
+            data_space_in=DataSpace(name="combined", channels=90, shape=(4, 4)),
+            data_space_out=DataSpace(name="sic", channels=1, shape=(8, 8)),
+            target_channel_offset=10,
+            target_group_channels=3,
+            target_variable_indices=[3],
+            conv_subblocks_initial=0,
+            conv_subblocks_final=0,
+            use_final_normalisation=False,
+        )
+
+
+def test_naive_piecewise_decoder_rejects_out_of_bounds_target_layout() -> None:
+    """Reject target patch layouts that extend beyond the combined latent channels."""
+    with pytest.raises(ValueError, match="exceeds combined latent channels"):
+        PiecewiseDecoder(
+            data_space_in=DataSpace(name="combined", channels=90, shape=(4, 4)),
+            data_space_out=DataSpace(name="sic", channels=1, shape=(8, 8)),
+            target_channel_offset=20,
+            target_group_channels=3,
+            target_variable_indices=[1],
+            conv_subblocks_initial=0,
+            conv_subblocks_final=0,
+            use_final_normalisation=False,
+        )
+
+
+def test_naive_piecewise_model_config_disables_encoder_and_decoder_convolutions() -> (
+    None
+):
     """Disable learned convolutions in every piecewise encoder and the decoder."""
-    config_path = files("icenet_mp.config") / "model" / (
-        "piecewise_unet_piecewise_naive.yaml"
+    config_path = (
+        files("icenet_mp.config") / "model" / ("piecewise_unet_piecewise_naive.yaml")
     )
     config = yaml.safe_load(config_path.read_text())
 
