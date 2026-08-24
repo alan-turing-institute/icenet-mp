@@ -92,9 +92,7 @@ def test_unknown_input_group_is_rejected(
     cfg_common_data_module: DictConfig,
 ) -> None:
     """Reject selections for group names that are absent from configured datasets."""
-    cfg_common_data_module["inputs"] = {
-        "missing-group": {"variables": ["ice_conc"]}
-    }
+    cfg_common_data_module["inputs"] = {"missing-group": {"variables": ["ice_conc"]}}
 
     with pytest.raises(ValueError, match="missing-group"):
         CommonDataModule(cfg_common_data_module)
