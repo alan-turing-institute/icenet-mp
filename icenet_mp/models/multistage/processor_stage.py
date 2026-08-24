@@ -36,6 +36,8 @@ class ProcessorStage(EncodeProcessDecode):
         # encoders, processor and decoder. This relies on the assumption that nothing
         # else is done during initialisation aside from creating these modules.
         BaseModel.__init__(self, **kwargs)
+        self.use_motion_channels = False
+        self.use_day_order_channels = False
 
         # Copy encoders from DecoderStage, freeze their parameters and register them.
         self.encoder_names = decoder_model.encoder_names

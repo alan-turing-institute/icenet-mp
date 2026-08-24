@@ -27,7 +27,7 @@ model:
   # The synthetic field is a single moving circle with a well-defined centre, so the
   # value-weighted centroid distance is a meaningful summary here (unlike on real
   # multi-region sea ice, where it is off by default).
-  use_centroid_metric: true
+  metrics: [accuracy, mae, rmse, sieerror, centroid_error]
 
 random:
   seed: 1234

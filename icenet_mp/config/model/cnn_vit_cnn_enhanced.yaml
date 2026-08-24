@@ -45,11 +45,6 @@ use_motion_channels: true
 # day-order cue.
 use_day_order_channels: true
 
-# Both default off here so this config's behaviour is unchanged; enabled together in
-# baseline/03c_cnn_vit_cnn_residual (see next_steps.md for the motivating analysis).
-# use_skip_connection: concatenate the most recent encoded history frame onto the
-# processor output so fine boundary detail bypasses the ViT patch bottleneck.
-use_skip_connection: false
-# use_residual_output: decode a *delta* added onto the last observed target frame
-# (persistence base), clamped to [0, 1]. Pair with decoder.restrict_range: none.
-use_residual_output: false
+# decoder.skip_connection is off here (the default) so this config's behaviour is
+# unchanged; enabled in baseline/03c_cnn_vit_cnn_residual (see next_steps.md for the
+# motivating analysis).

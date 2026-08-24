@@ -10,7 +10,7 @@ defaults:
 # only architectural difference vs 03c is the processor (UNet with internal
 # multi-scale skips instead of the patchified ViT). Optimizer settings match
 # baseline/01_unet's tuned values, which are also what 03b/03c use.
-# Ablate individual enhancements from the CLI, e.g. `model.use_residual_output=false
+# Ablate individual enhancements from the CLI, e.g. `model.decoder.skip_connection.method=none
 # model.decoder.restrict_range=sigmoid`.
 train:
   optimizer:

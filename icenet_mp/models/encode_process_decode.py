@@ -21,7 +21,7 @@ class EncodeProcessDecode(BaseModel):
     # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
     ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
 
-    def __init__(
+    def __init__(  # noqa: C901, PLR0913
         self,
         *,
         encoders: DictConfig,
@@ -56,6 +56,7 @@ class EncodeProcessDecode(BaseModel):
                 expected input channel count.
             target_variable_indices: Channel indices of the target variables within
                 the target group's input tensor.
+            kwargs: Forwarded to `BaseModel.__init__`.
 
         """
         super().__init__(**kwargs)

@@ -16,7 +16,7 @@ class BaseProcessor(nn.Module):
         TensorNTCHW with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         computes_loss_in_latent_space: bool = False,
@@ -30,6 +30,10 @@ class BaseProcessor(nn.Module):
         """Initialise a BaseProcessor.
 
         Args:
+            computes_loss_in_latent_space: If True, this processor computes its own
+                training loss directly in latent space (e.g. a diffusion loss), so the
+                caller skips decoding to output space for the loss and instead freezes
+                the unused decoder; if False, the target encoder is frozen instead.
             data_space: The latent input space.
             data_space_target: The latent target space (defaults to `data_space`).
             n_forecast_steps: Number of forecast steps to roll out.
