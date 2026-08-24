@@ -169,10 +169,17 @@ class FractionalSkillScorePerForecastDay(Metric):
             self.count += batch_count
 
     def compute(self) -> torch.Tensor:
-        """Compute the final FSS per lead time."""
+        """Compute the final FSS per lead time.
+
+        Undefined (NaN) for lead times where neither field has any ice edge at all
+        (mean_mse_ref == 0), consistent with
+        `icenet_mp.metrics.extent_metrics.DistanceAveragedIceEdgeErrorPerForecastDay`.
+        """
         if self.count.numel() == 0:
             return torch.tensor([], dtype=torch.float32, device=self.sum_mse.device)
 
         mean_mse = self.sum_mse / self.count
         mean_mse_ref = self.sum_mse_ref / self.count
-        return 1 - mean_mse / mean_mse_ref
+        safe_mse_ref = mean_mse_ref.clamp(min=1e-8)
+        fss = 1 - mean_mse / safe_mse_ref
+        return torch.where(mean_mse_ref > 0, fss, torch.full_like(fss, float("nan")))
