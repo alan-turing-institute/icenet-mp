@@ -108,7 +108,9 @@ class Plotter:
                     variable_name=variable_name,
                 )
                 uncertainty = (
-                    uncertainties.get(idx_channel) if uncertainties is not None else None
+                    uncertainties.get(idx_channel)
+                    if uncertainties is not None
+                    else None
                 )
                 if uncertainty is not None:
                     images.update(

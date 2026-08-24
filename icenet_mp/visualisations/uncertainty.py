@@ -18,6 +18,8 @@ from .layout import (
 )
 from .plotting_core import colourmap_with_bad, create_normalisation
 
+_SPATIAL_NDIM = 2
+
 
 def compute_standardised_difference(
     ground_truth: ArrayHW,
@@ -43,7 +45,7 @@ def compute_standardised_difference(
 
     """
     arrays = (ground_truth, prediction, uncertainty)
-    if any(array.ndim != 2 for array in arrays):
+    if any(array.ndim != _SPATIAL_NDIM for array in arrays):
         shapes = tuple(array.shape for array in arrays)
         msg = f"Expected 2D ground truth, prediction and uncertainty arrays, got {shapes}."
         raise InvalidArrayError(msg)
@@ -65,7 +67,7 @@ def compute_standardised_difference(
     return result
 
 
-def plot_static_uncertainty(
+def plot_static_uncertainty(  # noqa: PLR0913
     ground_truth: ArrayHW,
     prediction: ArrayHW,
     uncertainty: ArrayHW,
