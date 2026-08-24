@@ -25,10 +25,8 @@ class CommonDataModule(LightningDataModule):
         """
         super().__init__()
 
-        # Load paths
         self.base_path = Path(config["base_path"])
 
-        # Construct dataset groups
         self.dataset_groups = defaultdict(list)
         for dataset in config["data"]["datasets"].values():
             self.dataset_groups[dataset["group_as"]].append(
@@ -42,7 +40,6 @@ class CommonDataModule(LightningDataModule):
             for path in paths:
                 logger.info("%s - %s", " " * (len(str(idx)) + 1), path)
 
-        # Check prediction target
         self.target_group_name = config["predict"]["target"]["group_name"]
         if self.target_group_name not in self.dataset_groups:
             available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
@@ -57,7 +54,6 @@ class CommonDataModule(LightningDataModule):
             "variables", []
         )
 
-        # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
         self.predict_periods = [
             {str(k): None if v is None else str(v) for k, v in period.items()}
@@ -76,18 +72,20 @@ class CommonDataModule(LightningDataModule):
             for period in config["data"]["split"]["validate"]
         ]
 
-        # Set history and forecast steps
         self.n_forecast_steps = int(config["predict"].get("n_forecast_steps", 1))
         self.n_history_steps = int(config["predict"].get("n_history_steps", 1))
+        self.step_stride = int(config["predict"].get("step_stride", 1))
+        if self.step_stride < 1:
+            msg = f"predict.step_stride must be at least 1, got {self.step_stride}."
+            raise ValueError(msg)
 
-        # Set common arguments for the dataloader
         self._common_dataloader_kwargs = DataloaderArgs(
             batch_sampler=None,
             batch_size=self.batch_size,
             drop_last=False,
             num_workers=0,
             persistent_workers=False,
-            prefetch_factor=None,  # must be None when num_workers=0
+            prefetch_factor=None,
             sampler=None,
             worker_init_fn=None,
         )
@@ -187,19 +185,26 @@ class CommonDataModule(LightningDataModule):
         self._common_dataloader_kwargs["persistent_workers"] = n_workers > 0
         self._common_dataloader_kwargs["prefetch_factor"] = 1 if n_workers > 0 else None
 
-    def predict_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def _combined_dataset(
+        self, datasets: list[SingleDataset]
+    ) -> CombinedDataset:
+        """Construct a combined dataset with the configured temporal spacing."""
+        return CombinedDataset(
+            datasets,
+            n_forecast_steps=self.n_forecast_steps,
+            n_history_steps=self.n_history_steps,
+            step_stride=self.step_stride,
+            target_group_name=self.target_group_name,
+            target_variables=self.target_variables,
+        )
+
+    def predict_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct predict dataloader."""
-        dataset = CombinedDataset(
+        dataset = self._combined_dataset(
             [
                 ds.subset(date_ranges=self.predict_periods)
                 for ds in self.datasets.values()
-            ],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
+            ]
         )
         logger.info(
             "Loaded predict dataset with %d dates between %s and %s.",
@@ -209,16 +214,10 @@ class CommonDataModule(LightningDataModule):
         )
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
-    def test_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def test_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct test dataloader."""
-        dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
+        dataset = self._combined_dataset(
+            [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()]
         )
         logger.info(
             "Loaded test dataset with %d dates between %s and %s.",
@@ -228,19 +227,13 @@ class CommonDataModule(LightningDataModule):
         )
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
-    def train_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def train_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct train dataloader."""
-        dataset = CombinedDataset(
+        dataset = self._combined_dataset(
             [
                 ds.subset(date_ranges=self.train_periods)
                 for ds in self.datasets.values()
-            ],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
+            ]
         )
         logger.info(
             "Loaded training dataset with %d dates between %s and %s.",
@@ -250,16 +243,10 @@ class CommonDataModule(LightningDataModule):
         )
         return DataLoader(dataset, shuffle=True, **self._common_dataloader_kwargs)
 
-    def val_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def val_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct validation dataloader."""
-        dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
+        dataset = self._combined_dataset(
+            [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()]
         )
         logger.info(
             "Loaded validation dataset with %d dates between %s and %s.",
