@@ -6,13 +6,12 @@ from icenet_mp.models.common import LatentFusion
 
 
 def test_encode_process_decode_uses_attention_fusion() -> None:
+    """Use attention fusion in the end-to-end model path."""
     input_spaces = [
         DictConfig({"channels": 2, "name": "input-a", "shape": (16, 16)}),
         DictConfig({"channels": 3, "name": "target", "shape": (16, 16)}),
     ]
-    output_space = DictConfig(
-        {"channels": 1, "name": "target", "shape": (16, 16)}
-    )
+    output_space = DictConfig({"channels": 1, "name": "target", "shape": (16, 16)})
     encoders = DictConfig(
         {
             "latent_space": (16, 16),
@@ -35,9 +34,7 @@ def test_encode_process_decode_uses_attention_fusion() -> None:
         name="attention-fusion-test",
         encoders=encoders,
         fusion=fusion,
-        processor=DictConfig(
-            {"_target_": "icenet_mp.models.processors.NullProcessor"}
-        ),
+        processor=DictConfig({"_target_": "icenet_mp.models.processors.NullProcessor"}),
         decoder=DictConfig(
             {"_target_": "icenet_mp.models.decoders.NaiveLinearDecoder"}
         ),
