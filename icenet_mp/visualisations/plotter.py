@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from typing import Any
 
 import numpy as np
 from omegaconf import DictConfig
@@ -44,7 +43,7 @@ class Plotter:
 
     @staticmethod
     def _log_images(
-        images: dict[str, list[Any]], image_loggers: list[Any], log_path: str
+        images: dict[str, list], image_loggers: list, log_path: str
     ) -> None:
         """Send rendered image groups to every configured image logger."""
         for image_name, image_list in images.items():
@@ -54,7 +53,7 @@ class Plotter:
                 )
 
     def _log_videos(
-        self, videos: dict[str, Any], video_loggers: list[Any], log_path: str
+        self, videos: dict, video_loggers: list, log_path: str
     ) -> None:
         """Rewind and send rendered videos to every configured video logger."""
         for video_logger in video_loggers:
