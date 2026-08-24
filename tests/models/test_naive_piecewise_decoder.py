@@ -1,5 +1,6 @@
 from importlib.resources import files
 
+import pytest
 import torch
 import yaml
 
@@ -22,6 +23,7 @@ def _make_decoder() -> PiecewiseDecoder:
 
 
 def test_naive_piecewise_decoder_selects_target_variable_from_each_patch() -> None:
+    """Select the requested target variable from every target-group patch."""
     decoder = _make_decoder()
 
     assert decoder.input_channel_indices == tuple(
@@ -30,6 +32,7 @@ def test_naive_piecewise_decoder_selects_target_variable_from_each_patch() -> No
 
 
 def test_naive_piecewise_decoder_has_no_convolutions_and_returns_output_shape() -> None:
+    """Decode target patches without introducing learned convolutions."""
     decoder = _make_decoder()
     x = torch.randn(2, 90, 4, 4)
 
@@ -40,7 +43,8 @@ def test_naive_piecewise_decoder_has_no_convolutions_and_returns_output_shape() 
 
 
 def test_naive_piecewise_decoder_requires_target_layout_metadata() -> None:
-    try:
+    """Require target layout metadata for multimodal convolution-free decoding."""
+    with pytest.raises(ValueError, match="target latent-channel metadata"):
         PiecewiseDecoder(
             data_space_in=DataSpace(name="combined", channels=90, shape=(4, 4)),
             data_space_out=DataSpace(name="sic", channels=1, shape=(8, 8)),
@@ -48,13 +52,10 @@ def test_naive_piecewise_decoder_requires_target_layout_metadata() -> None:
             conv_subblocks_final=0,
             use_final_normalisation=False,
         )
-    except ValueError as exc:
-        assert "target latent-channel metadata" in str(exc)
-    else:
-        raise AssertionError("Expected target-layout validation to fail")
 
 
 def test_naive_piecewise_model_config_disables_encoder_and_decoder_convolutions() -> None:
+    """Disable learned convolutions in every piecewise encoder and the decoder."""
     config_path = files("icenet_mp.config") / "model" / (
         "piecewise_unet_piecewise_naive.yaml"
     )
