@@ -97,7 +97,7 @@ every pixel independently.
 disrupts the local variance/covariance structure SSIM measures even though it
 averages out to a small mean error. It broadly agrees with most metrics that `persistence`
 and `shifted edge` are worst overall (both systematically wrong at every scale), but
-the disagrees sharply on `noisy`, which most metrics rate as one of the *best* scenarios.
+disagrees sharply on `noisy`, which most metrics rate as one of the *best* scenarios.
 
 ### Centroid Error
 
