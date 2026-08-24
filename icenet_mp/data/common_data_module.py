@@ -42,6 +42,21 @@ class CommonDataModule(LightningDataModule):
             for path in paths:
                 logger.info("%s - %s", " " * (len(str(idx)) + 1), path)
 
+        # Load optional per-input-group variable selection.
+        self._input_variables: dict[str, list[str]] = {}
+        for group_name, input_config in (config.get("inputs", {}) or {}).items():
+            group_name = str(group_name)
+            if group_name not in self.dataset_groups:
+                available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
+                msg = (
+                    f"Input group {group_name!r} was not found in the configured "
+                    f"datasets. Available groups: {available_groups}."
+                )
+                raise ValueError(msg)
+            variables = [str(variable) for variable in input_config.get("variables", [])]
+            if variables:
+                self._input_variables[group_name] = variables
+
         # Check prediction target
         self.target_group_name = config["predict"]["target"]["group_name"]
         if self.target_group_name not in self.dataset_groups:
@@ -94,11 +109,33 @@ class CommonDataModule(LightningDataModule):
 
     @cached_property
     def datasets(self) -> dict[str, SingleDataset]:
-        """Return a dictionary of dataset group names to SingleDataset objects."""
+        """Return unfiltered dataset groups used for targets and metadata."""
         return {
             name: SingleDataset(name, paths)
             for name, paths in self.dataset_groups.items()
         }
+
+    @cached_property
+    def input_datasets(self) -> dict[str, SingleDataset]:
+        """Return input datasets after optional per-group variable selection."""
+        selected: dict[str, SingleDataset] = {}
+        for name, dataset in self.datasets.items():
+            variables = self._input_variables.get(name)
+            if not variables:
+                selected[name] = dataset
+                continue
+
+            missing = [
+                variable for variable in variables if variable not in dataset.variable_names
+            ]
+            if missing:
+                msg = (
+                    f"Input group {name!r} requested unknown variable(s) {missing}; "
+                    f"available variables: {dataset.variable_names}."
+                )
+                raise ValueError(msg)
+            selected[name] = dataset.subset(variables=variables)
+        return selected
 
     @cached_property
     def hemisphere(self) -> Hemisphere:
@@ -111,8 +148,8 @@ class CommonDataModule(LightningDataModule):
 
     @cached_property
     def input_spaces(self) -> list[DataSpace]:
-        """Return the data space for each input."""
-        return [ds.space for ds in self.datasets.values()]
+        """Return the data space for each selected model input."""
+        return [ds.space for ds in self.input_datasets.values()]
 
     @cached_property
     def latitudes(self) -> dict[str, list[float]]:
@@ -169,15 +206,27 @@ class CommonDataModule(LightningDataModule):
 
     @cached_property
     def target_variable_indices(self) -> list[int]:
-        """Return the indices of the variables to predict."""
-        return [
-            self.variable_names[self.target_group_name].index(variable)
-            for variable in self.target_variables
+        """Return target-variable indices within the selected target input channels."""
+        input_names = self.input_variable_names[self.target_group_name]
+        missing = [
+            variable for variable in self.target_variables if variable not in input_names
         ]
+        if missing:
+            msg = (
+                f"Prediction target variable(s) {missing} are not present in the "
+                f"selected input channels for {self.target_group_name!r}: {input_names}."
+            )
+            raise ValueError(msg)
+        return [input_names.index(variable) for variable in self.target_variables]
+
+    @cached_property
+    def input_variable_names(self) -> dict[str, list[str]]:
+        """Return variable names after applying per-input-group selection."""
+        return {ds.name: ds.variable_names for ds in self.input_datasets.values()}
 
     @cached_property
     def variable_names(self) -> dict[str, list[str]]:
-        """Return the variable names for each input."""
+        """Return all underlying variable names before input selection."""
         return {ds.name: ds.variable_names for ds in self.datasets.values()}
 
     def assign_workers(self, n_workers: int) -> None:
@@ -194,7 +243,7 @@ class CommonDataModule(LightningDataModule):
         dataset = CombinedDataset(
             [
                 ds.subset(date_ranges=self.predict_periods)
-                for ds in self.datasets.values()
+                for ds in self.input_datasets.values()
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
@@ -214,7 +263,10 @@ class CommonDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct test dataloader."""
         dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
+            [
+                ds.subset(date_ranges=self.test_periods)
+                for ds in self.input_datasets.values()
+            ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
@@ -235,7 +287,7 @@ class CommonDataModule(LightningDataModule):
         dataset = CombinedDataset(
             [
                 ds.subset(date_ranges=self.train_periods)
-                for ds in self.datasets.values()
+                for ds in self.input_datasets.values()
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
@@ -255,7 +307,10 @@ class CommonDataModule(LightningDataModule):
     ) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct validation dataloader."""
         dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
+            [
+                ds.subset(date_ranges=self.val_periods)
+                for ds in self.input_datasets.values()
+            ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
