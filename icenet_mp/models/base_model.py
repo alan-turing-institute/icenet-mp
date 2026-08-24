@@ -56,6 +56,7 @@ class BaseModel(LightningModule, ABC):
         loss: DictConfig,
         mask_dir: str | Path | None = None,
         metrics: list[str] | None = None,
+        fss_neighborhood_sizes: list[int] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -78,7 +79,12 @@ class BaseModel(LightningModule, ABC):
 
         The ``metrics`` parameter controls which metrics are computed during training,
         validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
-        "iiee", "diiee", "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``.
+        "iiee", "diiee", "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``, where
+        the ``"fss_*"`` entries are named after ``fss_neighborhood_sizes`` (see below).
+
+        ``fss_neighborhood_sizes``, if given, replaces the default FSS neighbourhood
+        sizes of ``[1, 5, 15]``. Each size ``n`` becomes a ``"fss_n"`` entry available
+        to (and, unless overridden, included in) ``metrics``.
         """
         super().__init__()
 
@@ -117,6 +123,17 @@ class BaseModel(LightningModule, ABC):
             ).mask.bool()
 
         # Metrics
+        fss_sizes = (
+            fss_neighborhood_sizes if fss_neighborhood_sizes is not None else [1, 5, 15]
+        )
+        fss_metric_classes: dict[str, Callable[[], Metric]] = {
+            f"fss_{n}": partial(
+                FractionalSkillScorePerForecastDay,
+                neighborhood_size=n,
+                land_mask=land_mask,
+            )
+            for n in fss_sizes
+        }
         _metric_classes: dict[str, Callable[[], Metric]] = {
             "accuracy": partial(IceNetAccuracyPerForecastDay, land_mask=land_mask),
             "mae": partial(MAEPerForecastDay, land_mask=land_mask),
@@ -127,21 +144,7 @@ class BaseModel(LightningModule, ABC):
                 DistanceAveragedIceEdgeErrorPerForecastDay, land_mask=land_mask
             ),
             "centroid_error": partial(CentroidErrorPerForecastDay, land_mask=land_mask),
-            "fss_1": partial(
-                FractionalSkillScorePerForecastDay,
-                neighborhood_size=1,
-                land_mask=land_mask,
-            ),
-            "fss_5": partial(
-                FractionalSkillScorePerForecastDay,
-                neighborhood_size=5,
-                land_mask=land_mask,
-            ),
-            "fss_15": partial(
-                FractionalSkillScorePerForecastDay,
-                neighborhood_size=15,
-                land_mask=land_mask,
-            ),
+            **fss_metric_classes,
             "ssim": partial(SSIMPerForecastDay, land_mask=land_mask),
         }
         metric_names = (
@@ -155,9 +158,7 @@ class BaseModel(LightningModule, ABC):
                 "iiee",
                 "diiee",
                 "centroid_error",
-                "fss_1",
-                "fss_5",
-                "fss_15",
+                *fss_metric_classes,
                 "ssim",
             ]
         )
