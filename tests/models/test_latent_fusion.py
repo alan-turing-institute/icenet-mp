@@ -40,8 +40,8 @@ class TestLatentFusion:
         assert first_head.bias is not None
         assert second_head.bias is not None
         with torch.no_grad():
-            first_head.bias.fill_(2.0)
-            second_head.bias.fill_(-2.0)
+            torch.nn.init.constant_(first_head.bias, 2.0)
+            torch.nn.init.constant_(second_head.bias, -2.0)
 
         weights = fusion.attention_weights(inputs)
         result = fusion(inputs)
@@ -53,11 +53,7 @@ class TestLatentFusion:
         )
         torch.testing.assert_close(
             result[:, :, :4],
-            inputs[0]
-            * weights[..., 0]
-            .unsqueeze(-1)
-            .unsqueeze(-1)
-            .unsqueeze(-1),
+            inputs[0] * weights[..., 0].unsqueeze(-1).unsqueeze(-1).unsqueeze(-1),
         )
 
     def test_attention_parameters_receive_gradients(self) -> None:
