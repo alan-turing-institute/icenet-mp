@@ -16,6 +16,7 @@ from icenet_mp.types import (
 
 
 def test_anemoi_dataset_status_is_tuple_compatible() -> None:
+    """Preserve tuple compatibility for Anemoi dataset status values."""
     status = AnemoiDatasetStatus(
         copy_in_progress=False,
         download_complete=True,
@@ -27,6 +28,7 @@ def test_anemoi_dataset_status_is_tuple_compatible() -> None:
 
 
 def test_anemoi_command_args_keep_expected_defaults() -> None:
+    """Keep expected defaults across Anemoi command argument dataclasses."""
     recipe = MagicMock()
 
     cleanup = AnemoiCleanupArgs(path="dataset.zarr")
@@ -46,6 +48,7 @@ def test_anemoi_command_args_keep_expected_defaults() -> None:
 
 
 def test_diff_colourmap_spec_preserves_normalisation_and_bounds() -> None:
+    """Preserve normalisation, bounds and colourmap configuration."""
     norm = Normalize(vmin=-1.0, vmax=1.0)
 
     spec = DiffColourmapSpec(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
@@ -57,6 +60,7 @@ def test_diff_colourmap_spec_preserves_normalisation_and_bounds() -> None:
 
 
 def test_metadata_defaults_are_independent_and_optional() -> None:
+    """Keep Metadata defaults optional and independent across instances."""
     first = Metadata()
     second = Metadata()
 
@@ -68,6 +72,7 @@ def test_metadata_defaults_are_independent_and_optional() -> None:
 
 
 def test_metadata_accepts_training_summary_fields() -> None:
+    """Accept and preserve training-summary metadata fields."""
     metadata = Metadata(
         model="cnn-vit-cnn",
         max_epochs=20,
@@ -87,6 +92,7 @@ def test_metadata_accepts_training_summary_fields() -> None:
 
 
 def test_processor_output_defaults_loss_to_none() -> None:
+    """Default ProcessorOutput loss to None when omitted."""
     prediction = torch.randn(2, 3, 4, 5, 6)
 
     output = ProcessorOutput(prediction=prediction)
@@ -96,6 +102,7 @@ def test_processor_output_defaults_loss_to_none() -> None:
 
 
 def test_processor_output_keeps_custom_loss_tensor() -> None:
+    """Preserve an explicitly supplied ProcessorOutput loss tensor."""
     prediction = torch.randn(1, 2, 3, 4, 5)
     loss = torch.tensor(0.25)
 
