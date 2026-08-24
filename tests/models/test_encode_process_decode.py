@@ -8,7 +8,7 @@ from icenet_mp.models import EncodeProcessDecode
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
 @pytest.mark.parametrize("test_n_history_steps", [1, 2, 5])
 class TestEncodeProcessDecode:
-    def test_init(  # noqa: PLR0917
+    def test_init(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -46,7 +46,7 @@ class TestEncodeProcessDecode:
         assert model.output_space.shape == cfg_output_space["shape"]
 
     @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
-    def test_forward(  # noqa: PLR0917
+    def test_forward(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -99,7 +99,7 @@ class TestEncodeProcessDecode:
             cfg_output_space["shape"][1],
         )
 
-    def test_processor_default_does_not_require_multistage(  # noqa: PLR0917
+    def test_processor_default_does_not_require_multistage(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -123,11 +123,12 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             target_variable_indices=[0],
         )
         assert model.multistage_only is False
 
-    def test_processor_with_custom_loss_multistage_only(  # noqa: PLR0917
+    def test_processor_with_custom_loss_multistage_only(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
