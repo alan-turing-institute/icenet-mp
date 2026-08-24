@@ -37,6 +37,8 @@ class TestLatentFusion:
         inputs = _inputs()[:2]
         fusion = LatentFusion([4, 2], mode="attention", temperature=0.5)
         first_head, second_head = fusion.score_heads
+        assert isinstance(first_head, torch.nn.Linear)
+        assert isinstance(second_head, torch.nn.Linear)
         assert first_head.bias is not None
         assert second_head.bias is not None
         with torch.no_grad():
