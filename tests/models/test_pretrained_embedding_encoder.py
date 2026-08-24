@@ -69,6 +69,16 @@ def test_pretrained_embedding_encoder_rollout_preserves_time_dimension() -> None
     assert output.shape == (2, 5, 3, 8, 8)
 
 
+def test_pretrained_embedding_encoder_rejects_nonpositive_output_channels() -> None:
+    """Reject invalid output channel counts before constructing the adapter."""
+    with pytest.raises(ValueError, match="output_channels must be greater than 0"):
+        PretrainedEmbeddingEncoder(
+            data_space_in=_space(),
+            latent_space=(8, 8),
+            output_channels=0,
+        )
+
+
 def test_pretrained_embedding_encoder_rejects_unknown_interpolation_mode() -> None:
     """Reject unsupported spatial interpolation modes during construction."""
     with pytest.raises(ValueError, match="Unsupported interpolation_mode"):
