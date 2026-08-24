@@ -48,9 +48,14 @@ class CentroidErrorPerForecastDay(BaseErrorMetricDaily):
         target_values = target.clamp(min=0)
         land_mask = getattr(self, "land_mask", None)
         if land_mask is not None:
-            mask = land_mask.to(dtype=preds_values.dtype)
-            preds_values = preds_values * mask
-            target_values = target_values * mask
+            # `torch.where`, not `* land_mask`: multiplying can't zero out a NaN
+            # (0 * NaN = NaN), which would otherwise poison the whole centroid.
+            preds_values = torch.where(
+                land_mask, preds_values, torch.zeros_like(preds_values)
+            )
+            target_values = torch.where(
+                land_mask, target_values, torch.zeros_like(target_values)
+            )
 
         pred_centroids, _ = self._centroids(preds_values)
         target_centroids, target_mass = self._centroids(target_values)

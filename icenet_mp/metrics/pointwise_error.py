@@ -106,7 +106,10 @@ class BaseErrorMetricDaily(_BaseErrorMetricDaily):
         errors = self._compute_errors(preds, targets)
         land_mask = getattr(self, "land_mask", None)
         if land_mask is not None:
-            errors = errors * land_mask.to(dtype=errors.dtype)
+            # `torch.where`, not `errors * land_mask`: multiplying can't zero out a
+            # NaN (0 * NaN = NaN), which would otherwise poison the whole lead-time's
+            # sum for one bad land pixel.
+            errors = torch.where(land_mask, errors, torch.zeros_like(errors))
             active_spatial = n_channels * int(land_mask.sum())
         else:
             active_spatial = num_spatial
