@@ -55,12 +55,6 @@ def mask_dir(base_path: Path, dataset_name: str) -> Path:
     return base_path / "data" / "preprocessing" / "masks" / dataset_name
 
 
-def normalise_date(np_datetime: np.datetime64) -> np.datetime64:
-    """Normalise a datetime to noon."""
-    dt: datetime = np_datetime.astype("datetime64[ms]").astype(datetime)
-    return np.datetime64(dt.replace(hour=12, minute=0, second=0, microsecond=0))
-
-
 def npdatetime_from_datetime(dt: datetime) -> np.datetime64:
     """Convert an aware or naive datetime to numpy datetime64, dropping tzinfo."""
     return np.datetime64(dt.replace(tzinfo=None))

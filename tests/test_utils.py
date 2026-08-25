@@ -17,7 +17,6 @@ from icenet_mp.utils import (
     get_timestamp,
     get_wandb_run,
     mask_dir,
-    normalise_date,
     to_list,
 )
 
@@ -123,14 +122,6 @@ class TestGetWandbRun:
         trainer.loggers = [wandb_logger]
 
         assert get_wandb_run(trainer) is None
-
-
-class TestNormaliseDate:
-    def test_sets_time_to_noon(self) -> None:
-        """Normalize dates to noon while preserving the calendar date."""
-        result = normalise_date(np.datetime64("2026-08-21T03:14:15.926"))
-
-        assert result == np.datetime64("2026-08-21T12:00:00.000")
 
 
 class TestToList:
