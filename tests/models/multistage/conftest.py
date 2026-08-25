@@ -13,6 +13,7 @@ def encoder_stage(
     cfg_output_space: DictConfig,
     cfg_optimizer: DictConfig,
     cfg_scheduler: DictConfig,
+    cfg_lr_scheduler: DictConfig,
     cfg_loss: DictConfig,
     cfg_decoder: DictConfig,
 ) -> EncoderStage:
@@ -31,6 +32,7 @@ def encoder_stage(
         optimizer=cfg_optimizer,
         output_space=cfg_output_space,
         scheduler=cfg_scheduler,
+        lr_scheduler=cfg_lr_scheduler,
         loss=cfg_loss,
     )
 
@@ -44,6 +46,7 @@ def decoder_stage(
     cfg_output_space: DictConfig,
     cfg_optimizer: DictConfig,
     cfg_scheduler: DictConfig,
+    cfg_lr_scheduler: DictConfig,
     cfg_loss: DictConfig,
 ) -> DecoderStage:
     """A DecoderStage wrapping `encoder_stage`. Requires two history steps."""
@@ -60,5 +63,6 @@ def decoder_stage(
         optimizer=cfg_optimizer,
         output_space=cfg_output_space,
         scheduler=cfg_scheduler,
+        lr_scheduler=cfg_lr_scheduler,
         loss=cfg_loss,
     )
