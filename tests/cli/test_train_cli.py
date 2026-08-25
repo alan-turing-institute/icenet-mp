@@ -69,3 +69,77 @@ class TestTrainCLI:
 
         assert result.exit_code == 0, result.output
         assert service.calls == [(checkpoint_dir.resolve(), True)]
+
+    def test_multistage_without_checkpoint_dir_passes_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        service = FakeModelService()
+
+        def fake_from_config(_config: DictConfig) -> FakeModelService:
+            return service
+
+        monkeypatch.setattr(ModelService, "from_config", fake_from_config)
+
+        result = CliRunner().invoke(
+            app,
+            ["train", "--config-name", "sample", "--multistage"],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        assert service.calls == [(None, True)]
+
+    def test_checkpoint_dir_without_multistage_still_resolves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Accept --checkpoint-dir alone; the command has no multistage-only gating."""
+        service = FakeModelService()
+
+        def fake_from_config(_config: DictConfig) -> FakeModelService:
+            return service
+
+        monkeypatch.setattr(ModelService, "from_config", fake_from_config)
+        checkpoint_dir = tmp_path / "checkpoints"
+
+        result = CliRunner().invoke(
+            app,
+            [
+                "train",
+                "--config-name",
+                "sample",
+                "--checkpoint-dir",
+                str(checkpoint_dir),
+            ],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        assert service.calls == [(checkpoint_dir.resolve(), False)]
+
+    def test_checkpoint_dir_resolves_a_relative_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A relative --checkpoint-dir is resolved against the current directory."""
+        service = FakeModelService()
+
+        def fake_from_config(_config: DictConfig) -> FakeModelService:
+            return service
+
+        monkeypatch.setattr(ModelService, "from_config", fake_from_config)
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(
+            app,
+            [
+                "train",
+                "--config-name",
+                "sample",
+                "--multistage",
+                "--checkpoint-dir",
+                "checkpoints",
+            ],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        assert service.calls == [((tmp_path / "checkpoints").resolve(), True)]
