@@ -11,16 +11,15 @@ from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.plotting_static import (
     CLIMATOLOGY_ICE_EDGE_COLOUR,
     ICE_EDGE_THRESHOLD,
-    PREDICTION_ICE_EDGE_COLOUR,
     _draw_climatology_ice_edge,
     plot_static_prediction,
 )
 
 
-def test_draw_climatology_ice_edge_uses_distinct_contours(
+def test_draw_climatology_ice_edge_uses_reference_contour(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Draw prediction and climatology ice edges with distinct contour styles."""
+    """Draw the climatology ice edge as the additional reference contour."""
     fig, ax = plt.subplots()
     contour = MagicMock()
     monkeypatch.setattr(ax, "contour", contour)
@@ -37,10 +36,8 @@ def test_draw_climatology_ice_edge_uses_distinct_contours(
     finally:
         plt.close(fig)
 
-    assert contour.call_count == 2
-    prediction_call, climatology_call = contour.call_args_list
-    assert prediction_call.kwargs["levels"] == [ICE_EDGE_THRESHOLD]
-    assert prediction_call.kwargs["colors"] == [PREDICTION_ICE_EDGE_COLOUR]
+    contour.assert_called_once()
+    climatology_call = contour.call_args
     assert climatology_call.kwargs["levels"] == [ICE_EDGE_THRESHOLD]
     assert climatology_call.kwargs["colors"] == [CLIMATOLOGY_ICE_EDGE_COLOUR]
 
