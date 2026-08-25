@@ -5,6 +5,7 @@ import torch
 import yaml
 
 from icenet_mp.models.decoders import PiecewiseDecoder
+from icenet_mp.models.encoders import PiecewiseEncoder
 from icenet_mp.types import DataSpace
 
 
@@ -29,6 +30,41 @@ def test_naive_piecewise_decoder_selects_target_variable_from_each_patch() -> No
     assert decoder.input_channel_indices == tuple(
         10 + patch_idx * 3 + 1 for patch_idx in range(25)
     )
+
+
+def test_naive_piecewise_round_trip_selects_target_variable() -> None:
+    """Recover the selected variable from a target encoder inside a combined latent."""
+    target_space = DataSpace(name="sic", channels=3, shape=(8, 8))
+    encoder = PiecewiseEncoder(
+        data_space_in=target_space,
+        latent_space=(4, 4),
+        conv_subblocks_initial=0,
+        conv_subblocks_final=0,
+    )
+    source = torch.arange(3 * 8 * 8, dtype=torch.float32).reshape(1, 3, 8, 8)
+    target_latent = encoder(source)
+
+    # Represent a preceding one-channel piecewise encoder: 25 patches precede the
+    # target group's 75 channels in the combined latent.
+    prefix = torch.zeros(1, 25, 4, 4)
+    combined_latent = torch.cat((prefix, target_latent), dim=1)
+    decoder = PiecewiseDecoder(
+        data_space_in=DataSpace(
+            name="combined", channels=combined_latent.shape[1], shape=(4, 4)
+        ),
+        data_space_out=DataSpace(name="sic", channels=1, shape=(8, 8)),
+        target_channel_offset=25,
+        target_group_channels=3,
+        target_variable_indices=[1],
+        conv_subblocks_initial=0,
+        conv_subblocks_final=0,
+        use_final_normalisation=False,
+        use_hann_window=False,
+    )
+
+    output = decoder(combined_latent)
+
+    torch.testing.assert_close(output, source[:, 1:2])
 
 
 def test_naive_piecewise_decoder_has_no_convolutions_and_returns_output_shape() -> None:
