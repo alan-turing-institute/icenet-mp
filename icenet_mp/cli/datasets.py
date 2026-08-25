@@ -84,18 +84,18 @@ def plot(
         if downloader.path_dataset.exists():
             n_saved = (
                 plot_variables_video(
-                    downloader.name,
-                    downloader.path_dataset,
-                    timestep,
-                    n_steps,
                     base_path=base_path,
+                    dataset_name=downloader.name,
+                    dataset_path=downloader.path_dataset,
+                    n_steps=n_steps,
+                    timestep=timestep,
                 )
                 if video
                 else plot_variables_static(
-                    downloader.name,
-                    downloader.path_dataset,
-                    timestep,
                     base_path=base_path,
+                    dataset_name=downloader.name,
+                    dataset_path=downloader.path_dataset,
+                    timestep=timestep,
                 )
             )
             logger.info("Saved %d plots for dataset %s.", n_saved, downloader.name)

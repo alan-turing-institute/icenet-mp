@@ -11,11 +11,11 @@ from .plotting_video import plot_video_inputs
 
 
 def plot_variables_static(
+    *,
+    base_path: Path,
     dataset_name: str,
     dataset_path: Path,
     timestep: int,
-    *,
-    base_path: Path,
 ) -> int:
     """Save static plots for one timestep of a downloaded dataset."""
     dataset = SingleDataset(
@@ -57,12 +57,12 @@ def plot_variables_static(
 
 
 def plot_variables_video(
-    dataset_name: str,
-    dataset_path: Path,
-    timestep: int,
-    n_steps: int,
     *,
     base_path: Path,
+    dataset_name: str,
+    dataset_path: Path,
+    n_steps: int,
+    timestep: int,
 ) -> int:
     """Save one animation per variable for a run of consecutive timesteps."""
     dataset = SingleDataset(

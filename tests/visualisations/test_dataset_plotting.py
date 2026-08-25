@@ -78,7 +78,12 @@ class TestPlotDataset:
             fake_plot_static_inputs,
         )
 
-        saved = plot_variables_static("example", dataset_path, 0, base_path=tmp_path)
+        saved = plot_variables_static(
+            base_path=tmp_path,
+            dataset_name="example",
+            dataset_path=dataset_path,
+            timestep=0,
+        )
 
         output_dir = tmp_path / "data" / "input_plots"
         assert saved == 2
@@ -99,7 +104,12 @@ class TestPlotDataset:
         )
 
         with pytest.raises(IndexError, match="Timestep 2 is out of range"):
-            plot_variables_static("example", dataset_path, 2, base_path=tmp_path)
+            plot_variables_static(
+                base_path=tmp_path,
+                dataset_name="example",
+                dataset_path=dataset_path,
+                timestep=2,
+            )
 
 
 class TestPlotDatasetVideo:
@@ -127,7 +137,13 @@ class TestPlotDatasetVideo:
             fake_plot_video_inputs,
         )
 
-        saved = plot_variables_video("example", dataset_path, 0, 3, base_path=tmp_path)
+        saved = plot_variables_video(
+            base_path=tmp_path,
+            dataset_name="example",
+            dataset_path=dataset_path,
+            n_steps=3,
+            timestep=0,
+        )
 
         output_dir = tmp_path / "data" / "input_plots"
         assert saved == 2
@@ -148,4 +164,10 @@ class TestPlotDatasetVideo:
         )
 
         with pytest.raises(IndexError, match="Timesteps 2:5 are out of range"):
-            plot_variables_video("example", dataset_path, 2, 3, base_path=tmp_path)
+            plot_variables_video(
+                base_path=tmp_path,
+                dataset_name="example",
+                dataset_path=dataset_path,
+                n_steps=3,
+                timestep=2,
+            )
