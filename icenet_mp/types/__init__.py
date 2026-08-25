@@ -18,6 +18,7 @@ from .simple_datatypes import (
     DiffColourmapSpec,
     Metadata,
     ProcessorOutput,
+    UncertaintyArrays,
 )
 from .typedefs import (
     ArrayCHW,
@@ -64,4 +65,5 @@ __all__ = [
     "SupportsMetadata",
     "TensorNCHW",
     "TensorNTCHW",
+    "UncertaintyArrays",
 ]
