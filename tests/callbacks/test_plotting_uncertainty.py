@@ -12,7 +12,9 @@ from icenet_mp.types import ModelStepOutput
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
 
 
-def _dataset_with_uncertainty() -> tuple[MagicMock, MagicMock]:
+@pytest.fixture
+def dataset_with_uncertainty() -> tuple[MagicMock, MagicMock]:
+    """A dataset double with one target/uncertainty variable pair (ice_conc)."""
     dataset = MagicMock()
     target = MagicMock()
     target.name = "target"
@@ -33,9 +35,11 @@ def _dataset_with_uncertainty() -> tuple[MagicMock, MagicMock]:
 
 
 class TestLoadTargetUncertainties:
-    def test_scales_and_masks(self) -> None:
+    def test_scales_and_masks(
+        self, dataset_with_uncertainty: tuple[MagicMock, MagicMock]
+    ) -> None:
         """Scale source uncertainty to target space and mask invalid values."""
-        dataset, _ = _dataset_with_uncertainty()
+        dataset, _ = dataset_with_uncertainty
 
         result = PlottingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
@@ -51,9 +55,11 @@ class TestLoadTargetUncertainties:
             variables=["total_standard_uncertainty"], normalise=False
         )
 
-    def test_skips_missing_source(self) -> None:
+    def test_skips_missing_source(
+        self, dataset_with_uncertainty: tuple[MagicMock, MagicMock]
+    ) -> None:
         """Return no uncertainty when the matching target input is unavailable."""
-        dataset, _ = _dataset_with_uncertainty()
+        dataset, _ = dataset_with_uncertainty
         dataset.inputs[0].name = "other"
 
         result = PlottingCallback().load_target_uncertainties(
@@ -63,9 +69,11 @@ class TestLoadTargetUncertainties:
         assert result == {}
         dataset.inputs[0].subset.assert_not_called()
 
-    def test_skips_when_target_variable_not_present(self) -> None:
+    def test_skips_when_target_variable_not_present(
+        self, dataset_with_uncertainty: tuple[MagicMock, MagicMock]
+    ) -> None:
         """Skip uncertainty loading when the target variable itself isn't in the dataset."""
-        dataset, _ = _dataset_with_uncertainty()
+        dataset, _ = dataset_with_uncertainty
         dataset.target.variable_names = ["other_variable"]
 
         result = PlottingCallback().load_target_uncertainties(
@@ -75,9 +83,13 @@ class TestLoadTargetUncertainties:
         assert result == {}
         dataset.inputs[0].subset.assert_not_called()
 
-    def test_handles_data_error(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_handles_data_error(
+        self,
+        dataset_with_uncertainty: tuple[MagicMock, MagicMock],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         """Skip uncertainty plotting when the source read fails."""
-        dataset, uncertainty_ds = _dataset_with_uncertainty()
+        dataset, uncertainty_ds = dataset_with_uncertainty
         uncertainty_ds.get_tchw.side_effect = ValueError("missing uncertainty")
 
         with caplog.at_level(logging.WARNING):
@@ -88,9 +100,13 @@ class TestLoadTargetUncertainties:
         assert result == {}
         assert "Could not load target uncertainty" in caplog.text
 
-    def test_handles_missing_statistics(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_handles_missing_statistics(
+        self,
+        dataset_with_uncertainty: tuple[MagicMock, MagicMock],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         """Skip uncertainty plotting when target statistics are missing a key."""
-        dataset, _ = _dataset_with_uncertainty()
+        dataset, _ = dataset_with_uncertainty
         dataset.target.statistics = {}
 
         with caplog.at_level(logging.WARNING):
@@ -102,10 +118,12 @@ class TestLoadTargetUncertainties:
         assert "Could not load target uncertainty" in caplog.text
 
     def test_rejects_invalid_target_range(
-        self, caplog: pytest.LogCaptureFixture
+        self,
+        dataset_with_uncertainty: tuple[MagicMock, MagicMock],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Skip scaling when the target normalisation range is invalid."""
-        dataset, _ = _dataset_with_uncertainty()
+        dataset, _ = dataset_with_uncertainty
         dataset.target.statistics = {"minimum": [1.0], "maximum": [1.0]}
 
         with caplog.at_level(logging.WARNING):

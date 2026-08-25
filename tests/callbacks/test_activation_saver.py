@@ -42,15 +42,6 @@ class MinimalRolloutModel(nn.Module):
         return self.processor(first_step)
 
 
-class MinimalLightningModule(LightningModule):
-    """Minimal LightningModule exposing a named submodule for attach() to hook."""
-
-    def __init__(self) -> None:
-        """Initialise a LightningModule with one hookable layer."""
-        super().__init__()
-        self.layer = nn.Linear(2, 2)
-
-
 class TestActivationSaver:
     def test_attach_rejects_unknown_layer(self, tmp_path: Path) -> None:
         """Reject unknown layer paths."""
@@ -160,13 +151,15 @@ class TestActivationSaver:
         saver.detach()
 
     def test_on_test_start_attaches_hooks_when_enabled(
-        self, tmp_path: Path, mock_trainer: MagicMock
+        self,
+        tmp_path: Path,
+        mock_trainer: MagicMock,
+        linear_lightning_module: LightningModule,
     ) -> None:
         """Attach hooks automatically when on_test_start runs and layers are configured."""
         saver = ActivationSaver(["layer"], tmp_path)
-        pl_module = MinimalLightningModule()
 
-        saver.on_test_start(mock_trainer, pl_module)
+        saver.on_test_start(mock_trainer, linear_lightning_module)
 
         assert len(saver._handles) > 0
         saver.detach()

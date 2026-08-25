@@ -14,18 +14,19 @@ from icenet_mp.models import BaseModel
 from icenet_mp.types import Metadata, ModelStepOutput
 
 
-def _make_plots_args(trainer: MagicMock) -> tuple[MagicMock, MagicMock, MagicMock]:
-    """Configure a trainer and build a matching pl_module/dataset pair for make_plots tests."""
-    trainer.current_epoch = 0
-    trainer.loggers = []
-    trainer.datamodule = None
+@pytest.fixture
+def make_plots_args(mock_trainer: MagicMock) -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Configure mock_trainer and build a matching pl_module/dataset pair for make_plots tests."""
+    mock_trainer.current_epoch = 0
+    mock_trainer.loggers = []
+    mock_trainer.datamodule = None
     pl_module = MagicMock(spec=BaseModel)
     pl_module.hemisphere = "south"
     dataset = MagicMock(spec=CombinedDataset)
     dataset.dates = [np.datetime64("2020-01-01T12:00:00")]
     dataset.get_forecast_steps.return_value = [np.datetime64("2020-01-01T12:00:00")]
     dataset.inputs = []
-    return trainer, pl_module, dataset
+    return mock_trainer, pl_module, dataset
 
 
 def _stub_plotter(
@@ -263,11 +264,13 @@ class TestMakePlots:
     """Tests for make_plots."""
 
     def test_warns_and_returns_when_no_cached_outputs(
-        self, mock_trainer: MagicMock, caplog: pytest.LogCaptureFixture
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Skip plotting entirely when no batch has been cached."""
         callback = PlottingCallback()
-        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, pl_module, dataset = make_plots_args
 
         with caplog.at_level(logging.WARNING):
             callback.make_plots(trainer, pl_module, dataset, 1)
@@ -276,7 +279,7 @@ class TestMakePlots:
 
     def test_warns_and_returns_when_pl_module_is_not_base_model(
         self,
-        mock_trainer: MagicMock,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
         mock_module: MagicMock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -284,7 +287,7 @@ class TestMakePlots:
         callback = PlottingCallback()
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, _pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, _pl_module, dataset = make_plots_args
 
         with caplog.at_level(logging.WARNING):
             callback.make_plots(trainer, mock_module, dataset, 1)
@@ -292,7 +295,9 @@ class TestMakePlots:
         assert "skipping plotting" in caplog.text
 
     def test_sets_plotter_metadata_when_present(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Push the cached plotter_metadata (with current_epoch) onto the plotter."""
         callback = PlottingCallback()
@@ -300,7 +305,7 @@ class TestMakePlots:
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
         callback.plotter_metadata = MagicMock(spec=Metadata)
-        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, pl_module, dataset = make_plots_args
         trainer.current_epoch = 7
 
         callback.make_plots(trainer, pl_module, dataset, 1)
@@ -310,14 +315,16 @@ class TestMakePlots:
         stubs["set_hemisphere"].assert_called_once_with("south")
 
     def test_selects_start_date_using_batch_size_and_cached_batch_idx(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Index into dataset.dates using batch_size * cached_batch_idx_, not just 0."""
         callback = PlottingCallback()
         _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 2
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, pl_module, dataset = make_plots_args
         dataset.dates = [
             np.datetime64(f"2020-01-{day:02d}T12:00:00") for day in range(1, 10)
         ]
@@ -327,14 +334,17 @@ class TestMakePlots:
         dataset.get_forecast_steps.assert_called_once_with(dataset.dates[6])
 
     def test_caches_land_mask_per_path(
-        self, tmp_path: Path, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Build a LandMask once per mask directory and reuse it on repeat calls."""
         callback = PlottingCallback()
         _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, pl_module, dataset = make_plots_args
         trainer.datamodule = MagicMock(mask_directory=tmp_path)
 
         callback.make_plots(trainer, pl_module, dataset, 1)
@@ -345,14 +355,16 @@ class TestMakePlots:
         assert len(callback._land_mask_cache) == 1
 
     def test_skips_static_and_video_plots_when_disabled(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Do not call any plotter output methods when both toggles are disabled."""
         callback = PlottingCallback(make_static_plots=False, make_video_plots=False)
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, pl_module, dataset = make_plots_args
 
         callback.make_plots(trainer, pl_module, dataset, 1)
 
@@ -360,14 +372,16 @@ class TestMakePlots:
         stubs["log_video_outputs"].assert_not_called()
 
     def test_makes_input_plots_when_enabled(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Also log static and video input plots when make_input_plots is enabled."""
         callback = PlottingCallback(make_input_plots=True)
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, pl_module, dataset = make_plots_args
 
         callback.make_plots(trainer, pl_module, dataset, 1)
 
@@ -375,14 +389,16 @@ class TestMakePlots:
         stubs["log_video_inputs"].assert_called_once()
 
     def test_filters_loggers_by_image_and_video_support(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Only pass loggers with log_image/log_video to the respective plot calls."""
         callback = PlottingCallback()
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        trainer, pl_module, dataset = make_plots_args
 
         class ImageLogger:
             def log_image(self, *args: object, **kwargs: object) -> None: ...

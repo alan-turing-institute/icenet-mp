@@ -12,15 +12,6 @@ class ParameterlessLightningModule(LightningModule):
     """A LightningModule with no parameters, to exercise the empty-module guard."""
 
 
-class LinearLightningModule(LightningModule):
-    """A LightningModule wrapping a single trainable layer."""
-
-    def __init__(self) -> None:
-        """Initialise a LightningModule with one trainable layer."""
-        super().__init__()
-        self.layer = torch.nn.Linear(2, 2)
-
-
 class TestInit:
     """Tests for EMAWeightAveragingCallback construction."""
 
@@ -51,26 +42,32 @@ class TestOnTrainBatchEnd:
         parent_hook.assert_not_called()
 
     def test_delegates_for_parameterised_module(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        linear_lightning_module: LightningModule,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Delegate to the parent hook when the module has parameters."""
         callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_steps=1)
         parent_hook = MagicMock()
         monkeypatch.setattr(WeightAveraging, "on_train_batch_end", parent_hook)
-        module = LinearLightningModule()
+        module = linear_lightning_module
 
         callback.on_train_batch_end(mock_trainer, module)
 
         parent_hook.assert_called_once()
 
     def test_forwards_args_and_kwargs_to_parent_hook(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        linear_lightning_module: LightningModule,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Forward positional and keyword arguments to the parent hook unchanged."""
         callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_steps=1)
         parent_hook = MagicMock()
         monkeypatch.setattr(WeightAveraging, "on_train_batch_end", parent_hook)
-        module = LinearLightningModule()
+        module = linear_lightning_module
         batch = {"sic": torch.zeros(1)}
 
         callback.on_train_batch_end(mock_trainer, module, batch, 5, unused=True)
@@ -95,13 +92,16 @@ class TestOnTrainEpochEnd:
         parent_hook.assert_not_called()
 
     def test_delegates_for_parameterised_module(
-        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        linear_lightning_module: LightningModule,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Delegate to the parent hook when the module has parameters."""
         callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_epochs=1)
         parent_hook = MagicMock()
         monkeypatch.setattr(WeightAveraging, "on_train_epoch_end", parent_hook)
-        module = LinearLightningModule()
+        module = linear_lightning_module
 
         callback.on_train_epoch_end(mock_trainer, module)
 
