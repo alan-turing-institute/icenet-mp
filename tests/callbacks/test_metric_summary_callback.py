@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import torch
-from lightning import LightningModule, Trainer
+from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.trainer.states import TrainerFn
 from torchmetrics import MeanAbsoluteError, MetricCollection
@@ -24,18 +24,16 @@ def callback() -> MetricSummaryCallback:
 
 @pytest.fixture
 def mock_trainer() -> MagicMock:
-    """Create a mock Trainer."""
+    """A mock Trainer with sanity checking off and one plain logger.
+
+    Overrides the bare tests/callbacks/conftest.py fixture of the same name: most tests
+    in this file need a non-W&B logger already in place to assert on.
+    """
     trainer = MagicMock(spec=Trainer)
     trainer.sanity_checking = False
     mock_logger = MagicMock()
     trainer.loggers = [mock_logger]
     return trainer
-
-
-@pytest.fixture
-def mock_module() -> MagicMock:
-    """Create a mock LightningModule."""
-    return MagicMock(spec=LightningModule)
 
 
 class TestOnTestEnd:
@@ -270,41 +268,47 @@ class TestEpochStartResets:
     """Tests for the on_*_epoch_start metric-reset hooks."""
 
     def test_on_test_epoch_start_resets_test_metrics(
-        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
     ) -> None:
         """Reset test_metrics at the start of a test epoch."""
         metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
         metric_collection.update(torch.zeros(1), torch.ones(1))
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.test_metrics = metric_collection
+        mock_module.test_metrics = metric_collection
 
-        callback.on_test_epoch_start(mock_trainer, pl_module)
+        callback.on_test_epoch_start(mock_trainer, mock_module)
 
         assert metric_collection["mae"]._update_called is False
 
     def test_on_train_epoch_start_resets_train_metrics(
-        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
     ) -> None:
         """Reset train_metrics at the start of a training epoch."""
         metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
         metric_collection.update(torch.zeros(1), torch.ones(1))
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.train_metrics = metric_collection
+        mock_module.train_metrics = metric_collection
 
-        callback.on_train_epoch_start(mock_trainer, pl_module)
+        callback.on_train_epoch_start(mock_trainer, mock_module)
 
         assert metric_collection["mae"]._update_called is False
 
     def test_on_validation_epoch_start_resets_validation_metrics(
-        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
     ) -> None:
         """Reset validation_metrics at the start of a validation epoch."""
         metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
         metric_collection.update(torch.zeros(1), torch.ones(1))
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.validation_metrics = metric_collection
+        mock_module.validation_metrics = metric_collection
 
-        callback.on_validation_epoch_start(mock_trainer, pl_module)
+        callback.on_validation_epoch_start(mock_trainer, mock_module)
 
         assert metric_collection["mae"]._update_called is False
 
@@ -313,15 +317,17 @@ class TestOnTrainEpochEnd:
     """Tests for on_train_epoch_end."""
 
     def test_logs_when_train_metrics_present(
-        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
     ) -> None:
         """Log per-epoch metrics when train_metrics is a MetricCollection."""
         metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
         metric_collection.update(torch.zeros(1), torch.ones(1))
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.train_metrics = metric_collection
+        mock_module.train_metrics = metric_collection
 
-        callback.on_train_epoch_end(mock_trainer, pl_module)
+        callback.on_train_epoch_end(mock_trainer, mock_module)
 
         mock_logger = mock_trainer.loggers[0]
         mock_logger.log_metrics.assert_called_once()
@@ -330,14 +336,14 @@ class TestOnTrainEpochEnd:
         self,
         callback: MetricSummaryCallback,
         mock_trainer: MagicMock,
+        mock_module: MagicMock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when train_metrics is not a MetricCollection."""
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.train_metrics = "invalid"
+        mock_module.train_metrics = "invalid"
 
         with caplog.at_level(logging.WARNING):
-            callback.on_train_epoch_end(mock_trainer, pl_module)
+            callback.on_train_epoch_end(mock_trainer, mock_module)
 
         assert "Could not load train metrics!" in caplog.text
 
@@ -346,15 +352,17 @@ class TestOnValidationEpochEnd:
     """Tests for on_validation_epoch_end."""
 
     def test_logs_when_validation_metrics_present(
-        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
     ) -> None:
         """Log per-epoch metrics when validation_metrics is a MetricCollection."""
         metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
         metric_collection.update(torch.zeros(1), torch.ones(1))
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.validation_metrics = metric_collection
+        mock_module.validation_metrics = metric_collection
 
-        callback.on_validation_epoch_end(mock_trainer, pl_module)
+        callback.on_validation_epoch_end(mock_trainer, mock_module)
 
         mock_logger = mock_trainer.loggers[0]
         mock_logger.log_metrics.assert_called_once()
@@ -363,14 +371,14 @@ class TestOnValidationEpochEnd:
         self,
         callback: MetricSummaryCallback,
         mock_trainer: MagicMock,
+        mock_module: MagicMock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when validation_metrics is not a MetricCollection."""
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.validation_metrics = "invalid"
+        mock_module.validation_metrics = "invalid"
 
         with caplog.at_level(logging.WARNING):
-            callback.on_validation_epoch_end(mock_trainer, pl_module)
+            callback.on_validation_epoch_end(mock_trainer, mock_module)
 
         assert "Could not load validation metrics!" in caplog.text
 
@@ -382,16 +390,16 @@ class TestTeardown:
         self,
         callback: MetricSummaryCallback,
         mock_trainer: MagicMock,
+        mock_module: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Gather both train and validation metrics for a fit run."""
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.train_metrics = MetricCollection({"mae": MeanAbsoluteError()})
-        pl_module.validation_metrics = MetricCollection({"mae": MeanAbsoluteError()})
+        mock_module.train_metrics = MetricCollection({"mae": MeanAbsoluteError()})
+        mock_module.validation_metrics = MetricCollection({"mae": MeanAbsoluteError()})
         mock_log_per_run_metrics = MagicMock()
         monkeypatch.setattr(callback, "log_per_run_metrics", mock_log_per_run_metrics)
 
-        callback.teardown(mock_trainer, pl_module, stage=TrainerFn.FITTING.value)
+        callback.teardown(mock_trainer, mock_module, stage=TrainerFn.FITTING.value)
 
         mock_log_per_run_metrics.assert_called_once()
         metrics = mock_log_per_run_metrics.call_args[0][1]
@@ -401,15 +409,15 @@ class TestTeardown:
         self,
         callback: MetricSummaryCallback,
         mock_trainer: MagicMock,
+        mock_module: MagicMock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn for each stage whose metrics collection is missing during a fit run."""
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.train_metrics = "invalid"
-        pl_module.validation_metrics = "invalid"
+        mock_module.train_metrics = "invalid"
+        mock_module.validation_metrics = "invalid"
 
         with caplog.at_level(logging.WARNING):
-            callback.teardown(mock_trainer, pl_module, stage=TrainerFn.FITTING.value)
+            callback.teardown(mock_trainer, mock_module, stage=TrainerFn.FITTING.value)
 
         assert "Could not load train metrics!" in caplog.text
         assert "Could not load validation metrics!" in caplog.text
@@ -418,16 +426,23 @@ class TestTeardown:
         self,
         callback: MetricSummaryCallback,
         mock_trainer: MagicMock,
+        mock_module: MagicMock,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when test_metrics is missing during a test run."""
-        pl_module = MagicMock(spec=LightningModule)
-        pl_module.test_metrics = "invalid"
+        mock_module.test_metrics = "invalid"
 
         with caplog.at_level(logging.WARNING):
-            callback.teardown(mock_trainer, pl_module, stage=TrainerFn.TESTING.value)
+            callback.teardown(mock_trainer, mock_module, stage=TrainerFn.TESTING.value)
 
         assert "Could not load test metrics!" in caplog.text
+
+
+def _to_5d(values_2d: list[list[float]]) -> torch.Tensor:
+    """Reshape a 4-cell x 3-day grid into (batch=1, time=3, channels=1, height=2, width=2)."""
+    return (
+        torch.tensor(values_2d).view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+    )
 
 
 class TestMetricCalculations:
@@ -443,17 +458,12 @@ class TestMetricCalculations:
 
     def test_calculates_mean_mae_daily_correctly(self) -> None:
         """Test that MAE daily is calculated correctly."""
-        # Convert 2D tensor to 5D tensor: (batch, channels, height, width, time)
-        preds_2d = torch.tensor(
+        preds = _to_5d(
             [[1.0, 2.0, 4.0], [1.0, 3.0, 4.0], [2.0, 3.0, 5.0], [2.0, 4.0, 6.0]]
         )
-        targets_2d = torch.tensor(
+        targets = _to_5d(
             [[1.5, 2.5, 4.0], [0.5, 3.5, 4.0], [2.0, 4.0, 5.0], [2.5, 3.0, 6.0]]
         )
-
-        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
-        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
-        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
         computed_mae = MAEPerForecastDay()
         computed_mae.update(preds, targets)
@@ -470,16 +480,12 @@ class TestMetricCalculations:
 
     def test_calculates_mean_rmse_daily_correctly(self) -> None:
         """Test that RMSE daily is calculated correctly."""
-        preds_2d = torch.tensor(
+        preds = _to_5d(
             [[1.0, 2.0, 4.0], [1.0, 3.0, 4.0], [2.0, 3.0, 5.0], [2.0, 4.0, 6.0]]
         )
-        targets_2d = torch.tensor(
+        targets = _to_5d(
             [[1.5, 2.5, 4.0], [0.5, 3.5, 4.0], [2.0, 4.0, 5.0], [2.5, 3.0, 6.0]]
         )
-
-        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
-        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
-        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
         computed_rmse = RMSEPerForecastDay()
         computed_rmse.update(preds, targets)
@@ -497,16 +503,12 @@ class TestMetricCalculations:
 
     def test_calculates_mean_sieerror_daily_correctly(self) -> None:
         """Test that SIEError daily is calculated correctly."""
-        preds_2d = torch.tensor(
+        preds = _to_5d(
             [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
         )
-        targets_2d = torch.tensor(
+        targets = _to_5d(
             [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
         )
-
-        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
-        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
-        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
         computed_sie = SeaIceExtentErrorPerForecastDay(pixel_size=1)
         computed_sie.update(preds, targets)
@@ -524,16 +526,12 @@ class TestMetricCalculations:
 
     def test_calculates_mean_sieerror_daily_pixel_size(self) -> None:
         """Test that SIEError daily is calculated correctly."""
-        preds_2d = torch.tensor(
+        preds = _to_5d(
             [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
         )
-        targets_2d = torch.tensor(
+        targets = _to_5d(
             [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
         )
-
-        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
-        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
-        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
 
         computed_sie = SeaIceExtentErrorPerForecastDay()
         computed_sie.update(preds, targets)

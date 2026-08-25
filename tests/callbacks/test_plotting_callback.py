@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 import torch
-from lightning import LightningModule, Trainer
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
@@ -15,9 +14,8 @@ from icenet_mp.models import BaseModel
 from icenet_mp.types import Metadata, ModelStepOutput
 
 
-def _make_plots_args() -> tuple[MagicMock, MagicMock, MagicMock]:
-    """Build a minimal trainer/pl_module/dataset trio for make_plots tests."""
-    trainer = MagicMock(spec=Trainer)
+def _make_plots_args(trainer: MagicMock) -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Configure a trainer and build a matching pl_module/dataset pair for make_plots tests."""
     trainer.current_epoch = 0
     trainer.loggers = []
     trainer.datamodule = None
@@ -265,11 +263,11 @@ class TestMakePlots:
     """Tests for make_plots."""
 
     def test_warns_and_returns_when_no_cached_outputs(
-        self, caplog: pytest.LogCaptureFixture
+        self, mock_trainer: MagicMock, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Skip plotting entirely when no batch has been cached."""
         callback = PlottingCallback()
-        trainer, pl_module, dataset = _make_plots_args()
+        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
 
         with caplog.at_level(logging.WARNING):
             callback.make_plots(trainer, pl_module, dataset, 1)
@@ -277,22 +275,24 @@ class TestMakePlots:
         assert "Could not load outputs" in caplog.text
 
     def test_warns_and_returns_when_pl_module_is_not_base_model(
-        self, caplog: pytest.LogCaptureFixture
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Skip plotting when the module is not a BaseModel (no hemisphere info)."""
         callback = PlottingCallback()
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, _pl_module, dataset = _make_plots_args()
-        pl_module = MagicMock(spec=LightningModule)
+        trainer, _pl_module, dataset = _make_plots_args(mock_trainer)
 
         with caplog.at_level(logging.WARNING):
-            callback.make_plots(trainer, pl_module, dataset, 1)
+            callback.make_plots(trainer, mock_module, dataset, 1)
 
         assert "skipping plotting" in caplog.text
 
     def test_sets_plotter_metadata_when_present(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Push the cached plotter_metadata (with current_epoch) onto the plotter."""
         callback = PlottingCallback()
@@ -300,7 +300,7 @@ class TestMakePlots:
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
         callback.plotter_metadata = MagicMock(spec=Metadata)
-        trainer, pl_module, dataset = _make_plots_args()
+        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
         trainer.current_epoch = 7
 
         callback.make_plots(trainer, pl_module, dataset, 1)
@@ -309,15 +309,32 @@ class TestMakePlots:
         stubs["set_metadata"].assert_called_once_with(callback.plotter_metadata)
         stubs["set_hemisphere"].assert_called_once_with("south")
 
+    def test_selects_start_date_using_batch_size_and_cached_batch_idx(
+        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Index into dataset.dates using batch_size * cached_batch_idx_, not just 0."""
+        callback = PlottingCallback()
+        _stub_plotter(callback, monkeypatch)
+        callback.cached_batch_idx_ = 2
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
+        dataset.dates = [
+            np.datetime64(f"2020-01-{day:02d}T12:00:00") for day in range(1, 10)
+        ]
+
+        callback.make_plots(trainer, pl_module, dataset, 3)
+
+        dataset.get_forecast_steps.assert_called_once_with(dataset.dates[6])
+
     def test_caches_land_mask_per_path(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Build a LandMask once per mask directory and reuse it on repeat calls."""
         callback = PlottingCallback()
         _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args()
+        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
         trainer.datamodule = MagicMock(mask_directory=tmp_path)
 
         callback.make_plots(trainer, pl_module, dataset, 1)
@@ -328,14 +345,14 @@ class TestMakePlots:
         assert len(callback._land_mask_cache) == 1
 
     def test_skips_static_and_video_plots_when_disabled(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Do not call any plotter output methods when both toggles are disabled."""
         callback = PlottingCallback(make_static_plots=False, make_video_plots=False)
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args()
+        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
 
         callback.make_plots(trainer, pl_module, dataset, 1)
 
@@ -343,14 +360,14 @@ class TestMakePlots:
         stubs["log_video_outputs"].assert_not_called()
 
     def test_makes_input_plots_when_enabled(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Also log static and video input plots when make_input_plots is enabled."""
         callback = PlottingCallback(make_input_plots=True)
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args()
+        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
 
         callback.make_plots(trainer, pl_module, dataset, 1)
 
@@ -358,14 +375,14 @@ class TestMakePlots:
         stubs["log_video_inputs"].assert_called_once()
 
     def test_filters_loggers_by_image_and_video_support(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, mock_trainer: MagicMock, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Only pass loggers with log_image/log_video to the respective plot calls."""
         callback = PlottingCallback()
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        trainer, pl_module, dataset = _make_plots_args()
+        trainer, pl_module, dataset = _make_plots_args(mock_trainer)
 
         class ImageLogger:
             def log_image(self, *args: object, **kwargs: object) -> None: ...
@@ -389,7 +406,10 @@ class TestOnTestBatchEnd:
     """Tests for on_test_batch_end."""
 
     def test_caches_and_plots_when_per_batch_frequency_matches(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Cache and plot when the batch index matches the configured frequency."""
         callback = PlottingCallback(frequency={"batch": 2})
@@ -400,20 +420,21 @@ class TestOnTestBatchEnd:
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
         monkeypatch.setattr(callback, "make_plots", make_plots)
-        trainer = MagicMock(spec=Trainer)
-        trainer.is_last_batch = False
-        trainer.num_test_batches = [100]
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.is_last_batch = False
+        mock_trainer.num_test_batches = [100]
         outputs = MagicMock()
 
-        callback.on_test_batch_end(trainer, pl_module, outputs, {}, 4, 0)
+        callback.on_test_batch_end(mock_trainer, mock_module, outputs, {}, 4, 0)
 
         cache_batch.assert_called_once_with(4, 0, outputs)
-        load_dataset.assert_called_once_with(trainer.test_dataloaders)
-        make_plots.assert_called_once_with(trainer, pl_module, dataset, 2)
+        load_dataset.assert_called_once_with(mock_trainer.test_dataloaders)
+        make_plots.assert_called_once_with(mock_trainer, mock_module, dataset, 2)
 
     def test_caches_without_plotting_on_last_batch_only(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Cache the final batch of the epoch but defer plotting to epoch end."""
         callback = PlottingCallback()
@@ -421,35 +442,38 @@ class TestOnTestBatchEnd:
         make_plots = MagicMock()
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
         monkeypatch.setattr(callback, "make_plots", make_plots)
-        trainer = MagicMock(spec=Trainer)
-        trainer.is_last_batch = True
-        trainer.num_test_batches = [100]
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.is_last_batch = True
+        mock_trainer.num_test_batches = [100]
         outputs = MagicMock()
 
-        callback.on_test_batch_end(trainer, pl_module, outputs, {}, 4, 0)
+        callback.on_test_batch_end(mock_trainer, mock_module, outputs, {}, 4, 0)
 
         cache_batch.assert_called_once_with(4, 0, outputs)
         make_plots.assert_not_called()
 
     def test_does_nothing_when_batch_not_targeted(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Skip caching entirely when the batch matches no trigger."""
         callback = PlottingCallback()
         cache_batch = MagicMock()
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
-        trainer = MagicMock(spec=Trainer)
-        trainer.is_last_batch = False
-        trainer.num_test_batches = [100]
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.is_last_batch = False
+        mock_trainer.num_test_batches = [100]
 
-        callback.on_test_batch_end(trainer, pl_module, MagicMock(), {}, 4, 0)
+        callback.on_test_batch_end(mock_trainer, mock_module, MagicMock(), {}, 4, 0)
 
         cache_batch.assert_not_called()
 
     def test_warns_when_dataset_cannot_be_loaded(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn and skip plotting when the dataset cannot be loaded."""
         callback = PlottingCallback(frequency={"batch": 1})
@@ -457,13 +481,11 @@ class TestOnTestBatchEnd:
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
         make_plots = MagicMock()
         monkeypatch.setattr(callback, "make_plots", make_plots)
-        trainer = MagicMock(spec=Trainer)
-        trainer.is_last_batch = False
-        trainer.num_test_batches = [100]
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.is_last_batch = False
+        mock_trainer.num_test_batches = [100]
 
         with caplog.at_level(logging.WARNING):
-            callback.on_test_batch_end(trainer, pl_module, MagicMock(), {}, 0, 0)
+            callback.on_test_batch_end(mock_trainer, mock_module, MagicMock(), {}, 0, 0)
 
         assert "Could not load dataset" in caplog.text
         make_plots.assert_not_called()
@@ -473,35 +495,42 @@ class TestOnTestEpochEnd:
     """Tests for on_test_epoch_end."""
 
     def test_skips_when_frequency_epoch_negative(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Never load the dataset when epoch-based plotting is disabled."""
         callback = PlottingCallback()
         load_dataset = MagicMock()
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
-        trainer = MagicMock(spec=Trainer)
-        trainer.current_epoch = 5
+        mock_trainer.current_epoch = 5
 
-        callback.on_test_epoch_end(trainer, MagicMock(spec=LightningModule))
+        callback.on_test_epoch_end(mock_trainer, mock_module)
 
         load_dataset.assert_not_called()
 
     def test_skips_when_epoch_not_at_frequency(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Skip plotting on epochs that do not match the configured frequency."""
         callback = PlottingCallback(frequency={"epoch": 2})
         load_dataset = MagicMock()
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
-        trainer = MagicMock(spec=Trainer)
-        trainer.current_epoch = 3
+        mock_trainer.current_epoch = 3
 
-        callback.on_test_epoch_end(trainer, MagicMock(spec=LightningModule))
+        callback.on_test_epoch_end(mock_trainer, mock_module)
 
         load_dataset.assert_not_called()
 
     def test_plots_when_epoch_at_frequency(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Plot on epochs that match the configured frequency."""
         callback = PlottingCallback(frequency={"epoch": 2})
@@ -511,25 +540,26 @@ class TestOnTestEpochEnd:
         )
         make_plots = MagicMock()
         monkeypatch.setattr(callback, "make_plots", make_plots)
-        trainer = MagicMock(spec=Trainer)
-        trainer.current_epoch = 4
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.current_epoch = 4
 
-        callback.on_test_epoch_end(trainer, pl_module)
+        callback.on_test_epoch_end(mock_trainer, mock_module)
 
-        make_plots.assert_called_once_with(trainer, pl_module, dataset, 2)
+        make_plots.assert_called_once_with(mock_trainer, mock_module, dataset, 2)
 
     def test_warns_when_dataset_cannot_be_loaded(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when the dataset cannot be loaded at epoch end."""
         callback = PlottingCallback(frequency={"epoch": 1})
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
-        trainer = MagicMock(spec=Trainer)
-        trainer.current_epoch = 0
+        mock_trainer.current_epoch = 0
 
         with caplog.at_level(logging.WARNING):
-            callback.on_test_epoch_end(trainer, MagicMock(spec=LightningModule))
+            callback.on_test_epoch_end(mock_trainer, mock_module)
 
         assert "Could not load dataset" in caplog.text
 
@@ -538,23 +568,28 @@ class TestOnValidationBatchEnd:
     """Tests for on_validation_batch_end."""
 
     def test_skips_during_sanity_checking(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Ignore the initial sanity-checking run entirely."""
         callback = PlottingCallback(frequency={"batch": 1})
         cache_batch = MagicMock()
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
-        trainer = MagicMock(spec=Trainer)
-        trainer.sanity_checking = True
+        mock_trainer.sanity_checking = True
 
         callback.on_validation_batch_end(
-            trainer, MagicMock(spec=LightningModule), MagicMock(), {}, 0, 0
+            mock_trainer, mock_module, MagicMock(), {}, 0, 0
         )
 
         cache_batch.assert_not_called()
 
     def test_caches_and_plots_when_per_batch_frequency_matches(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Cache and plot when the batch index matches the configured frequency."""
         callback = PlottingCallback(frequency={"batch": 2})
@@ -565,22 +600,24 @@ class TestOnValidationBatchEnd:
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
         monkeypatch.setattr(callback, "make_plots", make_plots)
-        trainer = MagicMock(spec=Trainer)
-        trainer.sanity_checking = False
-        trainer.fit_loop = MagicMock()
-        trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch = False
-        trainer.num_val_batches = [50]
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.sanity_checking = False
+        mock_trainer.fit_loop = MagicMock()
+        mock_trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch = False
+        mock_trainer.num_val_batches = [50]
         outputs = MagicMock()
 
-        callback.on_validation_batch_end(trainer, pl_module, outputs, {}, 4, 0)
+        callback.on_validation_batch_end(mock_trainer, mock_module, outputs, {}, 4, 0)
 
         cache_batch.assert_called_once_with(4, 0, outputs)
-        load_dataset.assert_called_once_with(trainer.val_dataloaders)
-        make_plots.assert_called_once_with(trainer, pl_module, dataset, 3)
+        load_dataset.assert_called_once_with(mock_trainer.val_dataloaders)
+        make_plots.assert_called_once_with(mock_trainer, mock_module, dataset, 3)
 
     def test_warns_when_dataset_cannot_be_loaded(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn and skip plotting when the dataset cannot be loaded."""
         callback = PlottingCallback(frequency={"batch": 1})
@@ -588,15 +625,15 @@ class TestOnValidationBatchEnd:
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
         make_plots = MagicMock()
         monkeypatch.setattr(callback, "make_plots", make_plots)
-        trainer = MagicMock(spec=Trainer)
-        trainer.sanity_checking = False
-        trainer.fit_loop = MagicMock()
-        trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch = False
-        trainer.num_val_batches = [50]
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.sanity_checking = False
+        mock_trainer.fit_loop = MagicMock()
+        mock_trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch = False
+        mock_trainer.num_val_batches = [50]
 
         with caplog.at_level(logging.WARNING):
-            callback.on_validation_batch_end(trainer, pl_module, MagicMock(), {}, 0, 0)
+            callback.on_validation_batch_end(
+                mock_trainer, mock_module, MagicMock(), {}, 0, 0
+            )
 
         assert "Could not load dataset" in caplog.text
         make_plots.assert_not_called()
@@ -606,21 +643,26 @@ class TestOnValidationEpochEnd:
     """Tests for on_validation_epoch_end."""
 
     def test_skips_when_epoch_not_at_frequency(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Skip plotting on epochs that do not match the configured frequency."""
         callback = PlottingCallback(frequency={"epoch": 2})
         load_dataset = MagicMock()
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
-        trainer = MagicMock(spec=Trainer)
-        trainer.current_epoch = 3
+        mock_trainer.current_epoch = 3
 
-        callback.on_validation_epoch_end(trainer, MagicMock(spec=LightningModule))
+        callback.on_validation_epoch_end(mock_trainer, mock_module)
 
         load_dataset.assert_not_called()
 
     def test_plots_when_epoch_at_frequency(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Plot on epochs that match the configured frequency."""
         callback = PlottingCallback(frequency={"epoch": 2})
@@ -630,24 +672,25 @@ class TestOnValidationEpochEnd:
         )
         make_plots = MagicMock()
         monkeypatch.setattr(callback, "make_plots", make_plots)
-        trainer = MagicMock(spec=Trainer)
-        trainer.current_epoch = 4
-        pl_module = MagicMock(spec=LightningModule)
+        mock_trainer.current_epoch = 4
 
-        callback.on_validation_epoch_end(trainer, pl_module)
+        callback.on_validation_epoch_end(mock_trainer, mock_module)
 
-        make_plots.assert_called_once_with(trainer, pl_module, dataset, 2)
+        make_plots.assert_called_once_with(mock_trainer, mock_module, dataset, 2)
 
     def test_warns_when_dataset_cannot_be_loaded(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when the dataset cannot be loaded at epoch end."""
         callback = PlottingCallback(frequency={"epoch": 1})
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
-        trainer = MagicMock(spec=Trainer)
-        trainer.current_epoch = 0
+        mock_trainer.current_epoch = 0
 
         with caplog.at_level(logging.WARNING):
-            callback.on_validation_epoch_end(trainer, MagicMock(spec=LightningModule))
+            callback.on_validation_epoch_end(mock_trainer, mock_module)
 
         assert "Could not load dataset" in caplog.text
