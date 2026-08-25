@@ -21,6 +21,7 @@ class TestEvaluateCLI:
     def test_evaluate_loads_resolved_checkpoint_and_runs(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Compose the config, resolve the checkpoint path, and run evaluate()."""
         service = FakeModelService()
         captured: list[tuple[DictConfig, Path]] = []
 
@@ -49,11 +50,46 @@ class TestEvaluateCLI:
         assert len(captured) == 1
         assert captured[0][1] == checkpoint.resolve()
         assert captured[0][0].model.name == "quick-test"
+        assert (
+            list(captured[0][0].evaluate.callbacks.activation_saver.layer_paths) == []
+        )
         assert service.evaluate_calls == 1
+
+    def test_checkpoint_resolves_a_relative_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A relative --checkpoint is resolved against the current directory."""
+        service = FakeModelService()
+        captured: list[tuple[DictConfig, Path]] = []
+
+        def fake_from_checkpoint(
+            config: DictConfig, checkpoint: Path
+        ) -> FakeModelService:
+            captured.append((config, checkpoint))
+            return service
+
+        monkeypatch.setattr(ModelService, "from_checkpoint", fake_from_checkpoint)
+        monkeypatch.chdir(tmp_path)
+
+        result = CliRunner().invoke(
+            app,
+            [
+                "evaluate",
+                "--config-name",
+                "sample",
+                "--checkpoint",
+                "model.ckpt",
+            ],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        assert captured[0][1] == (tmp_path / "model.ckpt").resolve()
 
     def test_repeated_save_layer_flags_update_activation_saver_config(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Repeat --save-layer to hook multiple submodules in one run."""
         service = FakeModelService()
         captured: list[DictConfig] = []
 
