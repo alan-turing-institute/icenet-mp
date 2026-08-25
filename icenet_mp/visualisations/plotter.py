@@ -17,9 +17,12 @@ from icenet_mp.types import (
 
 from .land_mask import LandMask
 from .metadata import build_metadata, format_metadata_subtitle
-from .plotting_static import plot_static_inputs, plot_static_prediction
+from .plotting_static import (
+    plot_static_inputs,
+    plot_static_prediction,
+    plot_static_uncertainty,
+)
 from .plotting_video import plot_video_inputs, plot_video_prediction
-from .uncertainty import plot_static_uncertainty
 
 logger = logging.getLogger(__name__)
 
