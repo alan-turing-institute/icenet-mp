@@ -70,7 +70,7 @@ class TestOnTestEnd:
         """Test on_test_end when test_metrics is not a MetricCollection."""
         mock_module.test_metrics = "invalid"
 
-        callback.on_test_end(mock_trainer, mock_module)
+        callback.on_test_epoch_end(mock_trainer, mock_module)
 
         # Should not raise an error, just log a warning
         mock_logger = mock_trainer.loggers[0]
