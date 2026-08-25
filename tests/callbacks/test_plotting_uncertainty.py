@@ -37,7 +37,7 @@ class TestLoadTargetUncertainties:
         """Scale source uncertainty to target space and mask invalid values."""
         dataset, _ = _dataset_with_uncertainty()
 
-        result = PlottingCallback.load_target_uncertainties(
+        result = PlottingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -56,7 +56,7 @@ class TestLoadTargetUncertainties:
         dataset, _ = _dataset_with_uncertainty()
         dataset.inputs[0].name = "other"
 
-        result = PlottingCallback.load_target_uncertainties(
+        result = PlottingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -69,7 +69,7 @@ class TestLoadTargetUncertainties:
         uncertainty_ds.get_tchw.side_effect = ValueError("missing uncertainty")
 
         with caplog.at_level(logging.WARNING):
-            result = PlottingCallback.load_target_uncertainties(
+            result = PlottingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
@@ -82,7 +82,7 @@ class TestLoadTargetUncertainties:
         dataset.target.statistics = {}
 
         with caplog.at_level(logging.WARNING):
-            result = PlottingCallback.load_target_uncertainties(
+            result = PlottingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
@@ -97,7 +97,7 @@ class TestLoadTargetUncertainties:
         dataset.target.statistics = {"minimum": [1.0], "maximum": [1.0]}
 
         with caplog.at_level(logging.WARNING):
-            result = PlottingCallback.load_target_uncertainties(
+            result = PlottingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
