@@ -15,9 +15,7 @@ class TestCommonDataModule:
     ) -> None:
         """The mask dir is built from the root and the SIC target dataset's name."""
         dm = CommonDataModule(cfg_common_data_module)
-        assert dm.mask_directory == Path(
-            "/mock/base/path/data/preprocessing/masks/mock"
-        )
+        assert dm.mask_directory == Path("/mock/base/path/data/masks/mock")
 
     def test_null_preserved_as_none(self, cfg_common_data_module: DictConfig) -> None:
         """Python None (YAML null) must not be stringified to 'None'."""
