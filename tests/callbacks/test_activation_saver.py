@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import torch
-from lightning import LightningModule, Trainer
+from lightning import LightningModule
 from torch import nn
 
 from icenet_mp.callbacks import ActivationSaver
@@ -42,15 +42,6 @@ class MinimalRolloutModel(nn.Module):
         return self.processor(first_step)
 
 
-class MinimalLightningModule(LightningModule):
-    """Minimal LightningModule exposing a named submodule for attach() to hook."""
-
-    def __init__(self) -> None:
-        """Initialise a LightningModule with one hookable layer."""
-        super().__init__()
-        self.layer = nn.Linear(2, 2)
-
-
 class TestActivationSaver:
     def test_attach_rejects_unknown_layer(self, tmp_path: Path) -> None:
         """Reject unknown layer paths."""
@@ -60,14 +51,14 @@ class TestActivationSaver:
         with pytest.raises(ValueError, match="missing"):
             saver.attach(model)
 
-    def test_layer_hook_keeps_first_fire_per_batch(self, tmp_path: Path) -> None:
+    def test_layer_hook_keeps_first_fire_per_batch(
+        self, tmp_path: Path, mock_trainer: MagicMock, mock_module: MagicMock
+    ) -> None:
         """Keep only the first activation when a layer fires twice."""
         saver = ActivationSaver(["shared"], tmp_path)
         model = MinimalReusedLayerModel()
         saver.attach(model)
-        saver.on_test_batch_start(
-            MagicMock(spec=Trainer), MagicMock(spec=LightningModule), {}, 0
-        )
+        saver.on_test_batch_start(mock_trainer, mock_module, {}, 0)
 
         inputs = torch.tensor([[1.0, 3.0]])
         output = model(inputs)
@@ -76,22 +67,22 @@ class TestActivationSaver:
         assert torch.equal(saver._current_activations["shared"], 2 * inputs)
         saver.detach()
 
-    def test_batch_payload_and_metadata_are_written(self, tmp_path: Path) -> None:
+    def test_batch_payload_and_metadata_are_written(
+        self, tmp_path: Path, mock_trainer: MagicMock, mock_module: MagicMock
+    ) -> None:
         """Write batch payloads and evaluation metadata."""
         saver = ActivationSaver(["0"], tmp_path, save_inputs=True)
         model = nn.Sequential(nn.Linear(2, 2, bias=False))
         saver.attach(model)
 
-        trainer = MagicMock(spec=Trainer)
-        pl_module = MagicMock(spec=LightningModule)
         sic_batch = torch.tensor([[1.0, 2.0]])
         batch = {
             "sic": sic_batch,
             "metadata": "not-a-tensor",
         }
-        saver.on_test_batch_start(trainer, pl_module, batch, 7)
+        saver.on_test_batch_start(mock_trainer, mock_module, batch, 7)
         model(sic_batch)
-        saver.on_test_batch_end(trainer, pl_module, None, batch, 7)
+        saver.on_test_batch_end(mock_trainer, mock_module, None, batch, 7)
 
         payload_path = tmp_path / "batch_00007.pt"
         payload = torch.load(payload_path, weights_only=False)
@@ -102,7 +93,7 @@ class TestActivationSaver:
         assert set(payload["inputs"]) == {"sic"}
         assert torch.equal(payload["inputs"]["sic"], sic_batch)
 
-        saver.on_test_end(trainer, pl_module)
+        saver.on_test_end(mock_trainer, mock_module)
         metadata = json.loads((tmp_path / "metadata.json").read_text())
 
         assert metadata["layer_paths"] == ["0"]
@@ -110,30 +101,28 @@ class TestActivationSaver:
         assert metadata["batch_file_template"] == "batch_{batch_idx:05d}.pt"
         assert saver._handles == []
 
-    def test_empty_layer_list_is_disabled(self, tmp_path: Path) -> None:
+    def test_empty_layer_list_is_disabled(
+        self, tmp_path: Path, mock_trainer: MagicMock, mock_module: MagicMock
+    ) -> None:
         """Leave the callback disabled when no layers are configured."""
         output_dir = tmp_path / "activations"
         saver = ActivationSaver([], output_dir)
 
-        trainer = MagicMock(spec=Trainer)
-        pl_module = MagicMock(spec=LightningModule)
-        saver.on_test_start(trainer, pl_module)
-        saver.on_test_batch_start(trainer, pl_module, {}, 0)
-        saver.on_test_batch_end(trainer, pl_module, None, {}, 0)
-        saver.on_test_end(trainer, pl_module)
+        saver.on_test_start(mock_trainer, mock_module)
+        saver.on_test_batch_start(mock_trainer, mock_module, {}, 0)
+        saver.on_test_batch_end(mock_trainer, mock_module, None, {}, 0)
+        saver.on_test_end(mock_trainer, mock_module)
 
         assert not output_dir.exists()
 
     def test_processor_rollout_counter_keeps_first_step_only(
-        self, tmp_path: Path
+        self, tmp_path: Path, mock_trainer: MagicMock, mock_module: MagicMock
     ) -> None:
         """Increment the rollout counter per processor call and keep only step 0."""
         saver = ActivationSaver(["processor"], tmp_path)
         model = MinimalRolloutModel()
         saver.attach(model)
-        saver.on_test_batch_start(
-            MagicMock(spec=Trainer), MagicMock(spec=LightningModule), {}, 0
-        )
+        saver.on_test_batch_start(mock_trainer, mock_module, {}, 0)
 
         inputs = torch.tensor([[1.0, 3.0]])
         model(inputs)
@@ -142,29 +131,52 @@ class TestActivationSaver:
         saver.detach()
 
     def test_batch_end_warns_about_uncaptured_layers(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self,
+        tmp_path: Path,
+        mock_trainer: MagicMock,
+        mock_module: MagicMock,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when a configured layer never fired its hook this batch."""
         saver = ActivationSaver(["0"], tmp_path)
         model = nn.Sequential(nn.Linear(2, 2))
         saver.attach(model)
 
-        trainer = MagicMock(spec=Trainer)
-        pl_module = MagicMock(spec=LightningModule)
-        saver.on_test_batch_start(trainer, pl_module, {}, 0)
+        saver.on_test_batch_start(mock_trainer, mock_module, {}, 0)
         # The model is never called, so "0"'s forward hook never fires.
         with caplog.at_level(logging.WARNING):
-            saver.on_test_batch_end(trainer, pl_module, None, {}, 0)
+            saver.on_test_batch_end(mock_trainer, mock_module, None, {}, 0)
 
         assert "no activation captured for layers ['0']" in caplog.text
         saver.detach()
 
-    def test_on_test_start_attaches_hooks_when_enabled(self, tmp_path: Path) -> None:
+    def test_on_test_start_attaches_hooks_when_enabled(
+        self,
+        tmp_path: Path,
+        mock_trainer: MagicMock,
+        linear_lightning_module: LightningModule,
+    ) -> None:
         """Attach hooks automatically when on_test_start runs and layers are configured."""
         saver = ActivationSaver(["layer"], tmp_path)
-        pl_module = MinimalLightningModule()
 
-        saver.on_test_start(MagicMock(spec=Trainer), pl_module)
+        saver.on_test_start(mock_trainer, linear_lightning_module)
 
         assert len(saver._handles) > 0
         saver.detach()
+
+    def test_detach_stops_capturing_new_activations(
+        self, tmp_path: Path, mock_trainer: MagicMock, mock_module: MagicMock
+    ) -> None:
+        """Stop capturing activations once the hooks have been detached."""
+        saver = ActivationSaver(["shared"], tmp_path)
+        model = MinimalReusedLayerModel()
+        saver.attach(model)
+        saver.on_test_batch_start(mock_trainer, mock_module, {}, 0)
+        model(torch.tensor([[1.0, 3.0]]))
+        assert saver._current_activations
+
+        saver.detach()
+        saver._current_activations = {}
+        model(torch.tensor([[1.0, 3.0]]))
+
+        assert saver._current_activations == {}
