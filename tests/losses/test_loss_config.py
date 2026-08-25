@@ -57,6 +57,7 @@ class TestLossConfig:
                 output_space=cfg_output_space,
                 optimizer=DictConfig({}),
                 scheduler=DictConfig({}),
+                lr_scheduler=DictConfig({}),
                 # loss intentionally omitted
             )
 
@@ -76,6 +77,7 @@ class TestLossConfig:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             loss=LOSS_CONFIGS[loss_name],
         )
         assert isinstance(model.loss_fn, LOSS_TYPES[loss_name])
@@ -97,5 +99,6 @@ class TestLossConfig:
                 output_space=cfg_output_space,
                 optimizer=DictConfig({}),
                 scheduler=DictConfig({}),
+                lr_scheduler=DictConfig({}),
                 loss=bad_loss,
             )

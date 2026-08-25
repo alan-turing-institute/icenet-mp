@@ -80,7 +80,7 @@ notebooks = [
 ]
 
 [project.scripts]
-imp = "icenet_mp.cli:main"
+imp = "icenet_mp.cli:run"
 
 [tool.coverage.paths]
 source = ["icenet_mp/"]
@@ -148,6 +148,7 @@ known-third-party = ["wandb"]
     "S101", # allow asserts in tests
     "INP001", # allow implicit namespace in tests
     "PLR0913", # allow unlimited arguments in tests
+    "PLR0917", # allow unlimited positional arguments in tests
     "PLR2004", # allow magic-number comparison in tests
 ]
 
