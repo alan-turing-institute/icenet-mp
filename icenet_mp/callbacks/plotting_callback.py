@@ -123,7 +123,7 @@ class PlottingCallback(Callback):
     def load_target_uncertainties(
         dataset: CombinedDataset, dates: list
     ) -> dict[int, ArrayTHW]:
-        """Load SSMIS SIC uncertainty in the same normalised scale as the target."""
+        """Load SIC uncertainty in the same normalised scale as the target."""
         target_variable = "ice_conc"
         uncertainty_variable = "total_standard_uncertainty"
 
@@ -150,9 +150,7 @@ class PlottingCallback(Callback):
             np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
             uncertainty = uncertainty_ds.get_tchw(np_dates)[:, 0]
 
-            # SSMIS uncertainties are fractions after ingestion. The source uses 99 as
-            # a sentinel for missing uncertainty, so mask values outside the physical
-            # range.
+            # Uncertainties are fractions which must be in the range (0, 1]
             uncertainty = np.where(
                 np.isfinite(uncertainty) & (uncertainty > 0) & (uncertainty <= 1),
                 uncertainty,
@@ -169,7 +167,7 @@ class PlottingCallback(Callback):
                 )
                 return {}
 
-            return {target_idx: uncertainty / target_range}
+            return {target_idx: (uncertainty / target_range).astype(np.float32)}
         except (
             IndexError,
             ValueError,
