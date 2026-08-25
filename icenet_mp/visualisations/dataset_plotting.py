@@ -18,7 +18,6 @@ def plot_variables_static(
     base_path: Path,
 ) -> int:
     """Save static plots for one timestep of a downloaded dataset."""
-    output_dir = base_path / "data" / "input_plots"
     dataset = SingleDataset(
         name=dataset_name,
         input_files=[dataset_path],
@@ -45,7 +44,7 @@ def plot_variables_static(
         when=when,
     )
 
-    dataset_output_dir = output_dir / dataset_name
+    dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
     for image_name, image_list in images.items():
@@ -66,7 +65,6 @@ def plot_variables_video(
     base_path: Path,
 ) -> int:
     """Save one animation per variable for a run of consecutive timesteps."""
-    output_dir = base_path / "data" / "input_plots"
     dataset = SingleDataset(
         name=dataset_name,
         input_files=[dataset_path],
@@ -97,7 +95,7 @@ def plot_variables_video(
         plot_spec=plot_spec,
     )
 
-    dataset_output_dir = output_dir / dataset_name
+    dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
     for video_name, video_buffer in videos.items():
