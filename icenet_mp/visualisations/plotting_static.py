@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
 from PIL.ImageFile import ImageFile
 
-from icenet_mp.types import ArrayHW, PlotSpec
+from icenet_mp.types import ArrayHW, PlotSpec, UncertaintyArrays
 
 from .convert import image_from_figure
 from .helpers import (
@@ -147,10 +147,8 @@ def plot_static_prediction(
         plt.close(fig)
 
 
-def plot_static_uncertainty(  # noqa: PLR0913
-    ground_truth: ArrayHW,
-    prediction: ArrayHW,
-    uncertainty: ArrayHW,
+def plot_static_uncertainty(
+    arrays: UncertaintyArrays,
     *,
     date: date | datetime,
     land_mask: LandMask,
@@ -164,7 +162,7 @@ def plot_static_uncertainty(  # noqa: PLR0913
     are masked.
     """
     z_difference = compute_standardised_difference(
-        ground_truth, prediction, uncertainty
+        arrays.ground_truth, arrays.prediction, arrays.uncertainty
     )
     z_difference = land_mask.apply_to(z_difference)
 

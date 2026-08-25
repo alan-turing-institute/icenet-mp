@@ -12,6 +12,7 @@ from icenet_mp.types import (
     Metadata,
     ModelStepOutput,
     PlotSpec,
+    UncertaintyArrays,
 )
 from icenet_mp.utils import npdatetime_from_datetime
 
@@ -118,9 +119,9 @@ class Plotter:
                 if uncertainty is not None:
                     images.update(
                         plot_static_uncertainty(
-                            ground_truth,
-                            prediction,
-                            uncertainty[idx_date],
+                            UncertaintyArrays(
+                                ground_truth, prediction, uncertainty[idx_date]
+                            ),
                             date=dates[idx_date],
                             land_mask=self.land_mask,
                             plot_spec=self.plot_spec,

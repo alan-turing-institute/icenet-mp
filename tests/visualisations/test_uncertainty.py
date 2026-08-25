@@ -12,6 +12,7 @@ from icenet_mp.visualisations import (
     plot_static_uncertainty,
 )
 from icenet_mp.visualisations.land_mask import LandMask
+from icenet_mp.visualisations.plotting_static import UncertaintyArrays
 
 
 class TestComputeStandardisedDifference:
@@ -58,9 +59,7 @@ class TestPlotStaticUncertainty:
         spec = replace(DEFAULT_SIC_SPEC, dpi=50)
 
         result = plot_static_uncertainty(
-            ground_truth,
-            prediction,
-            uncertainty,
+            UncertaintyArrays(ground_truth, prediction, uncertainty),
             date=when,
             land_mask=LandMask(None),
             plot_spec=spec,
