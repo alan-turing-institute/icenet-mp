@@ -286,6 +286,33 @@ class TestSweepTrialCLI:
             ],
         )
 
+    def test_trial_marks_study_failed_and_exits_cleanly_on_oom(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+        runner: CustomCliRunner,
+        tmp_path: Path,
+    ) -> None:
+        """CUDA OOM is a routine sampling outcome: fail cleanly, no raw traceback."""
+        study_path, _ = _build_study(tmp_path, n_completed=0)
+
+        def _raise_oom(_config: object) -> ModelService:
+            msg = "Simulated CUDA out of memory."
+            raise torch.OutOfMemoryError(msg)
+
+        monkeypatch.setattr(ModelService, "from_config", _raise_oom)
+
+        with caplog.at_level(logging.ERROR):
+            result = runner.call(["sweep", "trial", "--sweep-path", str(study_path)])
+
+        assert result.exit_code == 1
+        assert not isinstance(result.exception, torch.OutOfMemoryError)
+        assert "ran out of GPU memory" in caplog.text
+
+        trials = OptunaSweep.from_path(study_path).study.get_trials()
+        assert len(trials) == 1
+        assert trials[0].state == TrialState.FAIL
+
     def test_trial_marks_study_failed_instead_of_leaving_it_running_on_a_crash(
         self,
         tmp_path: Path,

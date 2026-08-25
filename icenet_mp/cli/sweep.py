@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Annotated
 
+import torch
 import typer
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig
@@ -150,6 +151,17 @@ def trial(
             if isinstance(ckpt, ModelCheckpoint)
         ]
         checkpoint = checkpoints[0] if len(checkpoints) == 1 else None
+    except torch.OutOfMemoryError:
+        # CUDA OOM is a routine outcome of hyperparameter sampling, not a bug. Skip the
+        # full traceback dump and exit cleanly so logs stay readable.
+        log.error(  # noqa: TRY400
+            "Trial %d failed: ran out of GPU memory. This is likely because the "
+            "sampled hyperparameters produced a model too large to fit alongside the "
+            "configured batch size.",
+            trial.number,
+        )
+        sweep.tell(trial, state=TrialState.FAIL)
+        raise typer.Exit(code=1) from None
     except Exception:
         # Mark the trial as failed after any exception before continuing
         log.exception("Trial %d failed.", trial.number)
