@@ -49,7 +49,6 @@ from .plotting_core import (
 logger = logging.getLogger(__name__)
 
 ICE_EDGE_THRESHOLD = 0.15
-PREDICTION_ICE_EDGE_COLOUR = "black"
 CLIMATOLOGY_ICE_EDGE_COLOUR = "magenta"
 
 
@@ -59,7 +58,7 @@ def _draw_climatology_ice_edge(
     climatology: ArrayHW,
     land_mask: LandMask,
 ) -> None:
-    """Overlay prediction and climatology ice edges on a prediction panel."""
+    """Overlay the climatology ice edge on a prediction panel."""
     if prediction.shape != climatology.shape:
         msg = (
             f"Climatology ({climatology.shape}) has a different shape to "
@@ -67,15 +66,7 @@ def _draw_climatology_ice_edge(
         )
         raise InvalidArrayError(msg)
 
-    prediction = land_mask.apply_to(prediction)
     climatology = land_mask.apply_to(climatology)
-    ax.contour(
-        prediction,
-        levels=[ICE_EDGE_THRESHOLD],
-        colors=[PREDICTION_ICE_EDGE_COLOUR],
-        linewidths=1.2,
-        origin="lower",
-    )
     ax.contour(
         climatology,
         levels=[ICE_EDGE_THRESHOLD],
@@ -99,8 +90,8 @@ def plot_static_prediction(  # noqa: PLR0913
 
     Create static maps and (optional) the difference. The plots use contour mapping with
     customisable colour schemes and include proper axis scaling and colourbars. When
-    ``climatology`` is provided, the prediction panel also shows the 15% ice edge for
-    the prediction and climatology as differently coloured contour traces.
+    ``climatology`` is provided, the prediction panel also shows its 15% ice edge as a
+    differently coloured reference contour.
 
     Args:
         ground_truth: 2D array of ground truth sea ice concentration values.
@@ -112,8 +103,7 @@ def plot_static_prediction(  # noqa: PLR0913
         variable_name: Name of the variable being plotted, used in the plot title and
             output key.
         climatology: Optional 2D climatology sea ice concentration array. When supplied,
-            the prediction and climatology 15% ice edges are overlaid on the prediction
-            panel for direct comparison.
+            its 15% ice edge is overlaid on the prediction panel as a reference contour.
 
     Returns:
         Dictionary that maps plot names to lists of PIL ImageFile objects. Currently
