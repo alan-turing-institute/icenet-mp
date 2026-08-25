@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Sequence
+from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 from typing import ClassVar, TypeVar, cast
@@ -10,7 +11,6 @@ from anemoi.datasets.usage.dataset import Dataset as AnemoiDataset
 from torch.utils.data import Dataset
 
 from icenet_mp.types import ArrayCHW, ArrayTCHW, DataSpace, Hemisphere
-from icenet_mp.utils import normalise_date
 
 ArrayType = TypeVar("ArrayType", ArrayCHW, ArrayTCHW)
 
@@ -68,10 +68,16 @@ class SingleDataset(Dataset):
         idx2anemoi = {}
         for idx_ds, dataset in enumerate(self.dataslices):
             for idx_date, date in enumerate(dataset.dates):
-                idx_global = self._date2idx.get(normalise_date(date), None)
+                idx_global = self._date2idx.get(self.normalise_date(date), None)
                 if idx_global is not None:
                     idx2anemoi[idx_global] = (idx_ds, idx_date)
         return idx2anemoi
+
+    @staticmethod
+    def normalise_date(np_datetime: np.datetime64) -> np.datetime64:
+        """Normalise a datetime to noon."""
+        dt: datetime = np_datetime.astype("datetime64[ms]").astype(datetime)
+        return np.datetime64(dt.replace(hour=12, minute=0, second=0, microsecond=0))
 
     @staticmethod
     def normalise_date_ranges(
@@ -94,7 +100,7 @@ class SingleDataset(Dataset):
         if len(ranges) <= 1:
             return [dict(date_range) for date_range in ranges]
 
-        #  Assume data always has a daily frequency; for future updates: read from source metadata
+        # Assume data always has a daily frequency; for future updates: read from source metadata
         frequency = np.timedelta64(1, "D")
 
         def _ranges_overlap_or_touch(
@@ -157,7 +163,7 @@ class SingleDataset(Dataset):
         """Return all available dates in the dataset, removing any that are missing."""
         return sorted(
             {
-                normalise_date(date)
+                self.normalise_date(date)
                 for ds in self.dataslices
                 for date in np.delete(ds.dates, list(ds.missing))
             }
@@ -266,7 +272,7 @@ class SingleDataset(Dataset):
                    slice is invalid
 
         """
-        start_date = normalise_date(start_date)
+        start_date = self.normalise_date(start_date)
         try:
             idx_global_start = self._date2idx[start_date]
             idx_ds_start, idx_date_start = self._idx2anemoi[idx_global_start]
@@ -329,7 +335,7 @@ class SingleDataset(Dataset):
 
     def to_index(self, date: np.datetime64) -> int:
         """Return the index of a given date in the dataset."""
-        date = normalise_date(date)
+        date = self.normalise_date(date)
         try:
             return self._date2idx[date]
         except KeyError as exc:

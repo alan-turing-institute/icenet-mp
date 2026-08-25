@@ -13,21 +13,6 @@ def datetime_from_npdatetime(dt: np.datetime64) -> datetime:
     return dt.astype("datetime64[ms]").astype(datetime).astimezone(UTC)
 
 
-def npdatetime_from_datetime(dt: datetime) -> np.datetime64:
-    """Convert an aware or naive datetime to numpy datetime64, dropping tzinfo."""
-    return np.datetime64(dt.replace(tzinfo=None))
-
-
-def mask_dir(base_path: Path, dataset_name: str) -> Path:
-    """Path finder for holding the active masks.
-
-    On-disk active mask layout is defined here once and used everywhere, single source,
-    used both when active masks are written (in dataset creation) and when they are read
-    (during model build), so they never diverge.
-    """
-    return base_path / "data" / "preprocessing" / "masks" / dataset_name
-
-
 def get_device_name(accelerator_name: str) -> str:
     """Get the device name for the given accelerator."""
     if accelerator_name == "cuda":
@@ -60,10 +45,19 @@ def get_wandb_run(trainer: Trainer) -> Run | None:
     return None
 
 
-def normalise_date(np_datetime: np.datetime64) -> np.datetime64:
-    """Normalise a datetime to noon."""
-    dt: datetime = np_datetime.astype("datetime64[ms]").astype(datetime)
-    return np.datetime64(dt.replace(hour=12, minute=0, second=0, microsecond=0))
+def mask_dir(base_path: Path, dataset_name: str) -> Path:
+    """Path finder for holding the active masks.
+
+    On-disk active mask layout is defined here once and used everywhere, single source,
+    used both when active masks are written (in dataset creation) and when they are read
+    (during model build), so they never diverge.
+    """
+    return base_path / "data" / "preprocessing" / "masks" / dataset_name
+
+
+def npdatetime_from_datetime(dt: datetime) -> np.datetime64:
+    """Convert an aware or naive datetime to numpy datetime64, dropping tzinfo."""
+    return np.datetime64(dt.replace(tzinfo=None))
 
 
 def to_list(value: str | list[str]) -> list[str]:
