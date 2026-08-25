@@ -13,6 +13,11 @@ def datetime_from_npdatetime(dt: np.datetime64) -> datetime:
     return dt.astype("datetime64[ms]").astype(datetime).astimezone(UTC)
 
 
+def npdatetime_from_datetime(dt: datetime) -> np.datetime64:
+    """Convert an aware or naive datetime to numpy datetime64, dropping tzinfo."""
+    return np.datetime64(dt.replace(tzinfo=None))
+
+
 def mask_dir(base_path: Path, dataset_name: str) -> Path:
     """Path finder for holding the active masks.
 
