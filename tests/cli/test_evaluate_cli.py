@@ -1,10 +1,10 @@
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from omegaconf import DictConfig
-from typer.testing import CliRunner
+from typer.testing import Result
 
-from icenet_mp.cli.main import app
 from icenet_mp.model_service import ModelService
 
 from .conftest import CustomCliRunner
@@ -21,7 +21,10 @@ class FakeModelService:
 
 class TestEvaluateCLI:
     def test_evaluate_loads_resolved_checkpoint_and_runs(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Compose the config, resolve the checkpoint path, and run evaluate()."""
         service = FakeModelService()
@@ -36,16 +39,14 @@ class TestEvaluateCLI:
         monkeypatch.setattr(ModelService, "from_checkpoint", fake_from_checkpoint)
         checkpoint = tmp_path / "model.ckpt"
 
-        result = CliRunner().invoke(
-            app,
+        result = invoke_cli(
             [
                 "evaluate",
                 "--config-name",
                 "sample",
                 "--checkpoint",
                 str(checkpoint),
-            ],
-            prog_name="imp",
+            ]
         )
 
         assert result.exit_code == 0, result.output
@@ -58,7 +59,10 @@ class TestEvaluateCLI:
         assert service.evaluate_calls == 1
 
     def test_checkpoint_resolves_a_relative_path(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A relative --checkpoint is resolved against the current directory."""
         service = FakeModelService()
@@ -73,16 +77,14 @@ class TestEvaluateCLI:
         monkeypatch.setattr(ModelService, "from_checkpoint", fake_from_checkpoint)
         monkeypatch.chdir(tmp_path)
 
-        result = CliRunner().invoke(
-            app,
+        result = invoke_cli(
             [
                 "evaluate",
                 "--config-name",
                 "sample",
                 "--checkpoint",
                 "model.ckpt",
-            ],
-            prog_name="imp",
+            ]
         )
 
         assert result.exit_code == 0, result.output
@@ -103,7 +105,10 @@ class TestEvaluateCLI:
         )
 
     def test_repeated_save_layer_flags_update_activation_saver_config(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Repeat --save-layer to hook multiple submodules in one run."""
         service = FakeModelService()
@@ -117,8 +122,7 @@ class TestEvaluateCLI:
 
         monkeypatch.setattr(ModelService, "from_checkpoint", fake_from_checkpoint)
 
-        result = CliRunner().invoke(
-            app,
+        result = invoke_cli(
             [
                 "evaluate",
                 "--config-name",
@@ -129,8 +133,7 @@ class TestEvaluateCLI:
                 "processor.conv1",
                 "--save-layer",
                 "decoder.model",
-            ],
-            prog_name="imp",
+            ]
         )
 
         assert result.exit_code == 0, result.output

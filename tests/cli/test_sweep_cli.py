@@ -1,13 +1,13 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 import yaml
 from omegaconf import OmegaConf
 from optuna.trial import TrialState
-from typer.testing import CliRunner
+from typer.testing import Result
 
-from icenet_mp.cli.main import app
 from icenet_mp.model_service import ModelService
 from icenet_mp.sweep import OptunaSweep
 
@@ -102,11 +102,11 @@ class TestSweepCLI:
             ],
         )
 
-    def test_missing_sweep_path_raises(self, tmp_path: Path) -> None:
-        runner = CliRunner()
-        result = runner.invoke(
-            app,
-            ["sweep", "summarise", "--sweep-path", str(tmp_path / "missing")],
+    def test_missing_sweep_path_raises(
+        self, tmp_path: Path, invoke_cli: Callable[[list[str]], Result]
+    ) -> None:
+        result = invoke_cli(
+            ["sweep", "summarise", "--sweep-path", str(tmp_path / "missing")]
         )
         assert result.exit_code != 0
         assert isinstance(result.exception, FileNotFoundError)
@@ -152,7 +152,10 @@ class TestSweepCLI:
         assert "No trials have completed yet" in caplog.text
 
     def test_trial_marks_study_failed_instead_of_leaving_it_running_on_a_crash(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A crash while training must not leave the trial RUNNING forever."""
         study_path, _ = self._build_study(tmp_path, n_completed=0)
@@ -163,8 +166,7 @@ class TestSweepCLI:
 
         monkeypatch.setattr(ModelService, "from_config", _raise_from_config)
 
-        runner = CliRunner()
-        result = runner.invoke(app, ["sweep", "trial", "--sweep-path", str(study_path)])
+        result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
 
         assert result.exit_code != 0
         assert isinstance(result.exception, RuntimeError)

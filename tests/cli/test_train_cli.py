@@ -1,10 +1,10 @@
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from omegaconf import DictConfig
-from typer.testing import CliRunner
+from typer.testing import Result
 
-from icenet_mp.cli.main import app
 from icenet_mp.model_service import ModelService
 
 from .conftest import CustomCliRunner
@@ -23,7 +23,9 @@ class FakeModelService:
 
 class TestTrainCLI:
     def test_default_training_forwards_composed_config(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         service = FakeModelService()
         captured: list[DictConfig] = []
@@ -34,11 +36,7 @@ class TestTrainCLI:
 
         monkeypatch.setattr(ModelService, "from_config", fake_from_config)
 
-        result = CliRunner().invoke(
-            app,
-            ["train", "--config-name", "sample"],
-            prog_name="imp",
-        )
+        result = invoke_cli(["train", "--config-name", "sample"])
 
         assert result.exit_code == 0, result.output
         assert len(captured) == 1
@@ -60,7 +58,10 @@ class TestTrainCLI:
         )
 
     def test_multistage_training_resolves_checkpoint_directory(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         service = FakeModelService()
 
@@ -70,8 +71,7 @@ class TestTrainCLI:
         monkeypatch.setattr(ModelService, "from_config", fake_from_config)
         checkpoint_dir = tmp_path / "checkpoints"
 
-        result = CliRunner().invoke(
-            app,
+        result = invoke_cli(
             [
                 "train",
                 "--config-name",
@@ -79,15 +79,16 @@ class TestTrainCLI:
                 "--multistage",
                 "--checkpoint-dir",
                 str(checkpoint_dir),
-            ],
-            prog_name="imp",
+            ]
         )
 
         assert result.exit_code == 0, result.output
         assert service.calls == [(checkpoint_dir.resolve(), True)]
 
     def test_multistage_without_checkpoint_dir_passes_none(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         service = FakeModelService()
 
@@ -96,17 +97,16 @@ class TestTrainCLI:
 
         monkeypatch.setattr(ModelService, "from_config", fake_from_config)
 
-        result = CliRunner().invoke(
-            app,
-            ["train", "--config-name", "sample", "--multistage"],
-            prog_name="imp",
-        )
+        result = invoke_cli(["train", "--config-name", "sample", "--multistage"])
 
         assert result.exit_code == 0, result.output
         assert service.calls == [(None, True)]
 
     def test_checkpoint_dir_without_multistage_still_resolves(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Accept --checkpoint-dir alone; the command has no multistage-only gating."""
         service = FakeModelService()
@@ -117,23 +117,24 @@ class TestTrainCLI:
         monkeypatch.setattr(ModelService, "from_config", fake_from_config)
         checkpoint_dir = tmp_path / "checkpoints"
 
-        result = CliRunner().invoke(
-            app,
+        result = invoke_cli(
             [
                 "train",
                 "--config-name",
                 "sample",
                 "--checkpoint-dir",
                 str(checkpoint_dir),
-            ],
-            prog_name="imp",
+            ]
         )
 
         assert result.exit_code == 0, result.output
         assert service.calls == [(checkpoint_dir.resolve(), False)]
 
     def test_checkpoint_dir_resolves_a_relative_path(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A relative --checkpoint-dir is resolved against the current directory."""
         service = FakeModelService()
@@ -144,8 +145,7 @@ class TestTrainCLI:
         monkeypatch.setattr(ModelService, "from_config", fake_from_config)
         monkeypatch.chdir(tmp_path)
 
-        result = CliRunner().invoke(
-            app,
+        result = invoke_cli(
             [
                 "train",
                 "--config-name",
@@ -153,8 +153,7 @@ class TestTrainCLI:
                 "--multistage",
                 "--checkpoint-dir",
                 "checkpoints",
-            ],
-            prog_name="imp",
+            ]
         )
 
         assert result.exit_code == 0, result.output

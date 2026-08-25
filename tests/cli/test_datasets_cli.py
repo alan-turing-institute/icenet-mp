@@ -1,10 +1,9 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
-
-from icenet_mp.cli.main import app
+from typer.testing import Result
 
 from .conftest import CustomCliRunner
 
@@ -55,7 +54,9 @@ class TestDatasetsCreateCLI:
                 raise self.error
 
     def test_calls_create_on_each_downloader_with_overwrite_flag(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Call create(overwrite=True) on every downloader when --overwrite is set."""
         first = self.FakeDownloader("first")
@@ -64,28 +65,33 @@ class TestDatasetsCreateCLI:
             "icenet_mp.cli.datasets.build_downloaders", lambda _config: [first, second]
         )
 
-        result = CliRunner().invoke(
-            app, ["datasets", "create", "--overwrite"], prog_name="imp"
-        )
+        result = invoke_cli(["datasets", "create", "--overwrite"])
 
         assert result.exit_code == 0, result.output
         assert first.create_calls == [True]
         assert second.create_calls == [True]
 
-    def test_defaults_overwrite_to_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_defaults_overwrite_to_false(
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Default --overwrite to False when not passed."""
         downloader = self.FakeDownloader("example")
         monkeypatch.setattr(
             "icenet_mp.cli.datasets.build_downloaders", lambda _config: [downloader]
         )
 
-        result = CliRunner().invoke(app, ["datasets", "create"], prog_name="imp")
+        result = invoke_cli(["datasets", "create"])
 
         assert result.exit_code == 0, result.output
         assert downloader.create_calls == [False]
 
     def test_exits_with_error_and_stops_on_runtime_error(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Exit 1 and skip remaining downloaders when one fails to create."""
         failing = self.FakeDownloader("failing", error=RuntimeError("boom"))
@@ -96,7 +102,7 @@ class TestDatasetsCreateCLI:
         )
 
         with caplog.at_level(logging.ERROR):
-            result = CliRunner().invoke(app, ["datasets", "create"], prog_name="imp")
+            result = invoke_cli(["datasets", "create"])
 
         assert result.exit_code == 1
         assert "Failed to create failing: boom" in caplog.text
@@ -120,7 +126,9 @@ class TestDatasetsInspectCLI:
                 raise self.error
 
     def test_calls_inspect_on_each_downloader_with_verbose_flag(
-        self, monkeypatch: pytest.MonkeyPatch
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Call inspect(verbose=True) on every downloader when --verbose is set."""
         first = self.FakeDownloader("first")
@@ -129,28 +137,33 @@ class TestDatasetsInspectCLI:
             "icenet_mp.cli.datasets.build_downloaders", lambda _config: [first, second]
         )
 
-        result = CliRunner().invoke(
-            app, ["datasets", "inspect", "--verbose"], prog_name="imp"
-        )
+        result = invoke_cli(["datasets", "inspect", "--verbose"])
 
         assert result.exit_code == 0, result.output
         assert first.inspect_calls == [True]
         assert second.inspect_calls == [True]
 
-    def test_defaults_verbose_to_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_defaults_verbose_to_false(
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Default --verbose to False when not passed."""
         downloader = self.FakeDownloader("example")
         monkeypatch.setattr(
             "icenet_mp.cli.datasets.build_downloaders", lambda _config: [downloader]
         )
 
-        result = CliRunner().invoke(app, ["datasets", "inspect"], prog_name="imp")
+        result = invoke_cli(["datasets", "inspect"])
 
         assert result.exit_code == 0, result.output
         assert downloader.inspect_calls == [False]
 
     def test_logs_and_continues_past_runtime_error(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Log and continue with remaining downloaders when one fails to inspect."""
         failing = self.FakeDownloader("failing", error=RuntimeError("boom"))
@@ -161,7 +174,7 @@ class TestDatasetsInspectCLI:
         )
 
         with caplog.at_level(logging.ERROR):
-            result = CliRunner().invoke(app, ["datasets", "inspect"], prog_name="imp")
+            result = invoke_cli(["datasets", "inspect"])
 
         assert result.exit_code == 0, result.output
         assert "Inspecting dataset failing failed, skipping." in caplog.text
@@ -180,6 +193,7 @@ class TestDatasetsPlotCLI:
     def test_plot_calls_plot_dataset_for_each_matched_existing_dataset(
         self,
         tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Call plot_dataset once per configured downloader whose data exists."""
@@ -205,10 +219,8 @@ class TestDatasetsPlotCLI:
             "icenet_mp.cli.datasets.plot_variables_static", fake_plot_dataset
         )
 
-        result = CliRunner().invoke(
-            app,
-            ["datasets", "plot", f"base_path={tmp_path}", "--timestep", "1"],
-            prog_name="imp",
+        result = invoke_cli(
+            ["datasets", "plot", f"base_path={tmp_path}", "--timestep", "1"]
         )
 
         assert result.exit_code == 0, result.output
@@ -218,6 +230,7 @@ class TestDatasetsPlotCLI:
     def test_plot_video_calls_plot_dataset_video_with_n_steps(
         self,
         tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Call plot_dataset_video instead of plot_dataset when --video is passed."""
@@ -246,8 +259,7 @@ class TestDatasetsPlotCLI:
             "icenet_mp.cli.datasets.plot_variables_video", fake_plot_dataset_video
         )
 
-        result = CliRunner().invoke(
-            app,
+        result = invoke_cli(
             [
                 "datasets",
                 "plot",
@@ -255,8 +267,7 @@ class TestDatasetsPlotCLI:
                 "--video",
                 "--n-steps",
                 "5",
-            ],
-            prog_name="imp",
+            ]
         )
 
         assert result.exit_code == 0, result.output
@@ -266,6 +277,7 @@ class TestDatasetsPlotCLI:
     def test_plot_rejects_unmatched_dataset_name(
         self,
         tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Exit non-zero when --dataset names a dataset that isn't configured."""
@@ -274,11 +286,7 @@ class TestDatasetsPlotCLI:
             lambda _config: [self.FakeDownloader("example", tmp_path / "example.zarr")],
         )
 
-        result = CliRunner().invoke(
-            app,
-            ["datasets", "plot", "--dataset", "unknown"],
-            prog_name="imp",
-        )
+        result = invoke_cli(["datasets", "plot", "--dataset", "unknown"])
 
         assert result.exit_code == 1
 
@@ -310,7 +318,10 @@ class TestDatasetsPostProcessorCLI:
             self.postprocessor = postprocessor
 
     def test_calls_postprocessor_process_with_overwrite_flag(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Call postprocessor.process(path_dataset, overwrite=True) per downloader."""
         postprocessor = self.FakePostprocessor()
@@ -321,15 +332,16 @@ class TestDatasetsPostProcessorCLI:
             "icenet_mp.cli.datasets.build_downloaders", lambda _config: [downloader]
         )
 
-        result = CliRunner().invoke(
-            app, ["datasets", "masks", "--overwrite"], prog_name="imp"
-        )
+        result = invoke_cli(["datasets", "masks", "--overwrite"])
 
         assert result.exit_code == 0, result.output
         assert postprocessor.process_calls == [(downloader.path_dataset, True)]
 
     def test_defaults_overwrite_to_false(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Default --overwrite to False when not passed."""
         postprocessor = self.FakePostprocessor()
@@ -340,13 +352,16 @@ class TestDatasetsPostProcessorCLI:
             "icenet_mp.cli.datasets.build_downloaders", lambda _config: [downloader]
         )
 
-        result = CliRunner().invoke(app, ["datasets", "masks"], prog_name="imp")
+        result = invoke_cli(["datasets", "masks"])
 
         assert result.exit_code == 0, result.output
         assert postprocessor.process_calls == [(downloader.path_dataset, False)]
 
     def test_propagates_errors_without_catching_them(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Let a postprocessor failure propagate uncaught, unlike create/inspect."""
         postprocessor = self.FakePostprocessor(error=RuntimeError("boom"))
@@ -357,7 +372,7 @@ class TestDatasetsPostProcessorCLI:
             "icenet_mp.cli.datasets.build_downloaders", lambda _config: [downloader]
         )
 
-        result = CliRunner().invoke(app, ["datasets", "masks"], prog_name="imp")
+        result = invoke_cli(["datasets", "masks"])
 
         assert result.exit_code != 0
         assert isinstance(result.exception, RuntimeError)
