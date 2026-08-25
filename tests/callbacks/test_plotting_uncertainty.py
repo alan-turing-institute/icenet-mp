@@ -63,6 +63,18 @@ class TestLoadTargetUncertainties:
         assert result == {}
         dataset.inputs[0].subset.assert_not_called()
 
+    def test_skips_when_target_variable_not_present(self) -> None:
+        """Skip uncertainty loading when the target variable itself isn't in the dataset."""
+        dataset, _ = _dataset_with_uncertainty()
+        dataset.target.variable_names = ["other_variable"]
+
+        result = PlottingCallback().load_target_uncertainties(
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+        )
+
+        assert result == {}
+        dataset.inputs[0].subset.assert_not_called()
+
     def test_handles_data_error(self, caplog: pytest.LogCaptureFixture) -> None:
         """Skip uncertainty plotting when the source read fails."""
         dataset, uncertainty_ds = _dataset_with_uncertainty()
