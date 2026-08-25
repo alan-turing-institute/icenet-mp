@@ -1,9 +1,11 @@
+import logging
 from unittest.mock import MagicMock
 
 import pytest
 import torch
 from lightning import LightningModule, Trainer
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.trainer.states import TrainerFn
 from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
@@ -70,7 +72,7 @@ class TestOnTestEnd:
         """Test on_test_end when test_metrics is not a MetricCollection."""
         mock_module.test_metrics = "invalid"
 
-        callback.on_test_end(mock_trainer, mock_module)
+        callback.on_test_epoch_end(mock_trainer, mock_module)
 
         # Should not raise an error, just log a warning
         mock_logger = mock_trainer.loggers[0]
@@ -159,6 +161,273 @@ class TestOnTestEnd:
         mock_logger.log_metrics.assert_called_once()
         metrics_call_args = mock_logger.log_metrics.call_args[0][0]
         assert "test_mae_daily_mean" in metrics_call_args
+
+
+class TestLogPerEpochMetrics:
+    """Tests for log_per_epoch_metrics."""
+
+    def test_skips_during_sanity_checking(
+        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+    ) -> None:
+        """Do not log anything while Lightning's sanity check is running."""
+        mock_trainer.sanity_checking = True
+        metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
+        metric_collection.update(torch.zeros(1), torch.ones(1))
+
+        callback.log_per_epoch_metrics(mock_trainer, metric_collection, stage="test")
+
+        mock_logger = mock_trainer.loggers[0]
+        mock_logger.log_metrics.assert_not_called()
+
+    def test_skips_metrics_that_were_never_updated(
+        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+    ) -> None:
+        """Skip metrics in the collection whose update() was never called."""
+        metric_collection = MetricCollection(
+            {"mae": MeanAbsoluteError(), "unused": MeanAbsoluteError()}
+        )
+        metric_collection["mae"].update(torch.zeros(1), torch.ones(1))
+
+        callback.log_per_epoch_metrics(mock_trainer, metric_collection, stage="test")
+
+        mock_logger = mock_trainer.loggers[0]
+        mock_logger.log_metrics.assert_called_once()
+        logged_metrics = mock_logger.log_metrics.call_args[0][0]
+        assert "test_mae_mean" in logged_metrics
+        assert "test_unused_mean" not in logged_metrics
+
+
+class TestLogPerRunMetrics:
+    """Tests for log_per_run_metrics."""
+
+    def test_skips_during_sanity_checking(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Return before evaluating anything while Lightning's sanity check is running."""
+        mock_trainer.sanity_checking = True
+
+        with caplog.at_level(logging.WARNING):
+            callback.log_per_run_metrics(mock_trainer, {})
+
+        assert caplog.text == ""
+
+    def test_warns_and_skips_without_wandb_logger(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Warn and skip logging when no WandbLogger/run is available."""
+        with caplog.at_level(logging.WARNING):
+            callback.log_per_run_metrics(mock_trainer, {})
+
+        assert "W&B is not being used as a logger" in caplog.text
+
+    def test_skips_metrics_that_were_never_updated(
+        self,
+        callback: MetricSummaryCallback,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Skip metrics whose update() was never called when building the per-day plot."""
+        mock_wandb = MagicMock()
+        mock_get_wandb_run = MagicMock()
+        monkeypatch.setattr(
+            "icenet_mp.callbacks.metric_summary_callback.wandb", mock_wandb
+        )
+        monkeypatch.setattr(
+            "icenet_mp.callbacks.metric_summary_callback.get_wandb_run",
+            mock_get_wandb_run,
+        )
+
+        class MockWandbRun:
+            def __init__(self) -> None:
+                self.log = MagicMock()
+
+        mock_wandb.Run = MockWandbRun
+        mock_get_wandb_run.return_value = MockWandbRun()
+
+        trainer = MagicMock(spec=Trainer)
+        trainer.sanity_checking = False
+
+        metric_collection = MetricCollection(
+            {"mae_daily": MAEPerForecastDay(), "unused_daily": MAEPerForecastDay()}
+        )
+        preds = torch.randn(1, 3, 1, 2, 2)
+        targets = torch.randn(1, 3, 1, 2, 2)
+        metric_collection["mae_daily"].update(preds, targets)
+
+        callback.log_per_run_metrics(trainer, {"test": metric_collection})
+
+        mock_wandb.plot.line_series.assert_called_once()
+        line_series_kwargs = mock_wandb.plot.line_series.call_args[1]
+        assert line_series_kwargs["title"] == "mae_daily_per_forecast_day"
+
+
+class TestEpochStartResets:
+    """Tests for the on_*_epoch_start metric-reset hooks."""
+
+    def test_on_test_epoch_start_resets_test_metrics(
+        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+    ) -> None:
+        """Reset test_metrics at the start of a test epoch."""
+        metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
+        metric_collection.update(torch.zeros(1), torch.ones(1))
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.test_metrics = metric_collection
+
+        callback.on_test_epoch_start(mock_trainer, pl_module)
+
+        assert metric_collection["mae"]._update_called is False
+
+    def test_on_train_epoch_start_resets_train_metrics(
+        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+    ) -> None:
+        """Reset train_metrics at the start of a training epoch."""
+        metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
+        metric_collection.update(torch.zeros(1), torch.ones(1))
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.train_metrics = metric_collection
+
+        callback.on_train_epoch_start(mock_trainer, pl_module)
+
+        assert metric_collection["mae"]._update_called is False
+
+    def test_on_validation_epoch_start_resets_validation_metrics(
+        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+    ) -> None:
+        """Reset validation_metrics at the start of a validation epoch."""
+        metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
+        metric_collection.update(torch.zeros(1), torch.ones(1))
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.validation_metrics = metric_collection
+
+        callback.on_validation_epoch_start(mock_trainer, pl_module)
+
+        assert metric_collection["mae"]._update_called is False
+
+
+class TestOnTrainEpochEnd:
+    """Tests for on_train_epoch_end."""
+
+    def test_logs_when_train_metrics_present(
+        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+    ) -> None:
+        """Log per-epoch metrics when train_metrics is a MetricCollection."""
+        metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
+        metric_collection.update(torch.zeros(1), torch.ones(1))
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.train_metrics = metric_collection
+
+        callback.on_train_epoch_end(mock_trainer, pl_module)
+
+        mock_logger = mock_trainer.loggers[0]
+        mock_logger.log_metrics.assert_called_once()
+
+    def test_warns_when_train_metrics_missing(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Warn when train_metrics is not a MetricCollection."""
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.train_metrics = "invalid"
+
+        with caplog.at_level(logging.WARNING):
+            callback.on_train_epoch_end(mock_trainer, pl_module)
+
+        assert "Could not load train metrics!" in caplog.text
+
+
+class TestOnValidationEpochEnd:
+    """Tests for on_validation_epoch_end."""
+
+    def test_logs_when_validation_metrics_present(
+        self, callback: MetricSummaryCallback, mock_trainer: MagicMock
+    ) -> None:
+        """Log per-epoch metrics when validation_metrics is a MetricCollection."""
+        metric_collection = MetricCollection({"mae": MeanAbsoluteError()})
+        metric_collection.update(torch.zeros(1), torch.ones(1))
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.validation_metrics = metric_collection
+
+        callback.on_validation_epoch_end(mock_trainer, pl_module)
+
+        mock_logger = mock_trainer.loggers[0]
+        mock_logger.log_metrics.assert_called_once()
+
+    def test_warns_when_validation_metrics_missing(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Warn when validation_metrics is not a MetricCollection."""
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.validation_metrics = "invalid"
+
+        with caplog.at_level(logging.WARNING):
+            callback.on_validation_epoch_end(mock_trainer, pl_module)
+
+        assert "Could not load validation metrics!" in caplog.text
+
+
+class TestTeardown:
+    """Tests for teardown's per-stage metric collection."""
+
+    def test_fitting_stage_collects_train_and_validation_metrics(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Gather both train and validation metrics for a fit run."""
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.train_metrics = MetricCollection({"mae": MeanAbsoluteError()})
+        pl_module.validation_metrics = MetricCollection({"mae": MeanAbsoluteError()})
+        mock_log_per_run_metrics = MagicMock()
+        monkeypatch.setattr(callback, "log_per_run_metrics", mock_log_per_run_metrics)
+
+        callback.teardown(mock_trainer, pl_module, stage=TrainerFn.FITTING.value)
+
+        mock_log_per_run_metrics.assert_called_once()
+        metrics = mock_log_per_run_metrics.call_args[0][1]
+        assert set(metrics) == {"train", "validation"}
+
+    def test_fitting_stage_warns_when_metrics_missing(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Warn for each stage whose metrics collection is missing during a fit run."""
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.train_metrics = "invalid"
+        pl_module.validation_metrics = "invalid"
+
+        with caplog.at_level(logging.WARNING):
+            callback.teardown(mock_trainer, pl_module, stage=TrainerFn.FITTING.value)
+
+        assert "Could not load train metrics!" in caplog.text
+        assert "Could not load validation metrics!" in caplog.text
+
+    def test_testing_stage_warns_when_test_metrics_missing(
+        self,
+        callback: MetricSummaryCallback,
+        mock_trainer: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Warn when test_metrics is missing during a test run."""
+        pl_module = MagicMock(spec=LightningModule)
+        pl_module.test_metrics = "invalid"
+
+        with caplog.at_level(logging.WARNING):
+            callback.teardown(mock_trainer, pl_module, stage=TrainerFn.TESTING.value)
+
+        assert "Could not load test metrics!" in caplog.text
 
 
 class TestMetricCalculations:
