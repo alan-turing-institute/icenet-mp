@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
 
-import numpy as np
 from omegaconf import DictConfig
 
 from icenet_mp.data import SingleDataset
@@ -14,6 +13,7 @@ from icenet_mp.types import (
     ModelStepOutput,
     PlotSpec,
 )
+from icenet_mp.utils import npdatetime_from_datetime
 
 from .land_mask import LandMask
 from .metadata import build_metadata, format_metadata_subtitle
@@ -148,7 +148,7 @@ class Plotter:
         log_path = f"{prefix}/input_video" if prefix else "input_video"
         for input_ds in inputs:
             # Create animations for all variables
-            np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
+            np_dates = [npdatetime_from_datetime(date) for date in dates]
             variables = {
                 f"{input_ds.name}:{v_name}": input_ds.get_tchw(np_dates)[:, channel, :]
                 for channel, v_name in enumerate(input_ds.variable_names)

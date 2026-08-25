@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
 from icenet_mp.types import ArrayTHW, Metadata, ModelStepOutput, PlotSpec
-from icenet_mp.utils import datetime_from_npdatetime
+from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
 from icenet_mp.visualisations.land_mask import LandMask
 
@@ -128,10 +128,12 @@ class PlottingCallback(Callback):
         uncertainty_variable = "total_standard_uncertainty"
 
         try:
+            # Load target index from the dataset or return empty
             if target_variable not in dataset.target.variable_names:
                 return {}
             target_idx = dataset.target.variable_names.index(target_variable)
 
+            # Load uncertainty from the dataset or return empty
             source = next(
                 (
                     input_ds
@@ -143,20 +145,20 @@ class PlottingCallback(Callback):
             )
             if source is None:
                 return {}
-
             uncertainty_ds = source.subset(
                 variables=[uncertainty_variable], normalise=False
             )
-            np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
-            uncertainty = uncertainty_ds.get_tchw(np_dates)[:, 0]
 
-            # Uncertainties are fractions which must be in the range (0, 1]
+            # Load uncertainties as fractions which must be in the range (0, 1]
+            np_dates = [npdatetime_from_datetime(date) for date in dates]
+            uncertainty = uncertainty_ds.get_tchw(np_dates)[:, 0]
             uncertainty = np.where(
                 np.isfinite(uncertainty) & (uncertainty > 0) & (uncertainty <= 1),
                 uncertainty,
                 np.nan,
             )
 
+            # Scale uncertainties to the same range as the target, or return empty
             target_min = float(dataset.target.statistics["minimum"][target_idx])
             target_max = float(dataset.target.statistics["maximum"][target_idx])
             target_range = target_max - target_min
