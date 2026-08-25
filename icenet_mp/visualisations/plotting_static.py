@@ -12,9 +12,11 @@ import logging
 from datetime import date, datetime
 
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 from matplotlib.colors import TwoSlopeNorm
 from PIL.ImageFile import ImageFile
 
+from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayHW, PlotSpec
 
 from .convert import image_from_figure
@@ -46,8 +48,35 @@ from .plotting_core import (
 
 logger = logging.getLogger(__name__)
 
+ICE_EDGE_THRESHOLD = 0.15
+CLIMATOLOGY_ICE_EDGE_COLOUR = "magenta"
 
-def plot_static_prediction(
+
+def _draw_climatology_ice_edge(
+    ax: Axes,
+    prediction: ArrayHW,
+    climatology: ArrayHW,
+    land_mask: LandMask,
+) -> None:
+    """Overlay the climatology ice edge on a prediction panel."""
+    if prediction.shape != climatology.shape:
+        msg = (
+            f"Climatology ({climatology.shape}) has a different shape to "
+            f"prediction ({prediction.shape})."
+        )
+        raise InvalidArrayError(msg)
+
+    climatology = land_mask.apply_to(climatology)
+    ax.contour(
+        climatology,
+        levels=[ICE_EDGE_THRESHOLD],
+        colors=[CLIMATOLOGY_ICE_EDGE_COLOUR],
+        linewidths=1.2,
+        origin="lower",
+    )
+
+
+def plot_static_prediction(  # noqa: PLR0913
     ground_truth: ArrayHW,
     prediction: ArrayHW,
     *,
@@ -55,11 +84,14 @@ def plot_static_prediction(
     land_mask: LandMask,
     plot_spec: PlotSpec,
     variable_name: str,
+    climatology: ArrayHW | None = None,
 ) -> dict[str, list[ImageFile]]:
     """Create static maps comparing ground truth and prediction data.
 
     Create static maps and (optional) the difference. The plots use contour mapping with
-    customisable colour schemes and include proper axis scaling and colourbars.
+    customisable colour schemes and include proper axis scaling and colourbars. When
+    ``climatology`` is provided, the prediction panel also shows its 15% ice edge as a
+    differently coloured reference contour.
 
     Args:
         ground_truth: 2D array of ground truth sea ice concentration values.
@@ -70,6 +102,8 @@ def plot_static_prediction(
         date: Date/datetime for the data being visualised, used in the plot title.
         variable_name: Name of the variable being plotted, used in the plot title and
             output key.
+        climatology: Optional 2D climatology sea ice concentration array. When supplied,
+            its 15% ice edge is overlaid on the prediction panel as a reference contour.
 
     Returns:
         Dictionary that maps plot names to lists of PIL ImageFile objects. Currently
@@ -77,7 +111,8 @@ def plot_static_prediction(
         representing the generated plot.
 
     Raises:
-        InvalidArrayError: If ground_truth and prediction arrays have incompatible shapes.
+        InvalidArrayError: If ground_truth, prediction, or climatology arrays have
+            incompatible shapes.
 
     """
     (
@@ -110,6 +145,9 @@ def plot_static_prediction(
         diff_colour_scale=diff_colour_scale,
         precomputed_difference=difference,
     )
+
+    if climatology is not None:
+        _draw_climatology_ice_edge(axs[1], prediction, climatology, land_mask)
 
     # Restore axis titles after drawing (they were cleared in _draw_frame)
     _set_titles(axs, plot_spec)
