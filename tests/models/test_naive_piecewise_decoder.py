@@ -71,7 +71,9 @@ def test_naive_piecewise_decoder_requires_one_index_per_output_channel() -> None
 
 def test_naive_piecewise_decoder_rejects_invalid_target_variable_index() -> None:
     """Require selected variables to exist inside the target input group."""
-    with pytest.raises(ValueError, match="must refer to channels in the target input group"):
+    with pytest.raises(
+        ValueError, match="must refer to channels in the target input group"
+    ):
         PiecewiseDecoder(
             data_space_in=DataSpace(name="combined", channels=90, shape=(4, 4)),
             data_space_out=DataSpace(name="sic", channels=1, shape=(8, 8)),
