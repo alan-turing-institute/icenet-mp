@@ -8,8 +8,12 @@ from icenet_mp.types import DataSpace
 
 class TestPiecewiseEncodeDecode:
     @pytest.mark.parametrize("test_batch_size", [1, 2, 3])
-    @pytest.mark.parametrize("test_input_chw", [(1, 60, 60), (4, 20, 60)])
-    @pytest.mark.parametrize("test_patch_size", [(2, 2), (4, 2), (5, 3)])
+    @pytest.mark.parametrize(
+        "test_input_chw", [(1, 60, 60), (4, 20, 60)], ids=lambda chw: f"chw={chw}"
+    )
+    @pytest.mark.parametrize(
+        "test_patch_size", [(2, 2), (4, 2), (5, 3)], ids=lambda patch: f"patch={patch}"
+    )
     @pytest.mark.parametrize("test_timesteps", [1, 2, 3])
     def test_forward(
         self,
