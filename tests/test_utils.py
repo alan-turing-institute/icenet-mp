@@ -49,7 +49,7 @@ class TestMaskDir:
     def test_builds_expected_path(self, tmp_path: Path) -> None:
         """Build the preprocessing mask directory beneath the configured root."""
         assert mask_dir(tmp_path, "sic-ssmis") == (
-            tmp_path / "data/preprocessing/masks/sic-ssmis"
+            tmp_path / "data" / "preprocessing" / "masks" / "sic-ssmis"
         )
 
 
@@ -138,6 +138,20 @@ class TestGetWandbRun:
 
         assert get_wandb_run(trainer) is None
 
+    def test_returns_the_first_matching_run_when_multiple_loggers_present(
+        self,
+    ) -> None:
+        """Return the first WandbLogger's run when more than one logger qualifies."""
+        first_run = MagicMock(spec=Run)
+        first_logger = MagicMock(spec=WandbLogger)
+        first_logger.experiment = first_run
+        second_logger = MagicMock(spec=WandbLogger)
+        second_logger.experiment = MagicMock(spec=Run)
+        trainer = MagicMock(spec=Trainer)
+        trainer.loggers = [object(), first_logger, second_logger]
+
+        assert get_wandb_run(trainer) is first_run
+
 
 class TestToList:
     @pytest.mark.parametrize(
@@ -148,3 +162,9 @@ class TestToList:
     def test_to_list(self, value: str | list[str], expected: list[str]) -> None:
         """Normalize scalar strings and string lists to list form."""
         assert to_list(value) == expected
+
+    def test_to_list_returns_the_same_list_object_unchanged(self) -> None:
+        """Return the given list unchanged (no copy) rather than wrapping it again."""
+        values = ["ice_conc", "2t"]
+
+        assert to_list(values) is values
