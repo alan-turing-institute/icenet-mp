@@ -1,138 +1,170 @@
 import re
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+import torch
+from lightning import Trainer
+from lightning.pytorch.loggers import WandbLogger
+from wandb.wandb_run import Run
 
-from icenet_mp import utils
-
-
-def test_datetime_from_npdatetime_returns_utc_datetime() -> None:
-    """Convert NumPy datetimes to timezone-aware UTC datetimes."""
-    result = utils.datetime_from_npdatetime(np.datetime64("2026-08-24T17:30:45.123"))
-
-    assert result.tzinfo is UTC
-    assert result.isoformat() == "2026-08-24T17:30:45.123000+00:00"
-
-
-def test_mask_dir_uses_shared_preprocessing_layout(tmp_path: Path) -> None:
-    """Build mask paths under the shared preprocessing directory."""
-    assert utils.mask_dir(tmp_path, "sic-osisaf") == (
-        tmp_path / "data" / "preprocessing" / "masks" / "sic-osisaf"
-    )
-
-
-@pytest.mark.parametrize(
-    ("accelerator", "expected"),
-    [("cpu", "CPU"), ("auto", "CPU"), ("mps", "Apple Silicon GPU")],
+from icenet_mp.utils import (
+    datetime_from_npdatetime,
+    get_device_name,
+    get_timestamp,
+    get_wandb_run,
+    mask_dir,
+    npdatetime_from_datetime,
+    to_list,
 )
-def test_get_device_name_for_non_discrete_accelerators(
-    accelerator: str, expected: str
-) -> None:
-    """Return stable labels for CPU, auto and Apple Silicon accelerators."""
-    assert utils.get_device_name(accelerator) == expected
 
 
-def test_get_device_name_uses_cuda_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Read the CUDA device name from the runtime when available."""
-    monkeypatch.setattr(utils.torch.cuda, "get_device_name", lambda: "Test CUDA GPU")
+class TestDatetimeFromNpdatetime:
+    def test_returns_utc_datetime(self) -> None:
+        """Convert NumPy datetimes to timezone-aware UTC datetimes."""
+        result = datetime_from_npdatetime(np.datetime64("2026-08-21T12:34:56.789"))
 
-    assert utils.get_device_name("cuda") == "Test CUDA GPU"
-
-
-def test_get_device_name_handles_unavailable_cuda(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Fall back cleanly when CUDA device discovery is unavailable."""
-
-    def unavailable() -> str:
-        raise AssertionError
-
-    monkeypatch.setattr(utils.torch.cuda, "get_device_name", unavailable)
-
-    assert utils.get_device_name("cuda") == "Unknown CUDA device"
+        assert result.tzinfo is UTC
+        assert result.microsecond == 789000
 
 
-def test_get_device_name_uses_xpu_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Read the XPU device name from the runtime when available."""
-    xpu = MagicMock()
-    xpu.get_device_name.return_value = "Test XPU"
-    monkeypatch.setattr(utils.torch, "xpu", xpu)
+class TestNpdatetimeFromDatetime:
+    def test_converts_naive_datetime(self) -> None:
+        """Convert a naive datetime to numpy datetime64."""
+        result = npdatetime_from_datetime(datetime(2026, 8, 21, 12, 34, 56))
 
-    assert utils.get_device_name("xpu") == "Test XPU"
+        assert result == np.datetime64("2026-08-21T12:34:56")
 
+    def test_drops_tzinfo_without_shifting_the_wall_clock_time(self) -> None:
+        """Drop tzinfo from an aware datetime without converting to another zone."""
+        result = npdatetime_from_datetime(datetime(2026, 8, 21, 12, 34, 56, tzinfo=UTC))
 
-def test_get_device_name_handles_unavailable_xpu(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Fall back cleanly when XPU device discovery is unavailable."""
-    xpu = MagicMock()
-    xpu.get_device_name.side_effect = AssertionError
-    monkeypatch.setattr(utils.torch, "xpu", xpu)
-
-    assert utils.get_device_name("xpu") == "Unknown XPU device"
+        assert result == np.datetime64("2026-08-21T12:34:56")
 
 
-def test_get_timestamp_has_expected_utc_shape() -> None:
-    """Format timestamps using the expected compact UTC shape."""
-    assert re.fullmatch(r"\d{8}_\d{6}", utils.get_timestamp()) is not None
+class TestMaskDir:
+    def test_builds_expected_path(self, tmp_path: Path) -> None:
+        """Build the preprocessing mask directory beneath the configured root."""
+        assert mask_dir(tmp_path, "sic-ssmis") == (
+            tmp_path / "data" / "preprocessing" / "masks" / "sic-ssmis"
+        )
 
 
-def test_get_wandb_run_returns_first_real_run(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Return the first matching WandB run from trainer loggers."""
+class TestGetDeviceName:
+    @pytest.mark.parametrize(
+        ("accelerator_name", "expected"),
+        [("cpu", "CPU"), ("mps", "Apple Silicon GPU"), ("auto", "CPU")],
+    )
+    def test_for_non_cuda_accelerators(
+        self, accelerator_name: str, expected: str
+    ) -> None:
+        """Return readable names for non-CUDA accelerator selections."""
+        assert get_device_name(accelerator_name) == expected
 
-    class FakeRun:
-        pass
+    @pytest.mark.parametrize(
+        ("accelerator_name", "torch_module"),
+        [("cuda", torch.cuda), ("xpu", torch.xpu)],
+        ids=["cuda", "xpu"],
+    )
+    def test_returns_the_queried_device_name(
+        self,
+        accelerator_name: str,
+        torch_module: ModuleType,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Return the accelerator's own reported name when the query succeeds."""
+        monkeypatch.setattr(torch_module, "get_device_name", lambda: "Custom GPU")
 
-    class FakeWandbLogger:
-        def __init__(self, experiment: object) -> None:
-            self.experiment = experiment
+        assert get_device_name(accelerator_name) == "Custom GPU"
 
-    monkeypatch.setattr(utils, "Run", FakeRun)
-    monkeypatch.setattr(utils, "WandbLogger", FakeWandbLogger)
+    @pytest.mark.parametrize(
+        ("accelerator_name", "torch_module", "expected"),
+        [
+            ("cuda", torch.cuda, "Unknown CUDA device"),
+            ("xpu", torch.xpu, "Unknown XPU device"),
+        ],
+        ids=["cuda", "xpu"],
+    )
+    def test_handles_unavailable_accelerator(
+        self,
+        accelerator_name: str,
+        torch_module: ModuleType,
+        expected: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fall back cleanly when the accelerator's device name cannot be queried."""
 
-    run = FakeRun()
-    trainer = MagicMock()
-    trainer.loggers = [object(), FakeWandbLogger(run), FakeWandbLogger(FakeRun())]
+        def _raise_assertion() -> str:
+            raise AssertionError
 
-    assert utils.get_wandb_run(trainer) is run
+        monkeypatch.setattr(torch_module, "get_device_name", _raise_assertion)
 
-
-def test_get_wandb_run_returns_none_without_matching_run(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Return None when no trainer logger exposes a matching WandB run."""
-
-    class FakeRun:
-        pass
-
-    class FakeWandbLogger:
-        def __init__(self, experiment: object) -> None:
-            self.experiment = experiment
-
-    monkeypatch.setattr(utils, "Run", FakeRun)
-    monkeypatch.setattr(utils, "WandbLogger", FakeWandbLogger)
-
-    trainer = MagicMock()
-    trainer.loggers = [object(), FakeWandbLogger(object())]
-
-    assert utils.get_wandb_run(trainer) is None
-
-
-def test_normalise_date_moves_time_to_noon() -> None:
-    """Normalise arbitrary timestamps to noon on the same date."""
-    result = utils.normalise_date(np.datetime64("2026-08-24T23:59:59"))
-
-    assert result == np.datetime64("2026-08-24T12:00:00")
+        assert get_device_name(accelerator_name) == expected
 
 
-def test_to_list_wraps_string_and_preserves_list() -> None:
-    """Wrap strings in a list while preserving existing list objects."""
-    values = ["a", "b"]
+class TestGetTimestamp:
+    def test_has_expected_utc_format(self) -> None:
+        """Format generated timestamps using the expected UTC pattern."""
+        assert re.fullmatch(r"\d{8}_\d{6}", get_timestamp())
 
-    assert utils.to_list("a") == ["a"]
-    assert utils.to_list(values) is values
+
+class TestGetWandbRun:
+    def test_returns_none_without_wandb_logger(self) -> None:
+        """Return no W&B run when the trainer has no W&B logger."""
+        trainer = MagicMock(spec=Trainer)
+        trainer.loggers = [object()]
+
+        assert get_wandb_run(trainer) is None
+
+    def test_returns_the_run_from_a_wandb_logger(self) -> None:
+        """Return the active W&B run when a WandbLogger is present."""
+        run = MagicMock(spec=Run)
+        wandb_logger = MagicMock(spec=WandbLogger)
+        wandb_logger.experiment = run
+        trainer = MagicMock(spec=Trainer)
+        trainer.loggers = [wandb_logger]
+
+        assert get_wandb_run(trainer) is run
+
+    def test_returns_none_when_wandb_logger_has_no_run_experiment(self) -> None:
+        """Return None when the WandbLogger's experiment isn't a Run (e.g. offline)."""
+        wandb_logger = MagicMock(spec=WandbLogger)
+        wandb_logger.experiment = None
+        trainer = MagicMock(spec=Trainer)
+        trainer.loggers = [wandb_logger]
+
+        assert get_wandb_run(trainer) is None
+
+    def test_returns_the_first_matching_run_when_multiple_loggers_present(
+        self,
+    ) -> None:
+        """Return the first WandbLogger's run when more than one logger qualifies."""
+        first_run = MagicMock(spec=Run)
+        first_logger = MagicMock(spec=WandbLogger)
+        first_logger.experiment = first_run
+        second_logger = MagicMock(spec=WandbLogger)
+        second_logger.experiment = MagicMock(spec=Run)
+        trainer = MagicMock(spec=Trainer)
+        trainer.loggers = [object(), first_logger, second_logger]
+
+        assert get_wandb_run(trainer) is first_run
+
+
+class TestToList:
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [("ice_conc", ["ice_conc"]), (["ice_conc", "2t"], ["ice_conc", "2t"])],
+        ids=["scalar", "list"],
+    )
+    def test_to_list(self, value: str | list[str], expected: list[str]) -> None:
+        """Normalize scalar strings and string lists to list form."""
+        assert to_list(value) == expected
+
+    def test_to_list_returns_the_same_list_object_unchanged(self) -> None:
+        """Return the given list unchanged (no copy) rather than wrapping it again."""
+        values = ["ice_conc", "2t"]
+
+        assert to_list(values) is values
