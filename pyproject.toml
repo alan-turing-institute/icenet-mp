@@ -82,7 +82,7 @@ notebooks = [
 ]
 
 [project.scripts]
-imp = "icenet_mp.cli:main"
+imp = "icenet_mp.cli:run"
 
 [tool.coverage.paths]
 source = ["icenet_mp/"]

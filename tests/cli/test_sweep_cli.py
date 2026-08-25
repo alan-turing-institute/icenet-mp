@@ -112,42 +112,54 @@ class TestSweepCLI:
         assert isinstance(result.exception, FileNotFoundError)
 
     def test_reports_best_trial_number_and_value(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, trial_number = self._build_study(tmp_path)
-        runner = CustomCliRunner()
         with caplog.at_level(logging.INFO):
-            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert result.exit_code == 0, result.output
         assert (
             f"Trial {trial_number} performed best, with loss 0.500000." in caplog.text
         )
 
     def test_reports_best_trial_parameters(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, _ = self._build_study(tmp_path)
-        runner = CustomCliRunner()
         with caplog.at_level(logging.INFO):
-            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert result.exit_code == 0, result.output
         assert "Best trial parameters:" in caplog.text
         assert "train.optimizer.lr" in caplog.text
 
     def test_reports_trial_count(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, _ = self._build_study(tmp_path)
-        runner = CustomCliRunner()
         with caplog.at_level(logging.INFO):
-            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert result.exit_code == 0, result.output
         assert "Study contains 1 trial(s)" in caplog.text
 
     def test_reports_no_trials_completed_without_crashing(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, _ = self._build_study(tmp_path, n_completed=0)
-        runner = CustomCliRunner()
         with caplog.at_level(logging.INFO):
-            runner.output(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+        assert result.exit_code == 0, result.output
         assert "Study contains 0 trial(s)" in caplog.text
         assert "No trials have completed yet" in caplog.text
 
