@@ -6,8 +6,39 @@ from typer.testing import CliRunner
 
 from icenet_mp.cli.main import app
 
+from .conftest import CustomCliRunner
 
-class TestCreateCLI:
+
+class TestDatasetsHelpCLI:
+    def test_help(self, runner: CustomCliRunner) -> None:
+        runner.check_output(
+            ["datasets", "--help"],
+            expected_patterns=[
+                r"Usage: imp datasets \[OPTIONS\] COMMAND \[ARGS\]...",
+                r"Manage datasets",
+                r"--help\s+-h\s+Show this message and exit.",
+                r"create\s+Create all datasets.",
+                r"inspect\s+Inspect all datasets.",
+                r"plot\s+Plot one timestep of configured datasets.",
+                r"masks\s+Create land / active grid cell masks.",
+            ],
+        )
+
+    def test_plot_help(self, runner: CustomCliRunner) -> None:
+        runner.check_output(
+            ["datasets", "plot", "--help"],
+            expected_patterns=[
+                r"Usage: imp datasets plot \[OPTIONS\] \[overrides\]...",
+                r"Plot one timestep of configured datasets.",
+                r"--dataset\s+<str>\s+Only plot the named configured",
+                r"--timestep\s+<int>\s+Dataset timestep index to plot",
+                r"--video\s+--no-video\s+Animate --n-steps consecutive",
+                r"--n-steps\s+<int>\s+Number of consecutive timesteps to",
+            ],
+        )
+
+
+class TestDatasetsCreateCLI:
     class FakeDownloader:
         """A minimal downloader stub exposing only what `create` needs."""
 
@@ -72,7 +103,7 @@ class TestCreateCLI:
         assert never_reached.create_calls == []
 
 
-class TestInspectCLI:
+class TestDatasetsInspectCLI:
     class FakeDownloader:
         """A minimal downloader stub exposing only what `inspect` needs."""
 
@@ -137,7 +168,122 @@ class TestInspectCLI:
         assert still_runs.inspect_calls == [False]
 
 
-class TestMasksCLI:
+class TestDatasetsPlotCLI:
+    class FakeDownloader:
+        """A minimal downloader stub exposing only what `plot` needs."""
+
+        def __init__(self, name: str, path_dataset: Path) -> None:
+            """Store the downloader's name and dataset path."""
+            self.name = name
+            self.path_dataset = path_dataset
+
+    def test_plot_calls_plot_dataset_for_each_matched_existing_dataset(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Call plot_dataset once per configured downloader whose data exists."""
+        existing_path = tmp_path / "example.zarr"
+        existing_path.mkdir()
+        downloaders = [
+            self.FakeDownloader("example", existing_path),
+            self.FakeDownloader("missing", tmp_path / "missing.zarr"),
+        ]
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.build_downloaders", lambda _config: downloaders
+        )
+
+        calls = []
+
+        def fake_plot_dataset(
+            name: str, path: Path, output_dir: Path, timestep: int
+        ) -> int:
+            calls.append((name, path, output_dir, timestep))
+            return 2
+
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.plot_variables_static", fake_plot_dataset
+        )
+
+        result = CliRunner().invoke(
+            app,
+            ["datasets", "plot", f"base_path={tmp_path}", "--timestep", "1"],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        expected_output_dir = tmp_path.resolve() / "data" / "input_plots"
+        assert calls == [("example", existing_path, expected_output_dir, 1)]
+
+    def test_plot_video_calls_plot_dataset_video_with_n_steps(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Call plot_dataset_video instead of plot_dataset when --video is passed."""
+        existing_path = tmp_path / "example.zarr"
+        existing_path.mkdir()
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.build_downloaders",
+            lambda _config: [self.FakeDownloader("example", existing_path)],
+        )
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.plot_variables_static",
+            lambda *_args: pytest.fail(
+                "plot_variables_static should not be called with --video"
+            ),
+        )
+
+        calls = []
+
+        def fake_plot_dataset_video(
+            name: str, path: Path, output_dir: Path, timestep: int, n_steps: int
+        ) -> int:
+            calls.append((name, path, output_dir, timestep, n_steps))
+            return 4
+
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.plot_variables_video", fake_plot_dataset_video
+        )
+
+        result = CliRunner().invoke(
+            app,
+            [
+                "datasets",
+                "plot",
+                f"base_path={tmp_path}",
+                "--video",
+                "--n-steps",
+                "5",
+            ],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 0, result.output
+        expected_output_dir = tmp_path.resolve() / "data" / "input_plots"
+        assert calls == [("example", existing_path, expected_output_dir, 0, 5)]
+
+    def test_plot_rejects_unmatched_dataset_name(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Exit non-zero when --dataset names a dataset that isn't configured."""
+        monkeypatch.setattr(
+            "icenet_mp.cli.datasets.build_downloaders",
+            lambda _config: [self.FakeDownloader("example", tmp_path / "example.zarr")],
+        )
+
+        result = CliRunner().invoke(
+            app,
+            ["datasets", "plot", "--dataset", "unknown"],
+            prog_name="imp",
+        )
+
+        assert result.exit_code == 1
+
+
+class TestDatasetsPostProcessorCLI:
     class FakePostprocessor:
         """A minimal postprocessor stub exposing only what `masks` needs."""
 
