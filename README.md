@@ -12,11 +12,11 @@
 | icenet\_mp/callbacks/plotting\_callback.py                           |      157 |        0 |    100% |           |
 | icenet\_mp/callbacks/unconditional\_checkpoint.py                    |       26 |        0 |    100% |           |
 | icenet\_mp/cli/\_\_init\_\_.py                                       |        2 |        0 |    100% |           |
-| icenet\_mp/cli/datasets.py                                           |       54 |       17 |     69% |29-35, 48-53, 123-125, 129 |
-| icenet\_mp/cli/evaluate.py                                           |       18 |        5 |     72% | 37-42, 46 |
+| icenet\_mp/cli/datasets.py                                           |       54 |        1 |     98% |       129 |
+| icenet\_mp/cli/evaluate.py                                           |       18 |        1 |     94% |        46 |
 | icenet\_mp/cli/hydra.py                                              |       29 |        0 |    100% |           |
-| icenet\_mp/cli/main.py                                               |       25 |        8 |     68% | 42-54, 58 |
-| icenet\_mp/cli/sweep.py                                              |       75 |       25 |     67% |40-51, 141-152, 160-183, 187 |
+| icenet\_mp/cli/main.py                                               |       26 |        1 |     96% |        59 |
+| icenet\_mp/cli/sweep.py                                              |       75 |        1 |     99% |       187 |
 | icenet\_mp/cli/train.py                                              |       16 |        1 |     94% |        55 |
 | icenet\_mp/compatibility/\_\_init\_\_.py                             |       17 |        0 |    100% |           |
 | icenet\_mp/compatibility/lightning/\_\_init\_\_.py                   |        9 |        0 |    100% |           |
@@ -159,7 +159,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        5 |     94% |133-135, 304-305 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       23 |     80% |106-107, 109-112, 142-147, 183-185, 193-194, 198-218, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **6267** | **1083** | **83%** |           |
+| **TOTAL**                                                            | **6268** | **1032** | **84%** |           |
 
 
 ## Setup coverage badge
