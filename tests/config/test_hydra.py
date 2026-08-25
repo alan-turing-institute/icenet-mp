@@ -66,6 +66,15 @@ class TestHydraConfigLoading:
         assert "metric_summary" not in cfg.train.callbacks
         assert "metric_summary" not in cfg.evaluate.callbacks
 
+    def test_piecewise_baselines_are_matched_except_for_model_variant(self) -> None:
+        baseline = self.load_config(config_name="baseline/05_piecewise_unet_piecewise")
+        naive = self.load_config(config_name="baseline/06_piecewise_unet_piecewise_naive")
+
+        assert baseline.model.name == "piecewise-unet-piecewise"
+        assert naive.model.name == "piecewise-unet-piecewise-naive"
+        for key in ("data", "loss", "predict", "train", "evaluate", "random"):
+            assert baseline[key] == naive[key]
+
 
 class TestHydraAdaptor:
     """Regression tests for icenet-mp's hydra_adaptor signature rewriter."""
