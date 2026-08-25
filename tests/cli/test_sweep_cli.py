@@ -1,9 +1,13 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+import torch
+import wandb
 import yaml
+from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import OmegaConf
 from optuna.trial import TrialState
 from typer.testing import Result
@@ -12,6 +16,21 @@ from icenet_mp.model_service import ModelService
 from icenet_mp.sweep import OptunaSweep
 
 from .conftest import CustomCliRunner
+
+
+class FakeTrainer:
+    def __init__(self, checkpoint_callbacks: list[object]) -> None:
+        """A fake Trainer exposing only the checkpoint_callbacks the CLI reads."""
+        self.checkpoint_callbacks = checkpoint_callbacks
+
+
+class FakeModelService:
+    def __init__(self, trainer: FakeTrainer) -> None:
+        """A fake ModelService that returns a fixed FakeTrainer from train()."""
+        self._trainer = trainer
+
+    def train(self, *, checkpoint_dir: Path | None, multistage: bool) -> FakeTrainer:  # noqa: ARG002
+        return self._trainer
 
 
 class TestSweepCLI:
@@ -102,6 +121,96 @@ class TestSweepCLI:
             ],
         )
 
+    def test_initialise_creates_a_wandb_sweep_and_optuna_study(
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        sweep_yaml = tmp_path / "search_space.yaml"
+        sweep_yaml.write_text(
+            yaml.safe_dump(
+                {
+                    "name": "example",
+                    "n_trials": 3,
+                    "sampler": "random",
+                    "parameters": {
+                        "train.optimizer.lr": {
+                            "type": "float",
+                            "low": 1.0e-5,
+                            "high": 1.0e-2,
+                        }
+                    },
+                }
+            )
+        )
+
+        def fake_sweep(_sweep_config: dict, entity: str, project: str) -> str:
+            assert entity == "turing-seaice"
+            assert project == "train"
+            return "fake-sweep-id"
+
+        monkeypatch.setattr(wandb, "sweep", fake_sweep)
+
+        result = invoke_cli(
+            [
+                "sweep",
+                "initialise",
+                "--config-name",
+                "sample",
+                "--sweep-yaml",
+                str(sweep_yaml),
+                f"base_path={tmp_path}",
+            ]
+        )
+
+        assert result.exit_code == 0, result.output
+        study_path = tmp_path / "sweeps" / "fake-sweep-id"
+        assert (study_path / "model_config.yaml").exists()
+        saved_sweep_cfg = yaml.safe_load((study_path / "optuna.yaml").read_text())
+        assert saved_sweep_cfg["entity"] == "turing-seaice"
+        assert saved_sweep_cfg["name"] == "example"
+        assert saved_sweep_cfg["n_trials"] == 3
+
+    def test_initialise_rejects_an_unresolvable_parameter(
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+    ) -> None:
+        sweep_yaml = tmp_path / "search_space.yaml"
+        sweep_yaml.write_text(
+            yaml.safe_dump(
+                {
+                    "name": "example",
+                    "n_trials": 3,
+                    "sampler": "random",
+                    "parameters": {
+                        "train.optimizer.does_not_exist": {
+                            "type": "float",
+                            "low": 1.0e-5,
+                            "high": 1.0e-2,
+                        }
+                    },
+                }
+            )
+        )
+
+        result = invoke_cli(
+            [
+                "sweep",
+                "initialise",
+                "--config-name",
+                "sample",
+                "--sweep-yaml",
+                str(sweep_yaml),
+                f"base_path={tmp_path}",
+            ]
+        )
+
+        assert result.exit_code != 0
+        assert isinstance(result.exception, ValueError)
+        assert not (tmp_path / "sweeps").exists()
+
     def test_missing_sweep_path_raises(
         self, tmp_path: Path, invoke_cli: Callable[[list[str]], Result]
     ) -> None:
@@ -182,6 +291,87 @@ class TestSweepCLI:
 
         assert result.exit_code != 0
         assert isinstance(result.exception, RuntimeError)
+
+        trials = OptunaSweep.from_path(study_path).study.get_trials()
+        assert len(trials) == 1
+        assert trials[0].state == TrialState.FAIL
+
+    def test_trial_records_the_best_checkpoint_score(
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        study_path, _ = self._build_study(tmp_path, n_completed=0)
+
+        checkpoint = MagicMock(spec=ModelCheckpoint)
+        checkpoint.best_model_score = torch.tensor(0.42)
+        trainer = FakeTrainer(checkpoint_callbacks=[checkpoint])
+
+        monkeypatch.setattr(
+            ModelService, "from_config", lambda _config: FakeModelService(trainer)
+        )
+
+        with caplog.at_level(logging.INFO):
+            result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
+
+        assert result.exit_code == 0, result.output
+        assert "Trial 0 completed with value 0.420000" in caplog.text
+        assert "Best trial (0) completed with value 0.420000." in caplog.text
+
+        trials = OptunaSweep.from_path(study_path).study.get_trials()
+        assert len(trials) == 1
+        assert trials[0].state == TrialState.COMPLETE
+        assert trials[0].value == pytest.approx(0.42)
+
+    def test_trial_marks_failed_when_no_unique_checkpoint_callback(
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        study_path, _ = self._build_study(tmp_path, n_completed=0)
+        trainer = FakeTrainer(checkpoint_callbacks=[])
+
+        monkeypatch.setattr(
+            ModelService, "from_config", lambda _config: FakeModelService(trainer)
+        )
+
+        with caplog.at_level(logging.WARNING):
+            result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
+
+        assert result.exit_code == 0, result.output
+        assert "could not find a unique ModelCheckpoint callback" in caplog.text
+
+        trials = OptunaSweep.from_path(study_path).study.get_trials()
+        assert len(trials) == 1
+        assert trials[0].state == TrialState.FAIL
+
+    def test_trial_marks_failed_when_checkpoint_has_no_best_score(
+        self,
+        tmp_path: Path,
+        invoke_cli: Callable[[list[str]], Result],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        study_path, _ = self._build_study(tmp_path, n_completed=0)
+
+        checkpoint = MagicMock(spec=ModelCheckpoint)
+        checkpoint.best_model_score = None
+        checkpoint.monitor = "validation_loss"
+        trainer = FakeTrainer(checkpoint_callbacks=[checkpoint])
+
+        monkeypatch.setattr(
+            ModelService, "from_config", lambda _config: FakeModelService(trainer)
+        )
+
+        with caplog.at_level(logging.WARNING):
+            result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
+
+        assert result.exit_code == 0, result.output
+        assert "has no best_model_score" in caplog.text
 
         trials = OptunaSweep.from_path(study_path).study.get_trials()
         assert len(trials) == 1
