@@ -1,5 +1,5 @@
 import re
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
@@ -17,6 +17,7 @@ from icenet_mp.utils import (
     get_timestamp,
     get_wandb_run,
     mask_dir,
+    npdatetime_from_datetime,
     to_list,
 )
 
@@ -28,6 +29,20 @@ class TestDatetimeFromNpdatetime:
 
         assert result.tzinfo is UTC
         assert result.microsecond == 789000
+
+
+class TestNpdatetimeFromDatetime:
+    def test_converts_naive_datetime(self) -> None:
+        """Convert a naive datetime to numpy datetime64."""
+        result = npdatetime_from_datetime(datetime(2026, 8, 21, 12, 34, 56))
+
+        assert result == np.datetime64("2026-08-21T12:34:56")
+
+    def test_drops_tzinfo_without_shifting_the_wall_clock_time(self) -> None:
+        """Drop tzinfo from an aware datetime without converting to another zone."""
+        result = npdatetime_from_datetime(datetime(2026, 8, 21, 12, 34, 56, tzinfo=UTC))
+
+        assert result == np.datetime64("2026-08-21T12:34:56")
 
 
 class TestMaskDir:
