@@ -24,16 +24,39 @@ def callback() -> MetricSummaryCallback:
 
 @pytest.fixture
 def mock_trainer() -> MagicMock:
-    """A mock Trainer with sanity checking off and one plain logger.
-
-    Overrides the bare tests/callbacks/conftest.py fixture of the same name: most tests
-    in this file need a non-W&B logger already in place to assert on.
-    """
+    """Override the default mock_trainer with sanity checking off and one plain logger."""
     trainer = MagicMock(spec=Trainer)
     trainer.sanity_checking = False
     mock_logger = MagicMock()
     trainer.loggers = [mock_logger]
     return trainer
+
+
+class MockWandbRun:
+    """A stand-in for a live W&B run that records .log() calls."""
+
+    def __init__(self) -> None:
+        """Initialise the mock run with a MagicMock log method."""
+        self.log = MagicMock()
+
+
+@pytest.fixture
+def wandb_run(monkeypatch: pytest.MonkeyPatch) -> tuple[MagicMock, MockWandbRun]:
+    """Mock the wandb module and get_wandb_run to return a working MockWandbRun.
+
+    Used by the two tests that need W&B to look "present" with a run whose .log() calls
+    can be asserted on; both duplicated this wiring verbatim before this fixture existed.
+    """
+    mock_wandb = MagicMock()
+    mock_wandb.Run = MockWandbRun
+    mock_run = MockWandbRun()
+    mock_get_wandb_run = MagicMock(return_value=mock_run)
+    monkeypatch.setattr("icenet_mp.callbacks.metric_summary_callback.wandb", mock_wandb)
+    monkeypatch.setattr(
+        "icenet_mp.callbacks.metric_summary_callback.get_wandb_run",
+        mock_get_wandb_run,
+    )
+    return mock_wandb, mock_run
 
 
 class TestOnTestEnd:
@@ -80,35 +103,16 @@ class TestOnTestEnd:
         self,
         callback: MetricSummaryCallback,
         mock_module: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
+        wandb_run: tuple[MagicMock, MockWandbRun],
     ) -> None:
         """Test on_test_end with WandbLogger and a metric returning a vector."""
-        mock_wandb = MagicMock()
-        mock_get_wandb_run = MagicMock()
-        monkeypatch.setattr(
-            "icenet_mp.callbacks.metric_summary_callback.wandb", mock_wandb
-        )
-        monkeypatch.setattr(
-            "icenet_mp.callbacks.metric_summary_callback.get_wandb_run",
-            mock_get_wandb_run,
-        )
-
-        # Mock wandb.Run for isinstance check
-        class MockWandbRun:
-            def __init__(self) -> None:
-                self.log = MagicMock()
-
-        mock_wandb.Run = MockWandbRun
+        mock_wandb, mock_run = wandb_run
 
         # Create a trainer with WandbLogger
         trainer = MagicMock(spec=Trainer)
         trainer.sanity_checking = False
         wandb_logger = MagicMock(spec=WandbLogger)
         trainer.loggers = [wandb_logger]
-
-        # Mock get_wandb_run to return a MockWandbRun instance
-        mock_run = MockWandbRun()
-        mock_get_wandb_run.return_value = mock_run
 
         # Create a metric that returns multiple values (daily metric)
         metric_collection = MetricCollection({"mae_daily": MAEPerForecastDay()})
@@ -227,25 +231,10 @@ class TestLogPerRunMetrics:
     def test_skips_metrics_that_were_never_updated(
         self,
         callback: MetricSummaryCallback,
-        monkeypatch: pytest.MonkeyPatch,
+        wandb_run: tuple[MagicMock, MockWandbRun],
     ) -> None:
         """Skip metrics whose update() was never called when building the per-day plot."""
-        mock_wandb = MagicMock()
-        mock_get_wandb_run = MagicMock()
-        monkeypatch.setattr(
-            "icenet_mp.callbacks.metric_summary_callback.wandb", mock_wandb
-        )
-        monkeypatch.setattr(
-            "icenet_mp.callbacks.metric_summary_callback.get_wandb_run",
-            mock_get_wandb_run,
-        )
-
-        class MockWandbRun:
-            def __init__(self) -> None:
-                self.log = MagicMock()
-
-        mock_wandb.Run = MockWandbRun
-        mock_get_wandb_run.return_value = MockWandbRun()
+        mock_wandb, _mock_run = wandb_run
 
         trainer = MagicMock(spec=Trainer)
         trainer.sanity_checking = False
