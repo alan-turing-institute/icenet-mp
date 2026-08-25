@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -10,8 +11,8 @@ from torch import nn
 from icenet_mp.callbacks import ActivationSaver
 
 
-class ReusedLayerModel(nn.Module):
-    """Tiny model that calls the same layer twice in one forward pass."""
+class MinimalReusedLayerModel(nn.Module):
+    """Minimal model that calls the same layer twice in one forward pass."""
 
     def __init__(self) -> None:
         """Initialise the repeated-layer test model."""
@@ -23,6 +24,31 @@ class ReusedLayerModel(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply the shared layer twice."""
         return self.shared(self.shared(x))
+
+
+class MinimalRolloutModel(nn.Module):
+    """Minimal model that calls `self.processor` twice, simulating two rollout steps."""
+
+    def __init__(self) -> None:
+        """Initialise the two-step rollout test model."""
+        super().__init__()
+        self.processor = nn.Linear(2, 2, bias=False)
+        with torch.no_grad():
+            self.processor.weight.copy_(2 * torch.eye(2))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Run the processor twice, as if performing a two-step rollout."""
+        first_step = self.processor(x)
+        return self.processor(first_step)
+
+
+class MinimalLightningModule(LightningModule):
+    """Minimal LightningModule exposing a named submodule for attach() to hook."""
+
+    def __init__(self) -> None:
+        """Initialise a LightningModule with one hookable layer."""
+        super().__init__()
+        self.layer = nn.Linear(2, 2)
 
 
 class TestActivationSaver:
@@ -37,7 +63,7 @@ class TestActivationSaver:
     def test_layer_hook_keeps_first_fire_per_batch(self, tmp_path: Path) -> None:
         """Keep only the first activation when a layer fires twice."""
         saver = ActivationSaver(["shared"], tmp_path)
-        model = ReusedLayerModel()
+        model = MinimalReusedLayerModel()
         saver.attach(model)
         saver.on_test_batch_start(
             MagicMock(spec=Trainer), MagicMock(spec=LightningModule), {}, 0
@@ -97,3 +123,48 @@ class TestActivationSaver:
         saver.on_test_end(trainer, pl_module)
 
         assert not output_dir.exists()
+
+    def test_processor_rollout_counter_keeps_first_step_only(
+        self, tmp_path: Path
+    ) -> None:
+        """Increment the rollout counter per processor call and keep only step 0."""
+        saver = ActivationSaver(["processor"], tmp_path)
+        model = MinimalRolloutModel()
+        saver.attach(model)
+        saver.on_test_batch_start(
+            MagicMock(spec=Trainer), MagicMock(spec=LightningModule), {}, 0
+        )
+
+        inputs = torch.tensor([[1.0, 3.0]])
+        model(inputs)
+
+        assert torch.equal(saver._current_activations["processor"], 2 * inputs)
+        saver.detach()
+
+    def test_batch_end_warns_about_uncaptured_layers(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Warn when a configured layer never fired its hook this batch."""
+        saver = ActivationSaver(["0"], tmp_path)
+        model = nn.Sequential(nn.Linear(2, 2))
+        saver.attach(model)
+
+        trainer = MagicMock(spec=Trainer)
+        pl_module = MagicMock(spec=LightningModule)
+        saver.on_test_batch_start(trainer, pl_module, {}, 0)
+        # The model is never called, so "0"'s forward hook never fires.
+        with caplog.at_level(logging.WARNING):
+            saver.on_test_batch_end(trainer, pl_module, None, {}, 0)
+
+        assert "no activation captured for layers ['0']" in caplog.text
+        saver.detach()
+
+    def test_on_test_start_attaches_hooks_when_enabled(self, tmp_path: Path) -> None:
+        """Attach hooks automatically when on_test_start runs and layers are configured."""
+        saver = ActivationSaver(["layer"], tmp_path)
+        pl_module = MinimalLightningModule()
+
+        saver.on_test_start(MagicMock(spec=Trainer), pl_module)
+
+        assert len(saver._handles) > 0
+        saver.detach()
