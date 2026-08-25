@@ -68,7 +68,9 @@ class TestHydraConfigLoading:
 
     def test_piecewise_baselines_are_matched_except_for_model_variant(self) -> None:
         baseline = self.load_config(config_name="baseline/05_piecewise_unet_piecewise")
-        naive = self.load_config(config_name="baseline/06_piecewise_unet_piecewise_naive")
+        naive = self.load_config(
+            config_name="baseline/06_piecewise_unet_piecewise_naive"
+        )
 
         assert baseline.model.name == "piecewise-unet-piecewise"
         assert naive.model.name == "piecewise-unet-piecewise-naive"
