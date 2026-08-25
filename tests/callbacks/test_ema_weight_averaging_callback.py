@@ -1,64 +1,154 @@
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 import torch
+from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import WeightAveraging
 
 from icenet_mp.callbacks.ema_weight_averaging_callback import EMAWeightAveragingCallback
-from icenet_mp.callbacks.unconditional_checkpoint import UnconditionalCheckpoint
 
 
-@pytest.mark.parametrize(
-    ("step_idx", "epoch_idx", "expected"),
-    [
-        (2, None, False),
-        (3, None, True),
-        (6, None, True),
-        (None, 1, False),
-        (None, 2, True),
-        (None, 4, True),
-        (None, None, False),
-    ],
-)
-def test_ema_should_update_on_configured_interval(
-    step_idx: int | None, epoch_idx: int | None, *, expected: bool
-) -> None:
-    callback = EMAWeightAveragingCallback(
-        decay_rate=0.99,
-        every_n_steps=3,
-        every_n_epochs=2,
+class ParameterlessLightningModule(LightningModule):
+    """A LightningModule with no parameters, to exercise the empty-module guard."""
+
+
+class LinearLightningModule(LightningModule):
+    """A LightningModule wrapping a single trainable layer."""
+
+    def __init__(self) -> None:
+        """Initialise a LightningModule with one trainable layer."""
+        super().__init__()
+        self.layer = torch.nn.Linear(2, 2)
+
+
+class TestInit:
+    """Tests for EMAWeightAveragingCallback construction."""
+
+    def test_stores_schedule_parameters(self) -> None:
+        """Store the configured update schedule on the instance."""
+        callback = EMAWeightAveragingCallback(
+            decay_rate=0.99, every_n_epochs=2, every_n_steps=3
+        )
+
+        assert callback.every_n_epochs == 2
+        assert callback.every_n_steps == 3
+
+
+class TestOnTrainBatchEnd:
+    """Tests for on_train_batch_end."""
+
+    def test_skips_parameterless_module(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Do not delegate to the parent hook when the module has no parameters."""
+        callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_steps=1)
+        parent_hook = MagicMock()
+        monkeypatch.setattr(WeightAveraging, "on_train_batch_end", parent_hook)
+        module = ParameterlessLightningModule()
+
+        callback.on_train_batch_end(MagicMock(spec=Trainer), module)
+
+        parent_hook.assert_not_called()
+
+    def test_delegates_for_parameterised_module(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Delegate to the parent hook when the module has parameters."""
+        callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_steps=1)
+        parent_hook = MagicMock()
+        monkeypatch.setattr(WeightAveraging, "on_train_batch_end", parent_hook)
+        module = LinearLightningModule()
+        trainer = MagicMock(spec=Trainer)
+
+        callback.on_train_batch_end(trainer, module)
+
+        parent_hook.assert_called_once()
+
+    def test_forwards_args_and_kwargs_to_parent_hook(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Forward positional and keyword arguments to the parent hook unchanged."""
+        callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_steps=1)
+        parent_hook = MagicMock()
+        monkeypatch.setattr(WeightAveraging, "on_train_batch_end", parent_hook)
+        module = LinearLightningModule()
+        trainer = MagicMock(spec=Trainer)
+        batch = {"sic": torch.zeros(1)}
+
+        callback.on_train_batch_end(trainer, module, batch, 5, unused=True)
+
+        parent_hook.assert_called_once_with(trainer, module, batch, 5, unused=True)
+
+
+class TestOnTrainEpochEnd:
+    """Tests for on_train_epoch_end."""
+
+    def test_skips_parameterless_module(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Do not delegate to the parent hook when the module has no parameters."""
+        callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_epochs=1)
+        parent_hook = MagicMock()
+        monkeypatch.setattr(WeightAveraging, "on_train_epoch_end", parent_hook)
+        module = ParameterlessLightningModule()
+
+        callback.on_train_epoch_end(MagicMock(spec=Trainer), module)
+
+        parent_hook.assert_not_called()
+
+    def test_delegates_for_parameterised_module(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Delegate to the parent hook when the module has parameters."""
+        callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_epochs=1)
+        parent_hook = MagicMock()
+        monkeypatch.setattr(WeightAveraging, "on_train_epoch_end", parent_hook)
+        module = LinearLightningModule()
+        trainer = MagicMock(spec=Trainer)
+
+        callback.on_train_epoch_end(trainer, module)
+
+        parent_hook.assert_called_once_with(trainer, module)
+
+
+class TestShouldUpdate:
+    """Tests for should_update."""
+
+    @pytest.mark.parametrize(
+        ("step_idx", "epoch_idx", "expected"),
+        [
+            (2, None, False),
+            (3, None, True),
+            (6, None, True),
+            (None, 1, False),
+            (None, 2, True),
+            (None, 4, True),
+            (None, None, False),
+            (0, None, False),
+            (None, 0, False),
+            (3, 1, False),
+            (4, 2, True),
+        ],
+        ids=[
+            "step-not-multiple",
+            "step-multiple",
+            "step-multiple-x2",
+            "epoch-not-multiple",
+            "epoch-multiple",
+            "epoch-multiple-x2",
+            "neither-given",
+            "step-zero",
+            "epoch-zero",
+            "both-given-epoch-not-multiple-wins",
+            "both-given-epoch-multiple-wins",
+        ],
     )
+    def test_updates_on_configured_interval(
+        self, step_idx: int | None, epoch_idx: int | None, *, expected: bool
+    ) -> None:
+        """Update on the configured step/epoch interval, epoch taking precedence."""
+        callback = EMAWeightAveragingCallback(
+            decay_rate=0.99,
+            every_n_steps=3,
+            every_n_epochs=2,
+        )
 
-    assert callback.should_update(step_idx=step_idx, epoch_idx=epoch_idx) is expected
-
-
-def test_ema_batch_hook_skips_parameterless_module(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_steps=1)
-    parent_hook = MagicMock()
-    monkeypatch.setattr(WeightAveraging, "on_train_batch_end", parent_hook)
-    module = torch.nn.Identity()
-
-    callback.on_train_batch_end(MagicMock(), module)
-
-    parent_hook.assert_not_called()
-
-
-def test_ema_hooks_delegate_for_parameterised_module(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    callback = EMAWeightAveragingCallback(decay_rate=0.99, every_n_steps=1)
-    batch_hook = MagicMock()
-    epoch_hook = MagicMock()
-    monkeypatch.setattr(WeightAveraging, "on_train_batch_end", batch_hook)
-    monkeypatch.setattr(WeightAveraging, "on_train_epoch_end", epoch_hook)
-    module = torch.nn.Linear(2, 2)
-    trainer = MagicMock()
-
-    callback.on_train_batch_end(trainer, module)
-    callback.on_train_epoch_end(trainer, module)
-
-    batch_hook.assert_called_once()
-    epoch_hook.assert_called_once()
+        assert (
+            callback.should_update(step_idx=step_idx, epoch_idx=epoch_idx) is expected
+        )
