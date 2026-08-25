@@ -31,40 +31,40 @@ class FakeModelService:
         return self._trainer
 
 
+def _build_study(tmp_path: Path, n_completed: int = 1) -> tuple[Path, int | None]:
+    """Create a local sweep directory with `n_completed` completed trials.
+
+    Returns the sweep directory and the number of the last (so also best, since
+    each trial scores 0.5) completed trial, or None if `n_completed` is 0.
+    """
+    cfg_sweep = {
+        "name": "example",
+        "n_trials": 3,
+        "sampler": "random",
+        "seed": 0,
+        "entity": "test-entity",
+        "parameters": {
+            "train.optimizer.lr": {"type": "float", "low": 1.0e-5, "high": 1.0e-2}
+        },
+    }
+    study_path = tmp_path / "example-sweep"
+    study_path.mkdir()
+    (study_path / "optuna.yaml").write_text(yaml.safe_dump(cfg_sweep))
+    OmegaConf.save(
+        OmegaConf.create({"train": {"optimizer": {"lr": 0.001}}}),
+        study_path / "model_config.yaml",
+    )
+
+    sampler = OptunaSweep.from_path(study_path)
+    trial_number = None
+    for _ in range(n_completed):
+        trial, _ = sampler.ask()
+        sampler.tell(trial, 0.5)
+        trial_number = trial.number
+    return study_path, trial_number
+
+
 class TestSweepCLI:
-    @staticmethod
-    def _build_study(tmp_path: Path, n_completed: int = 1) -> tuple[Path, int | None]:
-        """Create a local sweep directory with `n_completed` completed trials.
-
-        Returns the sweep directory and the number of the last (so also best, since
-        each trial scores 0.5) completed trial, or None if `n_completed` is 0.
-        """
-        cfg_sweep = {
-            "name": "example",
-            "n_trials": 3,
-            "sampler": "random",
-            "seed": 0,
-            "entity": "test-entity",
-            "parameters": {
-                "train.optimizer.lr": {"type": "float", "low": 1.0e-5, "high": 1.0e-2}
-            },
-        }
-        study_path = tmp_path / "example-sweep"
-        study_path.mkdir()
-        (study_path / "optuna.yaml").write_text(yaml.safe_dump(cfg_sweep))
-        OmegaConf.save(
-            OmegaConf.create({"train": {"optimizer": {"lr": 0.001}}}),
-            study_path / "model_config.yaml",
-        )
-
-        sampler = OptunaSweep.from_path(study_path)
-        trial_number = None
-        for _ in range(n_completed):
-            trial, _ = sampler.ask()
-            sampler.tell(trial, 0.5)
-            trial_number = trial.number
-        return study_path, trial_number
-
     def test_help(self) -> None:
         runner = CustomCliRunner()
         runner.check_output(
@@ -79,7 +79,9 @@ class TestSweepCLI:
             ],
         )
 
-    def test_initialise_help(self) -> None:
+
+class TestSweepInitialiseCLI:
+    def test_help(self) -> None:
         runner = CustomCliRunner()
         runner.check_output(
             ["sweep", "initialise", "--help"],
@@ -89,32 +91,6 @@ class TestSweepCLI:
                 r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
                 r"--sweep-yaml\s+<path>\s+Full path to a sweep search-space YAML",
                 r"--config-name\s+<str>\s+Name of a file to load from the config",
-                r"--help\s+-h\s+Show this message and exit.",
-            ],
-        )
-
-    def test_summarise_help(self) -> None:
-        runner = CustomCliRunner()
-        runner.check_output(
-            ["sweep", "summarise", "--help"],
-            expected_patterns=[
-                r"Usage: imp sweep summarise \[OPTIONS\]",
-                r"Summarise the best parameters found in a W&B sweep.",
-                r"--sweep-path\s+<path>\s+Full path to a local sweep directory",
-                r"--help\s+-h\s+Show this message and exit.",
-            ],
-        )
-
-    def test_trial_help(self) -> None:
-        runner = CustomCliRunner()
-        runner.check_output(
-            ["sweep", "trial", "--help"],
-            expected_patterns=[
-                r"Usage: imp sweep trial \[OPTIONS\]",
-                r"Run a single trial from a W&B sweep.",
-                r"--sweep-path\s+<path>\s+Full path to a local sweep directory",
-                r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
-                r"--multistage\s+Train an EncodeProcessDecode model in",
                 r"--help\s+-h\s+Show this message and exit.",
             ],
         )
@@ -209,6 +185,20 @@ class TestSweepCLI:
         assert isinstance(result.exception, ValueError)
         assert not (tmp_path / "sweeps").exists()
 
+
+class TestSweepSummariseCLI:
+    def test_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["sweep", "summarise", "--help"],
+            expected_patterns=[
+                r"Usage: imp sweep summarise \[OPTIONS\]",
+                r"Summarise the best parameters found in a W&B sweep.",
+                r"--sweep-path\s+<path>\s+Full path to a local sweep directory",
+                r"--help\s+-h\s+Show this message and exit.",
+            ],
+        )
+
     def test_missing_sweep_path_raises(
         self,
         tmp_path: Path,
@@ -226,7 +216,7 @@ class TestSweepCLI:
         runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        study_path, trial_number = self._build_study(tmp_path)
+        study_path, trial_number = _build_study(tmp_path)
         with caplog.at_level(logging.INFO):
             result = runner.call(
                 ["sweep", "summarise", "--sweep-path", str(study_path)]
@@ -242,7 +232,7 @@ class TestSweepCLI:
         runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        study_path, _ = self._build_study(tmp_path)
+        study_path, _ = _build_study(tmp_path)
         with caplog.at_level(logging.INFO):
             result = runner.call(
                 ["sweep", "summarise", "--sweep-path", str(study_path)]
@@ -257,7 +247,7 @@ class TestSweepCLI:
         runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        study_path, _ = self._build_study(tmp_path)
+        study_path, _ = _build_study(tmp_path)
         with caplog.at_level(logging.INFO):
             result = runner.call(
                 ["sweep", "summarise", "--sweep-path", str(study_path)]
@@ -271,7 +261,7 @@ class TestSweepCLI:
         runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        study_path, _ = self._build_study(tmp_path, n_completed=0)
+        study_path, _ = _build_study(tmp_path, n_completed=0)
         with caplog.at_level(logging.INFO):
             result = runner.call(
                 ["sweep", "summarise", "--sweep-path", str(study_path)]
@@ -280,6 +270,22 @@ class TestSweepCLI:
         assert "Study contains 0 trial(s)" in caplog.text
         assert "No trials have completed yet" in caplog.text
 
+
+class TestSweepTrialCLI:
+    def test_help(self) -> None:
+        runner = CustomCliRunner()
+        runner.check_output(
+            ["sweep", "trial", "--help"],
+            expected_patterns=[
+                r"Usage: imp sweep trial \[OPTIONS\]",
+                r"Run a single trial from a W&B sweep.",
+                r"--sweep-path\s+<path>\s+Full path to a local sweep directory",
+                r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
+                r"--multistage\s+Train an EncodeProcessDecode model in",
+                r"--help\s+-h\s+Show this message and exit.",
+            ],
+        )
+
     def test_trial_marks_study_failed_instead_of_leaving_it_running_on_a_crash(
         self,
         tmp_path: Path,
@@ -287,7 +293,7 @@ class TestSweepCLI:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A crash while training must not leave the trial RUNNING forever."""
-        study_path, _ = self._build_study(tmp_path, n_completed=0)
+        study_path, _ = _build_study(tmp_path, n_completed=0)
 
         def _raise_from_config(_config: object) -> ModelService:
             msg = "Simulated training crash."
@@ -311,7 +317,7 @@ class TestSweepCLI:
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        study_path, _ = self._build_study(tmp_path, n_completed=0)
+        study_path, _ = _build_study(tmp_path, n_completed=0)
 
         checkpoint = MagicMock(spec=ModelCheckpoint)
         checkpoint.best_model_score = torch.tensor(0.42)
@@ -340,7 +346,7 @@ class TestSweepCLI:
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        study_path, _ = self._build_study(tmp_path, n_completed=0)
+        study_path, _ = _build_study(tmp_path, n_completed=0)
         trainer = FakeTrainer(checkpoint_callbacks=[])
 
         monkeypatch.setattr(
@@ -364,7 +370,7 @@ class TestSweepCLI:
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        study_path, _ = self._build_study(tmp_path, n_completed=0)
+        study_path, _ = _build_study(tmp_path, n_completed=0)
 
         checkpoint = MagicMock(spec=ModelCheckpoint)
         checkpoint.best_model_score = None

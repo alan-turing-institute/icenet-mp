@@ -20,6 +20,20 @@ class FakeModelService:
 
 
 class TestTrainCLI:
+    def test_help(self, runner: CustomCliRunner) -> None:
+        runner.check_output(
+            ["train", "--help"],
+            expected_patterns=[
+                r"Usage: imp train \[OPTIONS\] \[overrides\]...",
+                r"Train a model",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
+                r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
+                r"--config-name\s+<str>\s+Name of a file to load from the config",
+                r"--help\s+-h\s+Show this message and exit.",
+                r"--multistage\s+Train an EncodeProcessDecode model in",
+            ],
+        )
+
     def test_default_training_forwards_composed_config(
         self,
         runner: CustomCliRunner,
@@ -40,20 +54,6 @@ class TestTrainCLI:
         assert len(captured) == 1
         assert captured[0].model.name == "quick-test"
         assert service.calls == [(None, False)]
-
-    def test_help(self, runner: CustomCliRunner) -> None:
-        runner.check_output(
-            ["train", "--help"],
-            expected_patterns=[
-                r"Usage: imp train \[OPTIONS\] \[overrides\]...",
-                r"Train a model",
-                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
-                r"--checkpoint-dir\s+<str>\s+Path to a directory of existing",
-                r"--config-name\s+<str>\s+Name of a file to load from the config",
-                r"--help\s+-h\s+Show this message and exit.",
-                r"--multistage\s+Train an EncodeProcessDecode model in",
-            ],
-        )
 
     def test_multistage_training_resolves_checkpoint_directory(
         self,

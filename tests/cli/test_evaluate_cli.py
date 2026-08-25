@@ -18,6 +18,20 @@ class FakeModelService:
 
 
 class TestEvaluateCLI:
+    def test_help(self, runner: CustomCliRunner) -> None:
+        runner.check_output(
+            ["evaluate", "--help"],
+            expected_patterns=[
+                r"Usage: imp evaluate \[OPTIONS\] \[overrides\]...",
+                r"Evaluate a pre-trained model",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
+                r"--checkpoint\s+<str>\s+Path of a trained model checkpoint",
+                r"--config-name\s+<str>\s+Name of a file to load from the config",
+                r"--help\s+-h\s+Show this message and exit.",
+                r"--save-layer\s+<str>\s+Dotted path of a model submodule to hook",
+            ],
+        )
+
     def test_evaluate_loads_resolved_checkpoint_and_runs(
         self,
         tmp_path: Path,
@@ -87,20 +101,6 @@ class TestEvaluateCLI:
 
         assert result.exit_code == 0, result.output
         assert captured[0][1] == (tmp_path / "model.ckpt").resolve()
-
-    def test_help(self, runner: CustomCliRunner) -> None:
-        runner.check_output(
-            ["evaluate", "--help"],
-            expected_patterns=[
-                r"Usage: imp evaluate \[OPTIONS\] \[overrides\]...",
-                r"Evaluate a pre-trained model",
-                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
-                r"--checkpoint\s+<str>\s+Path of a trained model checkpoint",
-                r"--config-name\s+<str>\s+Name of a file to load from the config",
-                r"--help\s+-h\s+Show this message and exit.",
-                r"--save-layer\s+<str>\s+Dotted path of a model submodule to hook",
-            ],
-        )
 
     def test_repeated_save_layer_flags_update_activation_saver_config(
         self,

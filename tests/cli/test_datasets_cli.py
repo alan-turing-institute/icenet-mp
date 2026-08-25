@@ -6,7 +6,7 @@ import pytest
 from .conftest import CustomCliRunner
 
 
-class TestDatasetsHelpCLI:
+class TestDatasetsCLI:
     def test_help(self, runner: CustomCliRunner) -> None:
         runner.check_output(
             ["datasets", "--help"],
@@ -18,19 +18,6 @@ class TestDatasetsHelpCLI:
                 r"inspect\s+Inspect all datasets.",
                 r"plot\s+Plot one timestep of configured datasets.",
                 r"masks\s+Create land / active grid cell masks.",
-            ],
-        )
-
-    def test_plot_help(self, runner: CustomCliRunner) -> None:
-        runner.check_output(
-            ["datasets", "plot", "--help"],
-            expected_patterns=[
-                r"Usage: imp datasets plot \[OPTIONS\] \[overrides\]...",
-                r"Plot one timestep of configured datasets.",
-                r"--dataset\s+<str>\s+Only plot the named configured",
-                r"--timestep\s+<int>\s+Dataset timestep index to plot",
-                r"--video\s+--no-video\s+Animate --n-steps consecutive",
-                r"--n-steps\s+<int>\s+Number of consecutive timesteps to",
             ],
         )
 
@@ -50,6 +37,19 @@ class TestDatasetsCreateCLI:
             self.create_calls.append(overwrite)
             if self.error is not None:
                 raise self.error
+
+    def test_help(self, runner: CustomCliRunner) -> None:
+        runner.check_output(
+            ["datasets", "create", "--help"],
+            expected_patterns=[
+                r"Usage: imp datasets create \[OPTIONS\] \[overrides\]...",
+                r"Create all datasets.",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
+                r"--config-name\s+<str>\s+Name of a file to load from the",
+                r"--overwrite\s+--no-overwrite\s+Specify whether to overwrite",
+                r"--help\s+-h\s+Show this message and exit.",
+            ],
+        )
 
     def test_calls_create_on_each_downloader_with_overwrite_flag(
         self,
@@ -123,6 +123,19 @@ class TestDatasetsInspectCLI:
             if self.error is not None:
                 raise self.error
 
+    def test_help(self, runner: CustomCliRunner) -> None:
+        runner.check_output(
+            ["datasets", "inspect", "--help"],
+            expected_patterns=[
+                r"Usage: imp datasets inspect \[OPTIONS\] \[overrides\]...",
+                r"Inspect all datasets.",
+                r"overrides\s+<str>\s+One or more space-separated Hydra config overrides",
+                r"--config-name\s+<str>\s+Name of a file to load from the",
+                r"--verbose\s+--no-verbose\s+Show detailed dataset information",
+                r"--help\s+-h\s+Show this message and exit.",
+            ],
+        )
+
     def test_calls_inspect_on_each_downloader_with_verbose_flag(
         self,
         runner: CustomCliRunner,
@@ -187,6 +200,19 @@ class TestDatasetsPlotCLI:
             """Store the downloader's name and dataset path."""
             self.name = name
             self.path_dataset = path_dataset
+
+    def test_help(self, runner: CustomCliRunner) -> None:
+        runner.check_output(
+            ["datasets", "plot", "--help"],
+            expected_patterns=[
+                r"Usage: imp datasets plot \[OPTIONS\] \[overrides\]...",
+                r"Plot one timestep of configured datasets.",
+                r"--dataset\s+<str>\s+Only plot the named configured",
+                r"--timestep\s+<int>\s+Dataset timestep index to plot",
+                r"--video\s+--no-video\s+Animate --n-steps consecutive",
+                r"--n-steps\s+<int>\s+Number of consecutive timesteps to",
+            ],
+        )
 
     def test_plot_calls_plot_dataset_for_each_matched_existing_dataset(
         self,
