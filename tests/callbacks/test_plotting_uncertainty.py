@@ -80,6 +80,22 @@ def test_load_target_uncertainties_handles_data_error(
     assert "Could not load target uncertainty" in caplog.text
 
 
+def test_load_target_uncertainties_handles_missing_statistics(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Skip uncertainty plotting when target statistics are missing a key."""
+    dataset, _ = _dataset_with_uncertainty()
+    dataset.target.statistics = {}
+
+    with caplog.at_level(logging.WARNING):
+        result = PlottingCallback.load_target_uncertainties(
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+        )
+
+    assert result == {}
+    assert "Could not load target uncertainty" in caplog.text
+
+
 def test_load_target_uncertainties_rejects_invalid_target_range(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

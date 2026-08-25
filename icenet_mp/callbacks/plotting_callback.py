@@ -127,51 +127,60 @@ class PlottingCallback(Callback):
         target_variable = "ice_conc"
         uncertainty_variable = "total_standard_uncertainty"
 
-        if target_variable not in dataset.target.variable_names:
-            return {}
-        target_idx = dataset.target.variable_names.index(target_variable)
-
-        source = next(
-            (
-                input_ds
-                for input_ds in dataset.inputs
-                if input_ds.name == dataset.target.name
-                and uncertainty_variable in input_ds.variable_names
-            ),
-            None,
-        )
-        if source is None:
-            return {}
-
-        uncertainty_ds = source.subset(
-            variables=[uncertainty_variable], normalise=False
-        )
-        np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
         try:
+            if target_variable not in dataset.target.variable_names:
+                return {}
+            target_idx = dataset.target.variable_names.index(target_variable)
+
+            source = next(
+                (
+                    input_ds
+                    for input_ds in dataset.inputs
+                    if input_ds.name == dataset.target.name
+                    and uncertainty_variable in input_ds.variable_names
+                ),
+                None,
+            )
+            if source is None:
+                return {}
+
+            uncertainty_ds = source.subset(
+                variables=[uncertainty_variable], normalise=False
+            )
+            np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
             uncertainty = uncertainty_ds.get_tchw(np_dates)[:, 0]
-        except (IndexError, ValueError) as exc:
+
+            # SSMIS uncertainties are fractions after ingestion. The source uses 99 as
+            # a sentinel for missing uncertainty, so mask values outside the physical
+            # range.
+            uncertainty = np.where(
+                np.isfinite(uncertainty) & (uncertainty > 0) & (uncertainty <= 1),
+                uncertainty,
+                np.nan,
+            )
+
+            target_min = float(dataset.target.statistics["minimum"][target_idx])
+            target_max = float(dataset.target.statistics["maximum"][target_idx])
+            target_range = target_max - target_min
+            if not np.isfinite(target_range) or target_range <= 0:
+                logger.warning(
+                    "Could not scale target uncertainty because target range is %s.",
+                    target_range,
+                )
+                return {}
+
+            return {target_idx: uncertainty / target_range}
+        except (
+            IndexError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            TypeError,
+            MemoryError,
+            OSError,
+        ) as exc:
             logger.warning("Could not load target uncertainty: %s", exc)
             return {}
-
-        # SSMIS uncertainties are fractions after ingestion. The source uses 99 as a
-        # sentinel for missing uncertainty, so mask values outside the physical range.
-        uncertainty = np.where(
-            np.isfinite(uncertainty) & (uncertainty > 0) & (uncertainty <= 1),
-            uncertainty,
-            np.nan,
-        )
-
-        target_min = float(dataset.target.statistics["minimum"][target_idx])
-        target_max = float(dataset.target.statistics["maximum"][target_idx])
-        target_range = target_max - target_min
-        if not np.isfinite(target_range) or target_range <= 0:
-            logger.warning(
-                "Could not scale target uncertainty because target range is %s.",
-                target_range,
-            )
-            return {}
-
-        return {target_idx: uncertainty / target_range}
 
     def make_plots(
         self,
