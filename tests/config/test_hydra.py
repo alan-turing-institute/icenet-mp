@@ -40,7 +40,7 @@ class TestHydraConfigLoading:
 
     def test_loss_defaults_resolved_from_base(self) -> None:
         cfg = self.load_config()
-        assert cfg.loss._target_ == "torch.nn.HuberLoss"
+        assert cfg.loss._target_ == "icenet_mp.losses.amse_loss.AMSELoss"
         assert cfg.loss.delta == pytest.approx(0.5)
 
     def test_scalar_override_applied(self) -> None:

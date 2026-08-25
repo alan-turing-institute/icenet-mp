@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
 from PIL.ImageFile import ImageFile
 
-from icenet_mp.types import ArrayHW, PlotSpec
+from icenet_mp.types import ArrayHW, PlotSpec, UncertaintyArrays
 
 from .convert import image_from_figure
 from .helpers import (
@@ -40,6 +40,7 @@ from .layout import (
 )
 from .plotting_core import (
     colourmap_with_bad,
+    compute_standardised_difference,
     create_normalisation,
     style_for_variable,
 )
@@ -144,6 +145,72 @@ def plot_static_prediction(
         }
     finally:
         plt.close(fig)
+
+
+def plot_static_uncertainty(
+    arrays: UncertaintyArrays,
+    *,
+    date: date | datetime,
+    land_mask: LandMask,
+    plot_spec: PlotSpec,
+    variable_name: str,
+) -> dict[str, list[ImageFile]]:
+    """Plot signed prediction error in units of observational uncertainty.
+
+    A value of ``z=1`` means the observation exceeds the prediction by one
+    reported standard uncertainty. Invalid or non-positive uncertainty values
+    are masked.
+    """
+    z_difference = compute_standardised_difference(
+        arrays.ground_truth, arrays.prediction, arrays.uncertainty
+    )
+    z_difference = land_mask.apply_to(z_difference)
+
+    height, width = z_difference.shape
+    fig, ax, cax = build_single_panel_figure(
+        height=height,
+        width=width,
+        colourbar_location=plot_spec.colourbar_location,
+    )
+
+    norm, vmin, vmax = create_normalisation(z_difference, centre=0.0)
+    image = ax.imshow(
+        z_difference,
+        cmap=colourmap_with_bad("RdBu_r", bad_color="lightgrey"),
+        norm=norm,
+        origin="lower",
+        interpolation="nearest",
+    )
+
+    is_vertical = plot_spec.colourbar_location == "vertical"
+    colourbar = fig.colorbar(
+        image,
+        ax=ax,
+        cax=cax,
+        orientation=plot_spec.colourbar_location,
+    )
+    format_symmetric_ticks(
+        colourbar,
+        vmin=vmin,
+        vmax=vmax,
+        decimals=1,
+        is_vertical=is_vertical,
+        centre=0.0,
+        use_scientific_notation=False,
+    )
+
+    shown = date.date().isoformat() if isinstance(date, datetime) else date.isoformat()
+    set_suptitle_with_box(
+        fig,
+        f"{variable_name} standardised difference (z)   Shown: {shown}",
+    )
+
+    try:
+        image_file = image_from_figure(fig, dpi=plot_spec.dpi)
+    finally:
+        plt.close(fig)
+
+    return {f"{shown}-{variable_name}-uncertainty-z": [image_file]}
 
 
 def plot_static_inputs(
