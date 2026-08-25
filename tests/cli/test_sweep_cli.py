@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -10,7 +9,6 @@ import yaml
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import OmegaConf
 from optuna.trial import TrialState
-from typer.testing import Result
 
 from icenet_mp.model_service import ModelService
 from icenet_mp.sweep import OptunaSweep
@@ -124,7 +122,7 @@ class TestSweepCLI:
     def test_initialise_creates_a_wandb_sweep_and_optuna_study(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         sweep_yaml = tmp_path / "search_space.yaml"
@@ -152,7 +150,7 @@ class TestSweepCLI:
 
         monkeypatch.setattr(wandb, "sweep", fake_sweep)
 
-        result = invoke_cli(
+        result = runner.call(
             [
                 "sweep",
                 "initialise",
@@ -175,7 +173,7 @@ class TestSweepCLI:
     def test_initialise_rejects_an_unresolvable_parameter(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
     ) -> None:
         sweep_yaml = tmp_path / "search_space.yaml"
         sweep_yaml.write_text(
@@ -195,7 +193,7 @@ class TestSweepCLI:
             )
         )
 
-        result = invoke_cli(
+        result = runner.call(
             [
                 "sweep",
                 "initialise",
@@ -212,9 +210,11 @@ class TestSweepCLI:
         assert not (tmp_path / "sweeps").exists()
 
     def test_missing_sweep_path_raises(
-        self, tmp_path: Path, invoke_cli: Callable[[list[str]], Result]
+        self,
+        tmp_path: Path,
+        runner: CustomCliRunner,
     ) -> None:
-        result = invoke_cli(
+        result = runner.call(
             ["sweep", "summarise", "--sweep-path", str(tmp_path / "missing")]
         )
         assert result.exit_code != 0
@@ -223,12 +223,14 @@ class TestSweepCLI:
     def test_reports_best_trial_number_and_value(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, trial_number = self._build_study(tmp_path)
         with caplog.at_level(logging.INFO):
-            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = runner.call(
+                ["sweep", "summarise", "--sweep-path", str(study_path)]
+            )
         assert result.exit_code == 0, result.output
         assert (
             f"Trial {trial_number} performed best, with loss 0.500000." in caplog.text
@@ -237,12 +239,14 @@ class TestSweepCLI:
     def test_reports_best_trial_parameters(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, _ = self._build_study(tmp_path)
         with caplog.at_level(logging.INFO):
-            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = runner.call(
+                ["sweep", "summarise", "--sweep-path", str(study_path)]
+            )
         assert result.exit_code == 0, result.output
         assert "Best trial parameters:" in caplog.text
         assert "train.optimizer.lr" in caplog.text
@@ -250,24 +254,28 @@ class TestSweepCLI:
     def test_reports_trial_count(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, _ = self._build_study(tmp_path)
         with caplog.at_level(logging.INFO):
-            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = runner.call(
+                ["sweep", "summarise", "--sweep-path", str(study_path)]
+            )
         assert result.exit_code == 0, result.output
         assert "Study contains 1 trial(s)" in caplog.text
 
     def test_reports_no_trials_completed_without_crashing(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         study_path, _ = self._build_study(tmp_path, n_completed=0)
         with caplog.at_level(logging.INFO):
-            result = invoke_cli(["sweep", "summarise", "--sweep-path", str(study_path)])
+            result = runner.call(
+                ["sweep", "summarise", "--sweep-path", str(study_path)]
+            )
         assert result.exit_code == 0, result.output
         assert "Study contains 0 trial(s)" in caplog.text
         assert "No trials have completed yet" in caplog.text
@@ -275,7 +283,7 @@ class TestSweepCLI:
     def test_trial_marks_study_failed_instead_of_leaving_it_running_on_a_crash(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """A crash while training must not leave the trial RUNNING forever."""
@@ -287,7 +295,7 @@ class TestSweepCLI:
 
         monkeypatch.setattr(ModelService, "from_config", _raise_from_config)
 
-        result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
+        result = runner.call(["sweep", "trial", "--sweep-path", str(study_path)])
 
         assert result.exit_code != 0
         assert isinstance(result.exception, RuntimeError)
@@ -299,7 +307,7 @@ class TestSweepCLI:
     def test_trial_records_the_best_checkpoint_score(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -314,7 +322,7 @@ class TestSweepCLI:
         )
 
         with caplog.at_level(logging.INFO):
-            result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
+            result = runner.call(["sweep", "trial", "--sweep-path", str(study_path)])
 
         assert result.exit_code == 0, result.output
         assert "Trial 0 completed with value 0.420000" in caplog.text
@@ -328,7 +336,7 @@ class TestSweepCLI:
     def test_trial_marks_failed_when_no_unique_checkpoint_callback(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -340,7 +348,7 @@ class TestSweepCLI:
         )
 
         with caplog.at_level(logging.WARNING):
-            result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
+            result = runner.call(["sweep", "trial", "--sweep-path", str(study_path)])
 
         assert result.exit_code == 0, result.output
         assert "could not find a unique ModelCheckpoint callback" in caplog.text
@@ -352,7 +360,7 @@ class TestSweepCLI:
     def test_trial_marks_failed_when_checkpoint_has_no_best_score(
         self,
         tmp_path: Path,
-        invoke_cli: Callable[[list[str]], Result],
+        runner: CustomCliRunner,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -368,7 +376,7 @@ class TestSweepCLI:
         )
 
         with caplog.at_level(logging.WARNING):
-            result = invoke_cli(["sweep", "trial", "--sweep-path", str(study_path)])
+            result = runner.call(["sweep", "trial", "--sweep-path", str(study_path)])
 
         assert result.exit_code == 0, result.output
         assert "has no best_model_score" in caplog.text
