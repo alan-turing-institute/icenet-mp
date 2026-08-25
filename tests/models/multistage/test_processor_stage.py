@@ -36,6 +36,7 @@ class TestProcessorStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
         cfg_decoder: DictConfig,
     ) -> EncoderStage:
@@ -60,6 +61,7 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
         )
 
@@ -74,6 +76,7 @@ class TestProcessorStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
     ) -> ProcessorStage:
         return ProcessorStage(
@@ -88,6 +91,7 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
         )
 
@@ -229,6 +233,7 @@ class TestProcessorStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
     ) -> None:
         skip_connection_decoder = DictConfig(
@@ -250,6 +255,7 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
         )
         processor_stage = ProcessorStage(
@@ -264,6 +270,7 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
         )
 
