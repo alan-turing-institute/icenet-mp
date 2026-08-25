@@ -6,9 +6,9 @@
 |--------------------------------------------------------------------- | -------: | -------: | ------: | --------: |
 | icenet\_mp/\_\_init\_\_.py                                           |        9 |        0 |    100% |           |
 | icenet\_mp/callbacks/\_\_init\_\_.py                                 |        6 |        0 |    100% |           |
-| icenet\_mp/callbacks/activation\_saver.py                            |       92 |       70 |     24% |62-72, 82-115, 123-126, 134, 142, 145-161, 172-179, 191-217, 230-244, 252-257 |
+| icenet\_mp/callbacks/activation\_saver.py                            |       92 |        0 |    100% |           |
 | icenet\_mp/callbacks/ema\_weight\_averaging\_callback.py             |       21 |       12 |     43% |26-30, 36-37, 41-42, 48-54 |
-| icenet\_mp/callbacks/metric\_summary\_callback.py                    |       74 |       26 |     65% |28, 33, 55, 59-62, 70, 94-95, 102, 110-111, 115-118, 126-127, 133-138, 147-154, 160 |
+| icenet\_mp/callbacks/metric\_summary\_callback.py                    |       74 |        0 |    100% |           |
 | icenet\_mp/callbacks/plotting\_callback.py                           |      157 |       89 |     43% |85-88, 92-102, 108-123, 137, 200-262, 277-295, 300-309, 322-344, 351-360 |
 | icenet\_mp/callbacks/unconditional\_checkpoint.py                    |       26 |       14 |     46% |18-20, 25, 30-31, 35-36, 40-52 |
 | icenet\_mp/cli/\_\_init\_\_.py                                       |        2 |        0 |    100% |           |
@@ -159,7 +159,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        5 |     94% |133-135, 304-305 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       23 |     80% |106-107, 109-112, 142-147, 183-185, 193-194, 198-218, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **6262** | **1298** | **79%** |           |
+| **TOTAL**                                                            | **6262** | **1202** | **81%** |           |
 
 
 ## Setup coverage badge
