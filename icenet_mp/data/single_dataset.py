@@ -316,13 +316,14 @@ class SingleDataset(Dataset):
         self,
         *,
         date_ranges: Sequence[dict[str, str | None]] | None = None,
+        normalise: bool | None = None,
         variables: Sequence[str] | None = None,
     ) -> "SingleDataset":
         return SingleDataset(
             name=self.name,
             input_files=self._input_files,
             date_ranges=date_ranges or self._date_ranges,
-            normalise=self._normalise,
+            normalise=self._normalise if normalise is None else normalise,
             variables=variables or list(self._variables),
         )
 

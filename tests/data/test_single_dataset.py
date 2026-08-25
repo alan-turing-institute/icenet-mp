@@ -9,13 +9,6 @@ from icenet_mp.data.single_dataset import SingleDataset
 from icenet_mp.types import DataSpace
 
 
-class MockAnemoiDataset:
-    def __init__(self, channels: int, height: int, width: int) -> None:
-        """A mock Anemoi dataset for testing purposes."""
-        self.shape = (1, channels, height * width)
-        self.field_shape = (height, width)
-
-
 class TestSingleDataset:
     def test_name(self) -> None:
         dataset = SingleDataset(name="test_dataset", input_files=[])

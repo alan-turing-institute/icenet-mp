@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
 from functools import cached_property
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 import torch
 from lightning import LightningModule
 from lightning.pytorch.utilities.types import (
     LRSchedulerConfigType,
+    LRSchedulerTypeUnion,
     OptimizerConfig,
     OptimizerLRScheduler,
     OptimizerLRSchedulerConfig,
@@ -24,6 +25,9 @@ from icenet_mp.metrics import (
     SeaIceExtentErrorPerForecastDay,
 )
 from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
+
+if TYPE_CHECKING:
+    from torch.optim import Optimizer
 
 
 class BaseModel(LightningModule, ABC):
@@ -42,6 +46,7 @@ class BaseModel(LightningModule, ABC):
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         loss: DictConfig,
+        lr_scheduler: DictConfig,
         metrics: list[str] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
@@ -88,6 +93,7 @@ class BaseModel(LightningModule, ABC):
         # Store the optimizer, scheduler and loss configs
         self.optimizer_cfg = optimizer
         self.scheduler_cfg = scheduler
+        self.lr_scheduler_cfg = lr_scheduler
         self.loss_cfg = loss
 
         # Metrics
@@ -133,8 +139,8 @@ class BaseModel(LightningModule, ABC):
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""
-        # Optimizer
-        optimizer = hydra.utils.instantiate(
+        # Create the optimizer
+        optimizer: Optimizer = hydra.utils.instantiate(
             self.optimizer_cfg,
             params=filter(lambda p: p.requires_grad, self.parameters()),
         )
@@ -143,19 +149,26 @@ class BaseModel(LightningModule, ABC):
         if not self.scheduler_cfg:
             return OptimizerConfig(optimizer=optimizer)
 
-        # Scheduler
-        scheduler = hydra.utils.instantiate(
-            self.scheduler_cfg["scheduler_parameters"],
-            _target_=self.scheduler_cfg["_target_"],
-            optimizer=optimizer,
+        # Create the scheduler
+        scheduler: LRSchedulerTypeUnion = hydra.utils.instantiate(
+            self.scheduler_cfg, optimizer=optimizer
+        )
+
+        # Create the Lightning LRScheduler wrapper
+        lr_scheduler = LRSchedulerConfigType(
+            frequency=self.lr_scheduler_cfg.get("frequency", 1),
+            interval=self.lr_scheduler_cfg.get("interval", "epoch"),
+            monitor=self.lr_scheduler_cfg.get("monitor"),
+            name=self.lr_scheduler_cfg.get("name"),
+            reduce_on_plateau=self.lr_scheduler_cfg.get("reduce_on_plateau", False),
+            scheduler=scheduler,
+            strict=self.lr_scheduler_cfg.get("strict", True),
         )
 
         # Return the optimizer and scheduler
         return OptimizerLRSchedulerConfig(
             optimizer=optimizer,
-            lr_scheduler=LRSchedulerConfigType(
-                scheduler=scheduler, **self.scheduler_cfg["lr_scheduler_parameters"]
-            ),
+            lr_scheduler=lr_scheduler,
         )
 
     @abstractmethod
