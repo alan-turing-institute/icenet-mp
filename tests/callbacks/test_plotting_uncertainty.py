@@ -24,9 +24,8 @@ def _dataset_with_uncertainty() -> tuple[MagicMock, MagicMock]:
     source.name = "target"
     source.variable_names = ["ice_conc", "total_standard_uncertainty"]
     uncertainty_ds = MagicMock()
-    uncertainty_ds.statistics = {"minimum": [0.1], "maximum": [0.3]}
     uncertainty_ds.get_tchw.return_value = np.array(
-        [[[[0.0, 0.5], [1.0, 5.0]]]], dtype=np.float32
+        [[[[0.1, 0.2], [0.3, 1.1]]]], dtype=np.float32
     )
     source.subset.return_value = uncertainty_ds
     dataset.inputs = [source]
@@ -48,7 +47,7 @@ def test_load_target_uncertainties_scales_and_masks() -> None:
         equal_nan=True,
     )
     dataset.inputs[0].subset.assert_called_once_with(
-        variables=["total_standard_uncertainty"]
+        variables=["total_standard_uncertainty"], normalise=False
     )
 
 

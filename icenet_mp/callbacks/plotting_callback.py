@@ -143,17 +143,15 @@ class PlottingCallback(Callback):
         if source is None:
             return {}
 
-        uncertainty_ds = source.subset(variables=[uncertainty_variable])
+        uncertainty_ds = source.subset(
+            variables=[uncertainty_variable], normalise=False
+        )
         np_dates = [np.datetime64(date.replace(tzinfo=None)) for date in dates]
         try:
-            normalised = uncertainty_ds.get_tchw(np_dates)[:, 0]
+            uncertainty = uncertainty_ds.get_tchw(np_dates)[:, 0]
         except (IndexError, ValueError) as exc:
             logger.warning("Could not load target uncertainty: %s", exc)
             return {}
-
-        uncertainty_min = float(uncertainty_ds.statistics["minimum"][0])
-        uncertainty_max = float(uncertainty_ds.statistics["maximum"][0])
-        uncertainty = normalised * (uncertainty_max - uncertainty_min) + uncertainty_min
 
         # SSMIS uncertainties are fractions after ingestion. The source uses 99 as a
         # sentinel for missing uncertainty, so mask values outside the physical range.
