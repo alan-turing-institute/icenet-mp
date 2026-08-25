@@ -67,13 +67,19 @@ class TestHydraConfigLoading:
         assert "metric_summary" not in cfg.evaluate.callbacks
 
     def test_piecewise_baselines_are_matched_except_for_model_variant(self) -> None:
-        baseline = self.load_config(config_name="baseline/05_piecewise_unet_piecewise")
+        overrides = ["random=deterministic"]
+        baseline = self.load_config(
+            config_name="baseline/05_piecewise_unet_piecewise", overrides=overrides
+        )
         naive = self.load_config(
-            config_name="baseline/06_piecewise_unet_piecewise_naive"
+            config_name="baseline/06_piecewise_unet_piecewise_naive",
+            overrides=overrides,
         )
 
         assert baseline.model.name == "piecewise-unet-piecewise"
         assert naive.model.name == "piecewise-unet-piecewise-naive"
+        assert baseline.random.seed == 123
+        assert baseline.random.fully_deterministic is True
         for key in ("data", "loss", "predict", "train", "evaluate", "random"):
             assert baseline[key] == naive[key]
 
