@@ -3,6 +3,7 @@ defaults:
     - activation_saver
     - metric_summary
     - plotting
+    - prediction_writer
   - _self_
 
 trainer: ${train.trainer}
