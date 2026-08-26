@@ -17,6 +17,15 @@ def test_logger_metadata_uses_configured_name_and_directory(tmp_path: Path) -> N
     assert not tmp_path.joinpath("metrics.jsonl").exists()
 
 
+def test_log_hyperparams_is_a_noop(tmp_path: Path) -> None:
+    """Accept and discard hyperparameters without touching the filesystem."""
+    logger = LocalFileLogger(str(tmp_path))
+
+    logger.log_hyperparams({"lr": 1e-3}, "unused_arg", extra="unused_kwarg")
+
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_log_metrics_appends_json_lines_and_coerces_values(tmp_path: Path) -> None:
     """Persist one JSON record per logging call with the optional training step."""
     logger = LocalFileLogger(str(tmp_path))
