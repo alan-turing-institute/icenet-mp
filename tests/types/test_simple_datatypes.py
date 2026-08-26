@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import numpy as np
 import torch
 from matplotlib.colors import Normalize
 
@@ -8,10 +9,12 @@ from icenet_mp.types import (
     AnemoiDatasetStatus,
     AnemoiFinaliseArgs,
     AnemoiInitArgs,
+    AnemoiInspectArgs,
     AnemoiLoadArgs,
     DiffColourmapSpec,
     Metadata,
     ProcessorOutput,
+    UncertaintyArrays,
 )
 
 
@@ -45,6 +48,23 @@ def test_anemoi_command_args_keep_expected_defaults() -> None:
     assert load.recipe is recipe
     assert finalise.command == "unused"
     assert finalise.recipe is recipe
+
+
+def test_anemoi_inspect_args_preserve_requested_flags() -> None:
+    """Preserve explicit inspect options without hidden defaults."""
+    inspect = AnemoiInspectArgs(
+        detailed=True,
+        path="dataset.zarr",
+        progress=False,
+        size=True,
+        statistics=False,
+    )
+
+    assert inspect.path == "dataset.zarr"
+    assert inspect.detailed is True
+    assert inspect.progress is False
+    assert inspect.size is True
+    assert inspect.statistics is False
 
 
 def test_diff_colourmap_spec_preserves_normalisation_and_bounds() -> None:
@@ -109,3 +129,23 @@ def test_processor_output_keeps_custom_loss_tensor() -> None:
     output = ProcessorOutput(prediction=prediction, loss=loss)
 
     assert output.loss is loss
+
+
+def test_uncertainty_arrays_preserve_named_tuple_fields() -> None:
+    """Preserve array identities and tuple ordering for uncertainty values."""
+    ground_truth = np.zeros((2, 3), dtype=np.float32)
+    prediction = np.ones((2, 3), dtype=np.float32)
+    uncertainty = np.full((2, 3), 0.1, dtype=np.float32)
+
+    arrays = UncertaintyArrays(
+        ground_truth=ground_truth,
+        prediction=prediction,
+        uncertainty=uncertainty,
+    )
+
+    assert arrays.ground_truth is ground_truth
+    assert arrays.prediction is prediction
+    assert arrays.uncertainty is uncertainty
+    assert arrays[0] is ground_truth
+    assert arrays[1] is prediction
+    assert arrays[2] is uncertainty
