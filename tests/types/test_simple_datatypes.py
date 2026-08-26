@@ -48,6 +48,22 @@ class TestAnemoiCommandArgs:
         assert args.overwrite is False
         assert args.recipe is recipe
 
+    def test_inspect_preserves_requested_flags(self) -> None:
+        """Preserve every explicit inspect flag without hidden defaults."""
+        args = AnemoiInspectArgs(
+            detailed=True,
+            path="dataset.zarr",
+            progress=False,
+            size=True,
+            statistics=False,
+        )
+
+        assert args.detailed is True
+        assert args.path == "dataset.zarr"
+        assert args.progress is False
+        assert args.size is True
+        assert args.statistics is False
+
     def test_load_defaults(self) -> None:
         """Default AnemoiLoadArgs command while preserving the recipe."""
         recipe = MagicMock(spec=Recipe)
@@ -71,26 +87,6 @@ class TestAnemoiDatasetStatus:
 
         assert tuple(status) == (False, True, True)
         assert status.download_complete is True
-
-
-class TestAnemoiInspectArgs:
-    """Tests for AnemoiInspectArgs."""
-
-    def test_preserve_requested_flags(self) -> None:
-        """Preserve explicit inspect options without hidden defaults."""
-        inspect = AnemoiInspectArgs(
-            detailed=True,
-            path="dataset.zarr",
-            progress=False,
-            size=True,
-            statistics=False,
-        )
-
-        assert inspect.path == "dataset.zarr"
-        assert inspect.detailed is True
-        assert inspect.progress is False
-        assert inspect.size is True
-        assert inspect.statistics is False
 
 
 class TestDiffColourmapSpec:
