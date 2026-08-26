@@ -212,7 +212,7 @@ class TestPlotVideoInputs:
             "era5:10u": rng.normal(
                 0, 5, size=(n_timesteps, TEST_HEIGHT, TEST_WIDTH)
             ).astype(np.float32),
-            "sic-icenet:ice_conc": rng.uniform(
+            "sic-osisaf:ice_conc": rng.uniform(
                 0, 1, size=(n_timesteps, TEST_HEIGHT, TEST_WIDTH)
             ).astype(np.float32),
         }

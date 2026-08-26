@@ -3,6 +3,7 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
 from omegaconf import DictConfig
@@ -11,8 +12,8 @@ from torch.utils.data import DataLoader
 
 from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
-from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
-from icenet_mp.utils import datetime_from_npdatetime
+from icenet_mp.types import ArrayTHW, Metadata, ModelStepOutput, PlotSpec
+from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
 from icenet_mp.visualisations.land_mask import LandMask
 
@@ -59,6 +60,9 @@ class PlottingCallback(Callback):
         self.make_input_plots = make_input_plots
         self.make_static_plots = make_static_plots
         self.make_video_plots = make_video_plots
+
+        # Uncertainty plots
+        self.uncertainty_variables = {"ice_conc": "total_standard_uncertainty"}
 
         # Plotter instance
         self.plotter = Plotter(DEFAULT_SIC_SPEC + plot_spec)
@@ -118,6 +122,73 @@ class PlottingCallback(Callback):
             return None
         return (dataset, batch_size)
 
+    def load_target_uncertainties(
+        self, dataset: CombinedDataset, dates: list
+    ) -> dict[int, ArrayTHW]:
+        """Load SIC uncertainty in the same normalised scale as the target."""
+        try:
+            uncertainties: dict[int, ArrayTHW] = {}
+            for (
+                target_variable,
+                uncertainty_variable,
+            ) in self.uncertainty_variables.items():
+                # Attempt to load target index from the dataset
+                if target_variable not in dataset.target.variable_names:
+                    continue
+                target_idx = dataset.target.variable_names.index(target_variable)
+
+                # Attempt to load uncertainty from the dataset
+                source = next(
+                    (
+                        input_ds
+                        for input_ds in dataset.inputs
+                        if input_ds.name == dataset.target.name
+                        and uncertainty_variable in input_ds.variable_names
+                    ),
+                    None,
+                )
+                if source is None:
+                    continue
+                uncertainty_ds = source.subset(
+                    variables=[uncertainty_variable], normalise=False
+                )
+
+                # Load uncertainties as fractions which must be in the range (0, 1]
+                np_dates = [npdatetime_from_datetime(date) for date in dates]
+                uncertainty = uncertainty_ds.get_tchw(np_dates)[:, 0]
+                uncertainty = np.where(
+                    np.isfinite(uncertainty) & (uncertainty > 0) & (uncertainty <= 1),
+                    uncertainty,
+                    np.nan,
+                )
+
+                # Scale uncertainties to the same range as the target, or return empty
+                target_min = float(dataset.target.statistics["minimum"][target_idx])
+                target_max = float(dataset.target.statistics["maximum"][target_idx])
+                target_range = target_max - target_min
+                if not np.isfinite(target_range) or target_range <= 0:
+                    logger.warning(
+                        "Could not scale target uncertainty because target range is %s.",
+                        target_range,
+                    )
+                    continue
+                uncertainties[target_idx] = (uncertainty / target_range).astype(
+                    np.float32
+                )
+        except (
+            IndexError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            TypeError,
+            MemoryError,
+            OSError,
+        ) as exc:
+            logger.warning("Could not load target uncertainty: %s", exc)
+            return {}
+        else:
+            return uncertainties
+
     def make_plots(
         self,
         trainer: Trainer,
@@ -165,12 +236,14 @@ class PlottingCallback(Callback):
         channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
 
         if self.make_static_plots:
+            uncertainties = self.load_target_uncertainties(dataset, dates)
             self.plotter.log_static_outputs(
                 self.cached_outputs_,
                 dates,
                 image_loggers,
                 channel_names,
                 prefix=self.prefix,
+                uncertainties=uncertainties,
             )
             if self.make_input_plots:
                 self.plotter.log_static_inputs(

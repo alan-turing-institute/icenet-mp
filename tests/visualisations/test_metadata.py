@@ -1,6 +1,3 @@
-from collections.abc import Mapping, Sequence
-from typing import Any
-
 import pytest
 from omegaconf import DictConfig
 
@@ -147,35 +144,6 @@ def test_extract_variables_by_source_empty_config() -> None:
     assert extract_variables_by_source({}) == {}
     assert extract_variables_by_source({"datasets": {}}) == {}
     assert extract_variables_by_source({"datasets": None}) == {}
-
-
-class MockDataset:
-    """Mock dataset for hemisphere inference tests."""
-
-    def __init__(
-        self,
-        target_name: str | None = None,
-        inputs: Sequence[Any] | None = None,
-        name: str | None = None,
-        config: Mapping[str, Any] | None = None,
-    ) -> None:
-        """Initialise mock dataset with optional attributes for tests."""
-        if target_name:
-            self.target = MockTarget(target_name)
-        else:
-            self.target = None  # type: ignore[assignment]
-        self.inputs = inputs or []
-        self.name = name
-        self.config = config
-        self.dataset_config = config
-
-
-class MockTarget:
-    """Mock target dataset component."""
-
-    def __init__(self, name: str) -> None:
-        """Initialise mock target with a name."""
-        self.name = name
 
 
 def test_build_metadata_returns_dataclass() -> None:

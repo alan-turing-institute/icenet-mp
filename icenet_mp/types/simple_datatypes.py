@@ -5,15 +5,7 @@ from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
 from torch import Tensor
 
-from .typedefs import TensorNTCHW
-
-
-class AnemoiDatasetStatus(NamedTuple):
-    """Status of an Anemoi dataset."""
-
-    copy_in_progress: bool
-    download_complete: bool
-    is_finalised: bool
+from .typedefs import ArrayHW, TensorNTCHW
 
 
 @dataclass
@@ -23,6 +15,14 @@ class AnemoiCleanupArgs:
     path: str
     command: str = "unused"
     delta: list[str] | None = None
+
+
+class AnemoiDatasetStatus(NamedTuple):
+    """Status of an Anemoi dataset."""
+
+    copy_in_progress: bool
+    download_complete: bool
+    is_finalised: bool
 
 
 @dataclass
@@ -128,3 +128,11 @@ class ProcessorOutput:
 
     prediction: TensorNTCHW
     loss: Tensor | None = None
+
+
+class UncertaintyArrays(NamedTuple):
+    """The observed, predicted and uncertainty arrays for a standardised difference."""
+
+    ground_truth: ArrayHW
+    prediction: ArrayHW
+    uncertainty: ArrayHW
