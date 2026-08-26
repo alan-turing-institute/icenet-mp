@@ -26,6 +26,7 @@ class TestDDPM:
             },
             optimizer={},
             scheduler={},
+            lr_scheduler={},
             start_out_channels=4,
             timesteps=4,
             use_autoregressive=use_autoregressive,
