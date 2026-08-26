@@ -311,7 +311,7 @@ class TestSweepTrialCLI:
 
         trials = OptunaSweep.from_path(study_path).study.get_trials()
         assert len(trials) == 1
-        assert trials[0].state == TrialState.FAIL
+        assert trials[0].state == TrialState.PRUNED
 
     def test_trial_marks_study_failed_instead_of_leaving_it_running_on_a_crash(
         self,
