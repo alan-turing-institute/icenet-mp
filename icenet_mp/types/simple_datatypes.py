@@ -5,7 +5,7 @@ from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
 from torch import Tensor
 
-from .typedefs import TensorNTCHW
+from .typedefs import ArrayHW, TensorNTCHW
 
 
 class AnemoiDatasetStatus(NamedTuple):
@@ -128,3 +128,11 @@ class ProcessorOutput:
 
     prediction: TensorNTCHW
     loss: Tensor | None = None
+
+
+class UncertaintyArrays(NamedTuple):
+    """The observed, predicted and uncertainty arrays for a standardised difference."""
+
+    ground_truth: ArrayHW
+    prediction: ArrayHW
+    uncertainty: ArrayHW

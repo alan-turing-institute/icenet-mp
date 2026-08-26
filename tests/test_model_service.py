@@ -151,4 +151,38 @@ class TestModelService:
             mp.setattr(service, "_fit", mock_fit)
             service.train()
 
-        mock_fit.assert_called_once_with(config="train_config")
+        mock_fit.assert_called_once_with(config="train_config", ckpt_path=None)
+
+    def test_train_standard_mode_resumes_from_last_checkpoint(
+        self, tmp_path: Path
+    ) -> None:
+        checkpoint_dir = tmp_path / "checkpoints"
+        checkpoint_dir.mkdir()
+        last_ckpt = checkpoint_dir / "last.ckpt"
+        last_ckpt.write_text("checkpoint")
+
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_fit = MagicMock()
+            mp.setattr(service, "_fit", mock_fit)
+            service.train(checkpoint_dir=checkpoint_dir)
+
+        mock_fit.assert_called_once_with(config="train_config", ckpt_path=last_ckpt)
+
+    def test_train_standard_mode_missing_last_checkpoint_raises(
+        self, tmp_path: Path
+    ) -> None:
+        checkpoint_dir = tmp_path / "checkpoints"
+        checkpoint_dir.mkdir()
+        (checkpoint_dir / "epoch=1-step=2.ckpt").write_text("checkpoint")
+
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+
+        with pytest.raises(FileNotFoundError, match="last"):
+            service.train(checkpoint_dir=checkpoint_dir)
