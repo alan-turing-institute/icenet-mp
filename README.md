@@ -57,8 +57,8 @@
 | icenet\_mp/ingestion/sources/ftp.py                                  |       43 |        0 |    100% |           |
 | icenet\_mp/ingestion/sources/lazy\_argopy.py                         |       13 |        2 |     85% |     29-30 |
 | icenet\_mp/ingestion/sources/synthetic.py                            |       27 |       10 |     63% |33-42, 50-88 |
-| icenet\_mp/loggers/\_\_init\_\_.py                                   |        2 |        2 |      0% |       3-5 |
-| icenet\_mp/loggers/local\_file\_logger.py                            |       53 |       53 |      0% |    10-118 |
+| icenet\_mp/loggers/\_\_init\_\_.py                                   |        2 |        0 |    100% |           |
+| icenet\_mp/loggers/local\_file\_logger.py                            |       53 |        0 |    100% |           |
 | icenet\_mp/losses/\_\_init\_\_.py                                    |        5 |        0 |    100% |           |
 | icenet\_mp/losses/amse\_loss.py                                      |      136 |       17 |     88% |278-282, 284-287, 292-313 |
 | icenet\_mp/losses/rmse\_loss.py                                      |        9 |        1 |     89% |        15 |
@@ -158,7 +158,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        5 |     94% |133-135, 304-305 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       23 |     80% |106-107, 109-112, 142-147, 183-185, 193-194, 198-218, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **6203** |  **986** | **84%** |           |
+| **TOTAL**                                                            | **6203** |  **931** | **85%** |           |
 
 
 ## Setup coverage badge
