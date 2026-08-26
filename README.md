@@ -140,7 +140,7 @@
 | icenet\_mp/synthetic/shapes.py                                       |       81 |        0 |    100% |           |
 | icenet\_mp/synthetic/trajectories.py                                 |       77 |        9 |     88% |180-191, 207-211 |
 | icenet\_mp/types/\_\_init\_\_.py                                     |        6 |        0 |    100% |           |
-| icenet\_mp/types/complex\_datatypes.py                               |       76 |        9 |     88% |63-64, 74, 163-169 |
+| icenet\_mp/types/complex\_datatypes.py                               |       76 |        0 |    100% |           |
 | icenet\_mp/types/enums.py                                            |       18 |        0 |    100% |           |
 | icenet\_mp/types/protocols.py                                        |        4 |        0 |    100% |           |
 | icenet\_mp/types/simple\_datatypes.py                                |       40 |        0 |    100% |           |
@@ -158,7 +158,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        5 |     94% |133-135, 304-305 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       23 |     80% |106-107, 109-112, 142-147, 183-185, 193-194, 198-218, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **6203** |  **931** | **85%** |           |
+| **TOTAL**                                                            | **6203** |  **922** | **85%** |           |
 
 
 ## Setup coverage badge
