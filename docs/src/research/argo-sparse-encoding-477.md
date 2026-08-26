@@ -41,7 +41,7 @@ Evaluation dates:
 - 2024-07-29 12:00
 - 2024-08-05 12:00
 
-The training and evaluation dates are disjoint. Every date was capped deterministically at 256 usable observations. The retained profile-group counts were 42, 52, 48, 51 and 50 for the five training dates, and 45, 45 and 46 for the three evaluation dates.
+The training and evaluation dates are disjoint. Every date was capped deterministically at 256 usable observations. The retained benchmark group counts were 42, 52, 48, 51 and 50 for the five training dates, and 45, 45 and 46 for the three evaluation dates.
 
 Other fixed settings:
 
@@ -58,7 +58,9 @@ Other fixed settings:
 - depth: 0-50 m
 - time window: +/-2 hours
 
-`PLATFORM_NUMBER` and `CYCLE_NUMBER` are retained as metadata and the profile-aware splitter keeps complete profiles together when these identifiers are available. This prevents pressure levels from the same profile being split across observed and held-out subsets. Evaluation cases are constructed once and reused by Gaussian interpolation, SetConv and cross-attention. Retention masks are generated once per fixed evaluation split and reused by every method. The same deterministic split schedule is used for SetConv and cross-attention training at a given seed.
+At benchmark time, `PLATFORM_NUMBER` and `CYCLE_NUMBER` were retained as metadata and used as the grouped split key. This keeps all pressure levels from the same float cycle together and prevents those rows crossing the observed/held-out boundary. Shaerdan's later raw-data schema clarified that the exact Argo profile identity is `(PLATFORM_NUMBER, CYCLE_NUMBER, DIRECTION)`. The benchmark key is therefore conservative rather than leakage-prone: if both ascending and descending casts exist for one cycle, they are kept on the same side instead of being split, although the reported group counts can undercount true directional profiles and the holdout granularity is slightly coarser.
+
+Evaluation cases are constructed once and reused by Gaussian interpolation, SetConv and cross-attention. Retention masks are generated once per fixed evaluation split and reused by every method. The same deterministic split schedule is used for SetConv and cross-attention training at a given seed.
 
 TEMP and PSAL normalisation is fitted only from the five training-date observation sets. The two seed runs produced identical statistics:
 
@@ -69,7 +71,7 @@ TEMP and PSAL normalisation is fitted only from the five training-date observati
 
 Learned predictions are denormalised before MAE and RMSE are calculated, so the reported reconstruction errors are in the native physical Argo variable units. Gaussian interpolation operates directly in those units.
 
-The raw data exposed the following potentially relevant metadata/QC columns: `CYCLE_NUMBER`, `DATA_MODE`, `DIRECTION`, `PLATFORM_NUMBER`, `POSITION_QC`, `PRES`, `PRES_QC`, `PSAL_QC`, `TEMP_QC`, `TIME`, and `TIME_QC`. They are reported for the investigation but are not model inputs. Pressure, time, identifiers and QC fields should not be fed numerically until their semantics and filtering policy are agreed.
+The live benchmark fetch exposed the following potentially relevant metadata/QC columns: `CYCLE_NUMBER`, `DATA_MODE`, `DIRECTION`, `PLATFORM_NUMBER`, `POSITION_QC`, `PRES`, `PRES_QC`, `PSAL_QC`, `TEMP_QC`, `TIME`, and `TIME_QC`. They were reported but were not model inputs.
 
 ## Benchmark results
 
@@ -104,9 +106,20 @@ The seed-specific JSON files also retain the within-seed standard deviation acro
 
 Training-time variation is the population standard deviation across seeds 477 and 478. These are tiny reconstruction-probe training jobs over five capped samples, not forecast-training costs. Inference times are CPU query-reconstruction timings, not end-to-end Argo ingestion or complete forecast latency. The benchmark memory hook measures CUDA peak allocation only, so CPU runs correctly report memory as unavailable rather than zero.
 
-## Metadata and QC status
+## Metadata and QC update
 
-Shaerdan has now reported that the raw Argo CSV download is complete, around 20 GB, and that visualisation work is in progress. No new schema, QC interpretation, profile-field semantics, or representative CSV sample has yet been posted on issue #477. Therefore this benchmark uses the profile identifiers available from the live Argo fetch only for grouped splitting and does not introduce pressure, time, QC flags or identifiers as learned features.
+After the benchmark completed, Shaerdan posted a raw-data schema and representative sample bundle for issue #477. The important clarifications are:
+
+- one raw row is one measurement at one pressure level; the exact profile key is `(PLATFORM_NUMBER, CYCLE_NUMBER, DIRECTION)` and position/time are constant within that profile;
+- expert-mode data exposes raw, adjusted, adjusted-error and QC fields for PRES, TEMP and PSAL;
+- QC flags use the standard Argo convention: 1 good, 2 probably good, 3 probably bad, 4 bad, 5 changed, 8 interpolated/estimated and 9 missing;
+- `POSITION_QC = 8` is especially relevant to sea-ice work because under-ice floats can have interpolated positions between known fixes, so treating flag 8 as simply "bad" would preferentially discard precisely the under-ice observations of interest;
+- in Shaerdan's 2015-2025 Southern Ocean reference download, `TEMP_QC = 1` for 99.06% of rows and `PSAL_QC = 1` for 90.34%, while 18.93% of profiles have `POSITION_QC = 8`;
+- raw versus adjusted values are a non-trivial choice for salinity, and the `*_ADJUSTED_ERROR` fields provide per-observation uncertainty that could be used for filtering or weighting.
+
+This late schema update changes the interpretation and the design of the next experiment, but it does not invalidate the completed symmetric reconstruction comparison. All three benchmark methods saw the same capped raw observations and the same held-out cases, and the benchmark's `(PLATFORM_NUMBER, CYCLE_NUMBER)` grouping is conservative with respect to the newly clarified directional profile key. The benchmark was not rerun solely to introduce a new QC/calibration policy because doing so would mix a representation comparison with a separate data-quality decision.
+
+The benchmark results should therefore be read as **raw finite-value reconstruction results, not as QC-optimised or calibration-optimised Argo results**.
 
 ## Interpretation
 
@@ -128,8 +141,9 @@ Do not replace production Argo interpolation on this evidence. Cross-attention i
 - The benchmark uses five training dates, three evaluation dates and only two training seeds.
 - Every date is capped at 256 observations, so it is not a throughput benchmark for the full raw archive.
 - The date range is narrow and does not test seasonal or interannual generalisation.
-- Profile-aware splitting prevents within-profile leakage where IDs are available, but does not solve broader temporal or spatial dependence.
-- QC semantics have not yet been agreed. Bad or uncertain raw measurements may therefore remain in the research sample, and QC flags are not model features.
+- The benchmark grouped by `(PLATFORM_NUMBER, CYCLE_NUMBER)`, while the later schema clarifies that the exact profile identity also includes `DIRECTION`. This grouping is conservative for leakage but can merge ascending and descending casts and undercount true profiles.
+- The benchmark predates the explicit QC/calibration schema and uses finite raw TEMP/PSAL values without a new QC or adjusted-value selection policy. This is symmetric across methods but is not an optimised Argo data-quality protocol.
+- `POSITION_QC = 8` must not be discarded mechanically in future sea-ice experiments because it marks interpolated positions that are common for under-ice profiles.
 - SetConv and cross-attention share the same readout but not the same encoder capacity. Cross-attention has 19,202 total trainable parameters versus 338 for SetConv.
 - CPU inference timing does not represent GPU throughput or full production latency, and CPU peak memory is not measured by the CUDA hook.
 - The Gaussian control contains a strong 2000 km spatial prior. The learned models have received only a small reconstruction training budget and have not been hyperparameter-tuned.
@@ -154,4 +168,6 @@ Hold constant across all three arms:
 - identical forecast leads and evaluation dates
 - identical checkpoint-selection rule and stopping criterion
 
-Only the Argo representation/encoder path should differ. Report the existing IceNet-MP forecast metrics per lead for every seed, together with training/inference cost. A direct sparse encoder should proceed only if its forecast improvement over current interpolated Argo is consistent across seeds and leads and is larger than run-to-run variation.
+For the primary representation test, keep the underlying Argo value/QC policy the same between the interpolated and direct-sparse arms so that only the representation path differs. Then, if useful, run a separate pre-declared Argo data-quality ablation in which adjusted values, QC filtering, adjusted-error weighting and position-quality handling are applied symmetrically to both Argo arms. This avoids attributing a QC/calibration improvement to the encoder architecture.
+
+Report the existing IceNet-MP forecast metrics per lead for every seed, together with training/inference cost. A direct sparse encoder should proceed only if its forecast improvement over current interpolated Argo is consistent across seeds and leads and is larger than run-to-run variation.
