@@ -5,12 +5,15 @@ from typing import Any
 
 import torch
 from torch import nn
-from torch.nn import functional as F
+from torch.nn import functional
 
 from icenet_mp.models.common import PatchEmbedding, TransformerEncoderBlock
 from icenet_mp.types import ProcessorOutput, TensorNTCHW
 
 from .base_processor import BaseProcessor
+
+
+NTCHW_DIMENSIONS = 5
 
 
 def _sinusoidal_time_embedding(
@@ -33,7 +36,7 @@ def _sinusoidal_time_embedding(
     phases = steps.to(dtype=torch.float32).unsqueeze(-1) * frequencies
     embedding = torch.cat((phases.sin(), phases.cos()), dim=-1)
     if embedding.shape[-1] < dim:
-        embedding = F.pad(embedding, (0, dim - embedding.shape[-1]))
+        embedding = functional.pad(embedding, (0, dim - embedding.shape[-1]))
     return embedding[..., :dim].to(dtype=dtype)
 
 
@@ -66,53 +69,16 @@ class SpaceTimeVitProcessor(BaseProcessor):
     ) -> None:
         """Initialise the factorised space-time transformer."""
         super().__init__(**kwargs)
+        self._validate_attention_configuration(
+            emb_dim=emb_dim,
+            forecast_spatial_depth=forecast_spatial_depth,
+            heads=heads,
+            spatial_depth=spatial_depth,
+            temporal_depth=temporal_depth,
+        )
+        self._configure_data_space(patch_size)
 
-        height, width = self.data_space.shape
-        if height != width:
-            msg = "The height and width of the input must be equal."
-            raise ValueError(msg)
-        if patch_size <= 0:
-            msg = "patch_size must be greater than 0."
-            raise ValueError(msg)
-        if height % patch_size:
-            msg = f"img_size {height} must be divisible by patch_size {patch_size}."
-            raise ValueError(msg)
-        if heads <= 0 or emb_dim % heads:
-            msg = f"emb_dim {emb_dim} must be divisible by heads {heads}."
-            raise ValueError(msg)
-        if spatial_depth < 0 or forecast_spatial_depth < 0:
-            msg = "Spatial depths must be non-negative."
-            raise ValueError(msg)
-        if temporal_depth < 1:
-            msg = "temporal_depth must be at least 1."
-            raise ValueError(msg)
-        if self.n_history_steps < 1 or self.n_forecast_steps < 1:
-            msg = "History and forecast steps must both be positive."
-            raise ValueError(msg)
-
-        c_combined = self.data_space.channels
-        c_target = self.data_space_target.channels
-        target_channel_offset = self.target_channel_offset
-        if (
-            target_channel_offset is None
-            or target_channel_offset < 0
-            or target_channel_offset + c_target > c_combined
-        ):
-            msg = (
-                f"target_channel_offset={target_channel_offset} with target channels="
-                f"{c_target} does not fit inside combined latent channels={c_combined}."
-            )
-            raise ValueError(msg)
-
-        self.target_slice_start = target_channel_offset
-        self.target_slice_end = target_channel_offset + c_target
-        self.c_target = c_target
-        self.c_combined = c_combined
-
-        self.img_size = height
-        self.patch_size = patch_size
         self.emb_dim = emb_dim
-        self.num_patches = (height // patch_size) ** 2
 
         self.patch_embed = PatchEmbedding(
             self.c_combined,
@@ -120,9 +86,7 @@ class SpaceTimeVitProcessor(BaseProcessor):
             emb_dim,
             self.img_size,
         )
-        self.spatial_pos_embed = nn.Parameter(
-            torch.empty(1, self.num_patches, emb_dim)
-        )
+        self.spatial_pos_embed = nn.Parameter(torch.empty(1, self.num_patches, emb_dim))
         self.forecast_token = nn.Parameter(torch.empty(1, 1, 1, emb_dim))
         nn.init.trunc_normal_(self.spatial_pos_embed, std=0.02)
         nn.init.trunc_normal_(self.forecast_token, std=0.02)
@@ -179,10 +143,71 @@ class SpaceTimeVitProcessor(BaseProcessor):
         if self.delta_smoother.bias is not None:
             nn.init.zeros_(self.delta_smoother.bias)
 
+    def _validate_attention_configuration(
+        self,
+        *,
+        emb_dim: int,
+        forecast_spatial_depth: int,
+        heads: int,
+        spatial_depth: int,
+        temporal_depth: int,
+    ) -> None:
+        """Validate transformer dimensions and configured time horizons."""
+        if heads <= 0 or emb_dim % heads:
+            msg = f"emb_dim {emb_dim} must be divisible by heads {heads}."
+            raise ValueError(msg)
+        if spatial_depth < 0 or forecast_spatial_depth < 0:
+            msg = "Spatial depths must be non-negative."
+            raise ValueError(msg)
+        if temporal_depth < 1:
+            msg = "temporal_depth must be at least 1."
+            raise ValueError(msg)
+        if self.n_history_steps < 1 or self.n_forecast_steps < 1:
+            msg = "History and forecast steps must both be positive."
+            raise ValueError(msg)
+
+    def _configure_data_space(self, patch_size: int) -> None:
+        """Validate and cache latent-space dimensions and the target slice."""
+        height, width = self.data_space.shape
+        if height != width:
+            msg = "The height and width of the input must be equal."
+            raise ValueError(msg)
+        if patch_size <= 0:
+            msg = "patch_size must be greater than 0."
+            raise ValueError(msg)
+        if height % patch_size:
+            msg = f"img_size {height} must be divisible by patch_size {patch_size}."
+            raise ValueError(msg)
+
+        c_combined = self.data_space.channels
+        c_target = self.data_space_target.channels
+        target_channel_offset = self.target_channel_offset
+        if (
+            target_channel_offset is None
+            or target_channel_offset < 0
+            or target_channel_offset + c_target > c_combined
+        ):
+            msg = (
+                f"target_channel_offset={target_channel_offset} with target channels="
+                f"{c_target} does not fit inside combined latent channels={c_combined}."
+            )
+            raise ValueError(msg)
+
+        self.target_slice_start = target_channel_offset
+        self.target_slice_end = target_channel_offset + c_target
+        self.c_target = c_target
+        self.c_combined = c_combined
+        self.img_size = height
+        self.patch_size = patch_size
+        self.num_patches = (height // patch_size) ** 2
+
     def _validate_input(self, x: TensorNTCHW) -> None:
         """Check that input dimensions match the configured latent and time spaces."""
-        if x.ndim != 5:
-            msg = f"Expected a 5D NTCHW tensor, got shape {tuple(x.shape)}."
+        if x.ndim != NTCHW_DIMENSIONS:
+            msg = (
+                f"Expected a {NTCHW_DIMENSIONS}D NTCHW tensor, "
+                f"got shape {tuple(x.shape)}."
+            )
             raise ValueError(msg)
 
         _, times, channels, height, width = x.shape
@@ -254,11 +279,7 @@ class SpaceTimeVitProcessor(BaseProcessor):
             -1,
             -1,
         )
-        queries = (
-            queries
-            + self.forecast_token
-            + forecast_time[None, :, None, :]
-        )
+        queries = queries + self.forecast_token + forecast_time[None, :, None, :]
         queries = queries.permute(0, 2, 1, 3).reshape(
             batch * self.num_patches,
             self.n_forecast_steps,
@@ -342,12 +363,13 @@ class SpaceTimeVitProcessor(BaseProcessor):
             dim=2,
         )
 
-    def rollout(  # noqa: ARG002
+    def rollout(
         self,
         x: TensorNTCHW,
         y: TensorNTCHW | None = None,
     ) -> ProcessorOutput:
         """Predict the full forecast horizon in one processor call."""
+        del y
         self._validate_input(x)
         history = self._encode_history(x)
         forecast_tokens = self._decode_forecast_tokens(history)

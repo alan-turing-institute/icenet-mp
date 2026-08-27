@@ -6,6 +6,7 @@ from hydra.core.global_hydra import GlobalHydra
 
 
 def test_spacetime_vit_model_config_enables_missing_argo_strategy() -> None:
+    """Check the model config wires both time and missing-data components."""
     config_dir = str(files("icenet_mp.config"))
     GlobalHydra.instance().clear()
     try:
