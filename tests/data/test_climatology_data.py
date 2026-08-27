@@ -263,6 +263,26 @@ class TestCommonDataModuleClimatology:
             # shape: batch x n_forecast_steps x C_target x H x W
             assert batch["climatology"].shape == (2, 1, 2, 2, 2)
 
+    def test_dataloaders_degrade_gracefully_when_climatology_unavailable(
+        self, climatology_zarr: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A train window missing a calendar month must not break other models' loaders.
+
+        ``CommonDataModule.climatology`` itself still raises (see
+        ``test_missing_month_raises``), but building a dataloader is a shared code path
+        used by every model, not just the Climatology baseline, so it must fall back to
+        omitting the ``climatology`` batch key with a warning instead of crashing.
+        """
+        base_path = climatology_zarr.parents[2]
+        dm = CommonDataModule(
+            _cfg(base_path, [{"start": "2017-01-01", "end": "2017-01-31"}])
+        )
+        with caplog.at_level("WARNING"):
+            loader = dm.train_dataloader()
+            batch = next(iter(loader))
+        assert "climatology" not in batch
+        assert "Climatology baseline unavailable" in caplog.text
+
 
 class TestCombinedDatasetClimatology:
     """Tests for the CombinedDataset climatology key and accessor."""

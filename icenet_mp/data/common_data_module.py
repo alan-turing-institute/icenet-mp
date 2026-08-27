@@ -226,6 +226,25 @@ class CommonDataModule(LightningDataModule):
         )
         return table.astype(np.float32)
 
+    @cached_property
+    def _climatology_or_none(self) -> ArrayTCHW | None:
+        """Return the climatology table, or ``None`` if it cannot be built.
+
+        Climatology is an optional comparison baseline for every model, not just the
+        Climatology model itself, so a config whose train-period union does not cover
+        all 12 calendar months (e.g. a short demo/synthetic split) must not break every
+        other model's dataloaders. Use this instead of ``climatology`` when wiring up
+        dataloaders; use ``climatology`` directly when the table is required (e.g. in
+        tests) and a missing month should raise loudly.
+        """
+        try:
+            return self.climatology
+        except ValueError as err:
+            logger.warning(
+                "Climatology baseline unavailable, continuing without it: %s", err
+            )
+            return None
+
     def _in_train_periods(self, day: np.datetime64) -> bool:
         """Return whether the date falls within any of the training period ranges.
 
@@ -270,7 +289,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
-            climatology=self.climatology,
+            climatology=self._climatology_or_none,
         )
         logger.info(
             "Loaded predict dataset with %d dates between %s and %s.",
@@ -290,7 +309,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
-            climatology=self.climatology,
+            climatology=self._climatology_or_none,
         )
         logger.info(
             "Loaded test dataset with %d dates between %s and %s.",
@@ -313,7 +332,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
-            climatology=self.climatology,
+            climatology=self._climatology_or_none,
         )
         logger.info(
             "Loaded training dataset with %d dates between %s and %s.",
@@ -333,7 +352,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
-            climatology=self.climatology,
+            climatology=self._climatology_or_none,
         )
         logger.info(
             "Loaded validation dataset with %d dates between %s and %s.",
