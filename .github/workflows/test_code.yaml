@@ -4,7 +4,7 @@ name: Run tests
 # Run workflow on pushes to matching branches
 on:  # yamllint disable-line rule:truthy
   push:
-    branches: [main]
+    branches: [main, issue-314-spacetime-vit-argo]
   pull_request:
 
 jobs:
@@ -48,8 +48,6 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
           GITHUB_TOKEN: ${{ github.token }}
-      # Save the coverage comment for later use
-      # See https://github.com/py-cov-action/python-coverage-comment-action/blob/main/README.md
       - name: Save coverage comment as an artifact
         uses: actions/upload-artifact@v7
         if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
