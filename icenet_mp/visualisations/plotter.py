@@ -7,6 +7,7 @@ from icenet_mp.data import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import (
     ArrayHW,
+    ArrayTCHW,
     ArrayTHW,
     Hemisphere,
     Metadata,
@@ -76,7 +77,7 @@ class Plotter:
         except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Static plotting failed: %s", exc)
 
-    def log_static_outputs(
+    def log_static_outputs(  # noqa: PLR0913, PLR0917
         self,
         outputs: ModelStepOutput,
         dates: list[datetime],
@@ -84,8 +85,13 @@ class Plotter:
         channel_names: list[str],
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
+        climatology: ArrayTCHW | None = None,
     ) -> None:
-        """Create and log static output plots, including uncertainty when available."""
+        """Create and log static output plots, including climatology when available.
+
+        Also logs a standardised uncertainty plot and, when a climatology table is
+        given, a monthly-mean (climatology) map for the plotted date and channel.
+        """
         try:
             idx_date = self.plot_spec.selected_timestep
             log_path = f"{prefix}/output_static" if prefix else "output_static"
@@ -102,6 +108,11 @@ class Plotter:
                     if idx_channel < len(channel_names)
                     else f"channel_{idx_channel}"
                 )
+                climatology_field: ArrayHW | None = (
+                    climatology[idx_date, idx_channel]
+                    if climatology is not None
+                    else None
+                )
                 # Plot and log output static images
                 images = plot_static_prediction(
                     ground_truth,
@@ -110,6 +121,7 @@ class Plotter:
                     land_mask=self.land_mask,
                     plot_spec=self.plot_spec,
                     variable_name=variable_name,
+                    climatology=climatology_field,
                 )
                 uncertainty = (
                     uncertainties.get(idx_channel)

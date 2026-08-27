@@ -244,6 +244,7 @@ class PlottingCallback(Callback):
                 channel_names,
                 prefix=self.prefix,
                 uncertainties=uncertainties,
+                climatology=dataset.climatology_for(start_date),
             )
             if self.make_input_plots:
                 self.plotter.log_static_inputs(

@@ -1,23 +1,36 @@
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from collections.abc import Mapping
+from copy import deepcopy
+from typing import Any
 
 import wandb
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
 from lightning.pytorch.trainer.states import TrainerFn
+from torch import Tensor
 from torchmetrics import MetricCollection
 
 from icenet_mp.utils import get_wandb_run
-
-if TYPE_CHECKING:
-    from torch import Tensor
 
 logger = logging.getLogger(__name__)
 
 
 class MetricSummaryCallback(Callback):
     """A callback to summarise metrics at the end of an epoch or a run."""
+
+    def __init__(self, climatology_metrics: MetricCollection | None = None) -> None:
+        """Initialise a MetricSummaryCallback.
+
+        Args:
+            climatology_metrics: Optional metric collection for accumulating climatology
+                baseline metrics during a test run. When omitted, the collection is
+                created lazily on the first test batch containing a ``climatology``
+                entry, mirroring the model's test metrics.
+
+        """
+        super().__init__()
+        self.climatology_metrics = climatology_metrics
 
     def log_per_epoch_metrics(
         self, trainer: Trainer, metrics: MetricCollection, stage: str
@@ -93,6 +106,40 @@ class MetricSummaryCallback(Callback):
         """Called at the start of a test epoch."""
         if isinstance(pl_module.test_metrics, MetricCollection):
             pl_module.test_metrics.reset()
+        if self.climatology_metrics is not None:
+            self.climatology_metrics.reset()
+
+    def on_test_batch_end(
+        self,
+        trainer: Trainer,  # noqa: ARG002
+        pl_module: LightningModule,
+        outputs: Tensor | Mapping[str, Any] | None,
+        batch: Any,  # noqa: ANN401
+        batch_idx: int,  # noqa: ARG002
+        dataloader_idx: int = 0,  # noqa: ARG002
+    ) -> None:
+        """Called at the end of each test batch.
+
+        Accumulate climatology baseline metrics when the batch contains a
+        ``climatology`` entry. The target is read from the model outputs, as the test
+        step has already popped it from the batch.
+        """
+        if (
+            not isinstance(batch, Mapping)
+            or "climatology" not in batch
+            or not isinstance(pl_module.test_metrics, MetricCollection)
+            or not isinstance(outputs, Mapping)
+            or "target" not in outputs
+        ):
+            return
+        if self.climatology_metrics is None:
+            self.climatology_metrics = MetricCollection(
+                {
+                    name: deepcopy(metric)
+                    for name, metric in pl_module.test_metrics.items()
+                }
+            )
+        self.climatology_metrics.update(batch["climatology"], outputs["target"])
 
     def on_test_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called at the end of a test epoch."""
@@ -158,5 +205,10 @@ class MetricSummaryCallback(Callback):
                 metrics["test"] = pl_module.test_metrics
             else:
                 logger.warning("Could not load test metrics!")
+            # Include the climatology baseline when it was accumulated
+            if self.climatology_metrics is not None and any(
+                metric._update_called for metric in self.climatology_metrics.values()
+            ):
+                metrics["climatology"] = self.climatology_metrics
         # Log the metrics
         self.log_per_run_metrics(trainer, metrics)

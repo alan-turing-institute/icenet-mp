@@ -3,6 +3,7 @@ from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
 
+import numpy as np
 from lightning import LightningDataModule
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
@@ -176,6 +177,75 @@ class CommonDataModule(LightningDataModule):
         ]
 
     @cached_property
+    def climatology(self) -> ArrayTCHW:
+        """Return the climatology: monthly means of the target variables.
+
+        The [12, C, H, W] table holds, for each calendar month, the mean of the
+        normalised target fields over the dates of that month within the averaging
+        period. The averaging period is the union of the training split's date ranges,
+        intersected with the dates available in the target dataset. If that union is
+        empty, the full available date range is used instead. Dates that are missing
+        from the dataset are never included in a monthly mean.
+
+        Raises:
+            ValueError: If a calendar month has no available dates in the period.
+
+        """
+        target = self.datasets[self.target_group_name].subset(
+            variables=self.target_variables
+        )
+        period_dates = [day for day in target.dates if self._in_train_periods(day)]
+        if not period_dates:
+            logger.info(
+                "Climatology: no available dates in the training periods; falling back "
+                "to the full available date range %s to %s.",
+                target.start_date,
+                target.end_date,
+            )
+            period_dates = list(target.dates)
+        by_month: dict[int, list[np.datetime64]] = defaultdict(list)
+        for day in period_dates:
+            by_month[int(day.astype("datetime64[M]").astype(int)) % 12].append(day)
+        table = np.zeros((12, *target.space.chw), dtype=np.float64)
+        for month in range(12):
+            month_dates = by_month.get(month, [])
+            if not month_dates:
+                msg = (
+                    f"Cannot build climatology: calendar month {month + 1} has no "
+                    f"available dates in the averaging period "
+                    f"({min(period_dates)} to {max(period_dates)}). Check the "
+                    "configured training periods against the available data range."
+                )
+                raise ValueError(msg)
+            table[month] = target.get_tchw(month_dates).astype(np.float64).mean(axis=0)
+        logger.info(
+            "Climatology: computed monthly means over %d dates between %s and %s.",
+            len(period_dates),
+            min(period_dates),
+            max(period_dates),
+        )
+        return table.astype(np.float32)
+
+    def _in_train_periods(self, day: np.datetime64) -> bool:
+        """Return whether the date falls within any of the training period ranges.
+
+        Bounds are compared at day precision, so a bound carrying a time component
+        (e.g. ``2019-01-01T12:00:00``) behaves like ``2019-01-01``.
+        """
+        day_day = day.astype("datetime64[D]")
+        for period in self.train_periods:
+            start = period.get("start")
+            end = period.get("end")
+            if start is not None and day_day < np.datetime64(start).astype(
+                "datetime64[D]"
+            ):
+                continue
+            if end is not None and day_day > np.datetime64(end).astype("datetime64[D]"):
+                continue
+            return True
+        return False
+
+    @cached_property
     def variable_names(self) -> dict[str, list[str]]:
         """Return the variable names for each input."""
         return {ds.name: ds.variable_names for ds in self.datasets.values()}
@@ -200,6 +270,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            climatology=self.climatology,
         )
         logger.info(
             "Loaded predict dataset with %d dates between %s and %s.",
@@ -219,6 +290,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            climatology=self.climatology,
         )
         logger.info(
             "Loaded test dataset with %d dates between %s and %s.",
@@ -241,6 +313,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            climatology=self.climatology,
         )
         logger.info(
             "Loaded training dataset with %d dates between %s and %s.",
@@ -260,6 +333,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            climatology=self.climatology,
         )
         logger.info(
             "Loaded validation dataset with %d dates between %s and %s.",
