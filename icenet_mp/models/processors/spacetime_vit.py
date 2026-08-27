@@ -12,7 +12,6 @@ from icenet_mp.types import ProcessorOutput, TensorNTCHW
 
 from .base_processor import BaseProcessor
 
-
 NTCHW_DIMENSIONS = 5
 
 
