@@ -71,6 +71,8 @@ def test_spacetime_vit_config_runs_full_model_with_missing_argo() -> None:
         output_space={"name": "sic-osisaf", "channels": 1, "shape": [8, 8]},
         scheduler=DictConfig({}),
         target_variable_indices=[0],
+        _convert_="object",
+        _recursive_=False,
     )
 
     batch_size = 2
