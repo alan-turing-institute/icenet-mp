@@ -46,7 +46,9 @@ class SpaceTimeVitProcessor(BaseProcessor):
     each frame, and a temporal decoder then attends across the history for every spatial
     patch. Forecast queries use deterministic relative lead-time embeddings and a single
     shared learned token, so parameter shapes do not depend on history or forecast
-    length.
+    length. Causal self-attention between forecast queries makes each forecast prefix
+    independent of later configured lead times while retaining parallel one-shot
+    decoding.
 
     The processor predicts residuals only for the target latent slice. Non-target
     conditioning channels, including Argo, are carried forward from the latest observed
@@ -285,8 +287,13 @@ class SpaceTimeVitProcessor(BaseProcessor):
             self.emb_dim,
         )
 
+        forecast_mask = torch.ones(
+            (self.n_forecast_steps, self.n_forecast_steps),
+            device=history.device,
+            dtype=torch.bool,
+        ).triu(diagonal=1)
         for decoder_layer in self.temporal_decoder:
-            queries = decoder_layer(queries, memory)
+            queries = decoder_layer(queries, memory, tgt_mask=forecast_mask)
 
         queries = self.temporal_norm(queries)
         queries = queries.reshape(
