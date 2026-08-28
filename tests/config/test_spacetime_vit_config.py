@@ -30,3 +30,4 @@ def test_spacetime_vit_model_config_enables_missing_argo_strategy() -> None:
     assert config.model.encoders[
         "float-argo"
     ].conditioning_dropout_probability == pytest.approx(0.15)
+    assert config.model.encoders["float-argo"].missing_fill_value == pytest.approx(-1.0)
