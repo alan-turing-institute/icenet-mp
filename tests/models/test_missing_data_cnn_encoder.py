@@ -7,6 +7,7 @@ from icenet_mp.types import DataSpace
 
 def _make_encoder(
     conditioning_dropout_probability: float = 0.0,
+    missing_fill_value: float | None = None,
 ) -> MissingDataCNNEncoder:
     input_space = DataSpace(name="float-argo", channels=2, shape=(8, 8))
     return MissingDataCNNEncoder(
@@ -14,6 +15,7 @@ def _make_encoder(
         latent_space=(4, 4),
         n_layers=1,
         conditioning_dropout_probability=conditioning_dropout_probability,
+        missing_fill_value=missing_fill_value,
     )
 
 
@@ -47,6 +49,25 @@ class TestMissingDataCNNEncoder:
 
         assert result.shape == (2, 3, 4, 4, 4)
         assert torch.isfinite(result).all()
+
+    def test_missing_fill_value_is_removed_and_marked_unavailable(self) -> None:
+        encoder = _make_encoder(missing_fill_value=-1.0)
+        encoder.eval()
+        captured: list[torch.Tensor] = []
+
+        handle = encoder.input_adapter.register_forward_pre_hook(
+            lambda _module, args: captured.append(args[0].detach())
+        )
+        inputs = torch.ones(1, 2, 2, 8, 8)
+        inputs[:, 0] = -1.0
+        result = encoder.rollout(inputs)
+        handle.remove()
+
+        assert torch.isfinite(result).all()
+        assert len(captured) == 1
+        augmented = captured[0]
+        assert torch.count_nonzero(augmented[0]) == 0
+        torch.testing.assert_close(augmented[1], torch.ones_like(augmented[1]))
 
     def test_availability_channel_tracks_partial_missingness(self) -> None:
         encoder = _make_encoder()
