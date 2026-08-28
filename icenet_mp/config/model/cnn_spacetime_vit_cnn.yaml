@@ -11,6 +11,7 @@ encoders:
     _target_: icenet_mp.models.encoders.MissingDataCNNEncoder
     n_layers: 1
     conditioning_dropout_probability: 0.15
+    missing_fill_value: -1.0
   sic-osisaf:
     _target_: icenet_mp.models.encoders.CNNEncoder
     n_layers: 1
