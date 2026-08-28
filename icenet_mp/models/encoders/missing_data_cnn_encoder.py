@@ -13,10 +13,10 @@ from .cnn_encoder import CNNEncoder
 class MissingDataCNNEncoder(CNNEncoder):
     """CNN encoder that preserves an explicit signal for missing observations.
 
-    Non-finite values are replaced with zero before convolution and a per-pixel
-    availability channel is appended. A trainable 1x1 adapter maps the augmented
-    input back to the original channel count so the existing CNN architecture and
-    latent-space contract remain unchanged.
+    Non-finite values and an optional finite missing-date sentinel are replaced with
+    zero before convolution and a per-pixel availability channel is appended. A
+    trainable 1x1 adapter maps the augmented input back to the original channel count so
+    the existing CNN architecture and latent-space contract remain unchanged.
 
     During training, complete time slices can also be dropped at random. Since
     ``BaseEncoder.rollout`` folds batch and time together before calling ``forward``,
@@ -27,6 +27,7 @@ class MissingDataCNNEncoder(CNNEncoder):
         self,
         *,
         conditioning_dropout_probability: float = 0.0,
+        missing_fill_value: float | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise the missing-data-aware CNN encoder."""
@@ -36,6 +37,7 @@ class MissingDataCNNEncoder(CNNEncoder):
 
         super().__init__(**kwargs)
         self.conditioning_dropout_probability = conditioning_dropout_probability
+        self.missing_fill_value = missing_fill_value
 
         channels = self.data_space_in.channels
         self.input_adapter = nn.Conv2d(channels + 1, channels, kernel_size=1)
@@ -51,9 +53,12 @@ class MissingDataCNNEncoder(CNNEncoder):
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Encode one time slice while retaining an observation-availability signal."""
-        finite = torch.isfinite(x)
-        availability = finite.to(dtype=x.dtype).mean(dim=1, keepdim=True)
-        clean = torch.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+        available = torch.isfinite(x)
+        if self.missing_fill_value is not None:
+            available = available & (x != self.missing_fill_value)
+
+        availability = available.to(dtype=x.dtype).mean(dim=1, keepdim=True)
+        clean = torch.where(available, x, torch.zeros_like(x))
 
         if self.training and self.conditioning_dropout_probability > 0.0:
             drop_mask = (
