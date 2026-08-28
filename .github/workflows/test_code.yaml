@@ -4,7 +4,7 @@ name: Run tests
 # Run workflow on pushes to matching branches
 on:  # yamllint disable-line rule:truthy
   push:
-    branches: [main]
+    branches: [main, issue-314-spacetime-vit-argo]
   pull_request:
 
 jobs:
