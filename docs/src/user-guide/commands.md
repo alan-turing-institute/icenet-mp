@@ -131,6 +131,17 @@ Reads the local Optuna study and reports the number of completed trials, plus th
 This works without a W&B connection.
 See [Run a hyperparameter sweep](../how-to/sweeps.md) for the full workflow.
 
+## `feature-importance`
+
+```bash
+uv run imp feature-importance
+```
+
+Fits a single Random Forest to predict the configured training target from the spatial
+and temporal mean of each input variable, then prints the variables ranked by the
+forest's built-in feature importance. This is an exploratory signal for which inputs the
+data supports, not a model-quality metric.
+
 ## `evaluate`
 
 ```bash
