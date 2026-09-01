@@ -62,9 +62,9 @@
 | icenet\_mp/losses/\_\_init\_\_.py                                    |        5 |        0 |    100% |           |
 | icenet\_mp/losses/amse\_loss.py                                      |      136 |       17 |     88% |278-282, 284-287, 292-313 |
 | icenet\_mp/losses/rmse\_loss.py                                      |        9 |        1 |     89% |        15 |
-| icenet\_mp/losses/weighted\_bce\_loss.py                             |       17 |       10 |     41% |26-33, 52-57 |
-| icenet\_mp/losses/weighted\_l1\_loss.py                              |       17 |       10 |     41% |25-32, 51-56 |
-| icenet\_mp/losses/weighted\_mse\_loss.py                             |       17 |       10 |     41% |26-33, 52-57 |
+| icenet\_mp/losses/weighted\_bce\_loss.py                             |       17 |        7 |     59% | 27, 52-57 |
+| icenet\_mp/losses/weighted\_l1\_loss.py                              |       17 |        7 |     59% | 26, 51-56 |
+| icenet\_mp/losses/weighted\_mse\_loss.py                             |       17 |        7 |     59% | 27, 52-57 |
 | icenet\_mp/metrics/\_\_init\_\_.py                                   |        6 |        0 |    100% |           |
 | icenet\_mp/metrics/centroid\_error.py                                |       23 |       16 |     30% |34-42, 47-55 |
 | icenet\_mp/metrics/daily\_metrics.py                                 |       46 |        5 |     89% |47-51, 59, 68, 82 |
@@ -158,7 +158,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        5 |     94% |133-135, 304-305 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       23 |     80% |106-107, 109-112, 142-147, 183-185, 193-194, 198-218, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **6203** |  **922** | **85%** |           |
+| **TOTAL**                                                            | **6203** |  **913** | **85%** |           |
 
 
 ## Setup coverage badge
