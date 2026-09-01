@@ -2,7 +2,6 @@ from importlib.resources import files
 
 import pytest
 from hydra import compose, initialize_config_dir
-from hydra.core.global_hydra import GlobalHydra
 
 BASELINE_CONFIGS = [
     "00_persistence",
@@ -16,12 +15,6 @@ BASELINE_CONFIGS = [
 
 class TestBaselineConfigs:
     CONFIG_DIR = str(files("icenet_mp.config"))
-
-    def setup_method(self) -> None:
-        GlobalHydra.instance().clear()
-
-    def teardown_method(self) -> None:
-        GlobalHydra.instance().clear()
 
     @pytest.mark.parametrize("config_name", BASELINE_CONFIGS)
     def test_numbered_baseline_configs_compose(self, config_name: str) -> None:

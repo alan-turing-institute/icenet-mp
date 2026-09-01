@@ -3,7 +3,6 @@ from importlib.resources import files
 
 import pytest
 from hydra import compose, initialize_config_dir
-from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig
 
 from icenet_mp.cli.hydra import hydra_adaptor
@@ -13,12 +12,6 @@ class TestHydraConfigLoading:
     """Regression tests for icenet-mp config composition via hydra."""
 
     CONFIG_DIR = str(files("icenet_mp.config"))
-
-    def setup_method(self) -> None:
-        GlobalHydra.instance().clear()
-
-    def teardown_method(self) -> None:
-        GlobalHydra.instance().clear()
 
     def load_config(
         self, config_name: str = "sample", overrides: list[str] | None = None
@@ -79,14 +72,6 @@ class TestHydraAdaptor:
         assert "config_name" in params
         assert "overrides" in params
 
-    def test_preserves_positional_params(self) -> None:
-        def fn(x: int, config: DictConfig) -> None:
-            del x, config
-
-        params = list(inspect.signature(hydra_adaptor(fn)).parameters)
-        assert "x" in params
-        assert "config" not in params
-
     def test_preserves_keyword_only_params(self) -> None:
         def fn(config: DictConfig, *, flag: bool = False) -> None:
             del config, flag
@@ -102,15 +87,13 @@ class TestHydraAdaptor:
         assert hydra_adaptor(fn).__name__ == "fn"
         assert hydra_adaptor(fn).__doc__ == "My docstring."
 
-    def test_wrapped_function_receives_dictconfig(self) -> None:
-        received: list[DictConfig] = []
+    def test_preserves_positional_params(self) -> None:
+        def fn(x: int, config: DictConfig) -> None:
+            del x, config
 
-        def fn(config: DictConfig) -> None:
-            received.append(config)
-
-        hydra_adaptor(fn)(config_name="sample")  # type: ignore[arg-type]
-        assert len(received) == 1
-        assert isinstance(received[0], DictConfig)
+        params = list(inspect.signature(hydra_adaptor(fn)).parameters)
+        assert "x" in params
+        assert "config" not in params
 
     def test_wrapped_function_forwards_kwargs(self) -> None:
         received: list[tuple] = []
@@ -121,3 +104,13 @@ class TestHydraAdaptor:
         hydra_adaptor(fn)(x=42, config_name="sample")  # type: ignore[arg-type]
         assert received[0][0] == 42
         assert isinstance(received[0][1], DictConfig)
+
+    def test_wrapped_function_receives_dictconfig(self) -> None:
+        received: list[DictConfig] = []
+
+        def fn(config: DictConfig) -> None:
+            received.append(config)
+
+        hydra_adaptor(fn)(config_name="sample")  # type: ignore[arg-type]
+        assert len(received) == 1
+        assert isinstance(received[0], DictConfig)
