@@ -2,7 +2,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from icenet_mp.data import SingleDataset
-from icenet_mp.utils import datetime_from_npdatetime
+from icenet_mp.utils import datetime_from_npdatetime, mask_dir
 
 from .helpers import DEFAULT_SIC_SPEC
 from .land_mask import LandMask
@@ -11,9 +11,10 @@ from .plotting_video import plot_video_inputs
 
 
 def plot_variables_static(
+    *,
+    base_path: Path,
     dataset_name: str,
     dataset_path: Path,
-    output_dir: Path,
     timestep: int,
 ) -> int:
     """Save static plots for one timestep of a downloaded dataset."""
@@ -35,14 +36,15 @@ def plot_variables_static(
         f"{dataset.name}:{variable_name}": dataset[timestep][channel]
         for channel, variable_name in enumerate(dataset.variable_names)
     }
+    land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
     images = plot_static_inputs(
         variables,
-        land_mask=LandMask(None),
+        land_mask=LandMask(land_mask_path),
         plot_spec=plot_spec,
         when=when,
     )
 
-    dataset_output_dir = output_dir / dataset_name
+    dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
     for image_name, image_list in images.items():
@@ -55,11 +57,12 @@ def plot_variables_static(
 
 
 def plot_variables_video(
+    *,
+    base_path: Path,
     dataset_name: str,
     dataset_path: Path,
-    output_dir: Path,
-    timestep: int,
     n_steps: int,
+    timestep: int,
 ) -> int:
     """Save one animation per variable for a run of consecutive timesteps."""
     dataset = SingleDataset(
@@ -84,14 +87,15 @@ def plot_variables_video(
         f"{dataset.name}:{variable_name}": tchw[:, channel]
         for channel, variable_name in enumerate(dataset.variable_names)
     }
+    land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
     videos = plot_video_inputs(
         variables,
         dates=dates,
-        land_mask=LandMask(None),
+        land_mask=LandMask(land_mask_path),
         plot_spec=plot_spec,
     )
 
-    dataset_output_dir = output_dir / dataset_name
+    dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
     for video_name, video_buffer in videos.items():
