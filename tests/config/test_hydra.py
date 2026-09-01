@@ -47,6 +47,16 @@ class TestHydraConfigLoading:
         cfg = compose_config(overrides=["loggers.wandb.offline=true"])
         assert cfg.loggers.wandb.offline is True
 
+    def test_csv_logger_override(
+        self, compose_config: Callable[..., DictConfig]
+    ) -> None:
+        cfg = compose_config(overrides=["loggers=csv"])
+        assert "wandb" not in cfg.loggers
+        assert (
+            cfg.loggers.csv._target_ == "lightning.pytorch.loggers.csv_logs.CSVLogger"
+        )
+        assert cfg.loggers.csv.name == "loss_logs"
+
     def test_config_group_override_swaps_loss(
         self, compose_config: Callable[..., DictConfig]
     ) -> None:
