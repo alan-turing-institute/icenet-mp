@@ -29,6 +29,7 @@ class TestEvaluateCLI:
                 r"--config-name\s+<str>\s+Name of a file to load from the config",
                 r"--help\s+-h\s+Show this message and exit.",
                 r"--save-layer\s+<str>\s+Dotted path of a model submodule to hook",
+                r"--save-predictions\s+<path>\s+Write predictions for the configured",
             ],
         )
 
@@ -68,6 +69,7 @@ class TestEvaluateCLI:
         assert (
             list(captured[0][0].evaluate.callbacks.activation_saver.layer_paths) == []
         )
+        assert captured[0][0].evaluate.callbacks.prediction_writer.output_path is None
         assert service.evaluate_calls == 1
 
     def test_checkpoint_resolves_a_relative_path(
@@ -140,4 +142,43 @@ class TestEvaluateCLI:
             "processor.conv1",
             "decoder.model",
         ]
+        assert service.evaluate_calls == 1
+
+    def test_save_predictions_updates_prediction_writer_config(
+        self,
+        tmp_path: Path,
+        runner: CustomCliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Resolve --save-predictions and forward it to the prediction writer."""
+        service = FakeModelService()
+        captured: list[DictConfig] = []
+
+        def fake_from_checkpoint(
+            config: DictConfig, _checkpoint: Path
+        ) -> FakeModelService:
+            captured.append(config)
+            return service
+
+        monkeypatch.setattr(ModelService, "from_checkpoint", fake_from_checkpoint)
+        output_path = tmp_path / "predictions.nc"
+
+        result = runner.call(
+            [
+                "evaluate",
+                "--config-name",
+                "sample",
+                "--checkpoint",
+                str(tmp_path / "model.ckpt"),
+                "--save-predictions",
+                str(output_path),
+            ]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert len(captured) == 1
+        assert (
+            captured[0].evaluate.callbacks.prediction_writer.output_path
+            == str(output_path.resolve())
+        )
         assert service.evaluate_calls == 1
