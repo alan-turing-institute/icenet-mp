@@ -1,3 +1,20 @@
+"""Latent-space DDIM processor.
+
+This module provides a Denoising Diffusion Implicit Models (DDIM) processor
+on top of the DDPM training pipeline. Training is unchanged from
+:class:`DDPMProcessor`. Only reverse-time sampling is replaced.
+
+Instead of stepping through every one of the ``timesteps`` used in training,
+DDIM sampling only visits ``ddim_steps`` of them, evenly spaced. Using fewer
+steps means faster sampling, both when generating predictions and during
+in-training validation, but can cost a bit of sample quality.
+
+``eta`` controls how much randomness is added back in at each step. At
+``eta=0`` sampling is fully deterministic, the same starting noise always
+gives the same output. At ``eta=1`` it adds noise equivalent to standard
+DDPM sampling. Values in between blend the two.
+"""
+
 from typing import Any
 
 import torch
