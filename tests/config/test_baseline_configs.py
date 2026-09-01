@@ -1,23 +1,21 @@
 from collections.abc import Callable
+from importlib.resources import files
+from pathlib import Path
 
 import pytest
 from omegaconf import DictConfig
 
-BASELINE_CONFIGS = [
-    "00_persistence",
-    "01_unet",
-    "02_cnn_unet_cnn",
-    "03_cnn_vit_cnn",
-    "04_ddpm",
-    "05_piecewise_unet_piecewise",
-]
+BASELINE_DIR = Path(str(files("icenet_mp.config"))) / "baseline"
+BASELINE_CONFIGS = sorted(
+    p.stem for p in BASELINE_DIR.glob("*.yaml") if not p.name.endswith(".local.yaml")
+)
 
 
 class TestBaselineConfigs:
     """Regression tests for icenet-mp baseline configs."""
 
     @pytest.mark.parametrize("config_name", BASELINE_CONFIGS)
-    def test_numbered_baseline_configs_compose(
+    def test_baseline_configs_compose(
         self, compose_config: Callable[..., DictConfig], config_name: str
     ) -> None:
         config = compose_config(f"baseline/{config_name}")
@@ -30,7 +28,7 @@ class TestBaselineConfigs:
         assert "evaluate" in config
 
     @pytest.mark.parametrize("config_name", BASELINE_CONFIGS)
-    def test_numbered_baselines_accept_standard_data_override(
+    def test_baselines_accept_standard_data_override(
         self, compose_config: Callable[..., DictConfig], config_name: str
     ) -> None:
         config = compose_config(
@@ -40,3 +38,12 @@ class TestBaselineConfigs:
         assert config.data.split.train
         assert config.data.split.test
         assert config.data.split.validate
+
+    def test_dc_unet_dc_lowers_default_learning_rate(
+        self, compose_config: Callable[..., DictConfig]
+    ) -> None:
+        """Guards the dc_unet_dc lr overrides: the default lr causes ResBlock instability."""
+        config = compose_config("baseline/dc_unet_dc")
+
+        assert config.train.optimizer.lr == pytest.approx(5e-4)
+        assert config.train.multistage.finetune.optimizer.lr == pytest.approx(1e-4)
