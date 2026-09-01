@@ -1,3 +1,4 @@
+import re
 from collections.abc import Callable
 from importlib.resources import files
 from pathlib import Path
@@ -9,6 +10,12 @@ BASELINE_DIR = Path(str(files("icenet_mp.config"))) / "baseline"
 BASELINE_CONFIGS = sorted(
     p.stem for p in BASELINE_DIR.glob("*.yaml") if not p.name.endswith(".local.yaml")
 )
+NUMERIC_PREFIX = re.compile(r"^\d+_")
+
+
+def expected_model_name(config_name: str) -> str:
+    """Derive a baseline's expected model.name from its `override /model:` convention."""
+    return NUMERIC_PREFIX.sub("", config_name).replace("_", "-")
 
 
 class TestBaselineConfigs:
@@ -20,7 +27,7 @@ class TestBaselineConfigs:
     ) -> None:
         config = compose_config(f"baseline/{config_name}")
 
-        assert config.model.name
+        assert config.model.name == expected_model_name(config_name)
         assert config.model._target_.startswith("icenet_mp.models.")
         assert "data" in config
         assert "predict" in config
