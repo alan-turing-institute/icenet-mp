@@ -1,0 +1,6 @@
+# Linear warm-up followed by cosine decay that stays at eta_min after training.
+_target_: icenet_mp.schedulers.WarmupCosineAnnealingLR
+warmup_epochs: 5
+total_epochs: ${..trainer.max_epochs}
+start_factor: 0.1
+eta_min: 1e-6
