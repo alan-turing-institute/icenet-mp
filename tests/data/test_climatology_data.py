@@ -194,7 +194,9 @@ class TestCommonDataModuleClimatology:
             .mean(axis=0)
         )
         with pytest.raises(AssertionError):
-            np.testing.assert_allclose(table[july_15, channel], wrong[channel], atol=1e-6)
+            np.testing.assert_allclose(
+                table[july_15, channel], wrong[channel], atol=1e-6
+            )
 
     def test_missing_dates_excluded_from_means(self, climatology_zarr: Path) -> None:
         """A date missing from the dataset never contributes to its calendar-day mean."""
@@ -214,9 +216,7 @@ class TestCommonDataModuleClimatology:
 
         zero_filled = zarr.open(str(climatology_zarr), mode="r")["data"][:]
         march_15_days = [
-            d
-            for d in _all_dates()
-            if d.month == 3 and d.day == 15 and d.year <= 2019
+            d for d in _all_dates() if d.month == 3 and d.day == 15 and d.year <= 2019
         ]
         full_index = {d.date(): i for i, d in enumerate(_all_dates())}
         wrong = zero_filled[[full_index[d.date()] for d in march_15_days], channel]

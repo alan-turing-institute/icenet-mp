@@ -14,9 +14,7 @@ _LEAP_YEAR_ORIGIN = np.datetime64("2000-01-01")
 
 CALENDAR_DAY_LABELS: list[str] = [
     str(
-        np.datetime_as_string(
-            _LEAP_YEAR_ORIGIN + np.timedelta64(offset, "D"), unit="D"
-        )
+        np.datetime_as_string(_LEAP_YEAR_ORIGIN + np.timedelta64(offset, "D"), unit="D")
     )[5:]
     for offset in range(N_CALENDAR_DAYS)
 ]
