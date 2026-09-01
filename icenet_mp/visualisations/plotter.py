@@ -90,7 +90,7 @@ class Plotter:
         """Create and log static output plots, including climatology when available.
 
         Also logs a standardised uncertainty plot and, when a climatology table is
-        given, a monthly-mean (climatology) map for the plotted date and channel.
+        given, a calendar-day-mean (climatology) map for the plotted date and channel.
         """
         try:
             idx_date = self.plot_spec.selected_timestep

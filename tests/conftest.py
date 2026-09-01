@@ -550,7 +550,8 @@ def climatology_zarr(mock_data_path: Path) -> Path:
     """A multi-year synthetic zarr with values varying by channel, month, day and year.
 
     Covers 2017-01-01 to 2020-01-05 with one missing date (2017-03-15), so that
-    monthly means are sensitive to both the dates and the years that contribute.
+    calendar-day means are sensitive to both the dates and the years that contribute.
+    None of 2017-2019 are leap years, so 29 February is never present.
     """
     data = make_climatology_data_dict(
         CLIMATOLOGY_START, CLIMATOLOGY_END, CLIMATOLOGY_MISSING

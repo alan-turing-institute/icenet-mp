@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 
 from icenet_mp.types import ArrayTCHW
 
+from .calendar_day import calendar_day_index
 from .single_dataset import SingleDataset
 
 
@@ -32,10 +33,11 @@ class CombinedDataset(Dataset):
             target_variables: The names of the target variables.
             n_forecast_steps: The number of forecast steps.
             n_history_steps: The number of history steps.
-            climatology: Optional [12, C, H, W] table of monthly means of the target
-                variables. When given, each batch also contains a ``climatology`` key
-                holding the monthly-mean field for the calendar month of each forecast
-                step. When ``None`` the batches are unchanged.
+            climatology: Optional [366, C, H, W] table of calendar-day means of the
+                target variables (29 February holds its own slot). When given, each
+                batch also contains a ``climatology`` key holding the calendar-day
+                mean field for each forecast step. When ``None`` the batches are
+                unchanged.
 
         """
         super().__init__()
@@ -44,7 +46,7 @@ class CombinedDataset(Dataset):
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
 
-        # Optional climatology table (monthly means of the target variables)
+        # Optional climatology table (calendar-day means of the target variables)
         self.climatology = climatology
 
         # Create a new dataset for the target with only the selected variables
@@ -118,8 +120,8 @@ class CombinedDataset(Dataset):
 
             If a climatology table was provided, the dictionary also contains a
             ``climatology`` key with shape
-            [n_forecast_steps, C_target, H_target, W_target] holding the monthly-mean
-            field for the calendar month of each forecast step.
+            [n_forecast_steps, C_target, H_target, W_target] holding the calendar-day
+            mean field for each forecast step.
 
         """
         start_date = self.dates[idx]
@@ -139,25 +141,25 @@ class CombinedDataset(Dataset):
     def climatology_for(self, start_date: np.datetime64) -> ArrayTCHW | None:
         """Return the climatology field for each forecast step following the start date.
 
-        The month of each forecast step (determined by its calendar month) indexes the
-        [12, C, H, W] climatology table, so the result has shape
+        The calendar day (month/day label) of each forecast step indexes the
+        [366, C, H, W] climatology table, so the result has shape
         [n_forecast_steps, C, H, W].
 
         Args:
             start_date: The start date of the sample.
 
         Returns:
-            The stack of monthly-mean fields for the forecast steps, or ``None`` if no
-            climatology table was provided.
+            The stack of calendar-day mean fields for the forecast steps, or ``None``
+            if no climatology table was provided.
 
         """
         if self.climatology is None:
             return None
-        month_indices = [
-            int(forecast_step.astype("datetime64[M]").astype(int)) % 12
+        day_indices = [
+            calendar_day_index(forecast_step)
             for forecast_step in self.get_forecast_steps(start_date)
         ]
-        return self.climatology[month_indices]
+        return self.climatology[day_indices]
 
     def get_forecast_steps(self, start_date: np.datetime64) -> list[np.datetime64]:
         """Return list of consecutive forecast dates for a given start date."""

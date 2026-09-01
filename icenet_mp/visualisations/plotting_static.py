@@ -72,8 +72,8 @@ def plot_static_prediction(  # noqa: PLR0913
         date: Date/datetime for the data being visualised, used in the plot title.
         variable_name: Name of the variable being plotted, used in the plot title and
             output key.
-        climatology: Optional 2D array of the monthly-mean (climatology) field for the
-            calendar month of the date. When given, an additional standalone
+        climatology: Optional 2D array of the calendar-day-mean (climatology) field for
+            the calendar day of the date. When given, an additional standalone
             single-panel figure is returned under the key
             ``<date>-<variable_name>-climatology``.
 
@@ -245,13 +245,13 @@ def plot_static_climatology(
     plot_spec: PlotSpec,
     variable_name: str,
 ) -> dict[str, list[ImageFile]]:
-    """Create a static map of the climatology (monthly mean) field.
+    """Create a static map of the climatology (calendar-day mean) field.
 
     Rendered as a standalone single-panel figure, styled like the raw input plots, so it
     can be shown alongside the ground truth/prediction comparison.
 
     Args:
-        climatology: 2D array of the monthly-mean (climatology) field.
+        climatology: 2D array of the calendar-day-mean (climatology) field.
         plot_spec: Configuration object specifying titles, colourmaps, value ranges, and
             other visualisation parameters.
         land_mask: Land mask to apply to the data.

@@ -1,4 +1,4 @@
-"""Tests for the climatology (monthly-mean) data plumbing."""
+"""Tests for the climatology (calendar-day mean) data plumbing."""
 
 import datetime
 from collections import defaultdict
@@ -11,6 +11,12 @@ import zarr
 from omegaconf import DictConfig
 
 from icenet_mp.data import CombinedDataset, CommonDataModule, SingleDataset
+from icenet_mp.data.calendar_day import (
+    FEBRUARY_28_INDEX,
+    FEBRUARY_29_INDEX,
+    N_CALENDAR_DAYS,
+    calendar_day_index,
+)
 from tests.conftest import (
     CLIMATOLOGY_END,
     CLIMATOLOGY_MISSING,
@@ -19,7 +25,8 @@ from tests.conftest import (
 )
 
 # Union-of-training-periods arrangement: all of 2017 and 2018 plus the first half of
-# 2019, so the 2019 second half is excluded from the climatology averaging period.
+# 2019, so the 2019 second half is excluded from the climatology averaging period. None
+# of these years are leap years, so 29 February is never present in the period.
 TRAIN_PERIODS: list[dict[str, str | None]] = [
     {"start": "2017-01-01", "end": "2018-12-31"},
     {"start": "2019-01-01", "end": "2019-06-30"},
@@ -80,27 +87,32 @@ def _normalised_rows(zarr_path: Path, dates: list[datetime.datetime]) -> np.ndar
     return np.stack(rows, axis=0)
 
 
-def _expected_monthly_means(
+def _expected_daily_means(
     zarr_path: Path, period_dates: list[datetime.datetime]
 ) -> dict[str, np.ndarray]:
-    """Return per-variable [12, H, W] float64 tables of monthly means over the dates."""
+    """Return per-variable [366, H, W] float64 tables of calendar-day means.
+
+    Mirrors the 29 February fallback: if the period has no 29 February date, that slot
+    is set to the 28 February mean, exactly like ``CommonDataModule.climatology``.
+    """
     store = zarr.open(str(zarr_path), mode="r")
     variables = list(store.attrs["variables"])
     rows = _normalised_rows(zarr_path, period_dates)
-    by_month: dict[int, list[np.ndarray]] = defaultdict(list)
+    by_day: dict[int, list[np.ndarray]] = defaultdict(list)
     for date, row in zip(period_dates, rows, strict=True):
-        by_month[date.month - 1].append(row)
+        by_day[calendar_day_index(np.datetime64(date))].append(row)
     expected: dict[str, np.ndarray] = {}
     for variable in variables:
         channel = variables.index(variable)
-        table = np.zeros((12, *rows.shape[2:]), dtype=np.float64)
-        for month in range(12):
-            month_rows = by_month[month]
-            table[month] = (
-                np.stack([row[channel] for row in month_rows], axis=0)
+        table = np.zeros((N_CALENDAR_DAYS, *rows.shape[2:]), dtype=np.float64)
+        for day_index, day_rows in by_day.items():
+            table[day_index] = (
+                np.stack([row[channel] for row in day_rows], axis=0)
                 .astype(np.float64)
                 .mean(axis=0)
             )
+        if FEBRUARY_29_INDEX not in by_day:
+            table[FEBRUARY_29_INDEX] = table[FEBRUARY_28_INDEX]
         expected[variable] = table
     return expected
 
@@ -135,98 +147,115 @@ def _cfg(
 
 
 class TestCommonDataModuleClimatology:
-    """Tests for the CommonDataModule.climatology monthly-mean table."""
+    """Tests for the CommonDataModule.climatology calendar-day-mean table."""
 
-    def test_table_shape_and_monthly_means(self, climatology_zarr: Path) -> None:
-        """Each calendar month holds the mean over its dates in the train-period union."""
+    def test_table_shape_and_calendar_day_means(self, climatology_zarr: Path) -> None:
+        """Each calendar day holds the mean over its dates in the train-period union."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
 
         table = dm.climatology
-        assert table.shape == (12, 2, 2, 2)
+        assert table.shape == (366, 2, 2, 2)
         assert table.dtype == np.float32
 
-        expected = _expected_monthly_means(
-            climatology_zarr, _period_dates(TRAIN_PERIODS)
-        )
+        expected = _expected_daily_means(climatology_zarr, _period_dates(TRAIN_PERIODS))
         for channel, variable in enumerate(dm.target_variables):
             np.testing.assert_allclose(
                 table[:, channel], expected[variable], rtol=0, atol=1e-6
             )
 
     def test_uses_union_of_train_periods(self, climatology_zarr: Path) -> None:
-        """Months outside the train-period union (e.g. July 2019) are excluded."""
+        """Dates outside the train-period union (e.g. 15 July 2019) are excluded."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
 
         table = dm.climatology
         variable = CLIMATOLOGY_VARIABLES[0]
         channel = CLIMATOLOGY_VARIABLES.index(variable)
+        july_15 = calendar_day_index(np.datetime64("2000-07-15"))
 
-        expected = _expected_monthly_means(
-            climatology_zarr, _period_dates(TRAIN_PERIODS)
+        expected = _expected_daily_means(climatology_zarr, _period_dates(TRAIN_PERIODS))
+        # The correct 15 July mean only includes 2017 and 2018 (the union ends
+        # 2019-06-30).
+        np.testing.assert_allclose(
+            table[july_15, channel], expected[variable][july_15], atol=1e-6
         )
-        # The correct July mean only includes 2017 and 2018 (the union ends 2019-06-30).
-        np.testing.assert_allclose(table[6, channel], expected[variable][6], atol=1e-6)
 
-        # A mean that (incorrectly) included July 2019 would differ noticeably, because
-        # the synthetic values carry a per-year offset.
-        july_all_years = [
-            d for d in _available_dates() if d.month == 7 and d.year <= 2019
+        # A mean that (incorrectly) included 15 July 2019 would differ noticeably,
+        # because the synthetic values carry a per-year offset.
+        july_15_all_years = [
+            d
+            for d in _available_dates()
+            if d.month == 7 and d.day == 15 and d.year <= 2019
         ]
         wrong = (
-            _normalised_rows(climatology_zarr, july_all_years)
+            _normalised_rows(climatology_zarr, july_15_all_years)
             .astype(np.float64)
             .mean(axis=0)
         )
         with pytest.raises(AssertionError):
-            np.testing.assert_allclose(table[6, channel], wrong[channel], atol=1e-6)
+            np.testing.assert_allclose(table[july_15, channel], wrong[channel], atol=1e-6)
 
     def test_missing_dates_excluded_from_means(self, climatology_zarr: Path) -> None:
-        """A date missing from the dataset never contributes to its month's mean."""
+        """A date missing from the dataset never contributes to its calendar-day mean."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
 
         table = dm.climatology
-        # March includes the missing 2017-03-15; a mean over *all* March calendar days
+        # 15 March includes the missing 2017-03-15; a mean over *all* years' 15 March
         # (using the missing day's zero-filled row) would differ from the table.
         variable = CLIMATOLOGY_VARIABLES[0]
         channel = CLIMATOLOGY_VARIABLES.index(variable)
-        expected = _expected_monthly_means(
-            climatology_zarr, _period_dates(TRAIN_PERIODS)
+        march_15 = calendar_day_index(np.datetime64("2000-03-15"))
+        expected = _expected_daily_means(climatology_zarr, _period_dates(TRAIN_PERIODS))
+        np.testing.assert_allclose(
+            table[march_15, channel], expected[variable][march_15], atol=1e-6
         )
-        np.testing.assert_allclose(table[3, channel], expected[variable][3], atol=1e-6)
 
         zero_filled = zarr.open(str(climatology_zarr), mode="r")["data"][:]
-        march_days = [d for d in _all_dates() if d.month == 3 and d.year <= 2019]
+        march_15_days = [
+            d
+            for d in _all_dates()
+            if d.month == 3 and d.day == 15 and d.year <= 2019
+        ]
         full_index = {d.date(): i for i, d in enumerate(_all_dates())}
-        wrong = zero_filled[[full_index[d.date()] for d in march_days], channel]
+        wrong = zero_filled[[full_index[d.date()] for d in march_15_days], channel]
         with pytest.raises(AssertionError):
-            np.testing.assert_allclose(table[3, channel], wrong.mean(axis=0), atol=1e-6)
+            np.testing.assert_allclose(
+                table[march_15, channel], wrong.mean(axis=0), atol=1e-6
+            )
 
-    def test_missing_month_raises(self, climatology_zarr: Path) -> None:
-        """A calendar month with no available dates in the period raises ValueError."""
+    def test_missing_calendar_day_raises(self, climatology_zarr: Path) -> None:
+        """A calendar day with no available dates in the period raises ValueError."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(
             _cfg(base_path, [{"start": "2017-01-01", "end": "2017-01-31"}])
         )
-        with pytest.raises(ValueError, match="calendar month 2"):
+        with pytest.raises(ValueError, match="calendar day 02-01"):
             _ = dm.climatology
 
-    def test_falls_back_to_full_range(self, climatology_zarr: Path) -> None:
-        """If no available dates fall in the training periods, use the full range."""
+    def test_missing_29_february_falls_back_to_28_february(
+        self, climatology_zarr: Path
+    ) -> None:
+        """A period spanning only non-leap years copies 28 February onto 29 February."""
+        base_path = climatology_zarr.parents[2]
+        dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
+
+        table = dm.climatology
+        np.testing.assert_array_equal(
+            table[FEBRUARY_29_INDEX], table[FEBRUARY_28_INDEX]
+        )
+
+    def test_raises_when_no_dates_in_train_periods(
+        self, climatology_zarr: Path
+    ) -> None:
+        """If no available dates fall in the training periods, climatology raises."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(
             _cfg(base_path, [{"start": "2030-01-01", "end": "2030-12-31"}])
         )
-
-        table = dm.climatology
-        assert table.shape == (12, 2, 2, 2)
-        expected = _expected_monthly_means(climatology_zarr, _available_dates())
-        for channel, variable in enumerate(dm.target_variables):
-            np.testing.assert_allclose(
-                table[:, channel], expected[variable], rtol=0, atol=1e-6
-            )
+        with pytest.raises(ValueError, match="none of the configured training periods"):
+            _ = dm.climatology
 
     def test_time_component_bounds_match_day_precision(
         self, climatology_zarr: Path
@@ -244,9 +273,7 @@ class TestCommonDataModuleClimatology:
         dm = CommonDataModule(_cfg(base_path, timed_periods))
 
         table = dm.climatology
-        expected = _expected_monthly_means(
-            climatology_zarr, _period_dates(TRAIN_PERIODS)
-        )
+        expected = _expected_daily_means(climatology_zarr, _period_dates(TRAIN_PERIODS))
         for channel, variable in enumerate(dm.target_variables):
             np.testing.assert_allclose(
                 table[:, channel], expected[variable], rtol=0, atol=1e-6
@@ -266,12 +293,13 @@ class TestCommonDataModuleClimatology:
     def test_dataloaders_degrade_gracefully_when_climatology_unavailable(
         self, climatology_zarr: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A train window missing a calendar month must not break other models' loaders.
+        """A train window missing a calendar day must not break other models' loaders.
 
         ``CommonDataModule.climatology`` itself still raises (see
-        ``test_missing_month_raises``), but building a dataloader is a shared code path
-        used by every model, not just the Climatology baseline, so it must fall back to
-        omitting the ``climatology`` batch key with a warning instead of crashing.
+        ``test_missing_calendar_day_raises``), but building a dataloader is a shared
+        code path used by every model, not just the Climatology baseline, so it must
+        fall back to omitting the ``climatology`` batch key with a warning instead of
+        crashing.
         """
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(
@@ -308,14 +336,14 @@ class TestCombinedDatasetClimatology:
 
     @staticmethod
     def _table() -> np.ndarray:
-        """A [12, C, H, W] table whose value encodes the calendar month."""
-        table = np.zeros((12, 1, 2, 2), dtype=np.float32)
-        for month in range(12):
-            table[month] = 100.0 * month + 0.5
+        """A [366, C, H, W] table whose value encodes the calendar-day index."""
+        table = np.zeros((N_CALENDAR_DAYS, 1, 2, 2), dtype=np.float32)
+        for index in range(N_CALENDAR_DAYS):
+            table[index] = 100.0 * index + 0.5
         return table
 
     def test_getitem_includes_climatology(self, climatology_zarr: Path) -> None:
-        """Batches gain a climatology key with the month of each forecast step."""
+        """Batches gain a climatology key with the calendar day of each forecast step."""
         table = self._table()
         combined = self._combined(climatology_zarr, table)
         idx = combined.dates.index(np.datetime64("2019-12-30T12:00:00", "s"))
@@ -323,9 +351,11 @@ class TestCombinedDatasetClimatology:
         batch = combined[idx]
         assert set(batch.keys()) == {"sic_south", "target", "climatology"}
         assert batch["climatology"].shape == (2, 1, 2, 2)
-        # Forecast steps are 2019-12-31 (December) and 2020-01-01 (January).
-        np.testing.assert_array_equal(batch["climatology"][0], table[11])
-        np.testing.assert_array_equal(batch["climatology"][1], table[0])
+        # Forecast steps are 2019-12-31 and 2020-01-01.
+        dec_31 = calendar_day_index(np.datetime64("2019-12-31"))
+        jan_1 = calendar_day_index(np.datetime64("2020-01-01"))
+        np.testing.assert_array_equal(batch["climatology"][0], table[dec_31])
+        np.testing.assert_array_equal(batch["climatology"][1], table[jan_1])
 
     def test_getitem_without_climatology_is_unchanged(
         self, climatology_zarr: Path
@@ -348,16 +378,18 @@ class TestCombinedDatasetClimatology:
         )
 
     def test_climatology_for(self, climatology_zarr: Path) -> None:
-        """climatology_for returns the monthly fields for the forecast steps."""
+        """climatology_for returns the calendar-day fields for the forecast steps."""
         table = self._table()
         combined = self._combined(climatology_zarr, table)
         start = np.datetime64("2019-12-31T12:00:00", "s")
 
         result = combined.climatology_for(start)
         assert result is not None
-        # Forecast steps are 2020-01-01 and 2020-01-02 (both January).
-        np.testing.assert_array_equal(result[0], table[0])
-        np.testing.assert_array_equal(result[1], table[0])
+        # Forecast steps are 2020-01-01 and 2020-01-02.
+        jan_1 = calendar_day_index(np.datetime64("2020-01-01"))
+        jan_2 = calendar_day_index(np.datetime64("2020-01-02"))
+        np.testing.assert_array_equal(result[0], table[jan_1])
+        np.testing.assert_array_equal(result[1], table[jan_2])
 
     def test_climatology_for_none(self, climatology_zarr: Path) -> None:
         """climatology_for returns None when no climatology table was provided."""

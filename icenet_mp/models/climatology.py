@@ -33,8 +33,8 @@ class Climatology(BaseModel):
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model.
 
-        Return the climatology (monthly-mean) field for each forecast step, supplied by
-        the data loader under the ``climatology`` key with shape
+        Return the climatology (calendar-day mean) field for each forecast step,
+        supplied by the data loader under the ``climatology`` key with shape
         [batch, n_forecast_steps, C_target, H_target, W_target].
         """
         return inputs["climatology"]
