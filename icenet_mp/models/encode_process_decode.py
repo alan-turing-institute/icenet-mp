@@ -8,6 +8,7 @@ from typing_extensions import override
 from icenet_mp.types import DataSpace, ModelStepOutput, TensorNTCHW
 
 from .base_model import BaseModel
+from .common import LatentFusion
 
 if TYPE_CHECKING:
     from icenet_mp.models.decoders import BaseDecoder
@@ -28,6 +29,7 @@ class EncodeProcessDecode(BaseModel):
         processor: DictConfig,
         decoder: DictConfig,
         target_variable_indices: list[int],
+        fusion: DictConfig | None = None,
         mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
@@ -106,10 +108,22 @@ class EncodeProcessDecode(BaseModel):
         for encoder in (*self.encoders, self.target_encoder):
             encoder.verify_output_channels(self.device)
 
+        # Fuse encoded input streams. The default is exact concatenation, preserving
+        # the existing behaviour and channel layout. Attention fusion keeps the same
+        # layout while learning per-stream weights.
+        encoder_channels = [
+            encoder.data_space_out.channels for encoder in self.encoders
+        ]
+        self.fusion: LatentFusion = (
+            hydra.utils.instantiate(fusion, input_channels=encoder_channels)
+            if fusion is not None
+            else LatentFusion(encoder_channels)
+        )
+
         # Add a processor
         combined_latent_space = DataSpace(
             name="combined_latent_space",
-            channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
+            channels=self.fusion.output_channels,
             shape=latent_shapes.pop(),
         )
         self.processor: BaseProcessor = hydra.utils.instantiate(
@@ -147,7 +161,7 @@ class EncodeProcessDecode(BaseModel):
             self.target_encoder.freeze()
 
     def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Encode all input datasets and concatenate along the channel dimension.
+        """Encode and fuse all input datasets in latent space.
 
         Args:
             inputs: Dictionary with one TensorNTCHW entry per input dataset with shape (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
@@ -159,14 +173,22 @@ class EncodeProcessDecode(BaseModel):
         latent_inputs: list[TensorNTCHW] = [
             encoder.rollout(inputs[encoder.name]) for encoder in self.encoders
         ]
-        return torch.cat(latent_inputs, dim=2)
+
+        # ProcessorStage predates the fusion module and deliberately skips this class's
+        # __init__. Its multistage pretraining path therefore remains exact concat;
+        # final end-to-end finetuning uses the configured fusion module. Attention
+        # fusion is zero-initialised to concat, so the transition is shape/value safe.
+        fusion = getattr(self, "fusion", None)
+        if fusion is None:
+            return torch.cat(latent_inputs, dim=2)
+        return fusion(latent_inputs)
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model (used for inference).
 
         - start with multiple [NTCHW] inputs each with shape [batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k]
         - encode inputs to [NTCHW] latent space [batch, n_history_steps, n_latent_channels, H_latent, W_latent]
-        - concatenate inputs in [NTCHW] latent space [batch, n_history_steps, n_latent_channels_total, H_latent, W_latent]
+        - fuse inputs in [NTCHW] latent space [batch, n_history_steps, n_latent_channels_total, H_latent, W_latent]
         - process in latent space [NTCHW] [batch, n_forecast_steps, n_latent_channels_total, H_latent, W_latent]
         - decode back to [NTCHW] output space [batch, n_forecast_steps, n_output_channels, H_output, W_output]
         - add a skip connection from the most recent target value to every forecast step
