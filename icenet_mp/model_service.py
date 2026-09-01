@@ -683,12 +683,14 @@ class ModelService:
                 processor=self.config["model"]["processor"],
                 decoder_model=decoder_model,
                 target_encoder=target_encoder,
+                mask_dir=str(self.data_module.mask_directory),
             )
 
         processor_model = ProcessorStage.from_template(
             processor=self.config["model"]["processor"],
             decoder_model=decoder_model,
             target_encoder=target_encoder,
+            mask_dir=str(self.data_module.mask_directory),
         )
         log.info(
             "Training processor: history (%d, %d, %d, %d) -> forecast (%d, %d, %d, %d)",

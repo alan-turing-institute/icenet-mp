@@ -1,4 +1,9 @@
-"""Calculating RMSE, MAE by forecast step."""
+"""Pixel-wise error metrics (MAE, RMSE) and their shared accumulation base class.
+
+The base classes here are also reused by `icenet_mp.metrics.ssim` and
+`icenet_mp.metrics.centroid_error`, which need the same per-timestep
+sufficient-statistics accumulation but compute a different per-batch error.
+"""
 
 import torch
 from torchmetrics import Metric
@@ -16,9 +21,19 @@ class _BaseErrorMetricDaily(Metric):
     sum_errors: torch.Tensor
     count: torch.Tensor
 
-    def __init__(self) -> None:
-        """Initialize the metric state."""
+    def __init__(self, land_mask: torch.Tensor | None = None) -> None:
+        """Initialize the metric state.
+
+        Parameters
+        ----------
+        land_mask : torch.Tensor, optional
+            Boolean tensor of shape (H, W), True for ocean cells and False for land.
+            When given, land cells are excluded from the metric entirely.
+
+        """
         super().__init__()
+        if land_mask is not None:
+            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
         self.add_state(
             "sum_errors",
             default=torch.tensor([], dtype=torch.float32),
@@ -85,14 +100,25 @@ class BaseErrorMetricDaily(_BaseErrorMetricDaily):
         self, preds: torch.Tensor, targets: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         batch_size = preds.shape[0]
-        num_spatial = preds.shape[2] * preds.shape[3] * preds.shape[4]
+        n_channels = preds.shape[2]
+        num_spatial = n_channels * preds.shape[3] * preds.shape[4]
 
         errors = self._compute_errors(preds, targets)
+        land_mask = getattr(self, "land_mask", None)
+        if land_mask is not None:
+            # `torch.where`, not `errors * land_mask`: multiplying can't zero out a
+            # NaN (0 * NaN = NaN), which would otherwise poison the whole lead-time's
+            # sum for one bad land pixel.
+            errors = torch.where(land_mask, errors, torch.zeros_like(errors))
+            active_spatial = n_channels * int(land_mask.sum())
+        else:
+            active_spatial = num_spatial
+
         errors_reshaped = errors.view(batch_size, -1, num_spatial)
         batch_sum_errors = errors_reshaped.sum(dim=(0, 2))
         batch_count = torch.full(
             (errors.shape[1],),
-            batch_size * num_spatial,
+            batch_size * active_spatial,
             dtype=torch.long,
             device=errors.device,
         )

@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
-from functools import cached_property
+from functools import cached_property, partial
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
@@ -19,12 +20,23 @@ from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
     CentroidErrorPerForecastDay,
-    IceNetAccuracy,
+    DistanceAveragedIceEdgeErrorPerForecastDay,
+    FractionalSkillScorePerForecastDay,
+    IceNetAccuracyPerForecastDay,
+    IntegratedIceEdgeErrorPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
+    SSIMPerForecastDay,
 )
-from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
+from icenet_mp.models.common import Mask
+from icenet_mp.types import (
+    DataSpace,
+    Hemisphere,
+    MaskType,
+    ModelStepOutput,
+    TensorNTCHW,
+)
 
 if TYPE_CHECKING:
     from torch.optim import Optimizer
@@ -35,7 +47,7 @@ class BaseModel(LightningModule, ABC):
 
     # Parameters that should be excluded from hyperparameter logging
     ignored_hparams: ClassVar[frozenset[str]] = frozenset(
-        ("latitudes_fn", "longitudes_fn")
+        ("latitudes_fn", "longitudes_fn", "mask_dir")
     )
 
     def __init__(  # noqa: PLR0913
@@ -46,8 +58,10 @@ class BaseModel(LightningModule, ABC):
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         loss: DictConfig,
+        mask_dir: str | Path | None = None,
         lr_scheduler: DictConfig,
         metrics: list[str] | None = None,
+        fss_neighborhood_sizes: list[int] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -63,10 +77,19 @@ class BaseModel(LightningModule, ABC):
 
         Optimizer configuration is also set here.
 
+        ``mask_dir``, if given, is a directory holding `land_mask.npy` (generated for
+        SSMIS datasets by `datasets create`). When present, the ``"diiee"``/``"fss_*"``
+        metrics use it to exclude land/ice boundaries from ice-edge detection, so only
+        ocean ice/no-ice transitions count as the sea-ice edge.
+
         The ``metrics`` parameter controls which metrics are computed during training,
-        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror"]``;
-        pass ``"centroid_error"`` to add the value-weighted centre-of-mass distance
-        metric (only meaningful for synthetic checks where the field is a single blob).
+        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
+        "iiee", "diiee", "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``, where
+        the ``"fss_*"`` entries are named after ``fss_neighborhood_sizes`` (see below).
+
+        ``fss_neighborhood_sizes``, if given, replaces the default FSS neighbourhood
+        sizes of ``[1, 5, 15]``. Each size ``n`` becomes a ``"fss_n"`` entry available
+        to (and, unless overridden, included in) ``metrics``.
         """
         super().__init__()
 
@@ -96,13 +119,39 @@ class BaseModel(LightningModule, ABC):
         self.lr_scheduler_cfg = lr_scheduler
         self.loss_cfg = loss
 
+        # Land mask for ice-edge metrics (excludes land/ice boundaries from FSS/DIIEE)
+        land_mask: torch.Tensor | None = None
+        if mask_dir is not None:
+            land_mask = Mask(
+                mask_type=MaskType.LAND,
+                output_shape=self.output_space.shape,
+                mask_dir=mask_dir,
+            ).mask.bool()
+
         # Metrics
-        _metric_classes: dict[str, type[Metric]] = {
-            "accuracy": IceNetAccuracy,
-            "mae": MAEPerForecastDay,
-            "rmse": RMSEPerForecastDay,
-            "sieerror": SeaIceExtentErrorPerForecastDay,
-            "centroid_error": CentroidErrorPerForecastDay,
+        fss_sizes = (
+            fss_neighborhood_sizes if fss_neighborhood_sizes is not None else [1, 5, 15]
+        )
+        fss_metric_classes: dict[str, Callable[[], Metric]] = {
+            f"fss_{n}": partial(
+                FractionalSkillScorePerForecastDay,
+                neighborhood_size=n,
+                land_mask=land_mask,
+            )
+            for n in fss_sizes
+        }
+        _metric_classes: dict[str, Callable[[], Metric]] = {
+            "accuracy": partial(IceNetAccuracyPerForecastDay, land_mask=land_mask),
+            "mae": partial(MAEPerForecastDay, land_mask=land_mask),
+            "rmse": partial(RMSEPerForecastDay, land_mask=land_mask),
+            "sieerror": partial(SeaIceExtentErrorPerForecastDay, land_mask=land_mask),
+            "iiee": partial(IntegratedIceEdgeErrorPerForecastDay, land_mask=land_mask),
+            "diiee": partial(
+                DistanceAveragedIceEdgeErrorPerForecastDay, land_mask=land_mask
+            ),
+            "centroid_error": partial(CentroidErrorPerForecastDay, land_mask=land_mask),
+            **fss_metric_classes,
+            "ssim": partial(SSIMPerForecastDay, land_mask=land_mask),
         }
         metric_names = (
             metrics
@@ -112,6 +161,11 @@ class BaseModel(LightningModule, ABC):
                 "mae",
                 "rmse",
                 "sieerror",
+                "iiee",
+                "diiee",
+                "centroid_error",
+                *fss_metric_classes,
+                "ssim",
             ]
         )
         _common_metrics: dict[str, Metric | MetricCollection] = {

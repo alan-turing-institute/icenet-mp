@@ -29,13 +29,14 @@ class ProcessorStage(EncodeProcessDecode):
         processor: DictConfig,
         decoder_model: DecoderStage,
         target_encoder: EncoderStage,
+        mask_dir: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise a ProcessorStage with frozen encoders, a frozen decoder, and a trainable processor."""
         # We skip EncodeProcessDecode initialisation since we want to use pre-trained
         # encoders, processor and decoder. This relies on the assumption that nothing
         # else is done during initialisation aside from creating these modules.
-        BaseModel.__init__(self, **kwargs)
+        BaseModel.__init__(self, mask_dir=mask_dir, **kwargs)
 
         # Copy encoders from DecoderStage, freeze their parameters and register them.
         self.encoder_names = decoder_model.encoder_names
@@ -76,6 +77,7 @@ class ProcessorStage(EncodeProcessDecode):
         processor: DictConfig,
         decoder_model: DecoderStage,
         target_encoder: EncoderStage,
+        mask_dir: str | None = None,
     ) -> "ProcessorStage":
         """Create a ProcessorStage from a trained DecoderStage."""
         return cls(
@@ -83,6 +85,7 @@ class ProcessorStage(EncodeProcessDecode):
             hemisphere=decoder_model.hemisphere,
             input_spaces=[s.to_dict() for s in decoder_model.input_spaces],
             loss=copy.deepcopy(decoder_model.loss_cfg),
+            mask_dir=mask_dir,
             lr_scheduler=copy.deepcopy(decoder_model.lr_scheduler_cfg),
             n_forecast_steps=decoder_model.n_forecast_steps,
             n_history_steps=decoder_model.n_history_steps,

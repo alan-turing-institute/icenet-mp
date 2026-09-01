@@ -10,6 +10,10 @@ from torchmetrics import MeanAbsoluteError, MetricCollection
 
 from icenet_mp.callbacks.metric_summary_callback import MetricSummaryCallback
 from icenet_mp.metrics import (
+    DistanceAveragedIceEdgeErrorPerForecastDay,
+    FractionalSkillScorePerForecastDay,
+    IceNetAccuracyPerForecastDay,
+    IntegratedIceEdgeErrorPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
@@ -38,8 +42,8 @@ class MockWandbRun:
 def wandb_run(monkeypatch: pytest.MonkeyPatch) -> tuple[MagicMock, MockWandbRun]:
     """Mock the wandb module and get_wandb_run to return a working MockWandbRun.
 
-    Used by the two tests that need W&B to look "present" with a run whose .log() calls
-    can be asserted on; both duplicated this wiring verbatim before this fixture existed.
+    Used by the tests that need W&B to look "present" with a run whose .log() calls can
+    be asserted on; both duplicated this wiring verbatim before this fixture existed.
     """
     mock_wandb = MagicMock()
     mock_wandb.Run = MockWandbRun
@@ -158,6 +162,66 @@ class TestOnTestEnd:
         mock_logger.log_metrics.assert_called_once()
         metrics_call_args = mock_logger.log_metrics.call_args[0][0]
         assert "test_mae_daily_mean" in metrics_call_args
+
+    def test_on_test_end_with_wandb_logger_grouped_vector_metrics(
+        self,
+        mock_module: MagicMock,
+        mock_trainer: MagicMock,
+        wandb_run: tuple[MagicMock, MockWandbRun],
+    ) -> None:
+        """FSS at different neighbourhood sizes combines onto a single plot."""
+        callback = MetricSummaryCallback()
+        mock_wandb, _ = wandb_run
+
+        # FSS at two neighbourhood sizes, plus an unrelated daily metric that
+        # should stay on its own plot
+        metric_collection = MetricCollection(
+            {
+                "fss_1": FractionalSkillScorePerForecastDay(neighborhood_size=1),
+                "fss_5": FractionalSkillScorePerForecastDay(neighborhood_size=5),
+                "mae_daily": MAEPerForecastDay(),
+            }
+        )
+        mock_module.test_metrics = metric_collection
+
+        # Create sample 5D data: (batch=1, time=3, channels=1, height=6, width=6)
+        preds = torch.rand(1, 3, 1, 6, 6)
+        targets = torch.rand(1, 3, 1, 6, 6)
+        metric_collection.update(preds, targets)
+
+        mock_plot = MagicMock()
+        mock_wandb.plot.line_series.return_value = mock_plot
+
+        callback.teardown(mock_trainer, mock_module, stage="test")
+
+        # One combined per-forecast-day plot for the fss_* group, one for the
+        # unrelated metric, and one FSS-vs-neighbourhood-size plot
+        assert mock_wandb.plot.line_series.call_count == 3
+        titles = {
+            call.kwargs["title"] for call in mock_wandb.plot.line_series.call_args_list
+        }
+        assert titles == {
+            "fss_per_forecast_day",
+            "mae_daily_per_forecast_day",
+            "fss_vs_neighbourhood_size",
+        }
+
+        fss_call = next(
+            call
+            for call in mock_wandb.plot.line_series.call_args_list
+            if call.kwargs["title"] == "fss_per_forecast_day"
+        )
+        assert fss_call.kwargs["keys"] == ["fss_1", "fss_5"]
+
+        fss_vs_size_call = next(
+            call
+            for call in mock_wandb.plot.line_series.call_args_list
+            if call.kwargs["title"] == "fss_vs_neighbourhood_size"
+        )
+        assert fss_vs_size_call.kwargs["xs"] == [1, 5]
+        assert fss_vs_size_call.kwargs["keys"] == ["test"]
+        assert len(fss_vs_size_call.kwargs["ys"]) == 1
+        assert len(fss_vs_size_call.kwargs["ys"][0]) == 2
 
 
 class TestLogPerEpochMetrics:
@@ -503,14 +567,14 @@ class TestMetricCalculations:
         daily_result = computed_sie.compute()
 
         # Expected SIEError per day:
-        # Day 1: sie error = |0-1 + 0-1 + 1-1 + 0-0| * 1^2 = 2.0
-        # Day 2: sie error = |0-1 + 1-0 + 1-1 + 0-0| * 1^2 = 0.0
-        # Day 3: sie error = |1-0 + 1-0 + 1-1 + 0-1| * 1^2 = 1.0
-        expected_sie = torch.tensor([2.0, 0.0, 1.0])  # pixel_size=1 -> no scaling
+        # Day 1: sie error = (0-1 + 0-1 + 1-1 + 0-0) * 1^2 = -2.0
+        # Day 2: sie error = (0-1 + 1-0 + 1-1 + 0-0) * 1^2 = 0.0
+        # Day 3: sie error = (1-0 + 1-0 + 1-1 + 0-1) * 1^2 = 1.0
+        expected_sie = torch.tensor([-2.0, 0.0, 1.0])  # pixel_size=1 -> no scaling
 
         assert torch.allclose(daily_result, expected_sie, atol=1e-5)
 
-        assert daily_result.mean().item() == pytest.approx(1.0, abs=1e-5)
+        assert daily_result.mean().item() == pytest.approx(-0.33333, abs=1e-5)
 
     def test_calculates_mean_sieerror_daily_pixel_size(self) -> None:
         """Test that SIEError daily is calculated correctly."""
@@ -526,10 +590,193 @@ class TestMetricCalculations:
         daily_result = computed_sie.compute()
 
         # Expected SIEError per day (before pixel-size scaling):
-        # Day 1: sie error = |0-1 + 0-1 + 1-1 + 0-0| * 1^2 = 2.0
-        # Day 2: sie error = |0-1 + 1-0 + 1-1 + 0-0| * 1^2 = 0.0
-        # Day 3: sie error = |1-0 + 1-0 + 1-1 + 0-1| * 1^2 = 1.0
+        # Day 1: sie error = (0-1 + 0-1 + 1-1 + 0-0) * 1^2 = -2.0
+        # Day 2: sie error = (0-1 + 1-0 + 1-1 + 0-0) * 1^2 = 0.0
+        # Day 3: sie error = (1-0 + 1-0 + 1-1 + 0-1) * 1^2 = 1.0
         # Scale factor is default pixel_size^2 = 625
-        expected_sie = torch.tensor([1250.0, 0.0, 625.0])
+        expected_sie = torch.tensor([-1250.0, 0.0, 625.0])
         assert torch.allclose(daily_result, expected_sie, atol=1e-5)
-        assert daily_result.mean().item() == pytest.approx(625.0, abs=1e-5)
+        assert daily_result.mean().item() == pytest.approx(-208.33333, abs=1e-5)
+
+    def test_calculates_mean_iiee_daily_correctly(self) -> None:
+        """Test that IIEE daily is calculated correctly."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        computed_iiee = IntegratedIceEdgeErrorPerForecastDay(pixel_size=1)
+        computed_iiee.update(preds, targets)
+        daily_result = computed_iiee.compute()
+
+        # Expected IIEE per day (unsigned disagreement, unlike SIEError which cancels):
+        # Day 1: |0-1| + |0-1| + |1-1| + |0-0| = 2.0
+        # Day 2: |0-1| + |1-0| + |1-1| + |0-0| = 2.0
+        # Day 3: |1-0| + |1-0| + |1-1| + |0-1| = 3.0
+        expected_iiee = torch.tensor([2.0, 2.0, 3.0])  # pixel_size=1 -> no scaling
+
+        assert torch.allclose(daily_result, expected_iiee, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(2.33333, abs=1e-5)
+
+    def test_calculates_mean_iiee_daily_pixel_size(self) -> None:
+        """Test that IIEE daily is calculated correctly with pixel-size scaling."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        computed_iiee = IntegratedIceEdgeErrorPerForecastDay()
+        computed_iiee.update(preds, targets)
+        daily_result = computed_iiee.compute()
+
+        # Expected IIEE per day (before pixel-size scaling): [2.0, 2.0, 3.0]
+        expected_iiee = torch.tensor(
+            [1250.0, 1250.0, 1875.0]
+        )  # default pixel_size=25 -> scaled by 25^2
+
+        assert torch.allclose(daily_result, expected_iiee, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(1458.33333, abs=1e-3)
+
+    def test_calculates_mean_accuracy_daily_correctly(self) -> None:
+        """Test that IceNetAccuracy daily is calculated correctly."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        computed_sie = IceNetAccuracyPerForecastDay()
+        computed_sie.update(preds, targets)
+        daily_result = computed_sie.compute()
+
+        # Expected IceNetAccuracy per day:
+        # Day 1: accuracy = (0 + 0 + 1 + 1)  = 2.0
+        # Day 2: accuracy = (0 + 0 + 1 + 1) = 2.0
+        # Day 3: accuracy = (0 + 0 + 1 + 0) = 1.0
+        expected_sie = torch.tensor([50.0, 50.0, 25.0])  # pixel_size=1 -> no scaling
+
+        assert torch.allclose(daily_result, expected_sie, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(41.66667, abs=1e-5)
+
+    def test_calculates_mean_weighted_accuracy_daily_correctly(self) -> None:
+        """Test that IceNetAccuracy daily is calculated correctly."""
+        preds_2d = torch.tensor(
+            [[0.0, 0.1, 0.8], [0.1, 0.2, 0.3], [0.3, 0.4, 0.5], [0.0, 0.1, 0.0]]
+        )
+        targets_2d = torch.tensor(
+            [[0.3, 0.5, 0.1], [0.6, 0.1, 0.0], [0.9, 0.9, 0.9], [0.0, 0.0, 1.0]]
+        )
+
+        # Reshape to 5D: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = preds_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        targets = targets_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+
+        sample_weight_2d = torch.tensor([0.0, 1.0, 0.0, 1.0]).unsqueeze(1).repeat(1, 3)
+        sample_weight = (
+            sample_weight_2d.view(2, 2, 3).permute(2, 0, 1).unsqueeze(0).unsqueeze(2)
+        )
+
+        computed_sie = IceNetAccuracyPerForecastDay()
+        computed_sie.update(preds, targets, sample_weight=sample_weight)
+        daily_result = computed_sie.compute()
+
+        # Expected IceNetAccuracy per day:
+        # Day 1: accuracy = (0 + 0 + 1 + 1) * weights = 0 * 0 + 0 * 1 + 0 * 0 + 1 * 1 = 1.0
+        # Day 2: accuracy = (0 + 0 + 1 + 1) * weights = 0 * 0 + 0 * 1 + 0 * 0 + 1 * 1 = 1.0
+        # Day 3: accuracy = (0 + 0 + 1 + 0) * weights = 0 * 0 + 0 * 1 + 0 * 0 + 0 * 1 = 0.0
+        expected_sie = torch.tensor([50.0, 50.0, 0.0])  # pixel_size=1 -> no scaling
+
+        assert torch.allclose(daily_result, expected_sie, atol=1e-5)
+
+        assert daily_result.mean().item() == pytest.approx(33.33333, abs=1e-5)
+
+    def test_calculates_diiee_daily_correctly(self) -> None:
+        """Test that DIIEE daily is calculated correctly."""
+        # Day 1: predicted 2x2 ice block vs a 2x3 target block (extra column of
+        # underestimation). Day 2: predicted and target blocks match exactly.
+        # Day 3: neither field has any ice (edge length undefined -> NaN).
+        day1_pred = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day1_target = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day2 = day1_pred
+        day3 = torch.zeros(4, 4)
+
+        preds = torch.stack([day1_pred, day2, day3]).unsqueeze(0).unsqueeze(2)
+        targets = torch.stack([day1_target, day2, day3]).unsqueeze(0).unsqueeze(2)
+
+        computed_diiee = DistanceAveragedIceEdgeErrorPerForecastDay(pixel_size=1)
+        computed_diiee.update(preds, targets)
+        daily_result = computed_diiee.compute()
+
+        # Day 1: mismatch area = 2 (the extra column), edge length = 4 (pred) + 6
+        #   (target) = 10 -> diiee = 2 * 2 / 10 = 0.4
+        # Day 2: perfect match -> mismatch area = 0 -> diiee = 0.0
+        # Day 3: no ice edge in either field -> undefined -> NaN
+        assert torch.allclose(daily_result[:2], torch.tensor([0.4, 0.0]), atol=1e-5)
+        assert torch.isnan(daily_result[2])
+
+    def test_calculates_diiee_daily_pixel_size(self) -> None:
+        """Test that DIIEE daily is calculated correctly with pixel-size scaling."""
+        day1_pred = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.3, 0.3, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day1_target = torch.tensor(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.3, 0.3, 0.3],
+                [0.0, 0.0, 0.0, 0.0],
+            ]
+        )
+        day2 = day1_pred
+
+        preds = torch.stack([day1_pred, day2]).unsqueeze(0).unsqueeze(2)
+        targets = torch.stack([day1_target, day2]).unsqueeze(0).unsqueeze(2)
+
+        computed_diiee = DistanceAveragedIceEdgeErrorPerForecastDay()
+        computed_diiee.update(preds, targets)
+        daily_result = computed_diiee.compute()
+
+        # DIIEE is linear in pixel_size (area scales as pixel_size^2, edge length as
+        # pixel_size), so the pixel_size=1 result of [0.4, 0.0] scales by 25.
+        expected_diiee = torch.tensor([10.0, 0.0])  # default pixel_size=25
+
+        assert torch.allclose(daily_result, expected_diiee, atol=1e-5)

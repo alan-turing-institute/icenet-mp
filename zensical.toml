@@ -13,6 +13,8 @@ nav = [
         { "Installation" = "user-guide/installation.md" },
         { "Configuration" = "user-guide/configuration.md" },
         { "Commands" = "user-guide/commands.md" },
+        { "Loss functions" = "user-guide/losses.md" },
+        { "Metrics" = "user-guide/metrics.md" },
     ] },
     { "How-to" = [
         { "Overview" = "how-to/index.md" },
