@@ -1,7 +1,7 @@
-from importlib.resources import files
+from collections.abc import Callable
 
 import pytest
-from hydra import compose, initialize_config_dir
+from omegaconf import DictConfig
 
 BASELINE_CONFIGS = [
     "00_persistence",
@@ -14,12 +14,13 @@ BASELINE_CONFIGS = [
 
 
 class TestBaselineConfigs:
-    CONFIG_DIR = str(files("icenet_mp.config"))
+    """Regression tests for icenet-mp baseline configs."""
 
     @pytest.mark.parametrize("config_name", BASELINE_CONFIGS)
-    def test_numbered_baseline_configs_compose(self, config_name: str) -> None:
-        with initialize_config_dir(config_dir=self.CONFIG_DIR, version_base=None):
-            config = compose(config_name=f"baseline/{config_name}")
+    def test_numbered_baseline_configs_compose(
+        self, compose_config: Callable[..., DictConfig], config_name: str
+    ) -> None:
+        config = compose_config(f"baseline/{config_name}")
 
         assert config.model.name
         assert config.model._target_.startswith("icenet_mp.models.")
@@ -30,13 +31,11 @@ class TestBaselineConfigs:
 
     @pytest.mark.parametrize("config_name", BASELINE_CONFIGS)
     def test_numbered_baselines_accept_standard_data_override(
-        self, config_name: str
+        self, compose_config: Callable[..., DictConfig], config_name: str
     ) -> None:
-        with initialize_config_dir(config_dir=self.CONFIG_DIR, version_base=None):
-            config = compose(
-                config_name=f"baseline/{config_name}",
-                overrides=["data=sample_north"],
-            )
+        config = compose_config(
+            f"baseline/{config_name}", overrides=["data=sample_north"]
+        )
 
         assert config.data.split.train
         assert config.data.split.test
