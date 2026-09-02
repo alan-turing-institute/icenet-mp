@@ -718,3 +718,20 @@ class TestDDIMProcessor:
             p.grad is not None and p.grad.abs().sum() > 0
             for p in processor.model.parameters()
         )
+
+    def test_rejects_ddim_steps_larger_than_timesteps(
+        self,
+        test_batch_size: int,  # noqa: ARG002
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        with pytest.raises(ValueError, match=r"ddim_steps=\d+ must be in the range"):
+            self._make_processor(
+                latent_chw=test_latent_chw,
+                n_forecast_steps=test_n_forecast_steps,
+                n_history_steps=test_n_history_steps,
+                use_autoregressive=test_use_autoregressive,
+                ddim_steps=self.TIMESTEPS + 1,
+            )
