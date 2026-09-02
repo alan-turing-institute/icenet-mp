@@ -5,6 +5,7 @@ import torch
 
 from icenet_mp.models.processors import (
     BaseProcessor,
+    DDIMProcessor,
     DDPMProcessor,
     NullProcessor,
     UNetProcessor,
@@ -531,4 +532,47 @@ class TestDDPMProcessor:
         assert any(
             p.grad is not None and p.grad.abs().sum() > 0
             for p in processor.model.parameters()
+        )
+
+
+@pytest.mark.parametrize("test_batch_size", [1, 2])
+@pytest.mark.parametrize("test_latent_chw", [(4, 16, 16)])
+@pytest.mark.parametrize("test_n_forecast_steps", [1, 2])
+@pytest.mark.parametrize("test_n_history_steps", [1, 2])
+@pytest.mark.parametrize("test_use_autoregressive", [True, False])
+class TestDDIMProcessor:
+    C_TARGET = 2
+    TIMESTEPS = 4
+    DDIM_STEPS = 2
+
+    def _make_processor(
+        self,
+        *,
+        latent_chw: tuple[int, int, int],
+        n_forecast_steps: int,
+        n_history_steps: int,
+        use_autoregressive: bool,
+        target_channel_offset: int = 0,
+        ddim_steps: int | None = None,
+        eta: float = 0.0,
+        timesteps: int | None = None,
+    ) -> DDIMProcessor:
+        combined = DataSpace(
+            name="combined", channels=latent_chw[0], shape=latent_chw[1:]
+        )
+        target = DataSpace(name="target", channels=self.C_TARGET, shape=latent_chw[1:])
+        return DDIMProcessor(
+            data_space=combined,
+            data_space_target=target,
+            n_forecast_steps=n_forecast_steps,
+            n_history_steps=n_history_steps,
+            timesteps=timesteps if timesteps is not None else self.TIMESTEPS,
+            ddim_steps=ddim_steps if ddim_steps is not None else self.DDIM_STEPS,
+            eta=eta,
+            start_out_channels=8,
+            time_embed_dim=256,
+            dropout_rate=0.0,
+            use_autoregressive=use_autoregressive,
+            target_channel_offset=target_channel_offset,
+            loss=torch.nn.MSELoss(),
         )
