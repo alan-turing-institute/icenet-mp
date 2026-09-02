@@ -576,3 +576,35 @@ class TestDDIMProcessor:
             target_channel_offset=target_channel_offset,
             loss=torch.nn.MSELoss(),
         )
+
+    def test_inference_forward_shape(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+        )
+        x = torch.randn(
+            test_batch_size,
+            test_n_history_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
+        with torch.no_grad():
+            result = processor.rollout(x)
+
+        assert isinstance(result, ProcessorOutput)
+        assert result.loss is None
+        assert result.prediction.shape == (
+            test_batch_size,
+            test_n_forecast_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
