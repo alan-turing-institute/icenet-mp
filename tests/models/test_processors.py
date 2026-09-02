@@ -752,3 +752,20 @@ class TestDDIMProcessor:
                 use_autoregressive=test_use_autoregressive,
                 ddim_steps=0,
             )
+
+    def test_rejects_negative_eta(
+        self,
+        test_batch_size: int,  # noqa: ARG002
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        with pytest.raises(ValueError, match=r"eta=-?[\d.]+ must be non-negative"):
+            self._make_processor(
+                latent_chw=test_latent_chw,
+                n_forecast_steps=test_n_forecast_steps,
+                n_history_steps=test_n_history_steps,
+                use_autoregressive=test_use_autoregressive,
+                eta=-0.1,
+            )
