@@ -769,3 +769,32 @@ class TestDDIMProcessor:
                 use_autoregressive=test_use_autoregressive,
                 eta=-0.1,
             )
+
+    def test_eta_zero_sampling_is_deterministic(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+            eta=0.0,
+        )
+        processor.eval()
+        x = torch.randn(
+            test_batch_size,
+            test_n_history_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
+        with torch.no_grad():
+            torch.manual_seed(0)
+            a = processor.rollout(x).prediction
+            torch.manual_seed(0)
+            b = processor.rollout(x).prediction
+        torch.testing.assert_close(a, b)
