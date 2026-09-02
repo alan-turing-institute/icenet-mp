@@ -683,3 +683,38 @@ class TestDDIMProcessor:
                 result.prediction[:, t_step, non_target_idx],
                 last_frame[:, non_target_idx],
             )
+
+    def test_training_loss_backprops(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+        )
+        x = torch.randn(
+            test_batch_size,
+            test_n_history_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
+        y = torch.randn(
+            test_batch_size,
+            test_n_forecast_steps,
+            self.C_TARGET,
+            *test_latent_chw[1:],
+        )
+        result = processor.rollout(x, y)
+        assert result.loss is not None
+        result.loss.backward()
+
+        assert any(
+            p.grad is not None and p.grad.abs().sum() > 0
+            for p in processor.model.parameters()
+        )
