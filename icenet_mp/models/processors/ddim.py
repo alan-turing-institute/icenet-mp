@@ -25,6 +25,15 @@ from .ddpm import DDPMProcessor
 
 
 class DDIMProcessor(DDPMProcessor):
+    """Latent-space DDIM processor with v-prediction.
+
+    Reuses :class:`DDPMProcessor` for training (identical v-prediction loss)
+    and overrides reverse-time sampling with the DDIM update, allowing a
+    smaller number of sampling steps than were used during training.
+
+    Input/output space matches :class:`DDPMProcessor`.
+    """
+
     def __init__(
         self,
         *,
@@ -32,6 +41,19 @@ class DDIMProcessor(DDPMProcessor):
         eta: float = 0.0,
         **kwargs: Any,
     ) -> None:
+        """Initialize the DDIM processor.
+
+        Args:
+            ddim_steps (int): Number of DDIM sampling steps. Must satisfy
+                ``1 <= ddim_steps <= timesteps``. Default is 50.
+            eta (float): Stochasticity coefficient. ``eta=0`` gives
+                deterministic DDIM sampling; ``eta=1`` matches DDPM's per-step noise.
+                Default is 0.0.
+            **kwargs: Forwarded to :class:`DDPMProcessor` (``timesteps``,
+                ``beta_schedule``, ``loss``, and all other DDPM/BaseProcessor
+                arguments).
+
+        """
         super().__init__(**kwargs)
 
         if not 1 <= ddim_steps <= self.timesteps:
@@ -54,6 +76,17 @@ class DDIMProcessor(DDPMProcessor):
         )
 
     def _run_reverse_diffusion(self, y: TensorNCHW, cond: TensorNCHW) -> TensorNCHW:
+        """Iteratively denoise ``y`` using the DDIM sampler.
+
+        Args:
+            y (TensorNCHW): Noisy latent to denoise, of shape (B, C, H, W).
+            cond (TensorNCHW): History condition folded to channels, of shape
+                (B, T_hist * C_combined, H, W).
+
+        Returns:
+            TensorNCHW: Denoised latent of shape (B, C, H, W).
+
+        """
         b = y.shape[0]
         device = y.device
         alphas_cumprod = self.diffusion.alphas_cumprod.to(device)
