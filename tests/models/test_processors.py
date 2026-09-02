@@ -646,3 +646,40 @@ class TestDDIMProcessor:
             test_latent_chw[0],
             *test_latent_chw[1:],
         )
+
+    def test_non_target_channels_persist_from_last_frame(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+        )
+        x = torch.randn(
+            test_batch_size,
+            test_n_history_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
+        with torch.no_grad():
+            result = processor.rollout(x)
+
+        s = processor.target_channel_offset
+        assert s is not None
+        c_target = processor.c_target
+        non_target_idx = [
+            i for i in range(test_latent_chw[0]) if not (s <= i < s + c_target)
+        ]
+        last_frame = x[:, -1]
+
+        for t_step in range(test_n_forecast_steps):
+            torch.testing.assert_close(
+                result.prediction[:, t_step, non_target_idx],
+                last_frame[:, non_target_idx],
+            )
