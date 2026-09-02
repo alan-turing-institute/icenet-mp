@@ -798,3 +798,34 @@ class TestDDIMProcessor:
             torch.manual_seed(0)
             b = processor.rollout(x).prediction
         torch.testing.assert_close(a, b)
+
+    def test_ddim_steps_equal_to_timesteps_runs(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        """DDIM must accept ddim_steps == timesteps (walk every trained rung)."""
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+            ddim_steps=self.TIMESTEPS,
+        )
+        x = torch.randn(
+            test_batch_size,
+            test_n_history_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
+        with torch.no_grad():
+            result = processor.rollout(x)
+        assert result.prediction.shape == (
+            test_batch_size,
+            test_n_forecast_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
