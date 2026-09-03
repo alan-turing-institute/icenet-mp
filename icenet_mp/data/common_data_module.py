@@ -43,19 +43,19 @@ class CommonDataModule(LightningDataModule):
                 logger.info("%s - %s", " " * (len(str(idx)) + 1), path)
 
         # Check prediction target
-        self.target_group_name = config["predict"]["target"]["group_name"]
-        if self.target_group_name not in self.dataset_groups:
-            available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
-            msg = (
-                f"Prediction target group {self.target_group_name!r} was not found in "
-                f"the configured datasets. Available groups: {available_groups}. "
-                "When evaluating a checkpoint, ensure the dataset `group_as` matches "
-                "the checkpoint's `predict.target.group_name`."
-            )
-            raise ValueError(msg)
-        self._target_variables: list[str] = config["predict"]["target"].get(
-            "variables", []
-        )
+        available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
+        self._target_variables: list[str] = []
+        for group_name, variable_names in config["variables"]["output"].items():
+            if group_name not in self.dataset_groups:
+                msg = (
+                    f"Prediction target group {group_name!r} was not found in the "
+                    f"configured datasets. Available groups: {available_groups}. When "
+                    "evaluating a checkpoint, ensure the dataset `group_as` matches "
+                    "the checkpoint's `variables.output` groups."
+                )
+                raise ValueError(msg)
+            self.target_group_name = str(group_name)
+            self._target_variables = [str(v) for v in variable_names]
 
         # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
