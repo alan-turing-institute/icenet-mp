@@ -108,6 +108,7 @@ def cfg_common_data_module() -> DictConfig:
                 },
             },
             "variables": {
+                "input": {"group1": ["mock_var"]},
                 "output": {"group1": ["mock_var"]},
             },
             "window": {
@@ -195,6 +196,7 @@ def cfg_model_service() -> DictConfig:
                 "trainer": {},
             },
             "variables": {
+                "input": {"mock-dataset-group-1": ["mock_var"]},
                 "output": {"mock-dataset-group-1": ["mock_var"]},
             },
             "window": {

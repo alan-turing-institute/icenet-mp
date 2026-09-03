@@ -87,6 +87,7 @@ class TestTargetMaskDir:
                     },
                 },
                 "variables": {
+                    "input": {"sic": ["mock_var"]},
                     "output": {"sic": ["mock_var"]},
                 },
                 "window": {

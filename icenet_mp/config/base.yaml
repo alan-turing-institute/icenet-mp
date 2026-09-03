@@ -9,6 +9,6 @@ defaults:
   - random: default
   - train: default
   - platform: default
-  - variables: sic-ssmis
+  - variables: sic-osisaf
   - window: forecast-3-history-2
   - _self_

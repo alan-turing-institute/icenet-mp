@@ -13,7 +13,7 @@ from icenet_mp.utils import mask_dir
 from .combined_dataset import CombinedDataset
 from .single_dataset import SingleDataset
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class CommonDataModule(LightningDataModule):
@@ -36,22 +36,27 @@ class CommonDataModule(LightningDataModule):
                     self.base_path / "data" / "anemoi" / f"{dataset['name']}.zarr"
                 ).resolve()
             )
-        logger.info("Found %d dataset groups.", len(self.dataset_groups))
+        log.info("Found %d dataset groups.", len(self.dataset_groups))
         for idx, (name, paths) in enumerate(self.dataset_groups.items(), start=1):
-            logger.info("%d) %s:", idx, name)
+            log.info("%d) %s:", idx, name)
             for path in paths:
-                logger.info("%s - %s", " " * (len(str(idx)) + 1), path)
+                log.info("%s - %s", " " * (len(str(idx)) + 1), path)
+        available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
+
+        # Check input variables
+        self._input_variables: dict[str, list[str]] = {}
+        for group_name, variable_names in config["variables"]["input"].items():
+            self._input_variables[str(group_name)] = [str(v) for v in variable_names]
 
         # Check prediction target
-        available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
         self._target_variables: list[str] = []
         for group_name, variable_names in config["variables"]["output"].items():
             if group_name not in self.dataset_groups:
                 msg = (
                     f"Prediction target group {group_name!r} was not found in the "
-                    f"configured datasets. Available groups: {available_groups}. When "
-                    "evaluating a checkpoint, ensure the dataset `group_as` matches "
-                    "the checkpoint's `variables.output` groups."
+                    f"configured datasets. Available groups: {available_ds_groups}. "
+                    "When evaluating a checkpoint, ensure the dataset `group_as` "
+                    "matches the checkpoint's `variables.output` groups."
                 )
                 raise ValueError(msg)
             self.target_group_name = str(group_name)
@@ -94,7 +99,19 @@ class CommonDataModule(LightningDataModule):
 
     @cached_property
     def datasets(self) -> dict[str, SingleDataset]:
-        """Return a dictionary of dataset group names to SingleDataset objects."""
+        """Return a filtered dictionary of dataset group names to SingleDataset objects.
+
+        Only include requested variables for each dataset group. If no variables are
+        requested for a dataset group, ignore it.
+        """
+        return {
+            name: self.datasets_unfiltered[name].subset(variables=variables)
+            for name, variables in self.variable_names.items()
+        }
+
+    @cached_property
+    def datasets_unfiltered(self) -> dict[str, SingleDataset]:
+        """Return an unfiltered dictionary of dataset group names to SingleDataset objects."""
         return {
             name: SingleDataset(name, paths)
             for name, paths in self.dataset_groups.items()
@@ -142,7 +159,7 @@ class CommonDataModule(LightningDataModule):
         ]
         chosen = (available or paths)[0].stem
         if len(paths) > 1:
-            logger.warning(
+            log.warning(
                 "Target group %r has %d datasets; using %r for masks "
                 "(combining masks across datasets is not supported).",
                 self.target_group_name,
@@ -178,11 +195,13 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def variable_names(self) -> dict[str, list[str]]:
         """Return the variable names for each input."""
+        if self._input_variables:
+            return self._input_variables
         return {ds.name: ds.variable_names for ds in self.datasets.values()}
 
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
-        logger.info("Assigning %d workers for data loading.", n_workers)
+        log.info("Assigning %d workers for data loading.", n_workers)
         self._common_dataloader_kwargs["num_workers"] = n_workers
         self._common_dataloader_kwargs["persistent_workers"] = n_workers > 0
         self._common_dataloader_kwargs["prefetch_factor"] = 1 if n_workers > 0 else None
@@ -201,7 +220,9 @@ class CommonDataModule(LightningDataModule):
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
-        logger.info(
+        for line in dataset.variable_list():
+            log.info(line)
+        log.info(
             "Loaded predict dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
@@ -220,7 +241,9 @@ class CommonDataModule(LightningDataModule):
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
-        logger.info(
+        for line in dataset.variable_list():
+            log.info(line)
+        log.info(
             "Loaded test dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
@@ -242,7 +265,9 @@ class CommonDataModule(LightningDataModule):
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
-        logger.info(
+        for line in dataset.variable_list():
+            log.info(line)
+        log.info(
             "Loaded training dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,
@@ -261,7 +286,7 @@ class CommonDataModule(LightningDataModule):
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
-        logger.info(
+        log.info(
             "Loaded validation dataset with %d dates between %s and %s.",
             len(dataset),
             dataset.start_date,

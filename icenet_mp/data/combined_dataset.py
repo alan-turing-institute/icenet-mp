@@ -125,3 +125,17 @@ class CombinedDataset(Dataset):
         return [
             start_date + idx * self.frequency for idx in range(self.n_history_steps)
         ]
+
+    def variable_list(self) -> list[str]:
+        variable_ids = [
+            f"{ds.name}/{variable_name}"
+            for ds in self.inputs
+            for variable_name in ds.variable_names
+        ]
+        return [
+            f"Combined dataset has {len(variable_ids)} input variables:",
+            *(
+                f"{idx:>{len(str(len(variable_ids)))}}) {variable_id}"
+                for idx, variable_id in enumerate(variable_ids, start=1)
+            ),
+        ]
