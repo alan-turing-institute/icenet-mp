@@ -11,3 +11,6 @@ defaults:
   - train: default
   - platform: default
   - _self_
+
+# Optional per-input-group channel selection. An omitted group uses all variables.
+inputs: {}

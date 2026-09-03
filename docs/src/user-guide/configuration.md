@@ -87,6 +87,26 @@ And run with:
 uv run imp train --config-name my_local_config
 ```
 
+### Selecting input variables
+
+By default every variable in each configured dataset group is passed to the model. To use only selected channels from an input group, add an `inputs` section to your main config:
+
+```yaml
+inputs:
+  era5:
+    variables:
+      - 2t
+      - 10u
+      - 10v
+  sic-osisaf:
+    variables:
+      - ice_conc
+```
+
+Group names must match the datasets' `group_as` values. Groups omitted from `inputs` continue to use all available variables.
+
+Input selection is independent of the prediction output selection under `predict.target.variables`. If the target dataset is also used as a model input, its predicted variable must remain among the selected input channels so persistence/skip-connection indexing remains well-defined.
+
 ### Generating Argo float missing dates
 
 Some dates have no Argo float data. When specifying a new Argo float dataset for the first time it is necessary to generate a list of missing dates for a dataset. This can be done as follows:
