@@ -152,7 +152,7 @@ class TestModelService:
             mp.setattr(service, "_fit", mock_fit)
             service.train()
 
-        mock_fit.assert_called_once_with(config="train_config")
+        mock_fit.assert_called_once_with(config="train_config", ckpt_path=None)
 
     def test_merged_config_applies_stage_overrides(self) -> None:
         """Merge stage-specific values over the common training configuration."""
@@ -243,14 +243,32 @@ class TestModelService:
             with pytest.raises(ValueError, match="2 checkpoints"):
                 service._save_stage_checkpoint(trainer, "encoder")
 
-    def test_train_standard_mode_rejects_multistage_checkpoint_dir(
+    def test_train_standard_mode_rejects_checkpoint_dir_without_last_ckpt(
         self, tmp_path: Path
     ) -> None:
-        """Reject stage checkpoint directories during single-stage training."""
+        """Reject a checkpoint directory with no resumable ``last*.ckpt`` file."""
         service = ModelService.__new__(ModelService)
         service.model_ = MagicMock()
         service.model_.multistage_only = False
         service.config_ = DictConfig({"train": "train_config"})
 
-        with pytest.raises(ValueError, match="checkpoint_dir"):
+        with pytest.raises(FileNotFoundError, match=r"last\*.ckpt"):
             service.train(checkpoint_dir=tmp_path)
+
+    def test_train_standard_mode_resumes_from_last_checkpoint(
+        self, tmp_path: Path
+    ) -> None:
+        """Resume single-stage training from the ``last*.ckpt`` file if present."""
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+        ckpt_path = tmp_path / "last.ckpt"
+        ckpt_path.write_text("checkpoint")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_fit = MagicMock()
+            mp.setattr(service, "_fit", mock_fit)
+            service.train(checkpoint_dir=tmp_path)
+
+        mock_fit.assert_called_once_with(config="train_config", ckpt_path=ckpt_path)
