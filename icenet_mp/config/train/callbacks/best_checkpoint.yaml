@@ -3,3 +3,4 @@ best_checkpoint:
   monitor: validation_loss
   mode: min
   save_top_k: 1
+  save_last: true

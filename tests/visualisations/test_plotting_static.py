@@ -140,7 +140,7 @@ class TestPlotStaticPrediction:
         sic_pair_2d: tuple[np.ndarray, np.ndarray, date],
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """plot_static_prediction should log a warning for missing land mask shape."""
+        """plot_static_prediction should log a debug message for missing land mask shape."""
         ground_truth, prediction, date = sic_pair_2d
 
         # Create land mask with wrong shape
@@ -148,7 +148,7 @@ class TestPlotStaticPrediction:
         wrong_shape_mask = np.zeros((10, 10), dtype=bool)
         land_mask.add_mask(wrong_shape_mask)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             plot_static_prediction(
                 ground_truth,
                 prediction,
@@ -157,7 +157,10 @@ class TestPlotStaticPrediction:
                 plot_spec=DEFAULT_SIC_SPEC,
                 variable_name="dummy",
             )
-            assert "No land mask available for shape (48, 48)." in caplog.text
+            assert (
+                "No land mask associated with this dataset has shape (48, 48)."
+                in caplog.text
+            )
 
 
 # --- Tests for plot_static_inputs ---

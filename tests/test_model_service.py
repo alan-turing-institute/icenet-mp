@@ -154,18 +154,6 @@ class TestModelService:
 
         mock_fit.assert_called_once_with(config="train_config")
 
-    def test_train_standard_mode_rejects_multistage_checkpoint_dir(
-        self, tmp_path: Path
-    ) -> None:
-        """Reject stage checkpoint directories during single-stage training."""
-        service = ModelService.__new__(ModelService)
-        service.model_ = MagicMock()
-        service.model_.multistage_only = False
-        service.config_ = DictConfig({"train": "train_config"})
-
-        with pytest.raises(ValueError, match="checkpoint_dir"):
-            service.train(checkpoint_dir=tmp_path)
-
     def test_merged_config_applies_stage_overrides(self) -> None:
         """Merge stage-specific values over the common training configuration."""
         service = ModelService.__new__(ModelService)
@@ -254,3 +242,15 @@ class TestModelService:
             mp.setattr(service, "build_run_directory", lambda _trainer: tmp_path)
             with pytest.raises(ValueError, match="2 checkpoints"):
                 service._save_stage_checkpoint(trainer, "encoder")
+
+    def test_train_standard_mode_rejects_multistage_checkpoint_dir(
+        self, tmp_path: Path
+    ) -> None:
+        """Reject stage checkpoint directories during single-stage training."""
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+
+        with pytest.raises(ValueError, match="checkpoint_dir"):
+            service.train(checkpoint_dir=tmp_path)
