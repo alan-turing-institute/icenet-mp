@@ -846,3 +846,25 @@ class TestDDIMProcessor:
                 use_autoregressive=test_use_autoregressive,
                 eta=1.1,
             )
+
+    def test_ddim_timestep_sequence_is_evenly_spaced(
+        self,
+        test_batch_size: int,  # noqa: ARG002
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        """The DDIM timestep subset must be evenly-spaced from timesteps-1 down to 0."""
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+            timesteps=10,
+            ddim_steps=5,
+        )
+        torch.testing.assert_close(
+            processor._ddim_timesteps,
+            torch.tensor([9, 6, 4, 2, 0], dtype=torch.long),
+        )
