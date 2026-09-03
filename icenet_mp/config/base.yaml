@@ -10,4 +10,5 @@ defaults:
   - random: default
   - train: default
   - platform: default
+  - variables: default
   - _self_
