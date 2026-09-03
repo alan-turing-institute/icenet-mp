@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 import torch
@@ -32,7 +32,6 @@ class EncodeProcessDecode(BaseModel):
         rollout_space: str = "latent",
         predict_residual: bool = False,
         feedback_channel: int | None = None,
-        zero_init_tendency: bool = True,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model.
@@ -46,55 +45,37 @@ class EncodeProcessDecode(BaseModel):
                 ``output_space`` has; used to pull the newest observed target frame
                 out of the input window as the skip connection's anchor.
             mask_dir: directory holding the mask ``.npy`` files, if masking is used.
+            rollout_space: which space the autoregressive forecast loop closes in.
+
+                ``"latent"`` (default): the processor rolls forward in latent space,
+                appending each predicted latent to its own input window without
+                re-encoding (``BaseProcessor.rollout``). All input groups' latent
+                channels are carried forward, so non-target groups are implicitly
+                forecast in latent space as well.
+
+                ``"physical"``: each forecast step encodes the current window of
+                physical frames, takes one processor step, decodes to a physical
+                field and rolls that field back into the window, which is re-encoded
+                on the next step (``_forward_physical``). The fed-back state is
+                always a physical field. Non-target groups (e.g. ERA5/Argo) hold
+                their newest observed frame for every step of the rollout, i.e.
+                their latents are replaced with persistence at each step.
+
+            predict_residual: if True the decoder output is a signed TENDENCY and the
+                prediction is ``previous + delta``, applied by the decoder's additive
+                skip connection, so a zero tendency reproduces the previous field
+                exactly. Requires ``rollout_space="physical"`` (the residual is added
+                to the previous physical field) and a decoder configured with
+                ``skip_connection.method: additive``. The anchor is the previous
+                forecast step's field, updated every step — unlike the latent path's
+                skip connection, which anchors every lead on the newest observation.
+            feedback_channel: index of the channel within the target input group that
+                the prediction overwrites when it is rolled back into the window
+                under the physical rollout. Only needed when the target group has
+                more channels than the model outputs (e.g. a 6-channel sic-ssmis
+                input with a 1-channel output); when the counts match, all channels
+                are replaced.
             **kwargs: forwarded to ``BaseModel`` (spaces, steps, optimiser, loss, ...).
-
-        Args:
-            rollout_space: "latent" (default, unchanged behaviour) or "physical" (residual learning, autoregressive-like).
-
-                "latent" option is the original method: the processor predicts the next
-                combined latent, which is then appended to its own input window
-                (BaseProcessor.rollout). Potentiallly two flagged consequences, from tested
-                failures (eg, on 2026-07-29): (1) no constrains on a processor to produce a
-                latent to lie in the distribution the encoders produce, and there is no
-                re-encoding (consistency term), so from forecast step 2 onward the
-                window is fed vectors from a different distribution; (2) the roll-out window
-                takes every input group's latent channels and carry them forward in time, so a
-                multi-input model forecasts uncontraint ERA5/Argo latents and then
-                conditions on them. The optimiser tends to find the easiest "optimum" to satisfying both, which is a near-idempotent map, which likely explains the almost fixed-point (static forecast) behaviour observed.
-
-                "physical" option wraps the loop in observation space instead: encode the
-                window of physical frames, take one processor step (roll-out and forecast),
-                decode back to a physical field, roll that field into the window, and re-encode.
-                The feedback state in this option is always something the encoders were trained
-                on. Groups other than the SIC (target) keep their last observed frame (we
-                dont have atmospheric forecast; persisting is an assumption and we can maybe improve this, but it should prevent a hallucinated latent that might get trapped on persistent latent for the reason given above).
-
-            predict_residual: if True the decoder output is a TENDENCY added to the
-                previous field, so `prediction = clamp(previous + delta, 0, 1)`.
-
-                This is the fix for the binding failure: with the absolute
-                parameterisation, reproducing the input requires pushing it through a
-                downsampling CNN, a patch-embedding ViT bottleneck and an upsampling
-                CNN, so persistence is not in the model's hypothesis space. Measured
-                on the toy, the model scores active-cell MAE 0.093 at lead 1 where
-                merely copying the input scores 0.034. With a residual head, delta = 0
-                is exactly the persistence, and every parameter is trained to predict
-                the change instead of rebuilding the persistence state. This Requires decoder's
-                restrict_range to be set to "none": the bounding is applied to the sum here,
-                not to the increment.
-
-            zero_init_tendency: with predict_residual=True, zero the decoder final
-                convolution at initialisation so the model starts at persistence exactly,
-                and training can move away from it only to reduce the loss (intended).
-                Otherwise a random initialisation of the tendency produces a large signed
-                field, the sum saturates against the [0, 1] clamp, and the first epochs
-                are spent climbing back down to sanity state (this is also observed in real training runs), a mechanism that might be partially responsible for many previous runs ended up worse than persistence.
-
-            feedback_channel: index of the channel within the target input group (SIC) that
-                the prediction overwrites when it is rolled back into the window under the
-                physical rollout option. This is only needed when the target group has more channels
-                than the model outputs (eg, production sic-ssmis has 6, the output has 1);
-                when the counts match, all channels are replaced.
 
         """
         super().__init__(**kwargs)
@@ -213,11 +194,6 @@ class EncodeProcessDecode(BaseModel):
         # Freeze unused modules
         self._freeze_unused_modules()
 
-        # Start the trajectory at exactly the persistence: a zeroed tendency head means the first
-        # forward pass reproduces the last observation exactly at every lead.
-        if self.predict_residual and zero_init_tendency:
-            self._zero_tendency_head()
-
     @staticmethod
     def _validate_rollout_options(
         rollout_space: str,
@@ -259,30 +235,6 @@ class EncodeProcessDecode(BaseModel):
                 f"an absolute prediction rather than a residual one."
             )
             raise ValueError(msg)
-
-        if str(decoder.get("restrict_range") or "none") != "none":
-            msg = (
-                f"predict_residual=True requires the decoder's restrict_range to be "
-                f"'none' (got {decoder.get('restrict_range')!r}): the decoder emits a "
-                f"signed tendency, which must not be squashed into [0, 1]. The sum "
-                f"previous + tendency is clamped to [0, 1] by the model instead."
-            )
-            raise ValueError(msg)
-
-    def _zero_tendency_head(self) -> None:
-        """Zero the decoder's output convolution so the initial tendency is exactly 0."""
-        final = cast("torch.nn.Sequential", self.decoder.model)[-1]
-        if not isinstance(final, torch.nn.Conv2d):
-            msg = (
-                f"zero_init_tendency=True requires the decoder to end in a Conv2d so the "
-                f"tendency can be 0, but {type(self.decoder).__name__} ends in "
-                f"{type(final).__name__}. Try pass zero_init_tendency=false to skip this."
-            )
-            raise TypeError(msg)
-        with torch.no_grad():
-            final.weight.zero_()
-            if final.bias is not None:
-                final.bias.zero_()
 
     @property
     def multistage_only(self) -> bool:

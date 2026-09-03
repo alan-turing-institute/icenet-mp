@@ -9,20 +9,22 @@
 #   predict_residual: true    the decoder output is a signed daily INCREMENT:
 #                             x_{k+1} = mask(clip(x_k + delta_k, 0, 1)); the
 #                             identity forecast (persistence) is delta = 0
-#   zero_init_tendency: true  the final decoder convolution starts at zero, so an
-#                             untrained model reproduces (masked) persistence
-#                             bit-exactly at every lead
+#   zero_init_output: true    (decoder) the final decoder convolution starts at
+#                             zero, so an untrained model reproduces (masked)
+#                             persistence bit-exactly at every lead
 #   feedback_channel: 1       sic-ssmis carries 6 channels; the prediction
 #                             overwrites ice_conc (index 1) when fed back
-#   restrict_range: none      the increment is signed and must not be squashed;
-#                             the SUM is clipped instead (enforced in the model)
+#   restrict_range: none      no bounding of the raw increment; the decoder's
+#                             finalise() clamps the SUM after the skip connection.
+#                             (With an additive skip the decoder bounds signed
+#                             values symmetrically, so sigmoid/tanh/clamp are also
+#                             valid choices here.)
 _target_: icenet_mp.models.EncodeProcessDecode
 
 name: cnn-vit-cnn-residual
 
 rollout_space: physical
 predict_residual: true
-zero_init_tendency: true
 feedback_channel: 1
 
 encoders:
@@ -55,6 +57,7 @@ decoder:
   mask_type: active
   norm_type: groupnorm
   restrict_range: none
+  zero_init_output: true
   # The tendency is applied by the decoder additive skip connection (#405); the only difference is
   # that the physical rollout takes the previous forecast of physical states as the anchor instead of
   # the fixed newest observation

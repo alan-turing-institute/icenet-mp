@@ -239,12 +239,14 @@ def _small_tendency(model: EncodeProcessDecode, scale: float = 1e-3) -> None:
     This is the regime a trained residual model lives in: a small signed correction on
     top of the previous state, well away from the [0, 1] clamp. At random init the
     tendency is large enough to saturate the clamp everywhere, which is precisely why
-    `zero_init_tendency` exists.
+    the decoder's `zero_init_output` option exists.
     """
     generator = torch.Generator().manual_seed(99)
     final = _final_conv(model)
     with torch.no_grad():
         final.weight.copy_(torch.randn(final.weight.shape, generator=generator) * scale)
+        if final.bias is not None:
+            final.bias.zero_()
 
 
 class TestPhysicalRolloutAdvancesTheState:
@@ -273,11 +275,11 @@ class TestPhysicalRolloutAdvancesTheState:
             assert not torch.equal(prediction[:, lead], prediction[:, lead - 1])
 
     def test_zero_init_starts_at_persistence(self) -> None:
-        """The default init must place the whole trajectory exactly on persistence."""
+        """zero_init_output must place the whole trajectory exactly on persistence."""
         model = _build_model(
             rollout_space="physical",
             predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={"restrict_range": "none", "zero_init_output": True},
         )
         inputs = _inputs(model)
         model.eval()
@@ -389,13 +391,16 @@ class TestConfigValidation:
         with pytest.raises(ValueError, match="requires rollout_space='physical'"):
             _build_model(rollout_space="latent", predict_residual=True)
 
-    def test_residual_rejects_squashed_decoder(self) -> None:
-        with pytest.raises(ValueError, match="restrict_range"):
-            _build_model(
-                rollout_space="physical",
-                predict_residual=True,
-                decoder_extra={"restrict_range": "sigmoid"},
-            )
+    def test_residual_accepts_a_bounded_decoder(self) -> None:
+        """restrict_range is a free choice for residual models: with an additive
+        skip connection BaseDecoder bounds SIGNED values symmetrically, so the
+        tendency is never squashed into [0, 1] (review: PR #410, C1/C2)."""
+        model = _build_model(
+            rollout_space="physical",
+            predict_residual=True,
+            decoder_extra={"restrict_range": "clamp"},
+        )
+        assert model.predict_residual
 
     def test_residual_requires_an_additive_skip_connection(self) -> None:
         """Without a skip connection the anchor would be silently dropped.
@@ -543,3 +548,30 @@ class TestTrainEvalParity:
             out = model.training_step(dict(batch), 0)
             expected = model(dict(batch))
         torch.testing.assert_close(out.prediction, expected)
+
+
+class TestDecoderZeroInitOutput:
+    """`zero_init_output` lives on the decoder (review: PR #410, C3)."""
+
+    def test_zero_init_output_makes_residual_exactly_persistence(self) -> None:
+        model = _build_model(
+            rollout_space="physical",
+            predict_residual=True,
+            decoder_extra={"restrict_range": "none", "zero_init_output": True},
+        )
+        inputs = _inputs(model)
+        persistence = inputs[TARGET_GROUP][:, -1]
+        model.eval()
+        with torch.no_grad():
+            prediction = model(inputs)
+        for lead in range(model.n_forecast_steps):
+            assert torch.equal(prediction[:, lead], persistence)
+
+    def test_default_is_off(self) -> None:
+        model = _build_model(
+            rollout_space="physical",
+            predict_residual=True,
+            decoder_extra={"restrict_range": "none"},
+        )
+        final = _final_conv(model)
+        assert final.weight.abs().max() > 0
