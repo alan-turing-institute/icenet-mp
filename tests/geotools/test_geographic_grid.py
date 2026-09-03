@@ -1,75 +1,102 @@
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
+from earthkit.data.utils.bbox import BoundingBox
+from pyproj import Transformer
 
-from icenet_mp.geotools.grid_factory import (
-    ease2_grid_helper,
-    epsg_4326n_builder,
-    epsg_4326s_builder,
-    epsg_6931_builder,
-    epsg_6932_builder,
-)
+from icenet_mp.geotools.geographic_grid import GeographicGrid
+from icenet_mp.geotools.grid_factory import ease2_grid_helper
 
 
 class TestGeographicGrid:
-    """Unit tests for the GeographicGrid class and its coordinate accessors."""
+    """Unit tests for the GeographicGrid class."""
 
-    def test_ease2_grid_helper_normalises_resolution_and_centres_grid(self) -> None:
-        """Convert kilometre resolution to centred projected-coordinate arrays."""
-        resolution, h_points, w_points = ease2_grid_helper("25p0km", 4, 4)
-
-        assert resolution == "25p0km"
-        np.testing.assert_allclose(h_points, [-37500.0, -12500.0, 12500.0, 37500.0])
-        np.testing.assert_allclose(w_points, [37500.0, 12500.0, -12500.0, -37500.0])
-
-    def test_ease2_grid_helper_accepts_metres_and_rejects_bad_format(self) -> None:
-        """Normalise metre input and reject resolutions without an explicit unit."""
-        resolution, _, _ = ease2_grid_helper("25000m", 3, 3)
-        assert resolution == "25p0km"
-
-        with pytest.raises(ValueError, match="Invalid resolution format"):
-            ease2_grid_helper("25000", 3, 3)
-
-    def test_wgs84_north_builder_exposes_expected_coordinates(self) -> None:
-        """Build a northern regular lat/lon grid without coordinate transformation."""
-        grid = epsg_4326n_builder("1p0", (4, 4))
-
-        assert grid.shape() == (4, 4)
-        np.testing.assert_allclose(grid.x()[0], [-1.5, -0.5, 0.5, 1.5])
-        np.testing.assert_allclose(grid.y()[:, 0], [86.5, 87.5, 88.5, 89.5])
-        np.testing.assert_allclose(grid.longitudes(), grid.x())
-        np.testing.assert_allclose(grid.latitudes(), grid.y())
-        assert grid.mars_area() == (89.5, -1.5, 86.5, 1.5)
-
-    def test_wgs84_south_builder_exposes_expected_coordinates(self) -> None:
-        """Build a southern regular lat/lon grid with the requested shape."""
-        grid = epsg_4326s_builder("1p0", (4, 4))
-
-        np.testing.assert_allclose(grid.y()[:, 0], [-3.5, -2.5, -1.5, -0.5])
-        assert grid.mars_area() == (-0.5, -1.5, -3.5, 1.5)
-
-    def test_grid_coordinate_accessors_support_dtype_conversion(self) -> None:
+    def test_coordinate_accessors_support_dtype_conversion(self) -> None:
         """Allow callers to request coordinate arrays in a different dtype."""
-        grid = epsg_4326n_builder("1p0", (2, 2))
+        grid = GeographicGrid(
+            "EPSG:4326", "1.0", np.array([-0.5, 0.5]), np.array([-0.5, 0.5])
+        )
 
         assert grid.x(dtype=np.float32).dtype == np.float32
         assert grid.y(dtype=np.float32).dtype == np.float32
         assert grid.latitudes(dtype=np.float32).dtype == np.float32
         assert grid.longitudes(dtype=np.float32).dtype == np.float32
 
-    def test_polar_builders_set_expected_crs_and_orientation(self) -> None:
-        """Construct north/south EASE2 grids with matching projected coordinates."""
-        north = epsg_6931_builder("25p0km", (3, 5))
-        south = epsg_6932_builder("25p0km", (3, 5))
+    def test_latitudes_and_longitudes_pass_through_for_epsg_4326(self) -> None:
+        """A native EPSG:4326 grid returns its x/y arrays as lon/lat without transforming."""
+        lon_points = np.array([-1.5, -0.5, 0.5, 1.5])
+        lat_points = np.array([86.5, 87.5, 88.5, 89.5])
+        grid = GeographicGrid("EPSG:4326", "1.0", lon_points, lat_points)
 
-        assert north.native_crs == "EPSG:6931"
-        assert south.native_crs == "EPSG:6932"
-        assert north.shape() == south.shape() == (5, 3)
-        np.testing.assert_allclose(north.x(), south.x())
-        np.testing.assert_allclose(north.y(), south.y())
+        np.testing.assert_allclose(grid.longitudes(), grid.x())
+        np.testing.assert_allclose(grid.latitudes(), grid.y())
+
+    def test_latitudes_and_longitudes_transform_and_cache_for_projected_crs(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A projected grid transforms x/y to lat/lon once and caches the result."""
+        from_crs_spy = MagicMock(wraps=Transformer.from_crs)
+        monkeypatch.setattr(Transformer, "from_crs", from_crs_spy)
+
+        _, h_points, w_points = ease2_grid_helper("500p0km", 2, 2)
+        grid = GeographicGrid("EPSG:6931", "500p0km", h_points, w_points)
+
+        expected_lat, expected_lon = Transformer.from_crs(
+            "EPSG:6931", "EPSG:4326"
+        ).transform(grid.x(), grid.y())
+
+        np.testing.assert_allclose(grid.latitudes(), expected_lat)
+        np.testing.assert_allclose(grid.longitudes(), expected_lon)
+        grid.latitudes()
+        grid.longitudes()
+
+        # One call above to build `expected_*`, one for the grid under test.
+        assert from_crs_spy.call_count == 2
+
+    def test_mars_area(self) -> None:
+        """mars_area() reports the (north, west, south, east) bounds of the grid."""
+        grid = GeographicGrid(
+            "EPSG:4326",
+            "1.0",
+            np.array([-1.5, -0.5, 0.5, 1.5]),
+            np.array([86.5, 87.5, 88.5, 89.5]),
+        )
+
+        assert grid.mars_area() == (89.5, -1.5, 86.5, 1.5)
+
+    def test_mars_grid(self) -> None:
+        """mars_grid() reports the per-step lat/lon spacing implied by the grid extent."""
+        grid = GeographicGrid(
+            "EPSG:4326",
+            "1.0",
+            np.array([-1.5, -0.5, 0.5, 1.5]),
+            np.array([86.5, 87.5, 88.5, 89.5]),
+        )
+
+        lat_step, lon_step = grid.mars_grid()
+
+        assert lat_step == pytest.approx(3.0 / 4)
+        assert lon_step == pytest.approx(3.0 / 4)
+
+    def test_bounding_box_matches_mars_area(self) -> None:
+        """bounding_box() wraps mars_area() in an earthkit BoundingBox."""
+        grid = GeographicGrid(
+            "EPSG:4326",
+            "1.0",
+            np.array([-1.5, -0.5, 0.5, 1.5]),
+            np.array([86.5, 87.5, 88.5, 89.5]),
+        )
+
+        box = grid.bounding_box()
+
+        assert box == BoundingBox(north=89.5, west=-1.5, south=86.5, east=1.5)
 
     def test_unimplemented_earthkit_grid_methods_raise(self) -> None:
         """Keep unsupported EarthKit geography methods explicit rather than silent."""
-        grid = epsg_4326n_builder("1p0", (2, 2))
+        grid = GeographicGrid(
+            "EPSG:4326", "1.0", np.array([-0.5, 0.5]), np.array([-0.5, 0.5])
+        )
 
         for method in (
             grid._unique_grid_id,
