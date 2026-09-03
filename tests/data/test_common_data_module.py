@@ -57,7 +57,7 @@ class TestCommonDataModule:
         available_group = next(
             iter(cfg_common_data_module["data"]["datasets"].values())
         )["group_as"]
-        cfg_common_data_module["predict"]["target"]["group_name"] = "missing-target"
+        cfg_common_data_module["variables"]["output"] = {"missing-target": ["mock_var"]}
 
         with pytest.raises(ValueError, match="missing-target") as exc_info:
             CommonDataModule(cfg_common_data_module)
@@ -65,7 +65,7 @@ class TestCommonDataModule:
         message = str(exc_info.value)
         assert str(available_group) in message
         assert "group_as" in message
-        assert "predict.target.group_name" in message
+        assert "variables.output" in message
 
 
 class TestTargetMaskDir:
@@ -88,9 +88,11 @@ class TestTargetMaskDir:
                     },
                 },
                 "predict": {
-                    "target": {"group_name": "sic"},
                     "n_forecast_steps": 1,
                     "n_history_steps": 1,
+                },
+                "variables": {
+                    "output": {"sic": ["mock_var"]},
                 },
             }
         )

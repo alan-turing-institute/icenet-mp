@@ -24,8 +24,6 @@ class TestPredictConfigs:
 
         assert config.predict.n_forecast_steps > 0
         assert config.predict.n_history_steps > 0
-        assert config.predict.target.group_name
-        assert "ice_conc" in config.predict.target.variables
 
     @pytest.mark.parametrize("config_name", PREDICT_CONFIGS)
     def test_predict_lead_time_matches_filename(

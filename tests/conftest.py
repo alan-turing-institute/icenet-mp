@@ -109,9 +109,11 @@ def cfg_common_data_module() -> DictConfig:
                 },
             },
             "predict": {
-                "target": {"group_name": "group1"},
                 "n_forecast_steps": 1,
                 "n_history_steps": 1,
+            },
+            "variables": {
+                "output": {"group1": ["mock_var"]},
             },
         }
     )
