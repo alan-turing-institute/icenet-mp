@@ -9,6 +9,7 @@ import logging
 from dataclasses import replace
 from datetime import date
 from typing import Any
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -134,6 +135,33 @@ class TestPlotStaticPrediction:
         image = images[0]
         assert image.width > 0
         assert image.height > 0
+
+    def test_continues_without_title_when_suptitle_fails(
+        self,
+        sic_pair_2d: tuple[np.ndarray, np.ndarray, date],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """plot_static_prediction should still return an image if the title fails to draw."""
+        ground_truth, prediction, date = sic_pair_2d
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_static.set_suptitle_with_box",
+            MagicMock(side_effect=RuntimeError("boom")),
+        )
+
+        with caplog.at_level(logging.ERROR):
+            result = plot_static_prediction(
+                ground_truth,
+                prediction,
+                date=date,
+                land_mask=LandMask(None),
+                plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="dummy",
+            )
+
+        assert "Failed to draw suptitle" in caplog.text
+        images = next(iter(result.values()))
+        assert images[0].width > 0
 
     def test_with_invalid_land_mask_shape(
         self,
@@ -299,6 +327,32 @@ class TestPlotStaticInputs:
         assert len(results) == 1
         name, pil_images = next(iter(results.items()))
         assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-{var_name}"
+        assert isinstance(pil_images[0], ImageFile)
+
+    def test_continues_without_title_when_suptitle_fails(
+        self,
+        era5_temperature_2d: np.ndarray,
+        base_plot_spec: PlotSpec,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """plot_static_inputs should still return an image if the title fails to draw."""
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_static.set_suptitle_with_box",
+            MagicMock(side_effect=ValueError("boom")),
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            results = plot_static_inputs(
+                {"era5:2t": era5_temperature_2d},
+                land_mask=LandMask(None),
+                plot_spec=base_plot_spec,
+                when=TEST_DATE,
+            )
+
+        assert "Failed to draw static inputs title" in caplog.text
+        name, pil_images = next(iter(results.items()))
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
         assert isinstance(pil_images[0], ImageFile)
 
     def test_wrong_dimension(
