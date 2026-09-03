@@ -62,8 +62,8 @@ class DDIMProcessor(DDPMProcessor):
                 f"[1, timesteps={self.timesteps}]."
             )
             raise ValueError(msg)
-        if eta < 0.0:
-            msg = f"eta={eta} must be non-negative."
+        if not 0.0 <= eta <= 1.0:
+            msg = f"eta={eta} must be in the range [0.0, 1.0]."
             raise ValueError(msg)
 
         self.ddim_steps = ddim_steps
