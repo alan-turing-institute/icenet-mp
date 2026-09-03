@@ -32,11 +32,11 @@
 | icenet\_mp/data/single\_dataset.py                                   |      147 |        5 |     97% |191, 196, 220, 295-300 |
 | icenet\_mp/exceptions.py                                             |        3 |        0 |    100% |           |
 | icenet\_mp/geotools/\_\_init\_\_.py                                  |       10 |        0 |    100% |           |
-| icenet\_mp/geotools/geographic\_field.py                             |       37 |       16 |     57% |22, 31, 40, 47, 60-71 |
-| icenet\_mp/geotools/geographic\_grid.py                              |       76 |       19 |     75% |31, 40, 46, 48, 54, 60, 65-66, 70-72, 81-83, 90, 98, 102, 106, 110 |
-| icenet\_mp/geotools/geographic\_metadata.py                          |       88 |       31 |     65% |26, 31, 36, 41, 45, 49-56, 60, 64, 68, 72, 76, 89, 93-97, 101, 105, 109, 113, 117, 121, 128 |
-| icenet\_mp/geotools/grid\_factory.py                                 |       44 |       12 |     73% |17-18, 27-30, 35-38, 59-60 |
-| icenet\_mp/geotools/reproject.py                                     |       26 |        4 |     85% |36-37, 40-41 |
+| icenet\_mp/geotools/geographic\_field.py                             |       37 |        0 |    100% |           |
+| icenet\_mp/geotools/geographic\_grid.py                              |       76 |        0 |    100% |           |
+| icenet\_mp/geotools/geographic\_metadata.py                          |       88 |        0 |    100% |           |
+| icenet\_mp/geotools/grid\_factory.py                                 |       44 |        0 |    100% |           |
+| icenet\_mp/geotools/reproject.py                                     |       26 |        0 |    100% |           |
 | icenet\_mp/ingestion/\_\_init\_\_.py                                 |        2 |        0 |    100% |           |
 | icenet\_mp/ingestion/data\_downloader.py                             |      143 |       52 |     64% |66-67, 104-144, 148-165, 194, 199-202, 211-213, 222-223, 237-247 |
 | icenet\_mp/ingestion/downloaders.py                                  |       11 |        0 |    100% |           |
@@ -158,7 +158,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        5 |     94% |133-135, 304-305 |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |       23 |     80% |106-107, 109-112, 142-147, 183-185, 193-194, 198-218, 337, 363-364, 445-449 |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |       16 |     79% |29, 33-36, 43-44, 53, 58-60, 98, 107, 144, 165, 171 |
-| **TOTAL**                                                            | **6203** |  **913** | **85%** |           |
+| **TOTAL**                                                            | **6203** |  **831** | **87%** |           |
 
 
 ## Setup coverage badge
