@@ -45,6 +45,30 @@ class TestMagnitudeMismatch:
         )
         assert "Ground truth median is zero" in magnitude_warnings[0]
 
+    @pytest.mark.parametrize(
+        ("prediction_value", "expect_phrase"),
+        [(0.01, "too low"), (50.0, "too high")],
+        ids=["ratio-too-low", "ratio-too-high"],
+    )
+    def test_nonzero_ground_truth_ratio_thresholds(
+        self, prediction_value: float, expect_phrase: str
+    ) -> None:
+        """A prediction/ground-truth ratio outside [0.1, 10] warns, in either direction."""
+        ground_truth = np.full((2, 2), 0.5, dtype=np.float32)
+        prediction = np.full((2, 2), prediction_value, dtype=np.float32)
+
+        report = compute_range_check_report(
+            ground_truth,
+            prediction,
+            include_shared_range_mismatch_check=False,
+        )
+
+        magnitude_warnings = [w for w in report.warnings if w.startswith("MAGNITUDE:")]
+        assert len(magnitude_warnings) == 1, (
+            f"Expected exactly one magnitude warning, got: {report.warnings}"
+        )
+        assert expect_phrase in magnitude_warnings[0]
+
     def test_zero_ground_truth_and_zero_prediction_produces_no_warning(self) -> None:
         """Both ground truth and prediction all-zero should not trigger a magnitude warning."""
         ground_truth = np.zeros((4, 4), dtype=np.float32)
@@ -63,6 +87,21 @@ class TestMagnitudeMismatch:
 
 class TestDisplayClipping:
     """Tests for the shared-scale clipping checks in compute_range_check_report."""
+
+    def test_well_behaved_data_reports_no_warnings(self) -> None:
+        """Matching, in-range ground truth and prediction produce no warnings at all."""
+        ground_truth = np.linspace(0.0, 1.0, 16, dtype=np.float32).reshape(4, 4)
+        prediction = ground_truth.copy()
+
+        report = compute_range_check_report(
+            ground_truth,
+            prediction,
+            vmin=0.0,
+            vmax=1.0,
+            include_shared_range_mismatch_check=True,
+        )
+
+        assert report.warnings == []
 
     def test_all_nan_prediction_reports_no_finite_values(self) -> None:
         """An entirely non-finite prediction array should trigger the no-finite-values warning."""
@@ -110,6 +149,38 @@ class TestDisplayClipping:
             f"Expected exactly one below-vmin warning, got: {report.warnings}"
         )
         assert expect_prefix in below_warnings[0]
+
+    @pytest.mark.parametrize(
+        ("n_above", "expect_prefix"),
+        [(6, "!!!"), (2, "Clipping likely")],
+        ids=["severe-above-vmax", "warn-above-vmax"],
+    )
+    def test_above_vmax_thresholds(self, n_above: int, expect_prefix: str) -> None:
+        """Fraction of values above vmax should select the severe vs warn message variant.
+
+        20 elements total: 6/20 = 30% (>= severe_outside=0.20) triggers the severe
+        message; 2/20 = 10% (>= outside_warn=0.05, < severe_outside=0.20) triggers
+        the milder "Clipping likely" message.
+        """
+        ground_truth = np.full((4, 5), 0.5, dtype=np.float32)
+        prediction = np.full((4, 5), 0.5, dtype=np.float32)
+        prediction.ravel()[:n_above] = 1.5
+
+        report = compute_range_check_report(
+            ground_truth,
+            prediction,
+            vmin=0.0,
+            vmax=1.0,
+            outside_warn=0.05,
+            severe_outside=0.20,
+            include_shared_range_mismatch_check=True,
+        )
+
+        above_warnings = [w for w in report.warnings if "above colour limit" in w]
+        assert len(above_warnings) == 1, (
+            f"Expected exactly one above-vmax warning, got: {report.warnings}"
+        )
+        assert expect_prefix in above_warnings[0]
 
 
 class TestSharedRangeInvalid:
