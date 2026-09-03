@@ -60,6 +60,7 @@ class TestPlotVideoPrediction:
         sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
         fake_video_from_animation: Callable[..., io.BytesIO],
         video_format: Literal["gif", "mp4"],
+        no_land_mask: LandMask,
     ) -> None:
         """video_maps should produce a dict with a BytesIO video buffer (fast path)."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -72,7 +73,7 @@ class TestPlotVideoPrediction:
             ground_truth,
             prediction,
             dates=dates,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -89,6 +90,7 @@ class TestPlotVideoPrediction:
     def test_renders_real_animation(
         self,
         sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        no_land_mask: LandMask,
     ) -> None:
         """Exercise the real (unmocked) frame-drawing path used by animation.save()."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -98,7 +100,7 @@ class TestPlotVideoPrediction:
             ground_truth,
             prediction,
             dates=dates,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name="test-variable",
         )
@@ -113,6 +115,7 @@ class TestPlotVideoPrediction:
         sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
         fake_video_from_animation: Callable[..., io.BytesIO],
         diff_strategy: Literal["precompute", "two-pass", "per-frame"],
+        no_land_mask: LandMask,
     ) -> None:
         """video_maps should succeed under every difference-computation strategy."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -124,7 +127,7 @@ class TestPlotVideoPrediction:
             ground_truth,
             prediction,
             dates=dates,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name="test-variable",
         )
@@ -135,6 +138,7 @@ class TestPlotVideoPrediction:
     def test_rejects_mismatched_shapes(
         self,
         sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        no_land_mask: LandMask,
     ) -> None:
         """Reject prediction and ground truth streams with different shapes."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -144,7 +148,7 @@ class TestPlotVideoPrediction:
                 ground_truth,
                 prediction[:, :-1, :],
                 dates=dates,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=DEFAULT_SIC_SPEC,
                 variable_name="test-variable",
             )
@@ -152,6 +156,7 @@ class TestPlotVideoPrediction:
     def test_rejects_mismatched_dates(
         self,
         sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        no_land_mask: LandMask,
     ) -> None:
         """Reject a dates sequence whose length doesn't match the number of timesteps."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -163,7 +168,7 @@ class TestPlotVideoPrediction:
                 ground_truth,
                 prediction,
                 dates=dates[:-1],
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=DEFAULT_SIC_SPEC,
                 variable_name="test-variable",
             )
@@ -174,6 +179,7 @@ class TestPlotVideoPrediction:
         fake_video_from_animation: Callable[..., io.BytesIO],
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
     ) -> None:
         """Still produce a video if drawing the suptitle raises."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -187,7 +193,7 @@ class TestPlotVideoPrediction:
                 ground_truth,
                 prediction,
                 dates=dates,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=DEFAULT_SIC_SPEC,
                 variable_name="test-variable",
             )
@@ -202,6 +208,7 @@ class TestPlotVideoPrediction:
         fake_video_from_animation: Callable[..., io.BytesIO],
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
     ) -> None:
         """Still produce a video if drawing the footer raises."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -215,7 +222,7 @@ class TestPlotVideoPrediction:
                 ground_truth,
                 prediction,
                 dates=dates,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=DEFAULT_SIC_SPEC,
                 variable_name="test-variable",
             )
@@ -231,13 +238,14 @@ class TestPlotVideoSingleInput:
         era5_temperature_thw: np.ndarray,
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test basic video creation for a single variable."""
         video_buffer = plot_video_single_input(
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
         )
 
@@ -272,6 +280,7 @@ class TestPlotVideoSingleInput:
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
         video_format: Literal["gif", "mp4"],
+        no_land_mask: LandMask,
     ) -> None:
         """Test creating videos in different formats."""
         plot_spec = replace(base_plot_spec, video_format=video_format)
@@ -279,7 +288,7 @@ class TestPlotVideoSingleInput:
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=plot_spec,
         )
 
@@ -300,6 +309,7 @@ class TestPlotVideoSingleInput:
         era5_temperature_thw: np.ndarray,
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """A two_slope_centre style should route through the TwoSlopeNorm tick path."""
         plot_spec = replace(
@@ -313,7 +323,7 @@ class TestPlotVideoSingleInput:
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=plot_spec,
         )
 
@@ -328,6 +338,7 @@ class TestPlotVideoSingleInput:
         base_plot_spec: PlotSpec,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
     ) -> None:
         """Still produce a video if drawing the title raises."""
         monkeypatch.setattr(
@@ -340,7 +351,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 era5_temperature_thw,
                 dates=test_dates_short,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
             )
 
@@ -352,6 +363,7 @@ class TestPlotVideoSingleInput:
         self,
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test error when video data is not 3D."""
         rng = np.random.default_rng(42)
@@ -362,7 +374,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 wrong_dim_array,
                 dates=test_dates_short,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
             )
 
@@ -370,6 +382,7 @@ class TestPlotVideoSingleInput:
         self,
         era5_temperature_thw: np.ndarray,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test error when number of dates doesn't match timesteps."""
         wrong_dates = [TEST_DATE]  # Only 1 date for 2 timesteps
@@ -381,7 +394,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 era5_temperature_thw,
                 dates=wrong_dates,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
             )
 
@@ -392,6 +405,7 @@ class TestPlotVideoInputs:
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
         fake_video_from_animation: Callable[..., io.BytesIO],
+        no_land_mask: LandMask,
     ) -> None:
         """Test batch video creation for multiple variables."""
         rng = np.random.default_rng(100)
@@ -412,7 +426,7 @@ class TestPlotVideoInputs:
 
         results = plot_video_inputs(
             dates=test_dates_short,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             variables=variables,
         )
@@ -432,6 +446,7 @@ class TestPlotVideoInputs:
         base_plot_spec: PlotSpec,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
     ) -> None:
         """Skip a variable whose rendering fails, but still return the others."""
         rng = np.random.default_rng(100)
@@ -458,7 +473,7 @@ class TestPlotVideoInputs:
         with caplog.at_level(logging.ERROR):
             results = plot_video_inputs(
                 dates=test_dates_short,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
                 variables=variables,
             )

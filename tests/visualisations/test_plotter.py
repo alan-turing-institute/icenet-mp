@@ -1,7 +1,8 @@
 import logging
 from datetime import datetime
+from io import BytesIO
 from typing import ClassVar, cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import numpy as np
 import pytest
@@ -21,7 +22,7 @@ WIDTH = 4
 TEST_DATES = [datetime(2020, 1, 1), datetime(2020, 1, 2)]
 
 
-class FakeInputDataset:
+class FakeSingleDataset:
     """Minimal SingleDataset stand-in exposing the attributes Plotter reads."""
 
     name = "example"
@@ -36,9 +37,9 @@ class FakeInputDataset:
         return np.ones((len(dates), N_CHANNELS, HEIGHT, WIDTH), dtype=np.float32)
 
 
-def fake_input_dataset() -> SingleDataset:
+def fake_single_dataset() -> SingleDataset:
     """Return a duck-typed SingleDataset stand-in, cast to satisfy Plotter's typing."""
-    return cast("SingleDataset", FakeInputDataset())
+    return cast("SingleDataset", FakeSingleDataset())
 
 
 def make_model_step_output() -> ModelStepOutput:
@@ -55,6 +56,58 @@ def make_model_step_output() -> ModelStepOutput:
 def plotter() -> Plotter:
     """A Plotter with a default PlotSpec."""
     return Plotter(PlotSpec())
+
+
+class TestLoggingHelpers:
+    def test_log_path_handles_optional_prefix(self) -> None:
+        """Build the same namespaces for prefixed and unprefixed logging."""
+        assert Plotter._log_path(None, "output_static") == "output_static"
+        assert Plotter._log_path("test", "output_static") == "test/output_static"
+
+    def test_channel_name_uses_stable_fallback(self) -> None:
+        """Use configured names when available and indexed fallbacks otherwise."""
+        assert Plotter._channel_name(["sic"], 0) == "sic"
+        assert Plotter._channel_name(["sic"], 2) == "channel_2"
+
+    def test_log_images_fans_out_to_all_loggers(self) -> None:
+        """Send every image group to each configured logger."""
+        first = MagicMock()
+        second = MagicMock()
+        images = {"comparison": [object()], "error": [object()]}
+
+        Plotter._log_images(images, [first, second], "validation/output_static")
+
+        expected = [
+            call(
+                key="validation/output_static/comparison", images=images["comparison"]
+            ),
+            call(key="validation/output_static/error", images=images["error"]),
+        ]
+        assert first.log_image.call_args_list == expected
+        assert second.log_image.call_args_list == expected
+
+    def test_log_videos_rewinds_for_each_logger_and_preserves_format(self) -> None:
+        """Rewind shared buffers before every logger handoff."""
+        plotter = Plotter(PlotSpec(video_format="mp4"))
+        first = MagicMock()
+        second = MagicMock()
+        buffer = BytesIO(b"video")
+        buffer.seek(3)
+
+        plotter._log_videos(
+            {"forecast": buffer},
+            [first, second],
+            "test/output_video",
+        )
+
+        expected = call(
+            key="test/output_video/forecast",
+            videos=[buffer],
+            format=["mp4"],
+        )
+        first.log_video.assert_called_once_with(*expected.args, **expected.kwargs)
+        second.log_video.assert_called_once_with(*expected.args, **expected.kwargs)
+        assert buffer.tell() == 0
 
 
 class TestMetadataAndHemisphere:
@@ -106,7 +159,7 @@ class TestLogStaticInputs:
         image_logger = MagicMock()
 
         plotter.log_static_inputs(
-            [fake_input_dataset()], TEST_DATES, [image_logger], prefix="validation"
+            [fake_single_dataset()], TEST_DATES, [image_logger], prefix="validation"
         )
 
         fake_plot.assert_called_once()
@@ -131,7 +184,9 @@ class TestLogStaticInputs:
         )
 
         with caplog.at_level(logging.WARNING):
-            plotter.log_static_inputs([fake_input_dataset()], TEST_DATES, [MagicMock()])
+            plotter.log_static_inputs(
+                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+            )
 
         assert "Static plotting skipped" in caplog.text
 
@@ -148,7 +203,9 @@ class TestLogStaticInputs:
         )
 
         with caplog.at_level(logging.WARNING):
-            plotter.log_static_inputs([fake_input_dataset()], TEST_DATES, [MagicMock()])
+            plotter.log_static_inputs(
+                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+            )
 
         assert "Static plotting failed" in caplog.text
 
@@ -267,7 +324,7 @@ class TestLogVideoInputs:
         video_logger = MagicMock()
 
         plotter.log_video_inputs(
-            [fake_input_dataset()], TEST_DATES, [video_logger], prefix="validation"
+            [fake_single_dataset()], TEST_DATES, [video_logger], prefix="validation"
         )
 
         variables = fake_plot.call_args.args[0]
@@ -291,7 +348,7 @@ class TestLogVideoInputs:
         )
 
         with caplog.at_level(logging.WARNING):
-            plotter.log_video_inputs([fake_input_dataset()], TEST_DATES, [MagicMock()])
+            plotter.log_video_inputs([fake_single_dataset()], TEST_DATES, [MagicMock()])
 
         assert "Video plotting skipped" in caplog.text
 
@@ -308,7 +365,7 @@ class TestLogVideoInputs:
         )
 
         with caplog.at_level(logging.WARNING):
-            plotter.log_video_inputs([fake_input_dataset()], TEST_DATES, [MagicMock()])
+            plotter.log_video_inputs([fake_single_dataset()], TEST_DATES, [MagicMock()])
 
         assert "Video plotting skipped" in caplog.text
 
@@ -325,7 +382,7 @@ class TestLogVideoInputs:
         )
 
         with caplog.at_level(logging.ERROR):
-            plotter.log_video_inputs([fake_input_dataset()], TEST_DATES, [MagicMock()])
+            plotter.log_video_inputs([fake_single_dataset()], TEST_DATES, [MagicMock()])
 
         assert "Video plotting failed" in caplog.text
         assert caplog.records[-1].levelno == logging.ERROR

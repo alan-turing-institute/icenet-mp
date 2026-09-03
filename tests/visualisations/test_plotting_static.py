@@ -32,6 +32,7 @@ class TestPlotStaticPrediction:
     def test_returns_image(
         self,
         sic_pair_2d: tuple[np.ndarray, np.ndarray, date],
+        no_land_mask: LandMask,
     ) -> None:
         """plot_static_prediction should produce a dict with a PIL image of nonzero size."""
         ground_truth, prediction, date = sic_pair_2d
@@ -42,7 +43,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -58,6 +59,7 @@ class TestPlotStaticPrediction:
     def test_emits_warning_badge(
         self,
         sic_pair_warning_2d: tuple[np.ndarray, np.ndarray, date],
+        no_land_mask: LandMask,
     ) -> None:
         """plot_static_prediction should add a red warning text when range_check report warns.
 
@@ -94,7 +96,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -139,6 +141,7 @@ class TestPlotStaticPrediction:
     def test_continues_without_title_when_suptitle_fails(
         self,
         sic_pair_2d: tuple[np.ndarray, np.ndarray, date],
+        no_land_mask: LandMask,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -154,7 +157,7 @@ class TestPlotStaticPrediction:
                 ground_truth,
                 prediction,
                 date=date,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=DEFAULT_SIC_SPEC,
                 variable_name="dummy",
             )
@@ -197,11 +200,12 @@ class TestPlotStaticInputs:
         self,
         era5_temperature_2d: np.ndarray,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test basic single channel plotting."""
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -235,12 +239,13 @@ class TestPlotStaticInputs:
         era5_temperature_2d: np.ndarray,
         base_plot_spec: PlotSpec,
         variable_styles: dict[str, dict[str, Any]],
+        no_land_mask: LandMask,
     ) -> None:
         """Test plotting with custom variable styling."""
         plot_spec = replace(base_plot_spec, per_variable_styles=variable_styles)
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -254,11 +259,12 @@ class TestPlotStaticInputs:
         self,
         multi_channel_hw: dict[str, np.ndarray],
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test plotting multiple channels at once."""
         results = plot_static_inputs(
             multi_channel_hw,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -274,6 +280,7 @@ class TestPlotStaticInputs:
         self,
         era5_humidity_2d: np.ndarray,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test plotting with scientific notation enabled."""
         styles_with_scientific: dict[str, dict[str, str | float | bool]] = {
@@ -288,7 +295,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {"era5:q_10": era5_humidity_2d},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -312,6 +319,7 @@ class TestPlotStaticInputs:
         var_name: str,
         fixture_name: str,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
         request: pytest.FixtureRequest,
     ) -> None:
         """Test plotting different types of variables with appropriate styling."""
@@ -319,7 +327,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {var_name: data},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -333,6 +341,7 @@ class TestPlotStaticInputs:
         self,
         era5_temperature_2d: np.ndarray,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -345,7 +354,7 @@ class TestPlotStaticInputs:
         with caplog.at_level(logging.DEBUG):
             results = plot_static_inputs(
                 {"era5:2t": era5_temperature_2d},
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
                 when=TEST_DATE,
             )
@@ -358,6 +367,7 @@ class TestPlotStaticInputs:
     def test_wrong_dimension(
         self,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test error when input array is not 2D."""
@@ -367,7 +377,7 @@ class TestPlotStaticInputs:
         with caplog.at_level(logging.WARNING):
             plot_static_inputs(
                 {"era5:2t": wrong_dim_array},
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
                 when=TEST_DATE,
             )

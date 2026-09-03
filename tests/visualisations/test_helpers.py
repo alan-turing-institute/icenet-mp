@@ -299,7 +299,9 @@ class TestDrawMainPanels:
 
 
 class TestDrawFrame:
-    def test_requires_diff_colour_scale_when_including_difference(self) -> None:
+    def test_requires_diff_colour_scale_when_including_difference(
+        self, no_land_mask: LandMask
+    ) -> None:
         """Reject a missing colour scale when a difference panel is requested."""
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True)
         fig, axs = plt.subplots(1, 3)
@@ -307,10 +309,12 @@ class TestDrawFrame:
         prediction = np.full((4, 4), 0.5, dtype=np.float32)
 
         with pytest.raises(InvalidArrayError, match="diff_colour_scale"):
-            _draw_frame(list(axs), ground_truth, prediction, spec, LandMask(None))
+            _draw_frame(list(axs), ground_truth, prediction, spec, no_land_mask)
         plt.close(fig)
 
-    def test_signed_difference_uses_two_slope_norm(self) -> None:
+    def test_signed_difference_uses_two_slope_norm(
+        self, no_land_mask: LandMask
+    ) -> None:
         """Draw the difference panel using the provided TwoSlopeNorm for signed diffs."""
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True, diff_mode="signed")
         fig, axs = plt.subplots(1, 3)
@@ -324,14 +328,14 @@ class TestDrawFrame:
             ground_truth,
             prediction,
             spec,
-            LandMask(None),
+            no_land_mask,
             diff_colour_scale=colour_scale,
         )
 
         assert image_difference is not None
         plt.close(fig)
 
-    def test_absolute_difference_uses_vmin_vmax(self) -> None:
+    def test_absolute_difference_uses_vmin_vmax(self, no_land_mask: LandMask) -> None:
         """Draw the difference panel using explicit vmin/vmax for absolute diffs."""
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True, diff_mode="absolute")
         fig, axs = plt.subplots(1, 3)
@@ -345,7 +349,7 @@ class TestDrawFrame:
             ground_truth,
             prediction,
             spec,
-            LandMask(None),
+            no_land_mask,
             diff_colour_scale=colour_scale,
         )
 

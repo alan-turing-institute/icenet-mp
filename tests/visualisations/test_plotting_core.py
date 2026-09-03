@@ -1,12 +1,9 @@
 """Tests for icenet_mp/visualisations/plotting_core.py.
 
 Covers the pure helper functions used to compute colourmaps, normalisations
-and differences for sea-ice plots. Functions already well covered by
-tests/visualisations/test_colourscale.py, test_uncertainty.py and
-test_plotting_static.py (exact/wildcard variable style matching,
-compute_standardised_difference, shared/separate display ranges via the
-sic_pair_2d fixture, signed-mode difference colourmaps) are only lightly
-touched here, if at all -- this file targets the remaining gaps.
+and differences for sea-ice plots. compute_standardised_difference is tested
+in tests/visualisations/test_uncertainty.py alongside its sibling
+plot_static_uncertainty, not here.
 """
 
 from dataclasses import replace
@@ -17,13 +14,11 @@ import numpy as np
 import pytest
 from matplotlib.colors import Colormap, Normalize, TwoSlopeNorm, to_rgba
 
-from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import PlotSpec
 from icenet_mp.visualisations.plotting_core import (
     colourmap_with_bad,
     compute_difference,
     compute_display_ranges,
-    compute_standardised_difference,
     create_normalisation,
     make_diff_colourmap,
     prepare_difference_stream,
@@ -292,24 +287,6 @@ class TestCreateNormalisation:
         assert isinstance(norm, TwoSlopeNorm)
         assert vmin == pytest.approx(-1.0)
         assert vmax == pytest.approx(1.0)
-
-
-class TestComputeStandardisedDifferenceValidation:
-    """Cover the one compute_standardised_difference branch test_uncertainty.py misses.
-
-    test_uncertainty.py already exercises compute_standardised_difference's happy
-    path, NaN-masking and shape-mismatch rejection; it does not reach the ndim
-    check, which this class covers.
-    """
-
-    def test_rejects_non_2d_arrays(self) -> None:
-        """Reject 1D (or any non-2D) ground truth/prediction/uncertainty arrays."""
-        with pytest.raises(InvalidArrayError, match="Expected 2D"):
-            compute_standardised_difference(
-                np.zeros(4, dtype=np.float32),
-                np.zeros(4, dtype=np.float32),
-                np.zeros(4, dtype=np.float32),
-            )
 
 
 class TestComputeDifference:
