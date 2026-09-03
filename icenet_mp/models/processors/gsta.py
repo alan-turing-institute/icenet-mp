@@ -96,10 +96,10 @@ class GSTAProcessor(BaseProcessor):
     def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ProcessorOutput:  # noqa: ARG002
         """Rollout the processor over a window of history/forecast timesteps."""
         # Get the initial shape of the input tensor
-        n, t, c, h, w = x.shape
+        n, _, c, h, w = x.shape
 
         # Fold history timesteps into the channel dimension
-        x_nchw = x.reshape(n, t * c, h, w)
+        x_nchw = x.flatten(start_dim=1, end_dim=2)
 
         # Apply the translator to get the forecast timesteps
         prediction_nchw: TensorNCHW = self.translator(x_nchw)

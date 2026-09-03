@@ -8,8 +8,6 @@ encoders:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   float-argo:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
-  sic-icenet:
-    _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   sic-osisaf:
     _target_: icenet_mp.models.encoders.NaiveLinearEncoder
   sic-ssmis:
@@ -23,3 +21,5 @@ decoder:
   _target_: icenet_mp.models.decoders.NaiveLinearDecoder
   mask_type: active
   restrict_range: sigmoid
+  skip_connection:
+    method: none

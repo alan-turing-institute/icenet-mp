@@ -93,7 +93,7 @@ encoders:
   latent_space: [144, 144]
   era5:
     _target_: icenet_mp.models.encoders.CNNEncoder
-  sic-icenet:
+  sic-osisaf:
     _target_: icenet_mp.models.encoders.CNNEncoder
 
 processor:

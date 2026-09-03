@@ -41,11 +41,15 @@ class DecoderStage(BaseModel):
 
         # Copy encoders from EncoderStages, freeze their parameters and register them.
         self.encoder_names = [encoder.dataset_name for encoder in encoders]
-        self.encoders = [copy.deepcopy(encoder.encoder) for encoder in encoders]
+        self.encoders = [
+            copy.deepcopy(encoder.encoder).freeze() for encoder in encoders
+        ]
         for encoder in self.encoders:
-            for param in encoder.parameters():
-                param.requires_grad = False
             self.add_module(encoder.name, encoder)
+
+        # Verify the output channels for each encoder
+        for encoder in self.encoders:
+            encoder.verify_output_channels(self.device)
 
         # Build combined latent DataSpace by summing channels across all encoders
         total_channels = sum(
@@ -93,6 +97,7 @@ class DecoderStage(BaseModel):
             mask_dir=mask_dir,
             hemisphere=encoders[0].hemisphere,
             input_spaces=[s.to_dict() for s in encoders[0].input_spaces],
+            lr_scheduler=copy.deepcopy(encoders[0].lr_scheduler_cfg),
             n_forecast_steps=encoders[0].n_forecast_steps,
             n_history_steps=encoders[0].n_history_steps,
             name=f"{target_dataset_name}_decoder".replace("-", "_"),

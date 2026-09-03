@@ -5,7 +5,11 @@
 [![Code style](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/code_style.yaml/badge.svg)](https://github.com/alan-turing-institute/icenet-mp/actions/workflows/code_style.yaml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
-IceNet-MP fuses satellite observations, Argo float sensor data, and ERA5 reanalysis fields to produce short-term sea ice concentration forecasts. It uses an encode-process-decode architecture that projects each input dataset into a shared latent space, allowing new data sources to be added without changing the core model.
+IceNet-MP is an **AI/ML framework for multimodal sea-ice forecasting**.
+
+![Example IceNet-MP sea ice concentration forecast compared with observations](docs/src/assets/prediction-fullsouth-ddpm-v2026.07.png)
+
+IceNet-MP fuses satellite observations, Argo float sensor data, and ERA5 reanalysis fields to produce short-term sea ice concentration forecasts. The encode-process-decode architecture translates each input dataset into a shared latent space, allowing new data sources and ML model components to be added without changing the full pipeline.
 
 ## Quick start
 

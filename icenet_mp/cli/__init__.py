@@ -1,5 +1,5 @@
-from .main import main
+from .main import run
 
 __all__ = [
-    "main",
+    "run",
 ]

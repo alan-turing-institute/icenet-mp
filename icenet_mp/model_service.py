@@ -18,7 +18,7 @@ from icenet_mp.compatibility.torch import (
     patch_interpolate_antialias,
     patch_open_file_limit,
 )
-from icenet_mp.data_loaders import CommonDataModule
+from icenet_mp.data import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
 from icenet_mp.types import SupportsMetadata
@@ -77,6 +77,7 @@ class ModelService:
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
             loss=config["loss"],
+            lr_scheduler=config["train"]["lr_scheduler"],
             mask_dir=str(builder.data_module.mask_directory),
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
@@ -165,6 +166,7 @@ class ModelService:
         model: BaseModel | None = None,
         config: DictConfig,
         job_stage: str | None = None,
+        ckpt_path: Path | None = None,
     ) -> Trainer:
         """Build a trainer and run trainer.fit() for the given config and stage.
 
@@ -172,6 +174,7 @@ class ModelService:
             model: Model to train. Defaults to ``self.model`` if not provided.
             config: Job-specific config section (e.g. ``self.config["train"]``).
             job_stage: Label passed to ``PlottingCallback.prefix`` and used in log messages.
+            ckpt_path: Optional checkpoint to load training state from.
 
         Returns:
             The trainer after fitting, so callers can save checkpoints or inspect
@@ -182,6 +185,7 @@ class ModelService:
         current_model = model or self.model
         current_model.optimizer_cfg = config["optimizer"]
         current_model.scheduler_cfg = config["scheduler"]
+        current_model.lr_scheduler_cfg = config["lr_scheduler"]
         if "loss" in config:
             current_model.loss_cfg = config["loss"]
         trainer = self.build_trainer(
@@ -195,7 +199,9 @@ class ModelService:
             trainer.num_devices,
             get_device_name(trainer.accelerator.name()),
         )
-        trainer.fit(model=current_model, datamodule=self.data_module)
+        trainer.fit(
+            model=current_model, datamodule=self.data_module, ckpt_path=ckpt_path
+        )
 
         # Explicitly release cached device memory rather than delegating this to the
         # Python garbage collector. Multistage training runs many stages in one
@@ -315,6 +321,7 @@ class ModelService:
                         logger_config,
                         job_type="multistage" if job_stage else "single-stage",
                         project=project,
+                        _convert_="all",
                     )
                 )
             else:
@@ -376,6 +383,9 @@ class ModelService:
                 wandb_run.save(
                     model_config_path, base_path=model_config_path.parent, policy="now"
                 )
+                # Ensure that losses are summarised by their minimum value
+                for loss_metric in ("train_loss", "validation_loss", "test_loss"):
+                    wandb_run.define_metric(loss_metric, summary="min")
 
         # Additional configuration for callbacks
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
@@ -427,14 +437,36 @@ class ModelService:
 
     def train(
         self, *, checkpoint_dir: Path | None = None, multistage: bool = False
-    ) -> None:
-        """Train a model."""
-        if multistage:
-            self.train_multistage(checkpoint_dir=checkpoint_dir)
-        else:
-            self._fit(config=self.config["train"])
+    ) -> Trainer:
+        """Train a model.
 
-    def train_multistage(self, *, checkpoint_dir: Path | None = None) -> None:
+        Args:
+            checkpoint_dir: For multistage training, a directory of existing per-stage
+                checkpoints to skip completed stages. For single-stage training, if the
+                directory contains a ``last*.ckpt`` file, training will resume from it.
+            multistage: Whether to train an ``EncodeProcessDecode`` model in stages.
+
+        """
+        if multistage:
+            return self.train_multistage(checkpoint_dir=checkpoint_dir)
+        if self.model.multistage_only:
+            msg = (
+                "This model cannot be trained in standard mode. The most likely "
+                "cause is that the decoder must be pretrained before processor "
+                "training. Use `imp train --multistage` instead."
+            )
+            raise ValueError(msg)
+        ckpt_path = None
+        if checkpoint_dir is not None:
+            matches = sorted(checkpoint_dir.glob("last*.ckpt"))
+            if not matches:
+                msg = f"No resumable checkpoint (last*.ckpt) found in {checkpoint_dir}."
+                raise FileNotFoundError(msg)
+            ckpt_path = matches[-1]
+            log.info("Resuming single-stage training from %s.", ckpt_path)
+        return self._fit(config=self.config["train"], ckpt_path=ckpt_path)
+
+    def train_multistage(self, *, checkpoint_dir: Path | None = None) -> Trainer:
         """Train an EncodeProcessDecode model in multiple stages.
 
         1. encoders
@@ -481,7 +513,7 @@ class ModelService:
         )
 
         log.info("Preparing to finetune...")
-        self.train_stage_finetune(
+        return self.train_stage_finetune(
             processor_model=processor_model,
             config=self._merged_config("finetune"),
         )
@@ -612,7 +644,7 @@ class ModelService:
 
     def train_stage_finetune(
         self, *, config: DictConfig, processor_model: ProcessorStage
-    ) -> None:
+    ) -> Trainer:
         """Load pretrained weights from all stages into the full model and finetune end-to-end."""
         model = cast("EncodeProcessDecode", self.model)
         pretrained_encoders = {e.name: e for e in processor_model.encoders}
@@ -625,6 +657,7 @@ class ModelService:
         log.info("Loaded pretrained weights for decoder.")
         trainer = self._fit(config=config, job_stage="finetune")
         self._save_stage_checkpoint(trainer, "finetune")
+        return trainer
 
     def train_stage_processor(
         self,

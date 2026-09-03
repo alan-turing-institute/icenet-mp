@@ -17,15 +17,11 @@ from lightning.pytorch.loggers.logger import Logger
 
 logger = logging.getLogger(__name__)
 
-_UNSAFE_KEY_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
-
-
-def _sanitise(key: str) -> str:
-    return _UNSAFE_KEY_CHARS.sub("__", key)
-
 
 class LocalFileLogger(Logger):
     """Write metrics, images, and videos to plain files under `save_dir`."""
+
+    UNSAFE_KEY_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
     def __init__(
         self, save_dir: str, name: str = "local_files", **_kwargs: Any
@@ -86,7 +82,7 @@ class LocalFileLogger(Logger):
         `key` (date + variable) on every validation epoch, since the underlying dates
         don't change, so keying on `key` alone would silently keep only the last epoch.
         """
-        call_index = step if step is not None else self._image_call_count
+        call_idx = step if step is not None else self._image_call_count
         self._image_call_count += 1
         image_dir = self._save_dir / "images"
         image_dir.mkdir(parents=True, exist_ok=True)
@@ -94,7 +90,7 @@ class LocalFileLogger(Logger):
             if not hasattr(image, "save"):
                 logger.warning("Cannot save non-image object for key '%s'.", key)
                 continue
-            image.save(image_dir / f"{call_index:05d}__{_sanitise(key)}_{idx}.png")
+            image.save(image_dir / f"{call_idx:05d}__{self.sanitise(key)}_{idx}.png")
 
     def log_video(
         self,
@@ -108,7 +104,7 @@ class LocalFileLogger(Logger):
         See `log_image` for why calls are uniquely numbered rather than keyed on `key`
         alone.
         """
-        call_index = step if step is not None else self._video_call_count
+        call_idx = step if step is not None else self._video_call_count
         self._video_call_count += 1
         video_dir = self._save_dir / "videos"
         video_dir.mkdir(parents=True, exist_ok=True)
@@ -116,5 +112,8 @@ class LocalFileLogger(Logger):
         for idx, (video, video_format) in enumerate(zip(videos, formats, strict=True)):
             video.seek(0)
             (
-                video_dir / f"{call_index:05d}__{_sanitise(key)}_{idx}.{video_format}"
+                video_dir / f"{call_idx:05d}__{self.sanitise(key)}_{idx}.{video_format}"
             ).write_bytes(video.read())
+
+    def sanitise(self, key: str) -> str:
+        return self.UNSAFE_KEY_CHARS.sub("__", key)

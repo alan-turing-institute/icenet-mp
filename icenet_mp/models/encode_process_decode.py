@@ -3,8 +3,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import hydra
 import torch
 from omegaconf import DictConfig
+from typing_extensions import override
 
-from icenet_mp.types import DataSpace, TensorNCHW, TensorNTCHW
+from icenet_mp.types import DataSpace, ModelStepOutput, TensorNCHW, TensorNTCHW
 
 from .base_model import BaseModel
 
@@ -171,6 +172,10 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
+        # Verify the output channels for each encoder
+        for encoder in (*self.encoders, self.target_encoder):
+            encoder.verify_output_channels(self.device)
+
         # Add a processor
         combined_latent_space = DataSpace(
             name="combined_latent_space",
@@ -180,8 +185,10 @@ class EncodeProcessDecode(BaseModel):
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
             data_space=combined_latent_space,
+            data_space_target=self.target_encoder.data_space_out,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_channel_offset=self.find_target_channel_offset(),
         )
 
         # Add a decoder
@@ -191,6 +198,20 @@ class EncodeProcessDecode(BaseModel):
             data_space_out=self.output_space,
             mask_dir=mask_dir,
         )
+
+        # The physical rollout drives the decoder itself and computes the loss on the
+        # decoded field, so it cannot host a processor that owns the training signal
+        # in latent space (whose decoder is frozen below).
+        if rollout_space == "physical" and self.processor.computes_loss_in_latent_space:
+            msg = (
+                f"rollout_space='physical' is incompatible with processor "
+                f"{type(self.processor).__name__}, which computes its loss in latent "
+                f"space (the decoder is frozen and never trained on that path)."
+            )
+            raise ValueError(msg)
+
+        # Freeze unused modules
+        self._freeze_unused_modules()
 
         # Start the trajectory at exactly the persistence: a zeroed tendency head means the first
         # forward pass reproduces the last observation exactly at every lead.
@@ -263,8 +284,37 @@ class EncodeProcessDecode(BaseModel):
             if final.bias is not None:
                 final.bias.zero_()
 
+    @property
+    def multistage_only(self) -> bool:
+        return self.processor.computes_loss_in_latent_space
+
+    def _freeze_unused_modules(self) -> None:
+        """Freeze unused modules."""
+        # Processors that compute loss in latent space do not touch the decoder.
+        # However, processors that do not do this, do not touch the target_encoder.
+        # We therefore explicitly freeze the unused modules.
+        if self.processor.computes_loss_in_latent_space:
+            self.decoder.freeze()
+        else:
+            self.target_encoder.freeze()
+
+    def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+        """Encode all input datasets and concatenate along the channel dimension.
+
+        Args:
+            inputs: Dictionary with one TensorNTCHW entry per input dataset with shape (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
+
+        Returns:
+            TensorNTCHW with shape (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+
+        """
+        latent_inputs: list[TensorNTCHW] = [
+            encoder.rollout(inputs[encoder.name]) for encoder in self.encoders
+        ]
+        return torch.cat(latent_inputs, dim=2)
+
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Forward step of the model.
+        """Forward step of the model (used for inference).
 
         - start with multiple [NTCHW] inputs each with shape [batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k]
         - encode inputs to [NTCHW] latent space [batch, n_history_steps, n_latent_channels, H_latent, W_latent]
@@ -276,31 +326,21 @@ class EncodeProcessDecode(BaseModel):
         When `rollout_space="physical"` the loop is closed in observation space instead;
         see `_forward_physical`.
         """
-        if self.rollout_space == "physical":
+        # getattr because multistage's ProcessorStage reuses this method without
+        # running EncodeProcessDecode.__init__ (same reason as in training_step).
+        if getattr(self, "rollout_space", "latent") == "physical":
             return self._forward_physical(inputs)
 
-        # Encode inputs into latent space: list of tensors with (batch_size, n_history_steps, n_latent_channels, latent_height, latent_width)
-        latent_inputs: list[TensorNTCHW] = [
-            encoder.rollout(inputs[encoder.name]) for encoder in self.encoders
-        ]
+        # Encode inputs into latent space: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+        latent_input_combined: TensorNTCHW = self.encode_inputs(inputs)
 
-        # Combine in the variable dimension: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        latent_input_combined: TensorNTCHW = torch.cat(latent_inputs, dim=2)
-
-        # Process in latent space:
-        # combined input tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
+        # Process in latent space: tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
         latent_output: TensorNTCHW = self.processor.rollout(
             latent_input_combined
         ).prediction
 
-        # Add persistence skip connection if requested
-        persistence: TensorNTCHW | None = (
-            inputs[self.output_space.name][
-                :, -1, self.target_variable_indices, :, :
-            ].unsqueeze(1)
-            if self.decoder.skip_connection
-            else None
-        )
+        # Get persistence if required for skip connection
+        persistence = self.get_persistence(inputs)
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         return self.decoder.rollout(latent_output, persistence)
@@ -401,3 +441,117 @@ class EncodeProcessDecode(BaseModel):
             idx = int(self.feedback_channel)
             newest[:, idx : idx + field.shape[1]] = field
         return torch.cat([target_window[:, 1:], newest.unsqueeze(1)], dim=1)
+
+    def find_target_channel_offset(self) -> int | None:
+        """Find the channel offset of the target dataset within the combined latent space, if present."""
+        offset = 0
+        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
+            if input_space.name == self.output_space.name:
+                return offset
+            offset += encoder.data_space_out.channels
+        return None
+
+    def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
+        """Extract persistence if needed for a skip connection."""
+        if self.decoder.skip_connection:
+            return inputs[self.output_space.name][
+                :, -1, self.target_variable_indices, :, :
+            ].unsqueeze(1)
+        return None
+
+    @override
+    def train(self, mode: bool = True) -> "EncodeProcessDecode":
+        """Set training mode, with decoder frozen if computing loss in latent space."""
+        super().train(mode)
+        if mode:
+            self._freeze_unused_modules()
+        return self
+
+    def training_step(
+        self,
+        batch: dict[str, TensorNTCHW],
+        _batch_idx: int,
+    ) -> ModelStepOutput:
+        """Run the training step.
+
+        If the processor returns a loss in its `ProcessorOutput` (rather than `None`),
+        this is used for backpropagation. We use `no_grad` to compute the decoded
+        prediction, which allows us to calculate metrics and log outputs, but the
+        usefulness of these will depend on what `ProcessorOutput.prediction` contains.
+
+        Otherwise, the standard encode-process-decode path is used and the loss is
+        computed by comparing the decoded prediction to the target.
+
+        Args:
+            batch: Dictionary with one NTCHW entry per input dataset (n_history_steps)
+                   and a "target" entry (n_forecast_steps).
+
+        Returns:
+            A ModelStepOutput containing the prediction, target and loss.
+
+        """
+        batch = self.process_batch(batch)
+        target = batch["target"].clone().detach()
+
+        # The physical rollout lives in forward(). Without this branch the model would
+        # TRAIN on the latent path below while validation_step/test_step (BaseModel,
+        # which call ``self(batch)``) score the PHYSICAL path - two different
+        # architectures, silently. Pinned by TestTrainEvalParity. getattr because
+        # multistage's ProcessorStage reuses this method without EPD's __init__.
+        if getattr(self, "rollout_space", "latent") == "physical":
+            prediction = self(batch)
+            loss = self.loss(prediction, target)
+            self.log(
+                "train_loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                sync_dist=True,
+            )
+            self.train_metrics.update(prediction, target)
+            return ModelStepOutput(prediction, target, loss)
+
+        combined_latent = self.encode_inputs(batch)
+
+        expected_chw = self.target_encoder.data_space_in.chw
+        if tuple(target.shape[2:]) != expected_chw:
+            msg = (
+                f"Target CHW {tuple(target.shape[2:])} does not match "
+                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
+            )
+            raise ValueError(msg)
+
+        target_latent = None
+        if self.processor.computes_loss_in_latent_space:
+            target_latent = self.target_encoder.rollout(target)
+        processor_output = self.processor.rollout(combined_latent, target_latent)
+
+        # Get persistence if required for skip connection
+        persistence = self.get_persistence(batch)
+
+        if processor_output.loss is None:
+            # Standard path: compare decoded output to target.
+            prediction = self.decoder.rollout(processor_output.prediction, persistence)
+            loss = self.loss(prediction, target)
+        else:
+            # Custom loss path: processor owns the training signal.
+            # Decode under no_grad for metrics/callbacks only.
+            loss = processor_output.loss
+            with torch.no_grad():
+                prediction = self.decoder.rollout(
+                    processor_output.prediction, persistence
+                )
+
+        # Log metrics; computation will be done at epoch end
+        self.log(
+            "train_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            sync_dist=True,
+        )
+        self.train_metrics.update(prediction, target)
+
+        return ModelStepOutput(prediction, target, loss)

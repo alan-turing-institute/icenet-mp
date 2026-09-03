@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from icenet_mp.data_loaders import CombinedDataset, SingleDataset
+from icenet_mp.data import CombinedDataset, SingleDataset
 from icenet_mp.models import BaseModel
 from icenet_mp.types import ArrayTHW
 from icenet_mp.utils import datetime_from_npdatetime

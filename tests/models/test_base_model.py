@@ -40,6 +40,7 @@ class TestBaseModel:
                 output_space={"channels": 1, "name": "target", "shape": (2, 2)},
                 optimizer=DictConfig({}),
                 scheduler=DictConfig({}),
+                lr_scheduler=DictConfig({}),
             )
 
     def test_init_invalid_history_steps(self) -> None:
@@ -54,6 +55,7 @@ class TestBaseModel:
                 output_space={"channels": 1, "name": "target", "shape": (2, 2)},
                 optimizer=DictConfig({}),
                 scheduler=DictConfig({}),
+                lr_scheduler=DictConfig({}),
             )
 
     @pytest.mark.parametrize("test_input_chw", [(4, 512, 512), (1, 10, 20)])
@@ -89,6 +91,7 @@ class TestBaseModel:
             output_space=output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
         )
         assert model.name == "fake data"
         assert model.input_spaces[0].channels == test_input_chw[0]
@@ -111,6 +114,7 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
         )
         # Test loss
         prediction = torch.zeros(1, 1, 1, 1)
@@ -131,6 +135,7 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
         )
         opt_sched_cfg = model.configure_optimizers()
         assert isinstance(opt_sched_cfg, dict)
@@ -145,6 +150,7 @@ class TestBaseModel:
         cfg_optimizer: DictConfig,
         cfg_output_space: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
     ) -> None:
         model = FakeDataModel(
             name="dummy",
@@ -154,6 +160,7 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
         )
         opt_sched_cfg = model.configure_optimizers()
         assert isinstance(opt_sched_cfg, dict)
@@ -164,6 +171,8 @@ class TestBaseModel:
         assert isinstance(scheduler, torch.optim.lr_scheduler.LinearLR)
         assert scheduler.start_factor == 0.2
         assert scheduler.end_factor == 0.8
+        assert lr_scheduler_cfg.get("frequency") == 1
+        assert lr_scheduler_cfg.get("interval") == "epoch"
 
     def test_test_step(
         self,
@@ -197,6 +206,7 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
+            lr_scheduler=DictConfig({}),
         )
         output_shape = batch["target"].shape
         output = model.test_step(batch, 0)
@@ -237,6 +247,7 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
+            lr_scheduler=DictConfig({}),
         )
         output = model.training_step(batch, 0)
         assert isinstance(output, ModelStepOutput)
@@ -274,6 +285,7 @@ class TestBaseModel:
             output_space=cfg_output_space,
             optimizer=cfg_optimizer,
             scheduler=cfg_scheduler,
+            lr_scheduler=DictConfig({}),
         )
         output = model.validation_step(batch, 0)
         assert isinstance(output, ModelStepOutput)

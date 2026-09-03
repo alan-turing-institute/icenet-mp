@@ -149,7 +149,7 @@ class PlotSpec:
     per_variable_styles: dict[str, dict[str, str | float | bool]] = field(
         default_factory=lambda: {
             # Sea ice concentration
-            "sic-icenet:ice_conc": {"cmap": "Blues_r"},
+            "sic-osisaf:ice_conc": {"cmap": "Blues_r"},
             "sic-ssmis:ice_conc": {"cmap": "Blues_r"},
         }
     )

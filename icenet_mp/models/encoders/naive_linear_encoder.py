@@ -3,7 +3,7 @@ from typing import Any
 from torch import nn
 
 from icenet_mp.models.common import ResizingInterpolation
-from icenet_mp.types import TensorNCHW
+from icenet_mp.types import DataSpace, TensorNCHW
 
 from .base_encoder import BaseEncoder
 
@@ -18,9 +18,13 @@ class NaiveLinearEncoder(BaseEncoder):
         TensorNTCHW with (batch_size, n_timeslices, latent_channels, latent_height, latent_width)
     """
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, data_space_in: DataSpace, **kwargs: Any) -> None:
         """Initialise a NaiveLinearEncoder."""
-        super().__init__(**kwargs)
+        super().__init__(
+            output_channels=data_space_in.channels,
+            data_space_in=data_space_in,
+            **kwargs,
+        )
 
         # Construct list of layers
         layers: list[nn.Module] = []

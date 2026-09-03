@@ -102,6 +102,7 @@ def _build_model(
         ),
         optimizer=DictConfig({}),
         scheduler=DictConfig({}),
+        lr_scheduler=DictConfig({}),
         loss=DictConfig({"_target_": "torch.nn.HuberLoss", "delta": 0.5}),
         # Required since #405: which variable(s) of the target INPUT group are the
         # prediction target. output_space is single-channel throughout these tests,
@@ -473,3 +474,72 @@ class TestAnchorSemantics:
         expected = (inputs[TARGET_GROUP][:, -1] + step).clamp(0.0, 1.0)
         for lead in range(model.n_forecast_steps):
             torch.testing.assert_close(prediction[:, lead], expected)
+
+
+class TestTrainEvalParity:
+    """training_step must score the SAME architecture that validation scores.
+
+    Main's #422 overrode ``training_step`` in ``EncodeProcessDecode`` with an
+    inlined LATENT path that never calls ``forward()``, while
+    ``BaseModel.validation_step``/``test_step`` call ``self(batch)``. Without the
+    ``rollout_space`` branch in ``training_step``, a physical-rollout model would
+    TRAIN on the latent rollout and be VALIDATED on the physical one - two
+    different architectures, with no error raised. These tests pin the routing.
+    """
+
+    @staticmethod
+    def _batch(model: EncodeProcessDecode) -> dict[str, torch.Tensor]:
+        batch = _inputs(model, seed=11)
+        generator = torch.Generator().manual_seed(13)
+        batch["target"] = torch.rand(
+            2,
+            model.n_forecast_steps,
+            model.output_space.channels,
+            *model.output_space.shape,
+            generator=generator,
+        )
+        return batch
+
+    def test_training_step_prediction_matches_forward_physical(self) -> None:
+        model = _build_model(
+            rollout_space="physical",
+            predict_residual=True,
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
+        )
+        _small_tendency(model)
+        model.eval()  # kill dropout so the two passes are deterministic
+        batch = self._batch(model)
+        with torch.no_grad():
+            out = model.training_step(dict(batch), 0)
+            expected = model(dict(batch))
+        torch.testing.assert_close(out.prediction, expected)
+
+    def test_training_step_loss_is_computed_on_the_physical_prediction(self) -> None:
+        model = _build_model(
+            rollout_space="physical",
+            predict_residual=True,
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
+        )
+        _small_tendency(model)
+        model.eval()
+        batch = self._batch(model)
+        with torch.no_grad():
+            out = model.training_step(dict(batch), 0)
+            expected_loss = model.loss(model(dict(batch)), batch["target"])
+        torch.testing.assert_close(out.loss, expected_loss)
+
+    def test_latent_path_is_unchanged_by_the_routing(self) -> None:
+        """The default (latent) model still takes main's training_step path."""
+        model = _build_model(rollout_space="latent")
+        model.eval()
+        batch = self._batch(model)
+        with torch.no_grad():
+            out = model.training_step(dict(batch), 0)
+            expected = model(dict(batch))
+        torch.testing.assert_close(out.prediction, expected)

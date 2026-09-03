@@ -18,17 +18,21 @@ class BaseProcessor(nn.Module):
     def __init__(
         self,
         *,
+        computes_loss_in_latent_space: bool = False,
         data_space: DataSpace,
         data_space_target: DataSpace | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
+        target_channel_offset: int | None = None,
     ) -> None:
         """Initialise a BaseProcessor."""
         super().__init__()
+        self.computes_loss_in_latent_space = computes_loss_in_latent_space
         self.data_space = data_space
         self.data_space_target = data_space_target or data_space
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
+        self.target_channel_offset = target_channel_offset
         # The latent spatial dimensions (H, W) for the inputs and target must match
         if self.data_space_target.shape != self.data_space.shape:
             msg = (
@@ -41,12 +45,12 @@ class BaseProcessor(nn.Module):
         """Forward step: predict the next timestep from a window of history/forecast timesteps.
 
         Args:
-            x: TensorNCHW with (batch_size, n_latent_channels_total * n_history_steps, latent_height, latent_width),
+            x: TensorNCHW with shape (batch_size, n_channels, latent_height, latent_width),
                i.e. the current window of n_history_steps timesteps concatenated along channels,
                ordered oldest to newest.
 
         Returns:
-            TensorNCHW with (batch_size, n_latent_channels_total, latent_height, latent_width),
+            TensorNCHW with shape (batch_size, n_channels, latent_height, latent_width),
             i.e. the single next predicted timestep.
 
         """

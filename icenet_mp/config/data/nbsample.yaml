@@ -1,7 +1,7 @@
 defaults:
   - datasets:
-    - nbsamp_sicnorth_icenet_25k_2003_2003_24h_v1
-    - nbsamp_sicnorth_icenet_25k_2010_2010_24h_v1
-    - nbsamp_sicnorth_icenet_25k_2018_2018_24h_v1
+    - nbsamp_sicnorth_osisaf_25p0km_2003_2003_24h_v1
+    - nbsamp_sicnorth_osisaf_25p0km_2010_2010_24h_v1
+    - nbsamp_sicnorth_osisaf_25p0km_2018_2018_24h_v1
   - split: sample_dataset
   - _self_

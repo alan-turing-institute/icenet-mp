@@ -7,7 +7,7 @@ import torch
 from torch import nn
 
 from icenet_mp.geotools import nearest_neighbour_indices
-from icenet_mp.types import ArrayHWV, TensorNCHW
+from icenet_mp.types import ArrayHWV, DataSpace, TensorNCHW
 
 from .base_encoder import BaseEncoder
 
@@ -27,9 +27,15 @@ class ReprojectionEncoder(BaseEncoder):
         TensorNTCHW with (batch_size, n_timeslices, input_channels, latent_height, latent_width)
     """
 
-    def __init__(self, project_to: str, **kwargs: Any) -> None:
+    def __init__(
+        self, *, data_space_in: DataSpace, project_to: str, **kwargs: Any
+    ) -> None:
         """Initialise a ReprojectionEncoder."""
-        super().__init__(**kwargs)
+        super().__init__(
+            output_channels=data_space_in.channels,
+            data_space_in=data_space_in,
+            **kwargs,
+        )
 
         # Check details of the input data space
         self.project_from = self.data_space_in.name

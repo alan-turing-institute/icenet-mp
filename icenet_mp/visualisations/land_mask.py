@@ -25,13 +25,15 @@ class LandMask:
 
     def apply_to(self, data_array: np.ndarray) -> np.ndarray:
         """Apply a land mask to an array."""
-        hw = data_array.shape[-2:]
+        shape = data_array.shape[-2:]
         # If there is no mask in the cache, return the array unchanged
-        if hw not in self._cache:
-            if hw not in self._ignored:
-                logger.warning("No land mask available for shape %s.", hw)
-                self._ignored.add(hw)
+        if shape not in self._cache:
+            if shape not in self._ignored:
+                logger.debug(
+                    "No land mask associated with this dataset has shape %s.", shape
+                )
+                self._ignored.add(shape)
             return data_array
         # Otherwise, apply the mask (mask out land to NaN)
-        # N.b. the mask is inverted as we want to hide the land
-        return np.where(~self._cache[hw], np.nan, data_array)
+        # N.B. the mask is inverted as we want to hide the land
+        return np.where(~self._cache[shape], np.nan, data_array)

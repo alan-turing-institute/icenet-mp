@@ -3,6 +3,7 @@ from .conv_block_common import CommonConvBlock
 from .conv_block_downsample import ConvBlockDownsample
 from .conv_block_upsample import ConvBlockUpsample
 from .conv_norm_act_upsample import ConvNormActUpsample
+from .freezable import Freezable
 from .gated_attention import GatedAttentionBlock
 from .lite_mla import LiteMLA
 from .mask import Mask
@@ -26,6 +27,7 @@ __all__ = [
     "ConvBlockDownsample",
     "ConvBlockUpsample",
     "ConvNormActUpsample",
+    "Freezable",
     "GatedAttentionBlock",
     "LiteMLA",
     "Mask",

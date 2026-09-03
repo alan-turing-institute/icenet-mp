@@ -6,6 +6,7 @@ defaults:
     - learning_rate
     - metric_summary
     - plotting
+  - lr_scheduler: default
   - multistage: default
   - optimizer: default
   - scheduler: default

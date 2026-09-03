@@ -8,7 +8,7 @@ styling configurations.
 import logging
 from dataclasses import replace
 from datetime import date
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import pytest
@@ -140,7 +140,7 @@ class TestPlotStaticPrediction:
         sic_pair_2d: tuple[np.ndarray, np.ndarray, date],
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """plot_static_prediction should log a warning for missing land mask shape."""
+        """plot_static_prediction should log a debug message for missing land mask shape."""
         ground_truth, prediction, date = sic_pair_2d
 
         # Create land mask with wrong shape
@@ -148,7 +148,7 @@ class TestPlotStaticPrediction:
         wrong_shape_mask = np.zeros((10, 10), dtype=bool)
         land_mask.add_mask(wrong_shape_mask)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             plot_static_prediction(
                 ground_truth,
                 prediction,
@@ -157,7 +157,10 @@ class TestPlotStaticPrediction:
                 plot_spec=DEFAULT_SIC_SPEC,
                 variable_name="dummy",
             )
-            assert "No land mask available for shape (48, 48)." in caplog.text
+            assert (
+                "No land mask associated with this dataset has shape (48, 48)."
+                in caplog.text
+            )
 
 
 # --- Tests for plot_static_inputs ---
@@ -266,28 +269,6 @@ class TestPlotStaticInputs:
         name, pil_images = next(iter(results.items()))
         assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:q_10"
         assert isinstance(pil_images[0], ImageFile)
-
-    @pytest.mark.parametrize("colourbar_location", ["vertical", "horizontal"])
-    def test_colourbar_locations(
-        self,
-        era5_temperature_2d: np.ndarray,
-        colourbar_location: Literal["vertical", "horizontal"],
-    ) -> None:
-        """Test plotting with different colorbar orientations."""
-        plot_spec = PlotSpec(
-            variable="raw_inputs",
-            colourmap="viridis",
-            colourbar_location=colourbar_location,
-        )
-
-        results = plot_static_inputs(
-            {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None),
-            plot_spec=plot_spec,
-            when=TEST_DATE,
-        )
-
-        assert len(results) == 1
 
     @pytest.mark.parametrize(
         ("var_name", "fixture_name"),

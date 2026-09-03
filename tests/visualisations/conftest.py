@@ -263,30 +263,6 @@ def multi_channel_hw() -> dict[str, ArrayHW]:
 
 
 @pytest.fixture
-def multi_channel_thw() -> dict[str, ArrayTHW]:
-    """Generate multiple channels of raw input data."""
-    rng = np.random.default_rng(100)
-    return {
-        # temperature
-        "era5:2t": rng.uniform(
-            270, 280, size=(N_TIMESTEPS, TEST_HEIGHT, TEST_WIDTH)
-        ).astype(np.float32),
-        # u-wind
-        "era5:10u": rng.normal(
-            0, 5, size=(N_TIMESTEPS, TEST_HEIGHT, TEST_WIDTH)
-        ).astype(np.float32),
-        # v-wind
-        "era5:10v": rng.normal(
-            0, 5, size=(N_TIMESTEPS, TEST_HEIGHT, TEST_WIDTH)
-        ).astype(np.float32),
-        # ice conc
-        "osisaf-south:ice_conc": rng.uniform(
-            0, 1, size=(N_TIMESTEPS, TEST_HEIGHT, TEST_WIDTH)
-        ).astype(np.float32),
-    }
-
-
-@pytest.fixture
 def variable_styles() -> dict[str, dict[str, Any]]:
     """Sample variable styling configuration for raw inputs."""
     return {

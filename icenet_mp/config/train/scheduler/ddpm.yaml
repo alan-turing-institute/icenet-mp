@@ -3,5 +3,4 @@ defaults:
   - default
   - _self_
 
-scheduler_parameters:
-  eta_min: 5e-6
+eta_min: 5e-6

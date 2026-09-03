@@ -12,10 +12,6 @@ encoders:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
     conv_subblocks_initial: 1
     conv_subblocks_final: 1
-  sic-icenet:
-    _target_: icenet_mp.models.encoders.PiecewiseEncoder
-    conv_subblocks_initial: 1
-    conv_subblocks_final: 1
   sic-osisaf:
     _target_: icenet_mp.models.encoders.PiecewiseEncoder
     conv_subblocks_initial: 1
@@ -36,3 +32,5 @@ decoder:
   mask_type: active
   restrict_range: clamp
   use_final_normalisation: false
+  skip_connection:
+    method: none

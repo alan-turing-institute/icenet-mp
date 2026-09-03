@@ -40,12 +40,19 @@ class TestHydraConfigLoading:
 
     def test_loss_defaults_resolved_from_base(self) -> None:
         cfg = self.load_config()
-        assert cfg.loss._target_ == "torch.nn.HuberLoss"
+        assert cfg.loss._target_ == "icenet_mp.losses.amse_loss.AMSELoss"
         assert cfg.loss.delta == pytest.approx(0.5)
 
     def test_scalar_override_applied(self) -> None:
         cfg = self.load_config(overrides=["loss.delta=1.0"])
         assert cfg.loss.delta == pytest.approx(1.0)
+
+    def test_wandb_offline_override(self) -> None:
+        cfg = self.load_config()
+        assert cfg.loggers.wandb.offline is False
+
+        cfg = self.load_config(overrides=["loggers.wandb.offline=true"])
+        assert cfg.loggers.wandb.offline is True
 
     def test_config_group_override_swaps_loss(self) -> None:
         cfg = self.load_config(overrides=["loss=mse"])
