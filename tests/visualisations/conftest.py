@@ -185,6 +185,12 @@ def test_dates_short() -> list[date]:
 
 
 @pytest.fixture
+def no_land_mask() -> LandMask:
+    """A LandMask with no mask registered; apply_to is a pass-through no-op."""
+    return LandMask(None)
+
+
+@pytest.fixture
 def mock_land_mask() -> LandMask:
     """Create a simple circular land mask for testing [H, W]."""
     land_mask = LandMask(None)

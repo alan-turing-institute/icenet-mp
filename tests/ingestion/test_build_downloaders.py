@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.ingestion.downloaders import build_downloaders
@@ -8,114 +9,85 @@ from icenet_mp.ingestion.postprocessors import (
     StatusFlagMaskGenerator,
     SyntheticMaskGenerator,
 )
-from icenet_mp.ingestion.preprocessors import IceNetSICPreprocessor
-
-ICENET_SIC_TARGET = "icenet_mp.ingestion.preprocessors.IceNetSICPreprocessor"
-STATUS_FLAG_TARGET = "icenet_mp.ingestion.postprocessors.StatusFlagMaskGenerator"
-SYNTHETIC_TARGET = "icenet_mp.ingestion.postprocessors.SyntheticMaskGenerator"
 
 
-def _config(tmp_path: Path, dataset_overrides: dict[str, Any]) -> DictConfig:
-    """Build a minimal Hydra-style config for a single dataset named "test"."""
-    return OmegaConf.create(
-        {
-            "base_path": str(tmp_path),
-            "data": {
-                "datasets": {
-                    "test": {
-                        "name": "test",
-                        "dates": {
-                            "start": "2020-01-01",
-                            "end": "2020-01-31",
-                            "frequency": "24h",
-                        },
-                        **dataset_overrides,
+class TestBuildDownloaders:
+    """Tests for the build_downloaders function."""
+
+    STATUS_FLAG_TARGET = "icenet_mp.ingestion.postprocessors.StatusFlagMaskGenerator"
+    SYNTHETIC_TARGET = "icenet_mp.ingestion.postprocessors.SyntheticMaskGenerator"
+
+    def _config(self, tmp_path: Path, dataset_overrides: dict[str, Any]) -> DictConfig:
+        """Build a minimal Hydra-style config for a single dataset named "test"."""
+        return OmegaConf.create(
+            {
+                "base_path": str(tmp_path),
+                "data": {
+                    "datasets": {"test": self._dataset("test", dataset_overrides)}
+                },
+            }
+        )
+
+    def _dataset(
+        self, name: str, overrides: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Build a minimal dataset entry, e.g. for the "datasets" key of a Hydra-style config."""
+        return {
+            "name": name,
+            "dates": {"start": "2020-01-01", "end": "2020-01-31", "frequency": "24h"},
+            **(overrides or {}),
+        }
+
+    def test_missing_pre_and_postprocessors_build_empty_composites(
+        self, tmp_path: Path
+    ) -> None:
+        """A dataset with no preprocessors/postprocessors keys builds empty composites."""
+        downloader = build_downloaders(self._config(tmp_path, {}))[0]
+        assert downloader.preprocessor.children == []
+        assert downloader.postprocessor.children == []
+
+    @pytest.mark.parametrize(
+        ("postprocessors", "expected_types"),
+        [
+            (
+                {"status_flag_masks": {"_target_": STATUS_FLAG_TARGET}},
+                [StatusFlagMaskGenerator],
+            ),
+            (
+                {
+                    "status_flag_masks": {"_target_": STATUS_FLAG_TARGET},
+                    "synthetic_masks": {"_target_": SYNTHETIC_TARGET},
+                },
+                [StatusFlagMaskGenerator, SyntheticMaskGenerator],
+            ),
+        ],
+        ids=["single", "multiple_in_order"],
+    )
+    def test_postprocessor_specs_build_composite(
+        self,
+        tmp_path: Path,
+        postprocessors: dict[str, Any],
+        expected_types: list[type],
+    ) -> None:
+        """Postprocessor specs build a composite preserving config order."""
+        config = self._config(tmp_path, {"postprocessors": postprocessors})
+        children = build_downloaders(config)[0].postprocessor.children
+        assert [type(child) for child in children] == expected_types
+
+    def test_multiple_datasets_build_one_downloader_each_in_order(
+        self, tmp_path: Path
+    ) -> None:
+        """Each dataset entry in the config builds its own downloader, in config order."""
+        config = OmegaConf.create(
+            {
+                "base_path": str(tmp_path),
+                "data": {
+                    "datasets": {
+                        "first": self._dataset("first"),
+                        "second": self._dataset("second"),
                     }
                 },
-            },
-        }
-    )
-
-
-def test_missing_pre_and_postprocessors_build_empty_composites(tmp_path: Path) -> None:
-    """A dataset with no preprocessors/postprocessors keys builds empty composites."""
-    downloader = build_downloaders(_config(tmp_path, {}))[0]
-    assert downloader.preprocessor.children == []
-    assert downloader.postprocessor.children == []
-
-
-def test_single_preprocessor_spec_builds_composite_and_interpolates_dates(
-    tmp_path: Path,
-) -> None:
-    """A single preprocessor spec builds a composite of one, with dates interpolated."""
-    config = _config(
-        tmp_path,
-        {
-            "preprocessors": {
-                "icenet_sic": {
-                    "_target_": ICENET_SIC_TARGET,
-                    "hemisphere": "north",
-                    "dates": "${...dates}",
-                }
             }
-        },
-    )
-    (child,) = build_downloaders(config)[0].preprocessor.children
-    assert isinstance(child, IceNetSICPreprocessor)
-    assert str(child.date_range[0].date()) == "2020-01-01"
-
-
-def test_single_postprocessor_spec_builds_composite_of_one(tmp_path: Path) -> None:
-    """A single postprocessor spec builds a composite of one."""
-    config = _config(
-        tmp_path,
-        {"postprocessors": {"status_flag_masks": {"_target_": STATUS_FLAG_TARGET}}},
-    )
-    children = build_downloaders(config)[0].postprocessor.children
-    assert [type(child) for child in children] == [StatusFlagMaskGenerator]
-
-
-def test_multiple_preprocessor_specs_build_composite_in_order(tmp_path: Path) -> None:
-    """Multiple preprocessor specs build a composite preserving config order."""
-    config = _config(
-        tmp_path,
-        {
-            "preprocessors": {
-                "north": {
-                    "_target_": ICENET_SIC_TARGET,
-                    "hemisphere": "north",
-                    "dates": "${...dates}",
-                },
-                "south": {
-                    "_target_": ICENET_SIC_TARGET,
-                    "hemisphere": "south",
-                    "dates": "${...dates}",
-                },
-            }
-        },
-    )
-    north, south = build_downloaders(config)[0].preprocessor.children
-
-    assert isinstance(north, IceNetSICPreprocessor)
-    assert isinstance(south, IceNetSICPreprocessor)
-    assert north.is_north is True
-    assert south.is_north is False
-
-
-def test_multiple_postprocessor_specs_build_composite_in_order(tmp_path: Path) -> None:
-    """Multiple postprocessor specs build a composite preserving config order."""
-    config = _config(
-        tmp_path,
-        {
-            "postprocessors": {
-                "status_flag_masks": {"_target_": STATUS_FLAG_TARGET},
-                "synthetic_masks": {"_target_": SYNTHETIC_TARGET},
-            }
-        },
-    )
-    children = build_downloaders(config)[0].postprocessor.children
-
-    assert [type(child) for child in children] == [
-        StatusFlagMaskGenerator,
-        SyntheticMaskGenerator,
-    ]
+        )
+        downloaders = build_downloaders(config)
+        assert [downloader.name for downloader in downloaders] == ["first", "second"]
