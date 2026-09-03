@@ -74,7 +74,7 @@ class TestModelService:
             assert os.environ["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"
 
         mock_seed_everything.assert_called_once_with(42, workers=True)
-        assert service.config_ == config
+        assert service.config == config
 
     def test_from_config_loads_model(self, cfg_model_service: DictConfig) -> None:
         mock_instantiate = MagicMock()
@@ -187,271 +187,6 @@ class TestModelService:
         assert isinstance(service.model, FakeModel)
         assert service.config == cfg_model_service
 
-    def test_train_standard_mode_rejects_model_requiring_multistage(self) -> None:
-        service = ModelService.__new__(ModelService)
-        service.model_ = MagicMock()
-        service.model_.multistage_only = True
-
-        with pytest.raises(ValueError, match="multistage"):
-            service.train()
-
-    def test_train_standard_mode_allows_model_not_requiring_multistage(
-        self,
-    ) -> None:
-        service = ModelService.__new__(ModelService)
-        service.model_ = MagicMock()
-        service.model_.multistage_only = False
-        service.config_ = DictConfig({"train": "train_config"})
-
-        with pytest.MonkeyPatch.context() as mp:
-            mock_fit = MagicMock()
-            mp.setattr(service, "_fit", mock_fit)
-            service.train()
-
-        mock_fit.assert_called_once_with(config="train_config", ckpt_path=None)
-
-    def test_merged_config_applies_stage_overrides(self) -> None:
-        """Merge stage-specific values over the common training configuration."""
-        service = ModelService.__new__(ModelService)
-        service.config_ = OmegaConf.create(
-            {
-                "train": {
-                    "optimizer": {"lr": 0.001, "weight_decay": 0.01},
-                    "trainer": {"max_epochs": 20, "accelerator": "auto"},
-                    "multistage": {
-                        "processor": {
-                            "optimizer": {"lr": 0.01},
-                            "trainer": {"max_epochs": 3},
-                        }
-                    },
-                }
-            }
-        )
-
-        merged = service._merged_config("processor")
-
-        assert merged["optimizer"]["lr"] == 0.01
-        assert merged["optimizer"]["weight_decay"] == 0.01
-        assert merged["trainer"]["max_epochs"] == 3
-        assert merged["trainer"]["accelerator"] == "auto"
-
-    def test_save_stage_checkpoint_saves_when_no_best_checkpoint(
-        self, tmp_path: Path
-    ) -> None:
-        """Save a deterministic stage checkpoint when callbacks have no best path."""
-        service = ModelService.__new__(ModelService)
-        trainer = MagicMock()
-        trainer.current_epoch = 4
-        trainer.global_step = 17
-        trainer.checkpoint_callbacks = []
-        trainer.is_global_zero = True
-        run_dir = tmp_path / "run"
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(service, "build_run_directory", lambda _trainer: run_dir)
-            result = service._save_stage_checkpoint(trainer, "processor")
-
-        expected = run_dir / "checkpoints" / "processor.epoch=4-step=17.ckpt"
-        trainer.save_checkpoint.assert_called_once_with(expected, weights_only=False)
-        assert result == expected
-
-    def test_save_stage_checkpoint_moves_single_best_checkpoint(
-        self, tmp_path: Path
-    ) -> None:
-        """Move one callback-selected best checkpoint to the stage checkpoint path."""
-        service = ModelService.__new__(ModelService)
-        run_dir = tmp_path / "run"
-        (run_dir / "checkpoints").mkdir(parents=True)
-        best_path = tmp_path / "best.ckpt"
-        best_path.write_text("checkpoint")
-
-        trainer = MagicMock()
-        trainer.current_epoch = 2
-        trainer.global_step = 8
-        trainer.is_global_zero = True
-        trainer.checkpoint_callbacks = [SimpleNamespace(best_model_path=str(best_path))]
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(service, "build_run_directory", lambda _trainer: run_dir)
-            result = service._save_stage_checkpoint(trainer, "decoder")
-
-        expected = run_dir / "checkpoints" / "decoder.best.ckpt"
-        assert result == expected
-        assert expected.read_text() == "checkpoint"
-        trainer.save_checkpoint.assert_not_called()
-        trainer.strategy.barrier.assert_called_once_with()
-
-    def test_save_stage_checkpoint_rejects_multiple_best_paths(
-        self, tmp_path: Path
-    ) -> None:
-        """Reject ambiguous checkpoint selection from multiple callbacks."""
-        service = ModelService.__new__(ModelService)
-        trainer = MagicMock()
-        trainer.current_epoch = 1
-        trainer.global_step = 2
-        trainer.checkpoint_callbacks = [
-            SimpleNamespace(best_model_path=str(tmp_path / "a.ckpt")),
-            SimpleNamespace(best_model_path=str(tmp_path / "b.ckpt")),
-        ]
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(service, "build_run_directory", lambda _trainer: tmp_path)
-            with pytest.raises(ValueError, match="2 checkpoints"):
-                service._save_stage_checkpoint(trainer, "encoder")
-
-    def test_train_standard_mode_rejects_checkpoint_dir_without_last_ckpt(
-        self, tmp_path: Path
-    ) -> None:
-        """Reject a checkpoint directory with no resumable ``last*.ckpt`` file."""
-        service = ModelService.__new__(ModelService)
-        service.model_ = MagicMock()
-        service.model_.multistage_only = False
-        service.config_ = DictConfig({"train": "train_config"})
-
-        with pytest.raises(FileNotFoundError, match=r"last\*.ckpt"):
-            service.train(checkpoint_dir=tmp_path)
-
-    def test_train_standard_mode_resumes_from_last_checkpoint(
-        self, tmp_path: Path
-    ) -> None:
-        """Resume single-stage training from the ``last*.ckpt`` file if present."""
-        service = ModelService.__new__(ModelService)
-        service.model_ = MagicMock()
-        service.model_.multistage_only = False
-        service.config_ = DictConfig({"train": "train_config"})
-        ckpt_path = tmp_path / "last.ckpt"
-        ckpt_path.write_text("checkpoint")
-
-        with pytest.MonkeyPatch.context() as mp:
-            mock_fit = MagicMock()
-            mp.setattr(service, "_fit", mock_fit)
-            service.train(checkpoint_dir=tmp_path)
-
-        mock_fit.assert_called_once_with(config="train_config", ckpt_path=ckpt_path)
-
-    def test_train_delegates_to_multistage_when_requested(self, tmp_path: Path) -> None:
-        service = ModelService.__new__(ModelService)
-        service.model_ = MagicMock()
-        trainer = MagicMock()
-
-        with pytest.MonkeyPatch.context() as mp:
-            mock_train_multistage = MagicMock(return_value=trainer)
-            mp.setattr(service, "train_multistage", mock_train_multistage)
-            result = service.train(checkpoint_dir=tmp_path, multistage=True)
-
-        mock_train_multistage.assert_called_once_with(checkpoint_dir=tmp_path)
-        assert result is trainer
-
-    def test_config_raises_when_not_initialised(self) -> None:
-        service = ModelService.__new__(ModelService)
-        service.config_ = DictConfig({})
-
-        with pytest.raises(AttributeError, match="config"):
-            _ = service.config
-
-    def test_model_raises_when_not_initialised(self) -> None:
-        service = ModelService.__new__(ModelService)
-        service.model_ = None
-
-        with pytest.raises(AttributeError, match="Model"):
-            _ = service.model
-
-    def test_data_module_lazily_constructs_and_caches(
-        self, cfg_model_service: DictConfig
-    ) -> None:
-        """Build the data module once from config, then reuse the cached instance."""
-        service = ModelService.__new__(ModelService)
-        service.config_ = cfg_model_service
-        service.data_module_ = None
-
-        with pytest.MonkeyPatch.context() as mp:
-            mock_data_module_cls = MagicMock(
-                return_value=FakeCommonDataModule(cfg_model_service)
-            )
-            mp.setattr("icenet_mp.model_service.CommonDataModule", mock_data_module_cls)
-            first = service.data_module
-            second = service.data_module
-
-        assert first is second
-        mock_data_module_cls.assert_called_once_with(cfg_model_service)
-
-    @pytest.mark.parametrize(
-        "include_loss", [True, False], ids=["with-loss", "no-loss"]
-    )
-    def test_fit_configures_model_and_runs_trainer_fit(
-        self, *, include_loss: bool
-    ) -> None:
-        """Apply the training config to the model and delegate to trainer.fit()."""
-        service = ModelService.__new__(ModelService)
-        model = MagicMock()
-        service.model_ = model
-        service.data_module_ = MagicMock()
-        config_dict = {
-            "optimizer": "optimizer_cfg",
-            "scheduler": "scheduler_cfg",
-            "lr_scheduler": "lr_scheduler_cfg",
-        }
-        if include_loss:
-            config_dict["loss"] = "loss_cfg"
-        config = DictConfig(config_dict)
-
-        trainer = MagicMock()
-        trainer.max_epochs = 5
-        trainer.num_devices = 1
-        ckpt_path = Path("ckpt.ckpt")
-
-        with pytest.MonkeyPatch.context() as mp:
-            mock_build_trainer = MagicMock(return_value=trainer)
-            mp.setattr(service, "build_trainer", mock_build_trainer)
-            mp.setattr("icenet_mp.model_service.torch.cuda.is_available", lambda: False)
-            mp.setattr("icenet_mp.model_service.torch.mps.is_available", lambda: False)
-            mp.setattr("icenet_mp.model_service.torch.xpu.is_available", lambda: False)
-            result = service._fit(
-                config=config, job_stage="processor", ckpt_path=ckpt_path
-            )
-
-        assert model.optimizer_cfg == "optimizer_cfg"
-        assert model.scheduler_cfg == "scheduler_cfg"
-        assert model.lr_scheduler_cfg == "lr_scheduler_cfg"
-        if include_loss:
-            assert model.loss_cfg == "loss_cfg"
-        mock_build_trainer.assert_called_once_with(
-            config=config, job_stage="processor", project="train"
-        )
-        trainer.fit.assert_called_once_with(
-            model=model, datamodule=service.data_module_, ckpt_path=ckpt_path
-        )
-        assert result is trainer
-
-    def test_fit_clears_device_caches_when_available(self) -> None:
-        """Release cached device memory on every backend that reports itself available."""
-        service = ModelService.__new__(ModelService)
-        service.model_ = MagicMock()
-        service.data_module_ = MagicMock()
-        config = DictConfig({"optimizer": "o", "scheduler": "s", "lr_scheduler": "l"})
-        trainer = MagicMock()
-        trainer.max_epochs = 1
-        trainer.num_devices = 1
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(service, "build_trainer", MagicMock(return_value=trainer))
-            mp.setattr("icenet_mp.model_service.torch.cuda.is_available", lambda: True)
-            mp.setattr("icenet_mp.model_service.torch.mps.is_available", lambda: True)
-            mp.setattr("icenet_mp.model_service.torch.xpu.is_available", lambda: True)
-            mock_cuda_empty = MagicMock()
-            mock_mps_empty = MagicMock()
-            mock_xpu_empty = MagicMock()
-            mp.setattr(
-                "icenet_mp.model_service.torch.cuda.empty_cache", mock_cuda_empty
-            )
-            mp.setattr("icenet_mp.model_service.torch.mps.empty_cache", mock_mps_empty)
-            mp.setattr("icenet_mp.model_service.torch.xpu.empty_cache", mock_xpu_empty)
-            service._fit(config=config)
-
-        mock_cuda_empty.assert_called_once_with()
-        mock_mps_empty.assert_called_once_with()
-        mock_xpu_empty.assert_called_once_with()
-
     def test_build_run_directory_uses_wandb_sync_dir(self, tmp_path: Path) -> None:
         service = ModelService.__new__(ModelService)
         trainer = MagicMock()
@@ -486,7 +221,14 @@ class TestModelService:
         expected = tmp_path / "training" / "local" / "run-20260101-000000-abc123"
         assert result == expected
 
-    def test_build_trainer_raises_on_deterministic_mismatch(self) -> None:
+    @pytest.mark.parametrize(
+        ("deterministic_enabled", "warn_only_enabled", "match"),
+        [(False, True, "deterministic"), (True, False, "warn_only")],
+        ids=["deterministic-mismatch", "warn-only-missing"],
+    )
+    def test_build_trainer_raises_on_deterministic_config_errors(
+        self, *, deterministic_enabled: bool, warn_only_enabled: bool, match: str
+    ) -> None:
         service = ModelService.__new__(ModelService)
         service.fully_deterministic = True
         service.config_ = DictConfig({"unrelated": True})
@@ -500,32 +242,13 @@ class TestModelService:
             )
             mp.setattr(
                 "icenet_mp.model_service.torch.are_deterministic_algorithms_enabled",
-                lambda: False,
-            )
-            with pytest.raises(ValueError, match="deterministic"):
-                service.build_trainer(config=config, project="train")
-
-    def test_build_trainer_raises_when_warn_only_missing(self) -> None:
-        service = ModelService.__new__(ModelService)
-        service.fully_deterministic = True
-        service.config_ = DictConfig({"unrelated": True})
-        config = DictConfig({"trainer": {}})
-        fake_trainer = MagicMock()
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(
-                "icenet_mp.model_service.hydra.utils.instantiate",
-                lambda *_a, **_k: fake_trainer,
-            )
-            mp.setattr(
-                "icenet_mp.model_service.torch.are_deterministic_algorithms_enabled",
-                lambda: True,
+                lambda: deterministic_enabled,
             )
             mp.setattr(
                 "icenet_mp.model_service.torch.is_deterministic_algorithms_warn_only_enabled",
-                lambda: False,
+                lambda: warn_only_enabled,
             )
-            with pytest.raises(ValueError, match="warn_only"):
+            with pytest.raises(ValueError, match=match):
                 service.build_trainer(config=config, project="train")
 
     def test_build_trainer_warns_when_no_callbacks_or_loggers(
@@ -674,9 +397,11 @@ class TestModelService:
             for call in mock_instantiate.call_args_list
             if call.args[0].get("_target_", "").endswith("WandbLogger")
         )
-        assert wandb_call.kwargs["job_type"] == "single-stage"
-        assert wandb_call.kwargs["project"] == "train"
-        assert wandb_call.kwargs["_convert_"] == "all"
+        assert wandb_call.kwargs == {
+            "job_type": "single-stage",
+            "project": "train",
+            "_convert_": "all",
+        }
 
         csv_call = next(
             call
@@ -691,6 +416,57 @@ class TestModelService:
         )
         defined_metrics = {c.args[0] for c in wandb_run.define_metric.call_args_list}
         assert defined_metrics == {"train_loss", "validation_loss", "test_loss"}
+
+    def test_config_merging_applies_stage_overrides(self) -> None:
+        """Merge stage-specific values over the common training configuration."""
+        service = ModelService.__new__(ModelService)
+        service.config_ = OmegaConf.create(
+            {
+                "train": {
+                    "optimizer": {"lr": 0.001, "weight_decay": 0.01},
+                    "trainer": {"max_epochs": 20, "accelerator": "auto"},
+                    "multistage": {
+                        "processor": {
+                            "optimizer": {"lr": 0.01},
+                            "trainer": {"max_epochs": 3},
+                        }
+                    },
+                }
+            }
+        )
+
+        merged = service._merged_config("processor")
+
+        assert merged["optimizer"]["lr"] == 0.01
+        assert merged["optimizer"]["weight_decay"] == 0.01
+        assert merged["trainer"]["max_epochs"] == 3
+        assert merged["trainer"]["accelerator"] == "auto"
+
+    def test_config_raises_when_not_initialised(self) -> None:
+        service = ModelService.__new__(ModelService)
+        service.config_ = DictConfig({})
+
+        with pytest.raises(AttributeError, match="config"):
+            _ = service.config
+
+    def test_data_module_lazily_constructs_and_caches(
+        self, cfg_model_service: DictConfig
+    ) -> None:
+        """Build the data module once from config, then reuse the cached instance."""
+        service = ModelService.__new__(ModelService)
+        service.config_ = cfg_model_service
+        service.data_module_ = None
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_data_module_cls = MagicMock(
+                return_value=FakeCommonDataModule(cfg_model_service)
+            )
+            mp.setattr("icenet_mp.model_service.CommonDataModule", mock_data_module_cls)
+            first = service.data_module
+            second = service.data_module
+
+        assert first is second
+        mock_data_module_cls.assert_called_once_with(cfg_model_service)
 
     def test_evaluate_runs_trainer_test(self) -> None:
         service = ModelService.__new__(ModelService)
@@ -710,6 +486,213 @@ class TestModelService:
         trainer.test.assert_called_once_with(
             model=service.model_, datamodule=service.data_module_
         )
+
+    @pytest.mark.parametrize(
+        "include_loss", [True, False], ids=["with-loss", "no-loss"]
+    )
+    def test_fit_configures_model_and_runs_trainer_fit(
+        self, *, include_loss: bool
+    ) -> None:
+        """Apply the training config to the model and delegate to trainer.fit()."""
+        service = ModelService.__new__(ModelService)
+        model = MagicMock()
+        service.model_ = model
+        service.data_module_ = MagicMock()
+        config_dict = {
+            "optimizer": "optimizer_cfg",
+            "scheduler": "scheduler_cfg",
+            "lr_scheduler": "lr_scheduler_cfg",
+        }
+        if include_loss:
+            config_dict["loss"] = "loss_cfg"
+        config = DictConfig(config_dict)
+
+        trainer = MagicMock()
+        trainer.max_epochs = 5
+        trainer.num_devices = 1
+        ckpt_path = Path("ckpt.ckpt")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_build_trainer = MagicMock(return_value=trainer)
+            mp.setattr(service, "build_trainer", mock_build_trainer)
+            mp.setattr("icenet_mp.model_service.torch.cuda.is_available", lambda: False)
+            mp.setattr("icenet_mp.model_service.torch.mps.is_available", lambda: False)
+            mp.setattr("icenet_mp.model_service.torch.xpu.is_available", lambda: False)
+            result = service._fit(
+                config=config, job_stage="processor", ckpt_path=ckpt_path
+            )
+
+        assert model.optimizer_cfg == "optimizer_cfg"
+        assert model.scheduler_cfg == "scheduler_cfg"
+        assert model.lr_scheduler_cfg == "lr_scheduler_cfg"
+        if include_loss:
+            assert model.loss_cfg == "loss_cfg"
+        mock_build_trainer.assert_called_once_with(
+            config=config, job_stage="processor", project="train"
+        )
+        trainer.fit.assert_called_once_with(
+            model=model, datamodule=service.data_module_, ckpt_path=ckpt_path
+        )
+        assert result is trainer
+
+    def test_fit_clears_device_caches_when_available(self) -> None:
+        """Release cached device memory on every backend that reports itself available."""
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.data_module_ = MagicMock()
+        config = DictConfig({"optimizer": "o", "scheduler": "s", "lr_scheduler": "l"})
+        trainer = MagicMock()
+        trainer.max_epochs = 1
+        trainer.num_devices = 1
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "build_trainer", MagicMock(return_value=trainer))
+            mp.setattr("icenet_mp.model_service.torch.cuda.is_available", lambda: True)
+            mp.setattr("icenet_mp.model_service.torch.mps.is_available", lambda: True)
+            mp.setattr("icenet_mp.model_service.torch.xpu.is_available", lambda: True)
+            mock_cuda_empty = MagicMock()
+            mock_mps_empty = MagicMock()
+            mock_xpu_empty = MagicMock()
+            mp.setattr(
+                "icenet_mp.model_service.torch.cuda.empty_cache", mock_cuda_empty
+            )
+            mp.setattr("icenet_mp.model_service.torch.mps.empty_cache", mock_mps_empty)
+            mp.setattr("icenet_mp.model_service.torch.xpu.empty_cache", mock_xpu_empty)
+            service._fit(config=config)
+
+        mock_cuda_empty.assert_called_once_with()
+        mock_mps_empty.assert_called_once_with()
+        mock_xpu_empty.assert_called_once_with()
+
+    def test_train_standard_mode_rejects_model_requiring_multistage(self) -> None:
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = True
+
+        with pytest.raises(ValueError, match="multistage"):
+            service.train()
+
+    def test_train_standard_mode_allows_model_not_requiring_multistage(
+        self,
+    ) -> None:
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_fit = MagicMock()
+            mp.setattr(service, "_fit", mock_fit)
+            service.train()
+
+        mock_fit.assert_called_once_with(config="train_config", ckpt_path=None)
+
+    def test_save_stage_checkpoint_saves_when_no_best_checkpoint(
+        self, tmp_path: Path
+    ) -> None:
+        """Save a deterministic stage checkpoint when callbacks have no best path."""
+        service = ModelService.__new__(ModelService)
+        trainer = MagicMock()
+        trainer.current_epoch = 4
+        trainer.global_step = 17
+        trainer.checkpoint_callbacks = []
+        trainer.is_global_zero = True
+        run_dir = tmp_path / "run"
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "build_run_directory", lambda _trainer: run_dir)
+            result = service._save_stage_checkpoint(trainer, "processor")
+
+        expected = run_dir / "checkpoints" / "processor.epoch=4-step=17.ckpt"
+        trainer.save_checkpoint.assert_called_once_with(expected, weights_only=False)
+        assert result == expected
+
+    def test_save_stage_checkpoint_moves_single_best_checkpoint(
+        self, tmp_path: Path
+    ) -> None:
+        """Move one callback-selected best checkpoint to the stage checkpoint path."""
+        service = ModelService.__new__(ModelService)
+        run_dir = tmp_path / "run"
+        (run_dir / "checkpoints").mkdir(parents=True)
+        best_path = tmp_path / "best.ckpt"
+        best_path.write_text("checkpoint")
+
+        trainer = MagicMock()
+        trainer.current_epoch = 2
+        trainer.global_step = 8
+        trainer.is_global_zero = True
+        trainer.checkpoint_callbacks = [SimpleNamespace(best_model_path=str(best_path))]
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "build_run_directory", lambda _trainer: run_dir)
+            result = service._save_stage_checkpoint(trainer, "decoder")
+
+        expected = run_dir / "checkpoints" / "decoder.best.ckpt"
+        assert result == expected
+        assert expected.read_text() == "checkpoint"
+        trainer.save_checkpoint.assert_not_called()
+        trainer.strategy.barrier.assert_called_once_with()
+
+    def test_save_stage_checkpoint_rejects_multiple_best_paths(
+        self, tmp_path: Path
+    ) -> None:
+        """Reject ambiguous checkpoint selection from multiple callbacks."""
+        service = ModelService.__new__(ModelService)
+        trainer = MagicMock()
+        trainer.current_epoch = 1
+        trainer.global_step = 2
+        trainer.checkpoint_callbacks = [
+            SimpleNamespace(best_model_path=str(tmp_path / "a.ckpt")),
+            SimpleNamespace(best_model_path=str(tmp_path / "b.ckpt")),
+        ]
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(service, "build_run_directory", lambda _trainer: tmp_path)
+            with pytest.raises(ValueError, match="2 checkpoints"):
+                service._save_stage_checkpoint(trainer, "encoder")
+
+    def test_train_standard_mode_rejects_checkpoint_dir_without_last_ckpt(
+        self, tmp_path: Path
+    ) -> None:
+        """Reject a checkpoint directory with no resumable ``last*.ckpt`` file."""
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+
+        with pytest.raises(FileNotFoundError, match=r"last\*.ckpt"):
+            service.train(checkpoint_dir=tmp_path)
+
+    def test_train_standard_mode_resumes_from_last_checkpoint(
+        self, tmp_path: Path
+    ) -> None:
+        """Resume single-stage training from the ``last*.ckpt`` file if present."""
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        service.model_.multistage_only = False
+        service.config_ = DictConfig({"train": "train_config"})
+        ckpt_path = tmp_path / "last.ckpt"
+        ckpt_path.write_text("checkpoint")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_fit = MagicMock()
+            mp.setattr(service, "_fit", mock_fit)
+            service.train(checkpoint_dir=tmp_path)
+
+        mock_fit.assert_called_once_with(config="train_config", ckpt_path=ckpt_path)
+
+    def test_train_delegates_to_multistage_when_requested(self, tmp_path: Path) -> None:
+        service = ModelService.__new__(ModelService)
+        service.model_ = MagicMock()
+        trainer = MagicMock()
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_train_multistage = MagicMock(return_value=trainer)
+            mp.setattr(service, "train_multistage", mock_train_multistage)
+            result = service.train(checkpoint_dir=tmp_path, multistage=True)
+
+        mock_train_multistage.assert_called_once_with(checkpoint_dir=tmp_path)
+        assert result is trainer
 
     def test_train_multistage_rejects_non_encode_process_decode_model(self) -> None:
         service = ModelService.__new__(ModelService)
@@ -777,8 +760,6 @@ class TestModelService:
         encoder_models: list[EncoderStage] = [MagicMock()]
 
         decoder_model = MagicMock()
-        decoder_model.decoder.data_space_in.chw = (4, 8, 8)
-        decoder_model.decoder.data_space_out.chw = (1, 8, 8)
 
         trainer = MagicMock()
         ckpt_path = tmp_path / "decoder.ckpt"
@@ -855,11 +836,9 @@ class TestModelService:
         """Train a fresh encoder while reusing an existing checkpoint for another."""
         service = ModelService.__new__(ModelService)
         encoder_era5 = SimpleNamespace(
-            name="era5", data_space_in=SimpleNamespace(chw=(3, 10, 10))
+            name="era5", data_space_in=DataSpace(3, "era5", (10, 10))
         )
-        target_encoder = SimpleNamespace(
-            name="target", data_space_in=SimpleNamespace(chw=(1, 10, 10))
-        )
+        target_encoder = SimpleNamespace(name="target")
         service.model_ = MagicMock(spec=EncodeProcessDecode)
         service.model_.encoders = [encoder_era5]
         service.model_.target_encoder = target_encoder
@@ -962,8 +941,6 @@ class TestModelService:
         decoder_model = MagicMock()
         target_encoder = MagicMock()
         processor_model = MagicMock()
-        processor_model.processor.n_history_steps = 3
-        processor_model.processor.n_forecast_steps = 2
         processor_model.processor.data_space.chw = (4, 8, 8)
         trainer = MagicMock()
         ckpt_path = tmp_path / "processor.ckpt"
