@@ -31,17 +31,8 @@ input:
   float-argo:
     - PSAL
     - TEMP
-  sic-osisaf:
-    - ice_conc
-    - status_flag
-    - total_standard_uncertainty
   sic-ssmis:
-    - algorithm_standard_uncertainty
     - ice_conc
-    - raw_ice_conc_values
-    - smearing_standard_uncertainty
-    - status_flag
-    - total_standard_uncertainty
 output:
-  sic-osisaf:
+  sic-ssmis:
     - ice_conc
