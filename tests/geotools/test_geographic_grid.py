@@ -10,75 +10,72 @@ from icenet_mp.geotools.grid_factory import (
 )
 
 
-def test_ease2_grid_helper_normalises_resolution_and_centres_grid() -> None:
-    """Convert kilometre resolution to centred projected-coordinate arrays."""
-    resolution, h_points, w_points = ease2_grid_helper("25p0km", 4, 4)
+class TestGeographicGrid:
+    """Unit tests for the GeographicGrid class and its coordinate accessors."""
 
-    assert resolution == "25p0km"
-    np.testing.assert_allclose(h_points, [-37500.0, -12500.0, 12500.0, 37500.0])
-    np.testing.assert_allclose(w_points, [37500.0, 12500.0, -12500.0, -37500.0])
+    def test_ease2_grid_helper_normalises_resolution_and_centres_grid(self) -> None:
+        """Convert kilometre resolution to centred projected-coordinate arrays."""
+        resolution, h_points, w_points = ease2_grid_helper("25p0km", 4, 4)
 
+        assert resolution == "25p0km"
+        np.testing.assert_allclose(h_points, [-37500.0, -12500.0, 12500.0, 37500.0])
+        np.testing.assert_allclose(w_points, [37500.0, 12500.0, -12500.0, -37500.0])
 
-def test_ease2_grid_helper_accepts_metres_and_rejects_bad_format() -> None:
-    """Normalise metre input and reject resolutions without an explicit unit."""
-    resolution, _, _ = ease2_grid_helper("25000m", 3, 3)
-    assert resolution == "25p0km"
+    def test_ease2_grid_helper_accepts_metres_and_rejects_bad_format(self) -> None:
+        """Normalise metre input and reject resolutions without an explicit unit."""
+        resolution, _, _ = ease2_grid_helper("25000m", 3, 3)
+        assert resolution == "25p0km"
 
-    with pytest.raises(ValueError, match="Invalid resolution format"):
-        ease2_grid_helper("25000", 3, 3)
+        with pytest.raises(ValueError, match="Invalid resolution format"):
+            ease2_grid_helper("25000", 3, 3)
 
+    def test_wgs84_north_builder_exposes_expected_coordinates(self) -> None:
+        """Build a northern regular lat/lon grid without coordinate transformation."""
+        grid = epsg_4326n_builder("1p0", (4, 4))
 
-def test_wgs84_north_builder_exposes_expected_coordinates() -> None:
-    """Build a northern regular lat/lon grid without coordinate transformation."""
-    grid = epsg_4326n_builder("1p0", (4, 4))
+        assert grid.shape() == (4, 4)
+        np.testing.assert_allclose(grid.x()[0], [-1.5, -0.5, 0.5, 1.5])
+        np.testing.assert_allclose(grid.y()[:, 0], [86.5, 87.5, 88.5, 89.5])
+        np.testing.assert_allclose(grid.longitudes(), grid.x())
+        np.testing.assert_allclose(grid.latitudes(), grid.y())
+        assert grid.mars_area() == (89.5, -1.5, 86.5, 1.5)
 
-    assert grid.shape() == (4, 4)
-    np.testing.assert_allclose(grid.x()[0], [-1.5, -0.5, 0.5, 1.5])
-    np.testing.assert_allclose(grid.y()[:, 0], [86.5, 87.5, 88.5, 89.5])
-    np.testing.assert_allclose(grid.longitudes(), grid.x())
-    np.testing.assert_allclose(grid.latitudes(), grid.y())
-    assert grid.mars_area() == (89.5, -1.5, 86.5, 1.5)
+    def test_wgs84_south_builder_exposes_expected_coordinates(self) -> None:
+        """Build a southern regular lat/lon grid with the requested shape."""
+        grid = epsg_4326s_builder("1p0", (4, 4))
 
+        np.testing.assert_allclose(grid.y()[:, 0], [-3.5, -2.5, -1.5, -0.5])
+        assert grid.mars_area() == (-0.5, -1.5, -3.5, 1.5)
 
-def test_wgs84_south_builder_exposes_expected_coordinates() -> None:
-    """Build a southern regular lat/lon grid with the requested shape."""
-    grid = epsg_4326s_builder("1p0", (4, 4))
+    def test_grid_coordinate_accessors_support_dtype_conversion(self) -> None:
+        """Allow callers to request coordinate arrays in a different dtype."""
+        grid = epsg_4326n_builder("1p0", (2, 2))
 
-    np.testing.assert_allclose(grid.y()[:, 0], [-3.5, -2.5, -1.5, -0.5])
-    assert grid.mars_area() == (-0.5, -1.5, -3.5, 1.5)
+        assert grid.x(dtype=np.float32).dtype == np.float32
+        assert grid.y(dtype=np.float32).dtype == np.float32
+        assert grid.latitudes(dtype=np.float32).dtype == np.float32
+        assert grid.longitudes(dtype=np.float32).dtype == np.float32
 
+    def test_polar_builders_set_expected_crs_and_orientation(self) -> None:
+        """Construct north/south EASE2 grids with matching projected coordinates."""
+        north = epsg_6931_builder("25p0km", (3, 5))
+        south = epsg_6932_builder("25p0km", (3, 5))
 
-def test_grid_coordinate_accessors_support_dtype_conversion() -> None:
-    """Allow callers to request coordinate arrays in a different dtype."""
-    grid = epsg_4326n_builder("1p0", (2, 2))
+        assert north.native_crs == "EPSG:6931"
+        assert south.native_crs == "EPSG:6932"
+        assert north.shape() == south.shape() == (5, 3)
+        np.testing.assert_allclose(north.x(), south.x())
+        np.testing.assert_allclose(north.y(), south.y())
 
-    assert grid.x(dtype=np.float32).dtype == np.float32
-    assert grid.y(dtype=np.float32).dtype == np.float32
-    assert grid.latitudes(dtype=np.float32).dtype == np.float32
-    assert grid.longitudes(dtype=np.float32).dtype == np.float32
+    def test_unimplemented_earthkit_grid_methods_raise(self) -> None:
+        """Keep unsupported EarthKit geography methods explicit rather than silent."""
+        grid = epsg_4326n_builder("1p0", (2, 2))
 
-
-def test_polar_builders_set_expected_crs_and_orientation() -> None:
-    """Construct north/south EASE2 grids with matching projected coordinates."""
-    north = epsg_6931_builder("25p0km", (3, 5))
-    south = epsg_6932_builder("25p0km", (3, 5))
-
-    assert north.native_crs == "EPSG:6931"
-    assert south.native_crs == "EPSG:6932"
-    assert north.shape() == south.shape() == (5, 3)
-    np.testing.assert_allclose(north.x(), south.x())
-    np.testing.assert_allclose(north.y(), south.y())
-
-
-def test_unimplemented_earthkit_grid_methods_raise() -> None:
-    """Keep unsupported EarthKit geography methods explicit rather than silent."""
-    grid = epsg_4326n_builder("1p0", (2, 2))
-
-    for method in (
-        grid._unique_grid_id,
-        grid.gridspec,
-        grid.grid_spec,
-        grid.projection,
-    ):
-        with pytest.raises(NotImplementedError):
-            method()
+        for method in (
+            grid._unique_grid_id,
+            grid.gridspec,
+            grid.grid_spec,
+            grid.projection,
+        ):
+            with pytest.raises(NotImplementedError):
+                method()
