@@ -1,5 +1,0 @@
-# Number of future steps to predict
-n_forecast_steps: 14
-
-# Number of history steps to use when predicting
-n_history_steps: 3

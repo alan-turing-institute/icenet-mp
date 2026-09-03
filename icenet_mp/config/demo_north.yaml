@@ -1,5 +1,5 @@
 defaults:
   - base
   - override /data: demo
-  - override /predict: sic-osisaf-2d
+  - override /variables: sic-osisaf
   - _self_

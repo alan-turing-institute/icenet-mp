@@ -69,7 +69,7 @@ class TestCommonDataModule:
 
 
 class TestTargetMaskDir:
-    """B2: choosing the mask when the target group holds multiple datasets."""
+    """Choose the correct mask when the target group holds multiple datasets."""
 
     @staticmethod
     def _cfg(base_path: str, datasets: dict) -> DictConfig:
@@ -80,19 +80,19 @@ class TestTargetMaskDir:
                 "data": {
                     "datasets": datasets,
                     "split": {
-                        "batch_size": 2,
                         "predict": none_period,
                         "test": none_period,
                         "train": none_period,
                         "validate": none_period,
                     },
                 },
-                "predict": {
-                    "n_forecast_steps": 1,
-                    "n_history_steps": 1,
-                },
                 "variables": {
                     "output": {"sic": ["mock_var"]},
+                },
+                "window": {
+                    "batch_size": 2,
+                    "n_forecast_steps": 1,
+                    "n_history_steps": 1,
                 },
             }
         )

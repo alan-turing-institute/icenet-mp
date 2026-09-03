@@ -6,9 +6,9 @@ defaults:
     - wandb
   - loss: amse
   - model: quick_test
-  - predict: sic-ssmis-2d
   - random: default
   - train: default
   - platform: default
   - variables: sic-ssmis
+  - window: forecast-3-history-2
   - _self_

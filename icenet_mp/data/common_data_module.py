@@ -58,7 +58,7 @@ class CommonDataModule(LightningDataModule):
             self._target_variables = [str(v) for v in variable_names]
 
         # Set periods for train, validation, and test
-        self.batch_size = int(config["data"]["split"]["batch_size"])
+        self.batch_size = int(config["window"]["batch_size"])
         self.predict_periods = [
             {str(k): None if v is None else str(v) for k, v in period.items()}
             for period in config["data"]["split"]["predict"]
@@ -77,8 +77,8 @@ class CommonDataModule(LightningDataModule):
         ]
 
         # Set history and forecast steps
-        self.n_forecast_steps = int(config["predict"].get("n_forecast_steps", 1))
-        self.n_history_steps = int(config["predict"].get("n_history_steps", 1))
+        self.n_forecast_steps = int(config["window"].get("n_forecast_steps", 1))
+        self.n_history_steps = int(config["window"].get("n_history_steps", 1))
 
         # Set common arguments for the dataloader
         self._common_dataloader_kwargs = DataloaderArgs(
