@@ -172,23 +172,30 @@ class Plotter:
         prefix: str | None = None,
     ) -> None:
         """Extract and log raw input videos."""
-        log_path = self._log_path(prefix, "input_video")
-        for input_ds in inputs:
-            # Get data for all variables at the selected timestep
-            np_dates = [npdatetime_from_datetime(date) for date in dates]
-            variables = {
-                f"{input_ds.name}:{v_name}": input_ds.get_tchw(np_dates)[:, channel, :]
-                for channel, v_name in enumerate(input_ds.variable_names)
-            }
-            # Plot input animations
-            videos = plot_video_inputs(
-                variables,
-                dates=dates,
-                plot_spec=self.plot_spec,
-                land_mask=self.land_mask,
-            )
-            # Log input animations
-            self._log_videos(videos, video_loggers, log_path)
+        try:
+            log_path = self._log_path(prefix, "input_video")
+            for input_ds in inputs:
+                # Get data for all variables at the selected timestep
+                np_dates = [npdatetime_from_datetime(date) for date in dates]
+                variables = {
+                    f"{input_ds.name}:{v_name}": input_ds.get_tchw(np_dates)[
+                        :, channel, :
+                    ]
+                    for channel, v_name in enumerate(input_ds.variable_names)
+                }
+                # Plot input animations
+                videos = plot_video_inputs(
+                    variables,
+                    dates=dates,
+                    plot_spec=self.plot_spec,
+                    land_mask=self.land_mask,
+                )
+                # Log input animations
+                self._log_videos(videos, video_loggers, log_path)
+        except (InvalidArrayError, VideoRenderError) as err:
+            logger.warning("Video plotting skipped: %s", err)
+        except (IndexError, ValueError, MemoryError, OSError):
+            logger.exception("Video plotting failed")
 
     def log_video_outputs(
         self,
