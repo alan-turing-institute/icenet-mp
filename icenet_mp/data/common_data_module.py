@@ -161,6 +161,7 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def target_group_name(self) -> str:
         """Return the name of the target variable group."""
+        # Verify that exactly one target variable group is requested
         target_variable_groups = list(self._requested_target_variables.keys())
         if len(target_variable_groups) != 1:
             msg = (
@@ -168,11 +169,12 @@ class CommonDataModule(LightningDataModule):
                 f"{len(target_variable_groups)}: {target_variable_groups}."
             )
             raise ValueError(msg)
+        # Verify that the requested group is a configured dataset group
         if target_variable_groups[0] not in self.dataset_groups:
             available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
             msg = (
-                f"Target dataset group {target_variable_groups[0]!r} was not found in "
-                f"list of dataset groups. Available groups: {available_ds_groups}."
+                f"Target dataset group {target_variable_groups[0]!r} is not a "
+                f"configured dataset group. Available groups: {available_ds_groups}."
             )
             raise ValueError(msg)
         return target_variable_groups[0]
@@ -185,6 +187,7 @@ class CommonDataModule(LightningDataModule):
             for ds in self.datasets.values()
             if ds.name == self.target_group_name
         )
+        # Verify that the requested variable names exist in the dataset group
         requested_variables = self._requested_target_variables[self.target_group_name]
         for requested_variable in requested_variables:
             if requested_variable not in available_variables:
@@ -216,29 +219,29 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def variable_names(self) -> dict[str, list[str]]:
         """Return the variable names for each input dataset group."""
-        available = {
-            ds.name: ds.variable_names for ds in self.datasets_unfiltered.values()
-        }
         if not self._requested_input_variables:
-            return available
+            return {
+                ds.name: ds.variable_names for ds in self.datasets_unfiltered.values()
+            }
         verified: dict[str, list[str]] = {}
         for group_name, variable_names in self._requested_input_variables.items():
+            # Verify that the requested group is a configured dataset group
             if group_name not in self.dataset_groups:
-                available_ = ", ".join(sorted(self.dataset_groups)) or "<none>"
+                available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
                 msg = (
-                    f"Input variable group {group_name!r} was not found in the "
-                    f"configured datasets. Available groups: {available_}."
+                    f"Input dataset group {group_name!r} is not a configured dataset "
+                    f"group. Available groups: {available_ds_groups}."
                 )
                 raise ValueError(msg)
             verified[group_name] = []
+            # Verify that the requested variable names exist in the dataset group
+            available_variables = self.datasets_unfiltered[group_name].variable_names
             for variable in variable_names:
-                if variable not in available[group_name]:
-                    available_variables = (
-                        ", ".join(sorted(available[group_name])) or "<none>"
-                    )
+                if variable not in available_variables:
+                    available_ = ", ".join(sorted(available_variables)) or "<none>"
                     msg = (
                         f"Input variable {variable!r} was not found in dataset group "
-                        f"{group_name!r}. Available variables: {available_variables}."
+                        f"{group_name!r}. Available variables: {available_}."
                     )
                     raise ValueError(msg)
                 verified[group_name].append(variable)
@@ -250,7 +253,7 @@ class CommonDataModule(LightningDataModule):
         *,
         stage: str,
     ) -> CombinedDataset:
-        """Construct a dataloader covering the given periods."""
+        """Construct a dataset covering the given periods."""
         dataset = CombinedDataset(
             [ds.subset(date_ranges=periods) for ds in self.datasets.values()],
             n_forecast_steps=self.n_forecast_steps,
@@ -258,6 +261,10 @@ class CommonDataModule(LightningDataModule):
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
         )
+        # The variables used for validation have already been logged for training
+        if stage != "validation":
+            for line in dataset.variable_list():
+                log.info(line)
         log.info(
             "Loaded %s dataset with %d dates between %s and %s.",
             stage,
@@ -285,22 +292,16 @@ class CommonDataModule(LightningDataModule):
     def predict_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct predict dataloader."""
         dataset = self._build_dataset(self.predict_periods, stage="predict")
-        for line in dataset.variable_list():
-            log.info(line)
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
     def test_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct test dataloader."""
         dataset = self._build_dataset(self.test_periods, stage="test")
-        for line in dataset.variable_list():
-            log.info(line)
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
     def train_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct train dataloader."""
         dataset = self._build_dataset(self.train_periods, stage="training")
-        for line in dataset.variable_list():
-            log.info(line)
         return DataLoader(dataset, shuffle=True, **self._common_dataloader_kwargs)
 
     def val_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
