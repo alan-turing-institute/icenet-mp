@@ -33,6 +33,6 @@ input:
     - TEMP
   sic-ssmis:
     - ice_conc
-output:
+target:
   sic-ssmis:
     - ice_conc

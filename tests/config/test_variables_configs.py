@@ -21,16 +21,16 @@ class TestVariablesConfigs:
         config = compose_config("sample", overrides=[f"variables={config_name}"])
 
         assert config.variables.input
-        assert config.variables.output
-        for group_name, variable_names in config.variables.output.items():
+        assert config.variables.target
+        for group_name, variable_names in config.variables.target.items():
             assert group_name
             assert variable_names
 
     @pytest.mark.parametrize("config_name", VARIABLES_CONFIGS)
-    def test_output_groups_are_also_input_groups(
+    def test_target_groups_are_also_input_groups(
         self, compose_config: Callable[..., DictConfig], config_name: str
     ) -> None:
         config = compose_config("sample", overrides=[f"variables={config_name}"])
 
-        for group_name in config.variables.output:
+        for group_name in config.variables.target:
             assert group_name in config.variables.input

@@ -46,21 +46,34 @@ class CommonDataModule(LightningDataModule):
         # Check input variables
         self._input_variables: dict[str, list[str]] = {}
         for group_name, variable_names in config["variables"]["input"].items():
+            if group_name not in self.dataset_groups:
+                msg = (
+                    f"Input variable group {group_name!r} was not found in the "
+                    f"configured datasets. Available groups: {available_ds_groups}. "
+                    "When evaluating a checkpoint, ensure the dataset `group_as` "
+                    "matches the checkpoint's `variables.input` groups."
+                )
+                raise ValueError(msg)
             self._input_variables[str(group_name)] = [str(v) for v in variable_names]
 
         # Check prediction target
-        self._target_variables: list[str] = []
-        for group_name, variable_names in config["variables"]["output"].items():
+        self._target_variables: dict[str, list[str]] = {}
+        for group_name, variable_names in config["variables"]["target"].items():
             if group_name not in self.dataset_groups:
                 msg = (
-                    f"Prediction target group {group_name!r} was not found in the "
+                    f"Target variable group {group_name!r} was not found in the "
                     f"configured datasets. Available groups: {available_ds_groups}. "
                     "When evaluating a checkpoint, ensure the dataset `group_as` "
-                    "matches the checkpoint's `variables.output` groups."
+                    "matches the checkpoint's `variables.target` groups."
                 )
                 raise ValueError(msg)
-            self.target_group_name = str(group_name)
-            self._target_variables = [str(v) for v in variable_names]
+            self._target_variables[str(group_name)] = [str(v) for v in variable_names]
+        if len(self._target_variables.keys()) != 1:
+            msg = (
+                f"Expected exactly one target variable group, but found "
+                f"{len(self._target_variables)}: {list(self._target_variables)}."
+            )
+            raise ValueError(msg)
 
         # Set periods for train, validation, and test
         self.batch_size = int(config["window"]["batch_size"])
@@ -178,11 +191,14 @@ class CommonDataModule(LightningDataModule):
         )
 
     @cached_property
+    def target_group_name(self) -> str:
+        """Return the name of the target variable group."""
+        return next(iter(self._target_variables.keys()))
+
+    @cached_property
     def target_variables(self) -> list[str]:
         """Return the names of the variables to predict."""
-        if self._target_variables:
-            return self._target_variables
-        return self.variable_names[self.target_group_name]
+        return self._target_variables[self.target_group_name]
 
     @cached_property
     def target_variable_indices(self) -> list[int]:
@@ -225,8 +241,8 @@ class CommonDataModule(LightningDataModule):
         log.info(
             "Loaded predict dataset with %d dates between %s and %s.",
             len(dataset),
-            dataset.start_date,
-            dataset.end_date,
+            dataset.start_date.astype("datetime64[m]"),
+            dataset.end_date.astype("datetime64[m]"),
         )
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
@@ -246,8 +262,8 @@ class CommonDataModule(LightningDataModule):
         log.info(
             "Loaded test dataset with %d dates between %s and %s.",
             len(dataset),
-            dataset.start_date,
-            dataset.end_date,
+            dataset.start_date.astype("datetime64[m]"),
+            dataset.end_date.astype("datetime64[m]"),
         )
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
@@ -270,8 +286,8 @@ class CommonDataModule(LightningDataModule):
         log.info(
             "Loaded training dataset with %d dates between %s and %s.",
             len(dataset),
-            dataset.start_date,
-            dataset.end_date,
+            dataset.start_date.astype("datetime64[m]"),
+            dataset.end_date.astype("datetime64[m]"),
         )
         return DataLoader(dataset, shuffle=True, **self._common_dataloader_kwargs)
 
@@ -289,7 +305,7 @@ class CommonDataModule(LightningDataModule):
         log.info(
             "Loaded validation dataset with %d dates between %s and %s.",
             len(dataset),
-            dataset.start_date,
-            dataset.end_date,
+            dataset.start_date.astype("datetime64[m]"),
+            dataset.end_date.astype("datetime64[m]"),
         )
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)

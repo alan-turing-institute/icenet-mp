@@ -38,6 +38,6 @@ input:
     - smearing_standard_uncertainty
     - status_flag
     - total_standard_uncertainty
-output:
+target:
   sic-ssmis:
     - ice_conc

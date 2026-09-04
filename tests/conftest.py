@@ -109,7 +109,7 @@ def cfg_common_data_module() -> DictConfig:
             },
             "variables": {
                 "input": {"group1": ["mock_var"]},
-                "output": {"group1": ["mock_var"]},
+                "target": {"group1": ["mock_var"]},
             },
             "window": {
                 "batch_size": 2,

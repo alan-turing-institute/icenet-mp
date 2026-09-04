@@ -35,6 +35,6 @@ input:
     - ice_conc
     - status_flag
     - total_standard_uncertainty
-output:
+target:
   sic-osisaf:
     - ice_conc
