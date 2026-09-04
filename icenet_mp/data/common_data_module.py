@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 from lightning import LightningDataModule
 from omegaconf import DictConfig
@@ -54,24 +55,12 @@ class CommonDataModule(LightningDataModule):
             for group_name, variable_names in config["variables"]["target"].items()
         }
 
-        # Set periods for train, validation, and test
+        # Set periods for prediction, testing, training and validation
         self.batch_size = int(config["window"]["batch_size"])
-        self.predict_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["predict"]
-        ]
-        self.test_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["test"]
-        ]
-        self.train_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["train"]
-        ]
-        self.val_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["validate"]
-        ]
+        self.predict_periods = self._normalise(config["data"]["split"]["predict"])
+        self.test_periods = self._normalise(config["data"]["split"]["test"])
+        self.train_periods = self._normalise(config["data"]["split"]["train"])
+        self.val_periods = self._normalise(config["data"]["split"]["validate"])
 
         # Set history and forecast steps
         self.n_forecast_steps = int(config["window"].get("n_forecast_steps", 1))
@@ -277,6 +266,14 @@ class CommonDataModule(LightningDataModule):
             dataset.end_date.astype("datetime64[m]"),
         )
         return dataset
+
+    @staticmethod
+    def _normalise(periods: list[dict[Any, Any]]) -> list[dict[str, str | None]]:
+        """Normalise periods to a list of dictionaries with string keys and values."""
+        return [
+            {str(k): None if v is None else str(v) for k, v in period.items()}
+            for period in periods
+        ]
 
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
