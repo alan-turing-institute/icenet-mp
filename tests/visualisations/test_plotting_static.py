@@ -23,7 +23,7 @@ from icenet_mp.visualisations.plotting_static import (
     plot_static_inputs,
     plot_static_prediction,
 )
-from icenet_mp.visualisations.range_check import compute_range_check_report
+from icenet_mp.visualisations.range_checker import RangeChecker
 
 from .conftest import TEST_DATE
 
@@ -77,7 +77,7 @@ class TestPlotStaticPrediction:
             (0.0, 1.0),
             (0.0, 1.0),
         )  # shared strategy uses spec range for both
-        report = compute_range_check_report(
+        report = RangeChecker().check(
             ground_truth,
             prediction,
             vmin=gt_min,

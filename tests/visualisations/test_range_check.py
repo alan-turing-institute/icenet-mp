@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
 
-from icenet_mp.visualisations.range_check import compute_range_check_report
+from icenet_mp.visualisations.range_checker import RangeChecker
+
+compute_range_check_report = RangeChecker().check
 
 
 class TestMagnitudeMismatch:

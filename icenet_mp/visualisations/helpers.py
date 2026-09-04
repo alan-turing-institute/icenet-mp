@@ -24,7 +24,7 @@ from .plotting_core import (
     compute_display_ranges,
     make_diff_colourmap,
 )
-from .range_check import compute_range_check_report
+from .range_checker import RangeChecker
 
 #: Default plotting specification for sea ice concentration visualisation
 DEFAULT_SIC_SPEC = PlotSpec(
@@ -82,7 +82,7 @@ def _prepare_static_plot(
     (gt_min, gt_max), (_pred_min, _pred_max) = compute_display_ranges(
         ground_truth, prediction, plot_spec
     )
-    range_check_report = compute_range_check_report(
+    range_check_report = RangeChecker().check(
         ground_truth,
         prediction,
         vmin=gt_min,
