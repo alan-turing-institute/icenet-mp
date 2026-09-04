@@ -255,6 +255,29 @@ class CommonDataModule(LightningDataModule):
                 verified[group_name].append(variable)
         return verified
 
+    def _build_dataset(
+        self,
+        periods: list[dict[str, str | None]],
+        *,
+        stage: str,
+    ) -> CombinedDataset:
+        """Construct a dataloader covering the given periods."""
+        dataset = CombinedDataset(
+            [ds.subset(date_ranges=periods) for ds in self.datasets.values()],
+            n_forecast_steps=self.n_forecast_steps,
+            n_history_steps=self.n_history_steps,
+            target_group_name=self.target_group_name,
+            target_variables=self.target_variables,
+        )
+        log.info(
+            "Loaded %s dataset with %d dates between %s and %s.",
+            stage,
+            len(dataset),
+            dataset.start_date.astype("datetime64[m]"),
+            dataset.end_date.astype("datetime64[m]"),
+        )
+        return dataset
+
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
         log.info("Assigning %d workers for data loading.", n_workers)
@@ -262,90 +285,28 @@ class CommonDataModule(LightningDataModule):
         self._common_dataloader_kwargs["persistent_workers"] = n_workers > 0
         self._common_dataloader_kwargs["prefetch_factor"] = 1 if n_workers > 0 else None
 
-    def predict_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def predict_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct predict dataloader."""
-        dataset = CombinedDataset(
-            [
-                ds.subset(date_ranges=self.predict_periods)
-                for ds in self.datasets.values()
-            ],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
+        dataset = self._build_dataset(self.predict_periods, stage="predict")
         for line in dataset.variable_list():
             log.info(line)
-        log.info(
-            "Loaded predict dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date.astype("datetime64[m]"),
-            dataset.end_date.astype("datetime64[m]"),
-        )
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
-    def test_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def test_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct test dataloader."""
-        dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
+        dataset = self._build_dataset(self.test_periods, stage="test")
         for line in dataset.variable_list():
             log.info(line)
-        log.info(
-            "Loaded test dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date.astype("datetime64[m]"),
-            dataset.end_date.astype("datetime64[m]"),
-        )
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
-    def train_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def train_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct train dataloader."""
-        dataset = CombinedDataset(
-            [
-                ds.subset(date_ranges=self.train_periods)
-                for ds in self.datasets.values()
-            ],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
+        dataset = self._build_dataset(self.train_periods, stage="training")
         for line in dataset.variable_list():
             log.info(line)
-        log.info(
-            "Loaded training dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date.astype("datetime64[m]"),
-            dataset.end_date.astype("datetime64[m]"),
-        )
         return DataLoader(dataset, shuffle=True, **self._common_dataloader_kwargs)
 
-    def val_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def val_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct validation dataloader."""
-        dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
-        log.info(
-            "Loaded validation dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date.astype("datetime64[m]"),
-            dataset.end_date.astype("datetime64[m]"),
-        )
+        dataset = self._build_dataset(self.val_periods, stage="validation")
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
