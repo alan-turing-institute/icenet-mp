@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
+from typing import Any
 
 from lightning import LightningDataModule
 from omegaconf import DictConfig
@@ -13,7 +14,7 @@ from icenet_mp.utils import mask_dir
 from .combined_dataset import CombinedDataset
 from .single_dataset import SingleDataset
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class CommonDataModule(LightningDataModule):
@@ -36,49 +37,34 @@ class CommonDataModule(LightningDataModule):
                     self.base_path / "data" / "anemoi" / f"{dataset['name']}.zarr"
                 ).resolve()
             )
-        logger.info("Found %d dataset groups.", len(self.dataset_groups))
+        log.info("Found %d dataset groups.", len(self.dataset_groups))
         for idx, (name, paths) in enumerate(self.dataset_groups.items(), start=1):
-            logger.info("%d) %s:", idx, name)
+            log.info("%d) %s:", idx, name)
             for path in paths:
-                logger.info("%s - %s", " " * (len(str(idx)) + 1), path)
+                log.info("%s - %s", " " * (len(str(idx)) + 1), path)
 
-        # Check prediction target
-        self.target_group_name = config["predict"]["target"]["group_name"]
-        if self.target_group_name not in self.dataset_groups:
-            available_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
-            msg = (
-                f"Prediction target group {self.target_group_name!r} was not found in "
-                f"the configured datasets. Available groups: {available_groups}. "
-                "When evaluating a checkpoint, ensure the dataset `group_as` matches "
-                "the checkpoint's `predict.target.group_name`."
-            )
-            raise ValueError(msg)
-        self._target_variables: list[str] = config["predict"]["target"].get(
-            "variables", []
-        )
+        # Requested input variables
+        self._requested_input_variables: dict[str, list[str]] = {
+            str(group_name): [str(v) for v in variable_names]
+            for group_name, variable_names in config["variables"]["input"].items()
+        }
 
-        # Set periods for train, validation, and test
-        self.batch_size = int(config["data"]["split"]["batch_size"])
-        self.predict_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["predict"]
-        ]
-        self.test_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["test"]
-        ]
-        self.train_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["train"]
-        ]
-        self.val_periods = [
-            {str(k): None if v is None else str(v) for k, v in period.items()}
-            for period in config["data"]["split"]["validate"]
-        ]
+        # Requested target variables
+        self._requested_target_variables: dict[str, list[str]] = {
+            str(group_name): [str(v) for v in variable_names]
+            for group_name, variable_names in config["variables"]["target"].items()
+        }
+
+        # Set periods for prediction, testing, training and validation
+        self.batch_size = int(config["window"]["batch_size"])
+        self.predict_periods = self._normalise(config["data"]["split"]["predict"])
+        self.test_periods = self._normalise(config["data"]["split"]["test"])
+        self.train_periods = self._normalise(config["data"]["split"]["train"])
+        self.val_periods = self._normalise(config["data"]["split"]["validate"])
 
         # Set history and forecast steps
-        self.n_forecast_steps = int(config["predict"].get("n_forecast_steps", 1))
-        self.n_history_steps = int(config["predict"].get("n_history_steps", 1))
+        self.n_forecast_steps = int(config["window"].get("n_forecast_steps", 1))
+        self.n_history_steps = int(config["window"].get("n_history_steps", 1))
 
         # Set common arguments for the dataloader
         self._common_dataloader_kwargs = DataloaderArgs(
@@ -94,7 +80,19 @@ class CommonDataModule(LightningDataModule):
 
     @cached_property
     def datasets(self) -> dict[str, SingleDataset]:
-        """Return a dictionary of dataset group names to SingleDataset objects."""
+        """Return a filtered dictionary of dataset group names to SingleDataset objects.
+
+        Only include requested variables for each dataset group. If no variables are
+        requested for a dataset group, ignore it.
+        """
+        return {
+            name: self.datasets_unfiltered[name].subset(variables=variables)
+            for name, variables in self.variable_names.items()
+        }
+
+    @cached_property
+    def datasets_unfiltered(self) -> dict[str, SingleDataset]:
+        """Return an unfiltered dictionary of dataset group names to SingleDataset objects."""
         return {
             name: SingleDataset(name, paths)
             for name, paths in self.dataset_groups.items()
@@ -142,7 +140,7 @@ class CommonDataModule(LightningDataModule):
         ]
         chosen = (available or paths)[0].stem
         if len(paths) > 1:
-            logger.warning(
+            log.warning(
                 "Target group %r has %d datasets; using %r for masks "
                 "(combining masks across datasets is not supported).",
                 self.target_group_name,
@@ -161,110 +159,152 @@ class CommonDataModule(LightningDataModule):
         )
 
     @cached_property
+    def target_group_name(self) -> str:
+        """Return the name of the target variable group."""
+        # Verify that exactly one target variable group is requested
+        target_variable_groups = list(self._requested_target_variables.keys())
+        if len(target_variable_groups) != 1:
+            msg = (
+                f"Expected exactly one target variable group, but found "
+                f"{len(target_variable_groups)}: {target_variable_groups}."
+            )
+            raise ValueError(msg)
+        # Verify that the requested group is a configured dataset group
+        if target_variable_groups[0] not in self.dataset_groups:
+            available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
+            msg = (
+                f"Target dataset group {target_variable_groups[0]!r} is not a "
+                f"configured dataset group. Available groups: {available_ds_groups}."
+            )
+            raise ValueError(msg)
+        return target_variable_groups[0]
+
+    @cached_property
     def target_variables(self) -> list[str]:
         """Return the names of the variables to predict."""
-        if self._target_variables:
-            return self._target_variables
-        return self.variable_names[self.target_group_name]
+        available_variables = next(
+            ds.variable_names
+            for ds in self.datasets.values()
+            if ds.name == self.target_group_name
+        )
+        # Verify that the requested variable names exist in the dataset group
+        requested_variables = self._requested_target_variables[self.target_group_name]
+        for requested_variable in requested_variables:
+            if requested_variable not in available_variables:
+                available_ = ", ".join(sorted(available_variables)) or "<none>"
+                msg = (
+                    f"Target variable {requested_variable!r} was not found in dataset "
+                    f"group {self.target_group_name!r}. Available variables: "
+                    f"{available_}."
+                )
+                raise ValueError(msg)
+        return requested_variables
 
     @cached_property
     def target_variable_indices(self) -> list[int]:
-        """Return the indices of the variables to predict."""
-        return [
-            self.variable_names[self.target_group_name].index(variable)
-            for variable in self.target_variables
-        ]
+        """Return the indices of the target variables within their dataset group."""
+        try:
+            return [
+                self.variable_names[self.target_group_name].index(variable)
+                for variable in self.target_variables
+            ]
+        except ValueError as exc:
+            msg = (
+                f"Not all target variable {self.target_variables} were found in the "
+                f"dataset group {self.target_group_name!r}. Available variables: "
+                f"{self.variable_names[self.target_group_name]!r}."
+            )
+            raise ValueError(msg) from exc
 
     @cached_property
     def variable_names(self) -> dict[str, list[str]]:
-        """Return the variable names for each input."""
-        return {ds.name: ds.variable_names for ds in self.datasets.values()}
+        """Return the variable names for each input dataset group."""
+        if not self._requested_input_variables:
+            return {
+                ds.name: ds.variable_names for ds in self.datasets_unfiltered.values()
+            }
+        verified: dict[str, list[str]] = {}
+        for group_name, variable_names in self._requested_input_variables.items():
+            # Verify that the requested group is a configured dataset group
+            if group_name not in self.dataset_groups:
+                available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
+                msg = (
+                    f"Input dataset group {group_name!r} is not a configured dataset "
+                    f"group. Available groups: {available_ds_groups}."
+                )
+                raise ValueError(msg)
+            verified[group_name] = []
+            # Verify that the requested variable names exist in the dataset group
+            available_variables = self.datasets_unfiltered[group_name].variable_names
+            for variable in variable_names:
+                if variable not in available_variables:
+                    available_ = ", ".join(sorted(available_variables)) or "<none>"
+                    msg = (
+                        f"Input variable {variable!r} was not found in dataset group "
+                        f"{group_name!r}. Available variables: {available_}."
+                    )
+                    raise ValueError(msg)
+                verified[group_name].append(variable)
+        return verified
+
+    def _build_dataset(
+        self,
+        periods: list[dict[str, str | None]],
+        *,
+        stage: str,
+    ) -> CombinedDataset:
+        """Construct a dataset covering the given periods."""
+        dataset = CombinedDataset(
+            [ds.subset(date_ranges=periods) for ds in self.datasets.values()],
+            n_forecast_steps=self.n_forecast_steps,
+            n_history_steps=self.n_history_steps,
+            target_group_name=self.target_group_name,
+            target_variables=self.target_variables,
+        )
+        # The variables used for validation have already been logged for training
+        if stage != "validation":
+            for line in dataset.variable_list():
+                log.info(line)
+        log.info(
+            "Loaded %s dataset with %d dates between %s and %s.",
+            stage,
+            len(dataset),
+            dataset.start_date.astype("datetime64[m]"),
+            dataset.end_date.astype("datetime64[m]"),
+        )
+        return dataset
+
+    @staticmethod
+    def _normalise(periods: list[dict[Any, Any]]) -> list[dict[str, str | None]]:
+        """Normalise periods to a list of dictionaries with string keys and values."""
+        return [
+            {str(k): None if v is None else str(v) for k, v in period.items()}
+            for period in periods
+        ]
 
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
-        logger.info("Assigning %d workers for data loading.", n_workers)
+        log.info("Assigning %d workers for data loading.", n_workers)
         self._common_dataloader_kwargs["num_workers"] = n_workers
         self._common_dataloader_kwargs["persistent_workers"] = n_workers > 0
         self._common_dataloader_kwargs["prefetch_factor"] = 1 if n_workers > 0 else None
 
-    def predict_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def predict_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct predict dataloader."""
-        dataset = CombinedDataset(
-            [
-                ds.subset(date_ranges=self.predict_periods)
-                for ds in self.datasets.values()
-            ],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
-        logger.info(
-            "Loaded predict dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date,
-            dataset.end_date,
-        )
+        dataset = self._build_dataset(self.predict_periods, stage="predict")
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
-    def test_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def test_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct test dataloader."""
-        dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
-        logger.info(
-            "Loaded test dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date,
-            dataset.end_date,
-        )
+        dataset = self._build_dataset(self.test_periods, stage="test")
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
-    def train_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def train_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct train dataloader."""
-        dataset = CombinedDataset(
-            [
-                ds.subset(date_ranges=self.train_periods)
-                for ds in self.datasets.values()
-            ],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
-        logger.info(
-            "Loaded training dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date,
-            dataset.end_date,
-        )
+        dataset = self._build_dataset(self.train_periods, stage="training")
         return DataLoader(dataset, shuffle=True, **self._common_dataloader_kwargs)
 
-    def val_dataloader(
-        self,
-    ) -> DataLoader[dict[str, ArrayTCHW]]:
+    def val_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct validation dataloader."""
-        dataset = CombinedDataset(
-            [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_group_name=self.target_group_name,
-            target_variables=self.target_variables,
-        )
-        logger.info(
-            "Loaded validation dataset with %d dates between %s and %s.",
-            len(dataset),
-            dataset.start_date,
-            dataset.end_date,
-        )
+        dataset = self._build_dataset(self.val_periods, stage="validation")
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)

@@ -233,7 +233,7 @@ class PlottingCallback(Callback):
         video_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_video")]
 
         # Get channel names from the model
-        channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
+        channel_names = getattr(pl_module, "channel_names", None) or ["sic"]
 
         if self.make_static_plots:
             uncertainties = self.load_target_uncertainties(dataset, dates)
