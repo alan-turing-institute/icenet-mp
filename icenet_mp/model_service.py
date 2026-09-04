@@ -72,6 +72,7 @@ class ModelService:
         log.info("Building a new '%s' model...", builder.config["model"]["_target_"])
         builder.model_ = hydra.utils.instantiate(
             config["model"],
+            channel_names=builder.data_module.target_variables,
             hemisphere=builder.data_module.hemisphere,
             input_spaces=[s.to_dict() for s in builder.data_module.input_spaces],
             latitudes_fn=lambda: builder.data_module.latitudes,
