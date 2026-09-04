@@ -50,22 +50,21 @@ class TestCommonDataModule:
         assert dm.train_periods[1]["end"] is None
         assert dm.val_periods[0]["end"] == "2020-03-31"
 
-    def test_missing_target_group_explains_checkpoint_mismatch(
+    def test_missing_target_group_raises(
         self, cfg_common_data_module: DictConfig
     ) -> None:
-        """A missing evaluation target should explain how to align dataset groups."""
+        """A missing evaluation target should raise."""
         available_group = next(
             iter(cfg_common_data_module["data"]["datasets"].values())
         )["group_as"]
         cfg_common_data_module["variables"]["target"] = {"missing-target": ["mock_var"]}
+        dm = CommonDataModule(cfg_common_data_module)
 
         with pytest.raises(ValueError, match="missing-target") as exc_info:
-            CommonDataModule(cfg_common_data_module)
+            _ = dm.target_group_name
 
         message = str(exc_info.value)
         assert str(available_group) in message
-        assert "group_as" in message
-        assert "variables.target" in message
 
 
 class TestTargetMaskDir:

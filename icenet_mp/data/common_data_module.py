@@ -41,39 +41,18 @@ class CommonDataModule(LightningDataModule):
             log.info("%d) %s:", idx, name)
             for path in paths:
                 log.info("%s - %s", " " * (len(str(idx)) + 1), path)
-        available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
 
-        # Check input variables
-        self._input_variables: dict[str, list[str]] = {}
-        for group_name, variable_names in config["variables"]["input"].items():
-            if group_name not in self.dataset_groups:
-                msg = (
-                    f"Input variable group {group_name!r} was not found in the "
-                    f"configured datasets. Available groups: {available_ds_groups}. "
-                    "When evaluating a checkpoint, ensure the dataset `group_as` "
-                    "matches the checkpoint's `variables.input` groups."
-                )
-                raise ValueError(msg)
-            self._input_variables[str(group_name)] = [str(v) for v in variable_names]
+        # Requested input variables
+        self._requested_input_variables: dict[str, list[str]] = {
+            str(group_name): [str(v) for v in variable_names]
+            for group_name, variable_names in config["variables"]["input"].items()
+        }
 
-        # Check prediction target
-        self._target_variables: dict[str, list[str]] = {}
-        for group_name, variable_names in config["variables"]["target"].items():
-            if group_name not in self.dataset_groups:
-                msg = (
-                    f"Target variable group {group_name!r} was not found in the "
-                    f"configured datasets. Available groups: {available_ds_groups}. "
-                    "When evaluating a checkpoint, ensure the dataset `group_as` "
-                    "matches the checkpoint's `variables.target` groups."
-                )
-                raise ValueError(msg)
-            self._target_variables[str(group_name)] = [str(v) for v in variable_names]
-        if len(self._target_variables.keys()) != 1:
-            msg = (
-                f"Expected exactly one target variable group, but found "
-                f"{len(self._target_variables)}: {list(self._target_variables)}."
-            )
-            raise ValueError(msg)
+        # Requested target variables
+        self._requested_target_variables: dict[str, list[str]] = {
+            str(group_name): [str(v) for v in variable_names]
+            for group_name, variable_names in config["variables"]["target"].items()
+        }
 
         # Set periods for train, validation, and test
         self.batch_size = int(config["window"]["batch_size"])
@@ -193,27 +172,88 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def target_group_name(self) -> str:
         """Return the name of the target variable group."""
-        return next(iter(self._target_variables.keys()))
+        target_variable_groups = list(self._requested_target_variables.keys())
+        if len(target_variable_groups) != 1:
+            msg = (
+                f"Expected exactly one target variable group, but found "
+                f"{len(target_variable_groups)}: {target_variable_groups}."
+            )
+            raise ValueError(msg)
+        if target_variable_groups[0] not in self.dataset_groups:
+            available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
+            msg = (
+                f"Target dataset group {target_variable_groups[0]!r} was not found in "
+                f"list of dataset groups. Available groups: {available_ds_groups}."
+            )
+            raise ValueError(msg)
+        return target_variable_groups[0]
 
     @cached_property
     def target_variables(self) -> list[str]:
         """Return the names of the variables to predict."""
-        return self._target_variables[self.target_group_name]
+        available_variables = next(
+            ds.variable_names
+            for ds in self.datasets.values()
+            if ds.name == self.target_group_name
+        )
+        requested_variables = self._requested_target_variables[self.target_group_name]
+        for requested_variable in requested_variables:
+            if requested_variable not in available_variables:
+                available_ = ", ".join(sorted(available_variables)) or "<none>"
+                msg = (
+                    f"Target variable {requested_variable!r} was not found in dataset "
+                    f"group {self.target_group_name!r}. Available variables: "
+                    f"{available_}."
+                )
+                raise ValueError(msg)
+        return requested_variables
 
     @cached_property
     def target_variable_indices(self) -> list[int]:
-        """Return the indices of the variables to predict."""
-        return [
-            self.variable_names[self.target_group_name].index(variable)
-            for variable in self.target_variables
-        ]
+        """Return the indices of the target variables within their dataset group."""
+        try:
+            return [
+                self.variable_names[self.target_group_name].index(variable)
+                for variable in self.target_variables
+            ]
+        except ValueError as exc:
+            msg = (
+                f"Not all target variable {self.target_variables} were found in the "
+                f"dataset group {self.target_group_name!r}. Available variables: "
+                f"{self.variable_names[self.target_group_name]!r}."
+            )
+            raise ValueError(msg) from exc
 
     @cached_property
     def variable_names(self) -> dict[str, list[str]]:
-        """Return the variable names for each input."""
-        if self._input_variables:
-            return self._input_variables
-        return {ds.name: ds.variable_names for ds in self.datasets.values()}
+        """Return the variable names for each input dataset group."""
+        available = {
+            ds.name: ds.variable_names for ds in self.datasets_unfiltered.values()
+        }
+        if not self._requested_input_variables:
+            return available
+        verified: dict[str, list[str]] = {}
+        for group_name, variable_names in self._requested_input_variables.items():
+            if group_name not in self.dataset_groups:
+                available_ = ", ".join(sorted(self.dataset_groups)) or "<none>"
+                msg = (
+                    f"Input variable group {group_name!r} was not found in the "
+                    f"configured datasets. Available groups: {available_}."
+                )
+                raise ValueError(msg)
+            verified[group_name] = []
+            for variable in variable_names:
+                if variable not in available[group_name]:
+                    available_variables = (
+                        ", ".join(sorted(available[group_name])) or "<none>"
+                    )
+                    msg = (
+                        f"Input variable {variable!r} was not found in dataset group "
+                        f"{group_name!r}. Available variables: {available_variables}."
+                    )
+                    raise ValueError(msg)
+                verified[group_name].append(variable)
+        return verified
 
     def assign_workers(self, n_workers: int) -> None:
         """Assign number of workers for data loading."""
