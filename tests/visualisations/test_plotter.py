@@ -114,12 +114,10 @@ class TestMetadataAndHemisphere:
     def test_get_metadata_delegates_to_build_metadata(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Forward the config and model name to build_metadata."""
+        """Forward the config and model name to the metadata builder."""
         expected = Metadata(model="unet")
         fake_build_metadata = MagicMock(return_value=expected)
-        monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.build_metadata", fake_build_metadata
-        )
+        monkeypatch.setattr(plotter.metadata_builder, "build", fake_build_metadata)
         config = DictConfig({})
 
         plotter = Plotter()
@@ -134,7 +132,8 @@ class TestMetadataAndHemisphere:
         """Format the metadata and store it as the plot spec subtitle."""
         plotter = Plotter()
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.format_metadata_subtitle",
+            plotter.metadata_builder,
+            "format_subtitle",
             MagicMock(return_value="epochs=50"),
         )
 

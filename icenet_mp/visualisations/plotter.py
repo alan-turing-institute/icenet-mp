@@ -21,7 +21,7 @@ from icenet_mp.types import (
 from icenet_mp.utils import npdatetime_from_datetime
 
 from .land_mask import LandMask
-from .metadata import build_metadata, format_metadata_subtitle
+from .metadata_builder import MetadataBuilder
 from .plotting_static import (
     plot_static_inputs,
     plot_static_prediction,
@@ -37,6 +37,7 @@ class Plotter:
         """A helper class to create and log plots."""
         self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self.land_mask = LandMask(None)
+        self.metadata_builder = MetadataBuilder()
 
     @staticmethod
     def _log_path(prefix: str | None, name: str) -> str:
@@ -81,11 +82,13 @@ class Plotter:
 
     def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
         """Get metadata for the plotter based on the model test output."""
-        return build_metadata(config, model_name)
+        return self.metadata_builder.build(config, model_name)
 
     def set_metadata(self, metadata: Metadata) -> None:
         """Set metadata for the plotter, which may be used in titles and subtitles."""
-        self.plot_spec.metadata_subtitle = format_metadata_subtitle(metadata)
+        self.plot_spec.metadata_subtitle = self.metadata_builder.format_subtitle(
+            metadata
+        )
 
     def log_static_inputs(
         self,

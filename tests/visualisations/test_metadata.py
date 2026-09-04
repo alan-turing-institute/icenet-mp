@@ -5,15 +5,16 @@ from omegaconf import DictConfig
 
 from icenet_mp.callbacks.plotting_callback import PlottingCallback
 from icenet_mp.types import Metadata
-from icenet_mp.visualisations.metadata import (
-    build_metadata,
-    calculate_training_points,
-    extract_cadence_from_config,
-    extract_training_date_range,
-    extract_variables_by_source,
-    format_cadence_display,
-    format_metadata_subtitle,
-)
+from icenet_mp.visualisations.metadata_builder import MetadataBuilder
+
+builder = MetadataBuilder()
+calculate_training_points = builder.calculate_training_points
+extract_cadence_from_config = builder.extract_cadence_from_config
+extract_training_date_range = builder.extract_training_date_range
+extract_variables_by_source = builder.extract_variables_by_source
+format_cadence_display = builder.format_cadence_display
+build_metadata = builder.build
+format_metadata_subtitle = builder.format_subtitle
 
 
 @pytest.mark.parametrize(
