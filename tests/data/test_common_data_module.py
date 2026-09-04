@@ -66,6 +66,42 @@ class TestCommonDataModule:
         message = str(exc_info.value)
         assert str(available_group) in message
 
+    def test_target_variable_must_be_input_variable(self, mock_dataset: Path) -> None:
+        """A target variable not requested as an input variable for its group raises."""
+        none_period = [{"start": None, "end": None}]
+        cfg = DictConfig(
+            {
+                "base_path": str(mock_dataset.parent.parent.parent),
+                "data": {
+                    "datasets": {
+                        "ds1": {"name": mock_dataset.stem, "group_as": "group1"}
+                    },
+                    "split": {
+                        "predict": none_period,
+                        "test": none_period,
+                        "train": none_period,
+                        "validate": none_period,
+                    },
+                },
+                "variables": {
+                    "input": {"group1": ["ice_conc"]},
+                    "target": {"group1": ["ice_conc", "ice_thickness"]},
+                },
+                "window": {
+                    "batch_size": 2,
+                    "n_forecast_steps": 1,
+                    "n_history_steps": 1,
+                },
+            }
+        )
+        dm = CommonDataModule(cfg)
+
+        with pytest.raises(ValueError, match="ice_thickness") as exc_info:
+            _ = dm.target_variable_indices
+
+        message = str(exc_info.value)
+        assert "ice_conc" in message
+
 
 class TestTargetMaskDir:
     """Choose the correct mask when the target group holds multiple datasets."""
