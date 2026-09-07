@@ -67,13 +67,15 @@ Once evaluation completes, the run appears in the W&B project `evaluate` under t
 
 The per-forecast-day charts and the example videos summarise different dimensions of the same evaluation run.
 
-For each valid start date in the configured evaluation period, the model produces `n_forecast_steps` lead times. A metric shown for forecast day 1, 2, 3, and so on is aggregated across all evaluation start dates at that lead time. For example, the value at forecast day 3 answers: "how accurate was the third forecast step, averaged over the evaluation period?"
+For each valid start date in the configured evaluation period, the model produces predictions for each of the next `n_forecast_steps` timesteps.
+The value of each metric is averaged across all start dates to give a single value.
+In other words, the value at, for example, forecast day 3, tells you the average value of that metric at 3 days into the future across all start dates in the evaluation period.
 
-The videos are not one frame per evaluation start date. They use a small set of representative start dates sampled across the evaluation period, and each video contains the forecast sequence for that selected start date. As a result, it is normal for a run to show many forecast-day metric points while only producing a few example videos.
+The example videos use a small subset of representative start dates spread across the evaluation period.
+Each video contains the full forecast sequence for the selected start date.
+For example, when running with `n_forecast_steps=7`, each video will have 7 frames, one for each forecast day.
 
-In short:
-
-- `Custom Charts` show performance by lead time, aggregated across the evaluation period.
+- `Custom Charts` show performance as a function of forecast day, aggregated across the evaluation period.
 - `output_video` shows a small number of representative forecast sequences from within that period.
 
 This distinction is useful when checking whether skill degrades with lead time without generating a video for every possible forecast start date.
