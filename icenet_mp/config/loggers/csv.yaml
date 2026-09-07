@@ -1,5 +1,5 @@
 csv:
   _target_: lightning.pytorch.loggers.csv_logs.CSVLogger
-  save_dir: ${...base_path}/training/
+  save_dir: ${base_path}/training/
   name: loss_logs
   flush_logs_every_n_steps: 1

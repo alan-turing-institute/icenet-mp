@@ -9,13 +9,6 @@ from icenet_mp.data.single_dataset import SingleDataset
 from icenet_mp.types import DataSpace
 
 
-class MockAnemoiDataset:
-    def __init__(self, channels: int, height: int, width: int) -> None:
-        """A mock Anemoi dataset for testing purposes."""
-        self.shape = (1, channels, height * width)
-        self.field_shape = (height, width)
-
-
 class TestSingleDataset:
     def test_name(self) -> None:
         dataset = SingleDataset(name="test_dataset", input_files=[])
@@ -451,6 +444,12 @@ class TestSingleDataset:
             )
             subset = dataset.subset(variables=["ice_conc"])
             assert subset._normalise is flag
+
+    def test_normalise_date_sets_time_to_noon(self) -> None:
+        """Normalize dates to noon while preserving the calendar date."""
+        result = SingleDataset.normalise_date(np.datetime64("2026-08-21T03:14:15.926"))
+
+        assert result == np.datetime64("2026-08-21T12:00:00.000")
 
     def test_normalise_date_ranges_adjacent_merge(self) -> None:
         """Consecutive ranges (next starts the day after) merge into one span."""

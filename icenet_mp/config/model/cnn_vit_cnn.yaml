@@ -10,9 +10,6 @@ encoders:
   float-argo:
     _target_: icenet_mp.models.encoders.CNNEncoder
     n_layers: 1
-  sic-icenet:
-    _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 1
   sic-osisaf:
     _target_: icenet_mp.models.encoders.CNNEncoder
     n_layers: 1

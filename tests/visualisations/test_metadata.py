@@ -1,4 +1,3 @@
-from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pytest
@@ -9,6 +8,8 @@ from icenet_mp.types import Metadata
 from icenet_mp.visualisations.metadata import (
     build_metadata,
     calculate_training_points,
+    extract_cadence_from_config,
+    extract_training_date_range,
     extract_variables_by_source,
     format_cadence_display,
     format_metadata_subtitle,
@@ -35,6 +36,8 @@ from icenet_mp.visualisations.metadata import (
         ("2020-01-01T00:00:00", "2020-01-01T23:00:00", "1h", 24),  # With time component
         ("2020-01-01", "2020-01-02", "12h", 4),  # 2 days * 24h / 12h = 4 points
         ("2020-01-01", "2020-01-01", "3h", 8),  # 24h / 3h = 8 points
+        ("2020-01-01", "2020-01-01", "2hour", 12),  # "...hour" suffix: 24h / 2 = 12
+        ("2020-01-01", "2020-01-01", "2hr", 12),  # "...hr" (not "hour") suffix
         # Format variations
         ("2020-01-01", "2020-01-10", "daily", 10),  # Word format
         ("2020-01-01", "2020-01-01", "hourly", 24),
@@ -64,6 +67,11 @@ def test_calculate_training_points_invalid_returns_none() -> None:
     # These should return None due to unrecognised format
     assert calculate_training_points("2020-01-01", "2020-01-10", "xyz") is None
     assert calculate_training_points("2020-01-01", "2020-01-10", "123") is None
+
+
+def test_calculate_training_points_malformed_date_returns_none() -> None:
+    """Test that a date string _inclusive_days can't parse returns None, not raise."""
+    assert calculate_training_points("not-a-date", "2020-01-10", "1d") is None
 
 
 def test_format_cadence_display() -> None:
@@ -149,33 +157,159 @@ def test_extract_variables_by_source_empty_config() -> None:
     assert extract_variables_by_source({"datasets": None}) == {}
 
 
-class MockDataset:
-    """Mock dataset for hemisphere inference tests."""
-
-    def __init__(
-        self,
-        target_name: str | None = None,
-        inputs: Sequence[Any] | None = None,
-        name: str | None = None,
-        config: Mapping[str, Any] | None = None,
-    ) -> None:
-        """Initialise mock dataset with optional attributes for tests."""
-        if target_name:
-            self.target = MockTarget(target_name)
-        else:
-            self.target = None  # type: ignore[assignment]
-        self.inputs = inputs or []
-        self.name = name
-        self.config = config
-        self.dataset_config = config
+def test_extract_variables_by_source_datasets_not_a_dict() -> None:
+    """Test that a non-dict 'datasets' value returns an empty result."""
+    config: dict[str, Any] = {"data": {"datasets": "not-a-dict"}}
+    assert extract_variables_by_source(config) == {}
 
 
-class MockTarget:
-    """Mock target dataset component."""
+def test_extract_variables_by_source_skips_non_dict_dataset_entries() -> None:
+    """Test that a non-dict dataset entry is skipped rather than raising."""
+    config: dict[str, Any] = {
+        "data": {
+            "datasets": {
+                "bad": "not-a-dict",
+                "sic1": {"name": "osisaf-sicsouth", "group_as": "osisaf-south"},
+            },
+        },
+    }
+    assert extract_variables_by_source(config) == {"osisaf-south": ["sea ice"]}
 
-    def __init__(self, name: str) -> None:
-        """Initialise mock target with a name."""
-        self.name = name
+
+def test_extract_variables_by_source_skips_missing_group_as() -> None:
+    """Test that a dataset without a string 'group_as' is skipped."""
+    config: dict[str, Any] = {
+        "data": {
+            "datasets": {
+                "sic1": {"name": "osisaf-sicsouth"},
+            },
+        },
+    }
+    assert extract_variables_by_source(config) == {}
+
+
+def test_extract_variables_by_source_weather_missing_input_key() -> None:
+    """Test a weather dataset with no 'input' key at all yields no variables."""
+    config: dict[str, Any] = {
+        "data": {
+            "datasets": {
+                "era5_1": {"name": "era5-weather", "group_as": "era5"},
+            },
+        },
+    }
+    result = extract_variables_by_source(config)
+    assert "era5" not in result
+
+
+def test_extract_variables_by_source_weather_join_not_a_list() -> None:
+    """Test a weather dataset whose 'join' value is not a list yields no variables."""
+    config: dict[str, Any] = {
+        "data": {
+            "datasets": {
+                "era5_1": {
+                    "name": "era5-weather",
+                    "group_as": "era5",
+                    "input": {"join": "not-a-list"},
+                },
+            },
+        },
+    }
+    result = extract_variables_by_source(config)
+    assert "era5" not in result
+
+
+def test_extract_variables_by_source_weather_skips_non_dict_join_items() -> None:
+    """Test that non-dict entries in 'join' are skipped, valid ones still processed."""
+    config: dict[str, Any] = {
+        "data": {
+            "datasets": {
+                "era5_1": {
+                    "name": "era5-weather",
+                    "group_as": "era5",
+                    "input": {"join": ["not-a-dict", {"mars": {"param": ["2t"]}}]},
+                },
+            },
+        },
+    }
+    result = extract_variables_by_source(config)
+    assert result["era5"] == ["2t"]
+
+
+def test_extract_variables_by_source_swallows_attribute_error() -> None:
+    """Test that a malformed 'data' section is swallowed rather than raising."""
+    config: dict[str, Any] = {"data": "not-a-dict"}
+    assert extract_variables_by_source(config) == {}
+
+
+class TestExtractCadenceFromConfig:
+    def test_returns_frequency_for_predict_group_dataset(self) -> None:
+        """Test cadence extraction finds the frequency for the predict group's dataset."""
+        config: dict[str, Any] = {
+            "predict": {"dataset_group": "osisaf-south"},
+            "data": {
+                "datasets": {
+                    "sic1": {
+                        "group_as": "osisaf-south",
+                        "dates": {"frequency": "1d"},
+                    },
+                },
+            },
+        }
+        assert extract_cadence_from_config(config) == "1d"
+
+    def test_skips_non_dict_dataset_entries(self) -> None:
+        """Test that a non-dict dataset entry is skipped rather than raising."""
+        config: dict[str, Any] = {
+            "predict": {"dataset_group": "osisaf-south"},
+            "data": {
+                "datasets": {
+                    "bad": "not-a-dict",
+                    "sic1": {
+                        "group_as": "osisaf-south",
+                        "dates": {"frequency": "1d"},
+                    },
+                },
+            },
+        }
+        assert extract_cadence_from_config(config) == "1d"
+
+    def test_returns_none_when_no_match(self) -> None:
+        """Test that no matching dataset returns None."""
+        config: dict[str, Any] = {
+            "predict": {"dataset_group": "osisaf-south"},
+            "data": {"datasets": {}},
+        }
+        assert extract_cadence_from_config(config) is None
+
+    def test_swallows_attribute_error(self) -> None:
+        """Test that a malformed 'predict' section is swallowed rather than raising."""
+        config: dict[str, Any] = {"predict": "not-a-dict"}
+        assert extract_cadence_from_config(config) is None
+
+
+class TestExtractTrainingDateRange:
+    def test_returns_min_start_and_max_end(self) -> None:
+        """Test the training range spans the min start and max end across ranges."""
+        config: dict[str, Any] = {
+            "data": {
+                "split": {
+                    "train": [
+                        {"start": "2005-01-01", "end": "2010-12-31"},
+                        {"start": "2000-01-01", "end": "2003-12-31"},
+                    ]
+                }
+            }
+        }
+        assert extract_training_date_range(config) == ("2000-01-01", "2010-12-31")
+
+    def test_returns_none_none_when_missing(self) -> None:
+        """Test a config without a train split returns (None, None)."""
+        assert extract_training_date_range({}) == (None, None)
+
+    def test_swallows_attribute_error(self) -> None:
+        """Test that a malformed 'data' section is swallowed rather than raising."""
+        config: dict[str, Any] = {"data": "not-a-dict"}
+        assert extract_training_date_range(config) == (None, None)
 
 
 def test_build_metadata_returns_dataclass() -> None:
@@ -226,6 +360,15 @@ def test_build_metadata_empty_config() -> None:
     assert metadata.vars_by_source is None
 
 
+def test_build_metadata_extracts_n_history_steps() -> None:
+    """Test that build_metadata reads n_history_steps from the predict section."""
+    config = DictConfig({"predict": {"n_history_steps": 3}})
+
+    metadata = build_metadata(config)
+
+    assert metadata.n_history_steps == 3
+
+
 def test_format_metadata_subtitle() -> None:
     """Test format_metadata_subtitle formats Metadata dataclass correctly."""
     metadata = Metadata(
@@ -247,6 +390,32 @@ def test_format_metadata_subtitle() -> None:
     assert "2020-01-01" in subtitle
     assert "2020-01-10" in subtitle
     assert "10 pts" in subtitle
+
+
+def test_format_metadata_subtitle_includes_history_window() -> None:
+    """Test the subtitle mentions the history window when n_history_steps is set."""
+    metadata = Metadata(
+        start="2020-01-01",
+        end="2020-01-10",
+        cadence="1d",
+        n_history_steps=3,
+    )
+
+    subtitle = format_metadata_subtitle(metadata)
+
+    assert subtitle is not None
+    assert "3 day history" in subtitle
+
+
+def test_format_metadata_subtitle_lists_source_with_no_variables() -> None:
+    """Test a source with an empty variable list is listed without parentheses."""
+    metadata = Metadata(vars_by_source={"era5": []})
+
+    subtitle = format_metadata_subtitle(metadata)
+
+    assert subtitle is not None
+    assert "Training Data: era5" in subtitle
+    assert "era5 (" not in subtitle
 
 
 def test_format_metadata_subtitle_minimal() -> None:
