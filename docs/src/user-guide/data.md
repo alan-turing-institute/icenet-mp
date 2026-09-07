@@ -1,4 +1,4 @@
-# Sea-ice concentration data selection
+# Data
 
 IceNet-MP currently uses a continuous 25 km OSI SAF sea-ice concentration record from 1979 through 2025, assembled from the reprocessed products that cover the required historical period. The northern and southern full dataset descriptors use the same product transitions for their respective hemispheres.
 
