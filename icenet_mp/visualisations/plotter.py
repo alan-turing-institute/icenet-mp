@@ -33,9 +33,9 @@ logger = logging.getLogger(__name__)
 
 
 class Plotter:
-    def __init__(self, plot_spec: PlotSpec) -> None:
+    def __init__(self, plot_spec: PlotSpec | None = None) -> None:
         """A helper class to create and log plots."""
-        self.plot_spec = plot_spec
+        self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self.land_mask = LandMask(None)
 
     @staticmethod
