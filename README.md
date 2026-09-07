@@ -142,7 +142,7 @@
 | icenet\_mp/types/\_\_init\_\_.py                                     |        6 |        0 |    100% |           |
 | icenet\_mp/types/complex\_datatypes.py                               |       76 |        0 |    100% |           |
 | icenet\_mp/types/enums.py                                            |       18 |        0 |    100% |           |
-| icenet\_mp/types/protocols.py                                        |        4 |        0 |    100% |           |
+| icenet\_mp/types/protocols.py                                        |        8 |        0 |    100% |           |
 | icenet\_mp/types/simple\_datatypes.py                                |       40 |        0 |    100% |           |
 | icenet\_mp/types/typedefs.py                                         |       16 |        0 |    100% |           |
 | icenet\_mp/utils.py                                                  |       38 |        0 |    100% |           |
@@ -153,12 +153,12 @@
 | icenet\_mp/visualisations/land\_mask.py                              |       23 |        0 |    100% |           |
 | icenet\_mp/visualisations/layout.py                                  |      376 |        1 |     99% |       655 |
 | icenet\_mp/visualisations/metadata.py                                |      192 |        0 |    100% |           |
-| icenet\_mp/visualisations/plotter.py                                 |       92 |        0 |    100% |           |
+| icenet\_mp/visualisations/plotter.py                                 |       94 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_core.py                          |      163 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |        0 |    100% |           |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |        1 |     99% |       171 |
-| **TOTAL**                                                            | **6214** |  **451** | **93%** |           |
+| **TOTAL**                                                            | **6220** |  **451** | **93%** |           |
 
 
 ## Setup coverage badge
