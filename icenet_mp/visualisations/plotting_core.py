@@ -1,46 +1,23 @@
 import logging
 from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any
 
 import matplotlib as mpl
 import numpy as np
 from matplotlib.colors import Colormap, Normalize, TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import DiffColourmapSpec, DiffMode, DiffStrategy, PlotSpec
+from icenet_mp.types import (
+    DiffColourmapSpec,
+    DiffMode,
+    DiffStrategy,
+    PlotSpec,
+    VariableStyle,
+)
 
 logger = logging.getLogger(__name__)
 
 _SPATIAL_NDIM = 2
-
-
-@dataclass
-class VariableStyle:
-    """Styling configuration for individual variables.
-
-    Attributes:
-        cmap: Matplotlib colourmap name (e.g., "viridis", "RdBu_r").
-        colourbar_strategy: "shared" or "separate" (kept for compatibility).
-        vmin: Minimum value for colour scale.
-        vmax: Maximum value for colour scale.
-        two_slope_centre: Centre value for diverging colourmap (TwoSlopeNorm).
-        units: Display units for the variable (e.g., "K", "m/s").
-        origin: Imshow origin override ("upper" keeps north-up, "lower" keeps south-up).
-        decimals: Number of decimal places for colourbar tick labels (default: 2).
-        use_scientific_notation: Whether to format colourbar tick labels in scientific notation (default: False).
-
-    """
-
-    cmap: str | None = None
-    colourbar_strategy: str | None = None
-    vmin: float | None = None
-    vmax: float | None = None
-    two_slope_centre: float | None = None
-    units: str | None = None
-    origin: Literal["upper", "lower"] | None = None
-    decimals: int | None = None
-    use_scientific_notation: bool | None = None
 
 
 def colourmap_with_bad(cmap_name: str | None, bad_color: str = "#dcdcdc") -> Colormap:

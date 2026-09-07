@@ -17,7 +17,9 @@ from .simple_datatypes import (
     DiffColourmapSpec,
     Metadata,
     ProcessorOutput,
+    RangeCheckReport,
     UncertaintyArrays,
+    VariableStyle,
 )
 from .typedefs import (
     ArrayCHW,
@@ -58,6 +60,7 @@ __all__ = [
     "ModelStepOutput",
     "PlotSpec",
     "ProcessorOutput",
+    "RangeCheckReport",
     "RangeRestriction",
     "SkipConnectionType",
     "SupportsImageLogging",
@@ -66,4 +69,5 @@ __all__ = [
     "TensorNCHW",
     "TensorNTCHW",
     "UncertaintyArrays",
+    "VariableStyle",
 ]

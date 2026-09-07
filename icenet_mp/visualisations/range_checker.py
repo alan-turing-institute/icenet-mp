@@ -1,19 +1,12 @@
-from dataclasses import dataclass
-
 import numpy as np
+
+from icenet_mp.types import RangeCheckReport
 
 # Constants for range check thresholds
 _ZERO_THRESHOLD = 1e-12
 _MAGNITUDE_LOW_THRESHOLD = 0.1
 _MAGNITUDE_HIGH_THRESHOLD = 10.0
 _SIGNIFICANT_VALUE_THRESHOLD = 1e-6
-
-
-@dataclass
-class RangeCheckReport:
-    """Simple container for range-check results."""
-
-    warnings: list[str]
 
 
 class RangeChecker:
