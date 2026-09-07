@@ -97,6 +97,7 @@ class DecoderStage(BaseModel):
             mask_dir=mask_dir,
             hemisphere=encoders[0].hemisphere,
             input_spaces=[s.to_dict() for s in encoders[0].input_spaces],
+            lr_scheduler=copy.deepcopy(encoders[0].lr_scheduler_cfg),
             n_forecast_steps=encoders[0].n_forecast_steps,
             n_history_steps=encoders[0].n_history_steps,
             name=f"{target_dataset_name}_decoder".replace("-", "_"),

@@ -40,6 +40,7 @@ class TestPersistence:
             output_space=output_space,
             optimizer={},
             scheduler={},
+            lr_scheduler={},
             target_variable_indices=list(range(test_output_shape[2])),
         )
         batch = {
@@ -82,6 +83,7 @@ class TestPersistence:
             },
             optimizer={},
             scheduler={},
+            lr_scheduler={},
             target_variable_indices=[0],
         )
         assert model.configure_optimizers() is None, (
