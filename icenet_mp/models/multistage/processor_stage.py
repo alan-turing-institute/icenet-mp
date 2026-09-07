@@ -83,6 +83,7 @@ class ProcessorStage(EncodeProcessDecode):
             hemisphere=decoder_model.hemisphere,
             input_spaces=[s.to_dict() for s in decoder_model.input_spaces],
             loss=copy.deepcopy(decoder_model.loss_cfg),
+            lr_scheduler=copy.deepcopy(decoder_model.lr_scheduler_cfg),
             n_forecast_steps=decoder_model.n_forecast_steps,
             n_history_steps=decoder_model.n_history_steps,
             name=f"processor_{decoder_model.n_history_steps}_to_{decoder_model.n_forecast_steps}",
