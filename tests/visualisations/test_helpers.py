@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC
+from icenet_mp.visualisations.difference_calculator import DifferenceCalculator
 from icenet_mp.visualisations.helpers import (
     _build_footer_static,
     _build_footer_video,
@@ -26,7 +27,8 @@ from icenet_mp.visualisations.helpers import (
     _safe_linspace,
 )
 from icenet_mp.visualisations.land_mask import LandMask
-from icenet_mp.visualisations.plotting_core import make_diff_colourmap
+
+make_diff_colourmap = DifferenceCalculator().make_diff_colourmap
 
 
 class TestSafeLinspace:

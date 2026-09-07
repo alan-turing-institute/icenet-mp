@@ -18,12 +18,12 @@ from PIL.ImageFile import ImageFile
 from icenet_mp.types import PlotSpec
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC
 from icenet_mp.visualisations.land_mask import LandMask
-from icenet_mp.visualisations.plotting_core import style_for_variable
 from icenet_mp.visualisations.plotting_static import (
     plot_static_inputs,
     plot_static_prediction,
 )
 from icenet_mp.visualisations.range_checker import RangeChecker
+from icenet_mp.visualisations.variable_styler import VariableStyler
 
 from .conftest import TEST_DATE
 
@@ -391,7 +391,7 @@ class TestStyleForVariable:
         variable_styles: dict[str, dict[str, Any]],
     ) -> None:
         """Test exact variable name matching in styling."""
-        style = style_for_variable("era5:2t", variable_styles)
+        style = VariableStyler().style_for_variable("era5:2t", variable_styles)
 
         assert style.cmap == "RdBu_r"
         assert style.two_slope_centre == 273.15
@@ -409,7 +409,7 @@ class TestStyleForVariable:
             "era5:q_*": {"cmap": "viridis", "decimals": 4},
         }
 
-        style = style_for_variable("era5:q_500", styles_with_wildcard)
+        style = VariableStyler().style_for_variable("era5:q_500", styles_with_wildcard)
 
         assert style.cmap == "viridis"
         assert style.decimals == 4
@@ -430,7 +430,7 @@ class TestStyleForVariable:
             },
         }
 
-        style = style_for_variable("era5:q_10", styles_with_scientific)
+        style = VariableStyler().style_for_variable("era5:q_10", styles_with_scientific)
 
         assert style.cmap == "viridis"
         assert style.decimals == 2
@@ -439,7 +439,7 @@ class TestStyleForVariable:
 
     def test_no_match(self) -> None:
         """Test default styling when no match found."""
-        style = style_for_variable("unknown:variable", {})
+        style = VariableStyler().style_for_variable("unknown:variable", {})
 
         # Should use defaults
         assert style.cmap is None

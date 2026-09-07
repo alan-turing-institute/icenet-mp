@@ -11,6 +11,7 @@ from matplotlib.text import Text
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayHW, DiffColourmapSpec, PlotSpec
 
+from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .layout import (
     LayoutConfig,
@@ -18,13 +19,8 @@ from .layout import (
     draw_badge_with_box,
     set_footer_with_box,
 )
-from .plotting_core import (
-    colourmap_with_bad,
-    compute_difference,
-    compute_display_ranges,
-    make_diff_colourmap,
-)
 from .range_checker import RangeChecker
+from .variable_styler import VariableStyler
 
 #: Default plotting specification for sea ice concentration visualisation
 DEFAULT_SIC_SPEC = PlotSpec(
@@ -79,8 +75,10 @@ def _prepare_static_plot(
         raise InvalidArrayError(msg)
     height, width = ground_truth.shape
 
-    (gt_min, gt_max), (_pred_min, _pred_max) = compute_display_ranges(
-        ground_truth, prediction, plot_spec
+    (gt_min, gt_max), (_pred_min, _pred_max) = (
+        DifferenceCalculator().compute_display_ranges(
+            ground_truth, prediction, plot_spec
+        )
     )
     range_check_report = RangeChecker().check(
         ground_truth,
@@ -109,8 +107,12 @@ def _prepare_difference(
     """Compute difference arrays and colour scales if requested."""
     if not plot_spec.include_difference:
         return None, None
-    difference = compute_difference(ground_truth, prediction, plot_spec.diff_mode)
-    diff_colour_scale = make_diff_colourmap(difference, mode=plot_spec.diff_mode)
+    difference = DifferenceCalculator().compute_difference(
+        ground_truth, prediction, plot_spec.diff_mode
+    )
+    diff_colour_scale = DifferenceCalculator().make_diff_colourmap(
+        difference, mode=plot_spec.diff_mode
+    )
     return difference, diff_colour_scale
 
 
@@ -188,7 +190,9 @@ def _draw_main_panels(
 
     """
     # Create colourmap with bad color handling for NaN values
-    cmap = colourmap_with_bad(plot_spec.colourmap, bad_color="lightgrey")
+    cmap = VariableStyler().colourmap_with_bad(
+        plot_spec.colourmap, bad_color="lightgrey"
+    )
 
     # Expand display_ranges tuple for clarity
     (groundtruth_vmin, groundtruth_vmax), (prediction_vmin, prediction_vmax) = (
@@ -283,7 +287,9 @@ def _draw_frame(  # noqa: PLR0913
     difference = (
         precomputed_difference
         if precomputed_difference is not None
-        else compute_difference(ground_truth, prediction, plot_spec.diff_mode)
+        else DifferenceCalculator().compute_difference(
+            ground_truth, prediction, plot_spec.diff_mode
+        )
     )
 
     # Apply land mask to data if provided
@@ -293,7 +299,9 @@ def _draw_frame(  # noqa: PLR0913
 
     # Compute display ranges - use override if provided for stable animation
     display_ranges = (
-        compute_display_ranges(ground_truth, prediction, plot_spec)
+        DifferenceCalculator().compute_display_ranges(
+            ground_truth, prediction, plot_spec
+        )
         if display_ranges_override is None
         else display_ranges_override
     )
@@ -316,7 +324,9 @@ def _draw_frame(  # noqa: PLR0913
             raise InvalidArrayError(error_msg)
 
         # Create colourmap with bad color handling for NaN values
-        diff_cmap = colourmap_with_bad(diff_colour_scale.cmap, bad_color="lightgrey")
+        diff_cmap = VariableStyler().colourmap_with_bad(
+            diff_colour_scale.cmap, bad_color="lightgrey"
+        )
 
         if diff_colour_scale.norm is not None:
             # Signed differences with TwoSlopeNorm - use explicit levels to ensure consistency

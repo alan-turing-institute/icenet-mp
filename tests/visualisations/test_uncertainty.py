@@ -8,8 +8,10 @@ from PIL.ImageFile import ImageFile
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.visualisations import (
     DEFAULT_SIC_SPEC,
-    compute_standardised_difference,
     plot_static_uncertainty,
+)
+from icenet_mp.visualisations.difference_calculator import (
+    DifferenceCalculator,
 )
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.plotting_static import UncertaintyArrays
@@ -22,7 +24,9 @@ class TestComputeStandardisedDifference:
         prediction = np.array([[0.4, 0.6], [0.3, 0.5]], dtype=np.float32)
         uncertainty = np.array([[0.1, 0.2], [0.05, 0.1]], dtype=np.float32)
 
-        result = compute_standardised_difference(ground_truth, prediction, uncertainty)
+        result = DifferenceCalculator().compute_standardised_difference(
+            ground_truth, prediction, uncertainty
+        )
 
         np.testing.assert_allclose(result, [[1.0, 1.0], [2.0, -3.0]])
 
@@ -32,7 +36,9 @@ class TestComputeStandardisedDifference:
         prediction = np.zeros((2, 2), dtype=np.float32)
         uncertainty = np.array([[0.5, 0.0], [-1.0, np.nan]], dtype=np.float32)
 
-        result = compute_standardised_difference(ground_truth, prediction, uncertainty)
+        result = DifferenceCalculator().compute_standardised_difference(
+            ground_truth, prediction, uncertainty
+        )
 
         assert result[0, 0] == pytest.approx(2.0)
         assert np.isnan(result[0, 1])
@@ -42,7 +48,7 @@ class TestComputeStandardisedDifference:
     def test_rejects_shape_mismatch(self) -> None:
         """Reject input arrays with mismatched shapes."""
         with pytest.raises(InvalidArrayError, match="matching shapes"):
-            compute_standardised_difference(
+            DifferenceCalculator().compute_standardised_difference(
                 np.zeros((2, 2), dtype=np.float32),
                 np.zeros((2, 2), dtype=np.float32),
                 np.zeros((3, 3), dtype=np.float32),
@@ -51,7 +57,7 @@ class TestComputeStandardisedDifference:
     def test_rejects_non_2d_arrays(self) -> None:
         """Reject 1D (or any non-2D) ground truth/prediction/uncertainty arrays."""
         with pytest.raises(InvalidArrayError, match="Expected 2D"):
-            compute_standardised_difference(
+            DifferenceCalculator().compute_standardised_difference(
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),

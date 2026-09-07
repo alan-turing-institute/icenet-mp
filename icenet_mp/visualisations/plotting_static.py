@@ -18,6 +18,7 @@ from PIL.ImageFile import ImageFile
 from icenet_mp.types import ArrayHW, PlotSpec, UncertaintyArrays
 
 from .convert import image_from_figure
+from .difference_calculator import DifferenceCalculator
 from .helpers import (
     _build_title_static,
     _draw_frame,
@@ -38,12 +39,7 @@ from .layout import (
     format_symmetric_ticks,
     set_suptitle_with_box,
 )
-from .plotting_core import (
-    colourmap_with_bad,
-    compute_standardised_difference,
-    create_normalisation,
-    style_for_variable,
-)
+from .variable_styler import VariableStyler
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +157,7 @@ def plot_static_uncertainty(
     reported standard uncertainty. Invalid or non-positive uncertainty values
     are masked.
     """
-    z_difference = compute_standardised_difference(
+    z_difference = DifferenceCalculator().compute_standardised_difference(
         arrays.ground_truth, arrays.prediction, arrays.uncertainty
     )
     z_difference = land_mask.apply_to(z_difference)
@@ -173,10 +169,10 @@ def plot_static_uncertainty(
         colourbar_location=plot_spec.colourbar_location,
     )
 
-    norm, vmin, vmax = create_normalisation(z_difference, centre=0.0)
+    norm, vmin, vmax = VariableStyler().create_normalisation(z_difference, centre=0.0)
     image = ax.imshow(
         z_difference,
-        cmap=colourmap_with_bad("RdBu_r", bad_color="lightgrey"),
+        cmap=VariableStyler().colourmap_with_bad("RdBu_r", bad_color="lightgrey"),
         norm=norm,
         origin="lower",
         interpolation="nearest",
@@ -236,10 +232,12 @@ def plot_static_inputs(
         masked_variable_values = land_mask.apply_to(variable_values)
 
         # Construct the style for this variable
-        style = style_for_variable(variable_name, plot_spec.per_variable_styles)
+        style = VariableStyler().style_for_variable(
+            variable_name, plot_spec.per_variable_styles
+        )
 
         # Create normalisation using shared function
-        norm, vmin, vmax = create_normalisation(
+        norm, vmin, vmax = VariableStyler().create_normalisation(
             masked_variable_values,
             vmin=style.vmin,
             vmax=style.vmax,
@@ -255,7 +253,7 @@ def plot_static_inputs(
 
         # Render
         cmap_name = style.cmap or plot_spec.colourmap
-        cmap = colourmap_with_bad(cmap_name, bad_color="lightgrey")
+        cmap = VariableStyler().colourmap_with_bad(cmap_name, bad_color="lightgrey")
         origin = style.origin or "lower"
         image = ax.imshow(
             masked_variable_values,

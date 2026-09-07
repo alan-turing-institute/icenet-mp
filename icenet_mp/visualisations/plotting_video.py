@@ -25,19 +25,9 @@ from icenet_mp.visualisations.layout import (
     format_symmetric_ticks,
     set_suptitle_with_box,
 )
-from icenet_mp.visualisations.plotting_core import (
-    colourmap_with_bad,
-    compute_difference,
-    compute_display_ranges,
-    create_normalisation,
-    make_diff_colourmap,
-    prepare_difference_stream,
-    safe_nanmax,
-    safe_nanmin,
-    style_for_variable,
-)
 
 from .convert import video_from_animation
+from .difference_calculator import DifferenceCalculator
 from .helpers import (
     _build_footer_video,
     _build_title_video,
@@ -54,6 +44,7 @@ from .layout import (
     build_layout,
     set_footer_with_box,
 )
+from .variable_styler import VariableStyler
 
 if TYPE_CHECKING:
     from matplotlib.text import Text
@@ -125,26 +116,30 @@ def plot_video_prediction(
     )
 
     # Stable ranges for the whole animation
-    display_ranges = compute_display_ranges(
+    display_ranges = DifferenceCalculator().compute_display_ranges(
         masked_ground_truth, masked_prediction, plot_spec
     )
 
     # Prepare the difference array according to the strategy; also ensure a colour scale exists
-    difference_stream, diff_colour_scale = prepare_difference_stream(
-        include_difference=plot_spec.include_difference,
-        diff_mode=plot_spec.diff_mode,
-        strategy=plot_spec.diff_strategy,
-        ground_truth_stream=masked_ground_truth,
-        prediction_stream=masked_prediction,
+    difference_stream, diff_colour_scale = (
+        DifferenceCalculator().prepare_difference_stream(
+            include_difference=plot_spec.include_difference,
+            diff_mode=plot_spec.diff_mode,
+            strategy=plot_spec.diff_strategy,
+            ground_truth_stream=masked_ground_truth,
+            prediction_stream=masked_prediction,
+        )
     )
     if plot_spec.include_difference and diff_colour_scale is None:
         # Per-frame strategy: infer a stable colour scale from the first frame to avoid breathing
-        first_diff = compute_difference(
+        first_diff = DifferenceCalculator().compute_difference(
             masked_ground_truth[0],
             masked_prediction[0],
             plot_spec.diff_mode,
         )
-        diff_colour_scale = make_diff_colourmap(first_diff, mode=plot_spec.diff_mode)
+        diff_colour_scale = DifferenceCalculator().make_diff_colourmap(
+            first_diff, mode=plot_spec.diff_mode
+        )
     precomputed_diff_0 = (
         difference_stream[0]
         if (plot_spec.include_difference and difference_stream is not None)
@@ -283,19 +278,21 @@ def plot_video_single_input(
     masked_variable_values = land_mask.apply_to(variable_values)
 
     # Get styling for this variable
-    style = style_for_variable(variable_name, plot_spec.per_variable_styles)
+    style = VariableStyler().style_for_variable(
+        variable_name, plot_spec.per_variable_styles
+    )
 
     # Create stable normalisation across all frames
     # Use global min/max to prevent colour scale "breathing"
-    data_min = safe_nanmin(masked_variable_values)
-    data_max = safe_nanmax(masked_variable_values)
+    data_min = VariableStyler().safe_nanmin(masked_variable_values)
+    data_max = VariableStyler().safe_nanmax(masked_variable_values)
 
     # Override with style limits if provided
     effective_vmin = style.vmin if style.vmin is not None else data_min
     effective_vmax = style.vmax if style.vmax is not None else data_max
 
     # Create normalisation using first frame to establish type
-    norm, vmin, vmax = create_normalisation(
+    norm, vmin, vmax = VariableStyler().create_normalisation(
         masked_variable_values[0],
         vmin=effective_vmin,
         vmax=effective_vmax,
@@ -311,7 +308,7 @@ def plot_video_single_input(
 
     # Render initial frame
     cmap_name = style.cmap or plot_spec.colourmap
-    cmap = colourmap_with_bad(cmap_name, bad_color="lightgrey")
+    cmap = VariableStyler().colourmap_with_bad(cmap_name, bad_color="lightgrey")
     origin = style.origin or "lower"
     image = ax.imshow(
         masked_variable_values[0],

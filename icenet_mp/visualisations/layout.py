@@ -29,9 +29,7 @@ from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import FuncFormatter
 
-from icenet_mp.types import PlotSpec
-
-from .plotting_core import DiffColourmapSpec
+from icenet_mp.types import DiffColourmapSpec, PlotSpec
 
 logger = logging.getLogger(__name__)
 
