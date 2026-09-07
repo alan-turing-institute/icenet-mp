@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from io import BytesIO
+from typing import Any
 
 import pytest
 import torch
@@ -9,22 +10,28 @@ from icenet_mp.types import ModelStepOutput, PlotSpec
 from icenet_mp.visualisations import Plotter
 
 
-class ImageLogger:
+class FakeImageLogger:
     def __init__(self) -> None:
         """Initialise recorded image-log calls."""
         self.calls: list[tuple[str, list[object]]] = []
 
-    def log_image(self, *, key: str, images: list[object]) -> None:
+    def log_image(
+        self, key: str, images: list[object], step: int | None = None, **kwargs: Any
+    ) -> None:
         self.calls.append((key, images))
 
 
-class VideoLogger:
+class FakeVideoLogger:
     def __init__(self) -> None:
         """Initialise recorded video-log calls."""
         self.calls: list[tuple[str, int, list[str]]] = []
 
     def log_video(
-        self, *, key: str, videos: list[BytesIO], **kwargs: list[str]
+        self,
+        key: str,
+        videos: list[BytesIO],
+        step: int | None = None,
+        **kwargs: Any,
     ) -> None:
         self.calls.append((key, videos[0].tell(), kwargs["format"]))
 
@@ -59,7 +66,7 @@ def test_static_output_routing_preserves_prefix_and_channel_names(
     monkeypatch.setattr(
         plotter_module, "plot_static_prediction", fake_plot_static_prediction
     )
-    logger = ImageLogger()
+    logger = FakeImageLogger()
     plotter = Plotter(PlotSpec(selected_timestep=1))
 
     plotter.log_static_outputs(
@@ -86,7 +93,7 @@ def test_static_output_routing_without_prefix_uses_default_namespace(
         "plot_static_prediction",
         lambda *args, **kwargs: {"map": [object()]},  # noqa: ARG005
     )
-    logger = ImageLogger()
+    logger = FakeImageLogger()
 
     Plotter(PlotSpec()).log_static_outputs(
         _outputs(channels=1),
@@ -110,7 +117,7 @@ def test_video_output_routing_rewinds_buffers_before_logging(
         "plot_video_prediction",
         lambda *args, **kwargs: {"forecast": buffer},  # noqa: ARG005
     )
-    logger = VideoLogger()
+    logger = FakeVideoLogger()
     plotter = Plotter(PlotSpec(video_format="gif"))
 
     plotter.log_video_outputs(

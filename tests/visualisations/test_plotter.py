@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import torch
 from omegaconf import DictConfig
+from PIL.ImageFile import ImageFile
 
 from icenet_mp.data import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
@@ -73,7 +74,10 @@ class TestLoggingHelpers:
         """Send every image group to each configured logger."""
         first = MagicMock()
         second = MagicMock()
-        images = {"comparison": [object()], "error": [object()]}
+        images = cast(
+            "dict[str, list[ImageFile]]",
+            {"comparison": [object()], "error": [object()]},
+        )
 
         Plotter._log_images(images, [first, second], "validation/output_static")
 
