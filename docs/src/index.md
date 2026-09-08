@@ -5,11 +5,11 @@ It performs multi-modal data fusion across satellite, sensor and post-processed 
 
 Example Arctic and Antarctic sea-ice concentration forecasts are shown below.
 
-**Arctic**
+### Arctic
 
-![Example IceNet-MP Arctic sea ice concentration forecast compared with observations](assets/prediction-north-unet-v2026.07.png)
+![Example IceNet-MP Arctic sea ice concentration forecast compared with observations](assets/prediction-fullnorth-ddpm-v2026.07.png)
 
-**Antarctic**
+### Antarctic
 
 ![Example IceNet-MP Antarctic sea ice concentration forecast compared with observations](assets/prediction-fullsouth-ddpm-v2026.07.png)
 
