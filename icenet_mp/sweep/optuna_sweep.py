@@ -10,6 +10,7 @@ from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import OmegaConfBaseException
 from optuna import Study, create_study
 from optuna.importance import get_param_importances
+from optuna.study import StudyDirection
 from optuna.trial import FrozenTrial, Trial, TrialState
 
 from .parameters import Parameter, build_parameter
@@ -73,9 +74,13 @@ class OptunaSweep:
     @property
     def study(self) -> Study:
         if self._study is None:
+            study_direction = {
+                "maximize": StudyDirection.MAXIMIZE,
+                "minimize": StudyDirection.MINIMIZE,
+            }.get(self.metric["goal"], StudyDirection.NOT_SET)
             # Use an in-memory placeholder sampler to avoid unnecessary disk I/O
             self._study = create_study(
-                direction=self.metric["goal"],
+                direction=study_direction,
                 load_if_exists=True,
                 sampler=self.sampler.temporary(),
                 storage=f"sqlite:///{self.study_path / 'optuna.db'}",
