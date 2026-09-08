@@ -132,7 +132,7 @@
 | icenet\_mp/models/processors/unet.py                                 |       53 |        0 |    100% |           |
 | icenet\_mp/models/processors/vit.py                                  |       43 |        4 |     91% |41-42, 101-105 |
 | icenet\_mp/sweep/\_\_init\_\_.py                                     |        2 |        0 |    100% |           |
-| icenet\_mp/sweep/optuna\_sweep.py                                    |      114 |        0 |    100% |           |
+| icenet\_mp/sweep/optuna\_sweep.py                                    |      116 |        0 |    100% |           |
 | icenet\_mp/sweep/parameters.py                                       |       98 |        1 |     99% |        76 |
 | icenet\_mp/sweep/sampler\_store.py                                   |       40 |        0 |    100% |           |
 | icenet\_mp/synthetic/\_\_init\_\_.py                                 |        2 |        0 |    100% |           |
@@ -158,7 +158,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       81 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |        0 |    100% |           |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |        1 |     99% |       171 |
-| **TOTAL**                                                            | **6220** |  **451** | **93%** |           |
+| **TOTAL**                                                            | **6222** |  **451** | **93%** |           |
 
 
 ## Setup coverage badge
