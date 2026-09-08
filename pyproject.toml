@@ -28,8 +28,7 @@ dependencies = [
     "argopy>=1.4.0",
     "cdsapi>=0.7.6",
     "earthkit-data>=0.20.0",
-    "erddapy!=3.3.0", # indirect dependency of argopy; 3.3.0 removed erddapy.erddapy._quote_string_constraints which is needed by argopy
-    "filelock>=3.32.2", # used to guard concurrent sweep trials writing to the same sampler.pkl
+    "filelock>=3.32.2",
     "haversine>=2.9.0",
     "hydra-core>=1.3.3",
     "imageio-ffmpeg>=0.6.0",
@@ -154,6 +153,13 @@ known-third-party = ["wandb"]
 
 [tool.ruff.lint.pylint]
 max-args = 6
+
+[tool.uv]
+constraint-dependencies = [
+    "eckitlib<=2.1.0.21", # required by anemoi-datasets
+    "erddapy!=3.3.0", # required by argopy
+    "odclib<=1.6.3.21", # required by anemoi-datasets
+]
 
 [tool.uv.build-backend]
 module-root = ""
