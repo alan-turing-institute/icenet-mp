@@ -9,7 +9,7 @@ This guide records the requirements for a first manual IceNet-MP submission to t
 | 2026 Sea Ice Outlook | September 2026 | September mean extent; optionally daily sea-ice concentration or derived SIP/IFD/IAD fields | Extent follows the NSIDC >15% definition. The public full-field instructions do not prescribe one common grid or complete NetCDF schema. |
 | SIPN South 2025-2026 | 1 December 2025 to 28 February 2026, 90 daily steps | Total area, regional area, and sea-ice concentration | No common grid is specified; concentration files include `longitude`, `latitude`, `sftof`, and `areacello`. |
 
-The 2026 SIO solicitation lists the September deadline as **14 September 2026**. The latest published SIPN South protocol is still the 2025-2026 call; update its dates and filenames when the 2026-2027 call is published.
+The remaining 2026 SIO schedule lists the September deadline as **14 September 2026** and states that the September Outlook is based on May-August data. Do not use September observations in the September submission. The latest published SIPN South protocol is still the 2025-2026 call; update its dates and filenames when the 2026-2027 call is published.
 
 ## Check the forecast horizon
 
@@ -35,6 +35,17 @@ Keep the unmodified model output together with the final submission files.
 ## Arctic Sea Ice Outlook
 
 The [2026 Sea Ice Outlook solicitation](https://www.seaiceprediction.org/sea-ice-outlook/august-2026-call-for-contributions) requests September monthly mean sea-ice extent and optionally full spatial forecast fields. It also solicits optional pan-Arctic extent-anomaly forecasts; those are outside this first manual workflow.
+
+### Core Outlook submission
+
+A first manual SIO contribution does not require a full-field upload. Use the submission form linked from the relevant monthly call for the core Outlook package. For the pan-Arctic contribution, prepare:
+
+- the September monthly mean sea-ice extent forecast;
+- the forecasting method/model description;
+- uncertainty or probability information, where scientifically justified;
+- a plain-language executive summary describing the Outlook, contributing factors, and methodology.
+
+Pan-Antarctic and Alaska regional extent forecasts are optional additions. Full spatial fields use the separate SIPN data-server route described below. The solicitation states that a new Outlook must be submitted for each month; earlier monthly Outlooks are not carried forward automatically.
 
 ### Sea-ice extent
 
@@ -62,7 +73,7 @@ The public 2026 call does not prescribe a common grid or complete NetCDF schema 
 
 The latest published [SIPN South call](https://fmassonn.github.io/sipn-south.github.io/call-contributions/) is for the 2025-2026 season. It requests **90 daily timesteps from 1 December 2025 through 28 February 2026**.
 
-SIPN South requests sea-ice **area**, while SIO requests sea-ice **extent**. Keep those calculations separate. Area is concentration-weighted ocean surface; extent counts qualifying grid cells at their full area. Record the concentration threshold, ocean mask, and cell-area convention used to derive submitted area values.
+SIPN South requests sea-ice **area**, while SIO requests sea-ice **extent**. Keep those calculations separate. Area is concentration-weighted ocean surface; extent counts qualifying grid cells at their full area. The published SIPN South call does not specify the SIO 15% extent threshold for its area diagnostic, so do not reuse that threshold automatically. Record the concentration treatment, ocean mask, and cell-area convention used to derive submitted area values.
 
 The SIPN South call also accepts grid-cell thickness (`sivol`) and long forecasts as low-priority diagnostics. They are outside this first SIC-focused workflow: the tracked SIC configs do not produce sea-ice thickness, and their current horizons are much shorter than the six-month minimum requested for the long-forecast diagnostic.
 
@@ -106,7 +117,7 @@ Before submission, check that:
 - the intended checkpoint, commit, and configuration are recorded;
 - the first and last forecast dates match the current call;
 - the forecast contains every required daily timestep without gaps or duplicate dates;
-- the forecast does not use observations beyond the permitted information cutoff;
+- the forecast does not use observations beyond the permitted information cutoff; for the September 2026 SIO, this means no September observations;
 - concentration units match the protocol, especially `%` for SIPN South `siconc`;
 - longitude, latitude, ocean fraction, and cell area align with the forecast grid;
 - land and missing values are handled consistently;
