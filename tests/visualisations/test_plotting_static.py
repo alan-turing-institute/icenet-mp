@@ -9,6 +9,7 @@ import logging
 from dataclasses import replace
 from datetime import date
 from typing import Any
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -33,6 +34,7 @@ class TestPlotStaticPrediction:
     def test_returns_image(
         self,
         sic_pair_2d: tuple[np.ndarray, np.ndarray, date],
+        no_land_mask: LandMask,
     ) -> None:
         """plot_static_prediction should produce a dict with a PIL image of nonzero size."""
         ground_truth, prediction, date = sic_pair_2d
@@ -43,7 +45,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -59,6 +61,7 @@ class TestPlotStaticPrediction:
     def test_emits_warning_badge(
         self,
         sic_pair_warning_2d: tuple[np.ndarray, np.ndarray, date],
+        no_land_mask: LandMask,
     ) -> None:
         """plot_static_prediction should add a red warning text when range_check report warns.
 
@@ -95,7 +98,7 @@ class TestPlotStaticPrediction:
             ground_truth,
             prediction,
             date=date,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -136,6 +139,34 @@ class TestPlotStaticPrediction:
         image = images[0]
         assert image.width > 0
         assert image.height > 0
+
+    def test_continues_without_title_when_suptitle_fails(
+        self,
+        sic_pair_2d: tuple[np.ndarray, np.ndarray, date],
+        no_land_mask: LandMask,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """plot_static_prediction should still return an image if the title fails to draw."""
+        ground_truth, prediction, date = sic_pair_2d
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_static.set_suptitle_with_box",
+            MagicMock(side_effect=RuntimeError("boom")),
+        )
+
+        with caplog.at_level(logging.ERROR):
+            result = plot_static_prediction(
+                ground_truth,
+                prediction,
+                date=date,
+                land_mask=no_land_mask,
+                plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="dummy",
+            )
+
+        assert "Failed to draw suptitle" in caplog.text
+        images = next(iter(result.values()))
+        assert images[0].width > 0
 
     def test_with_invalid_land_mask_shape(
         self,
@@ -354,11 +385,12 @@ class TestPlotStaticInputs:
         self,
         era5_temperature_2d: np.ndarray,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test basic single channel plotting."""
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -392,12 +424,13 @@ class TestPlotStaticInputs:
         era5_temperature_2d: np.ndarray,
         base_plot_spec: PlotSpec,
         variable_styles: dict[str, dict[str, Any]],
+        no_land_mask: LandMask,
     ) -> None:
         """Test plotting with custom variable styling."""
         plot_spec = replace(base_plot_spec, per_variable_styles=variable_styles)
         results = plot_static_inputs(
             {"era5:2t": era5_temperature_2d},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -411,11 +444,12 @@ class TestPlotStaticInputs:
         self,
         multi_channel_hw: dict[str, np.ndarray],
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test plotting multiple channels at once."""
         results = plot_static_inputs(
             multi_channel_hw,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -431,6 +465,7 @@ class TestPlotStaticInputs:
         self,
         era5_humidity_2d: np.ndarray,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test plotting with scientific notation enabled."""
         styles_with_scientific: dict[str, dict[str, str | float | bool]] = {
@@ -445,7 +480,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {"era5:q_10": era5_humidity_2d},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=plot_spec,
             when=TEST_DATE,
         )
@@ -469,6 +504,7 @@ class TestPlotStaticInputs:
         var_name: str,
         fixture_name: str,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
         request: pytest.FixtureRequest,
     ) -> None:
         """Test plotting different types of variables with appropriate styling."""
@@ -476,7 +512,7 @@ class TestPlotStaticInputs:
 
         results = plot_static_inputs(
             {var_name: data},
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             when=TEST_DATE,
         )
@@ -486,9 +522,37 @@ class TestPlotStaticInputs:
         assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-{var_name}"
         assert isinstance(pil_images[0], ImageFile)
 
+    def test_continues_without_title_when_suptitle_fails(
+        self,
+        era5_temperature_2d: np.ndarray,
+        base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """plot_static_inputs should still return an image if the title fails to draw."""
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_static.set_suptitle_with_box",
+            MagicMock(side_effect=ValueError("boom")),
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            results = plot_static_inputs(
+                {"era5:2t": era5_temperature_2d},
+                land_mask=no_land_mask,
+                plot_spec=base_plot_spec,
+                when=TEST_DATE,
+            )
+
+        assert "Failed to draw static inputs title" in caplog.text
+        name, pil_images = next(iter(results.items()))
+        assert name == f"{TEST_DATE.strftime('%Y-%m-%d')}-era5:2t"
+        assert isinstance(pil_images[0], ImageFile)
+
     def test_wrong_dimension(
         self,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test error when input array is not 2D."""
@@ -498,7 +562,7 @@ class TestPlotStaticInputs:
         with caplog.at_level(logging.WARNING):
             plot_static_inputs(
                 {"era5:2t": wrong_dim_array},
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
                 when=TEST_DATE,
             )
