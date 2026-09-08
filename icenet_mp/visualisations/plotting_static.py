@@ -19,11 +19,7 @@ from icenet_mp.types import ArrayHW, PlotSpec, UncertaintyArrays
 
 from .convert import image_from_figure
 from .difference_calculator import DifferenceCalculator
-from .helpers import (
-    _draw_frame,
-    _prepare_difference,
-    _prepare_static_plot,
-)
+from .frame_renderer import FrameRenderer
 from .land_mask import LandMask
 from .layout import (
     _add_colourbars,
@@ -74,12 +70,13 @@ def plot_static_prediction(
         InvalidArrayError: If ground_truth and prediction arrays have incompatible shapes.
 
     """
+    frame_renderer = FrameRenderer()
     (
         height,
         width,
         layout_config,
         warnings,
-    ) = _prepare_static_plot(plot_spec, ground_truth, prediction)
+    ) = frame_renderer.prepare_static_plot(plot_spec, ground_truth, prediction)
 
     # Initialise the figure and axes with dynamic top spacing if needed
     fig, axs, cbar_axes = build_layout(
@@ -90,22 +87,24 @@ def plot_static_prediction(
     )
 
     # Prepare difference rendering parameters if needed
-    difference, diff_colour_scale = _prepare_difference(
+    difference, diff_colour_scale = frame_renderer.prepare_difference(
         plot_spec, ground_truth, prediction
     )
 
     # Draw the ground truth and prediction map images
-    image_groundtruth, image_prediction, image_difference, _ = _draw_frame(
-        axs,
-        ground_truth,
-        prediction,
-        plot_spec,
-        land_mask,
-        diff_colour_scale=diff_colour_scale,
-        precomputed_difference=difference,
+    image_groundtruth, image_prediction, image_difference, _ = (
+        frame_renderer.draw_frame(
+            axs,
+            ground_truth,
+            prediction,
+            plot_spec,
+            land_mask,
+            diff_colour_scale=diff_colour_scale,
+            precomputed_difference=difference,
+        )
     )
 
-    # Restore axis titles after drawing (they were cleared in _draw_frame)
+    # Restore axis titles after drawing (they were cleared in draw_frame)
     _set_titles(axs, plot_spec)
 
     # Colourbars and title

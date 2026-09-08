@@ -28,7 +28,7 @@ from icenet_mp.visualisations.layout import (
 
 from .convert import video_from_animation
 from .difference_calculator import DifferenceCalculator
-from .helpers import _draw_frame
+from .frame_renderer import FrameRenderer
 from .land_mask import LandMask
 from .layout import (
     LayoutConfig,
@@ -143,17 +143,20 @@ def plot_video_prediction(
     )
 
     # Initial frame
-    image_groundtruth, image_prediction, image_difference, _ = _draw_frame(
-        axs,
-        masked_ground_truth[0],
-        masked_prediction[0],
-        plot_spec,
-        land_mask,
-        diff_colour_scale=diff_colour_scale,
-        precomputed_difference=precomputed_diff_0,
-        display_ranges_override=display_ranges,
+    frame_renderer = FrameRenderer()
+    image_groundtruth, image_prediction, image_difference, _ = (
+        frame_renderer.draw_frame(
+            axs,
+            masked_ground_truth[0],
+            masked_prediction[0],
+            plot_spec,
+            land_mask,
+            diff_colour_scale=diff_colour_scale,
+            precomputed_difference=precomputed_diff_0,
+            display_ranges_override=display_ranges,
+        )
     )
-    # Restore axis titles after drawing (they were cleared in _draw_frame)
+    # Restore axis titles after drawing (they were cleared in draw_frame)
     _set_titles(axs, plot_spec)
     # Colourbars and title
     _add_colourbars(
@@ -192,7 +195,7 @@ def plot_video_prediction(
             if (plot_spec.include_difference and difference_stream is not None)
             else None
         )
-        _draw_frame(
+        frame_renderer.draw_frame(
             axs,
             masked_ground_truth[tt],
             masked_prediction[tt],
@@ -202,7 +205,7 @@ def plot_video_prediction(
             precomputed_difference=precomputed_diff_tt,
             display_ranges_override=display_ranges,
         )
-        # Restore axis titles after drawing (they were cleared in _draw_frame)
+        # Restore axis titles after drawing (they were cleared in draw_frame)
         _set_titles(axs, plot_spec)
 
         if title_text is not None:

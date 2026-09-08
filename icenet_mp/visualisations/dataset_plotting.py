@@ -4,7 +4,7 @@ from pathlib import Path
 from icenet_mp.data import SingleDataset
 from icenet_mp.utils import datetime_from_npdatetime, mask_dir
 
-from .helpers import DEFAULT_SIC_SPEC
+from .default_plot_spec import DEFAULT_SIC_SPEC
 from .land_mask import LandMask
 from .plotting_static import plot_static_inputs
 from .plotting_video import plot_video_inputs
