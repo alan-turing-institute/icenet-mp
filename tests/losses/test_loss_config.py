@@ -7,6 +7,9 @@ from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.losses.amse_loss import AMSELoss
 from icenet_mp.losses.rmse_loss import RMSELoss
+from icenet_mp.losses.weighted_bce_loss import WeightedBCEWithLogitsLoss
+from icenet_mp.losses.weighted_l1_loss import WeightedL1Loss
+from icenet_mp.losses.weighted_mse_loss import WeightedMSELoss
 from icenet_mp.models import BaseModel
 from icenet_mp.types import TensorNTCHW
 
@@ -29,6 +32,15 @@ LOSS_CONFIGS = {
     "smooth_l1": OmegaConf.create({"_target_": "torch.nn.SmoothL1Loss", "beta": 0.5}),
     "rmse": OmegaConf.create({"_target_": "icenet_mp.losses.rmse_loss.RMSELoss"}),
     "amse": OmegaConf.create({"_target_": "icenet_mp.losses.amse_loss.AMSELoss"}),
+    "weighted_bce": OmegaConf.create(
+        {"_target_": "icenet_mp.losses.weighted_bce_loss.WeightedBCEWithLogitsLoss"}
+    ),
+    "weighted_l1": OmegaConf.create(
+        {"_target_": "icenet_mp.losses.weighted_l1_loss.WeightedL1Loss"}
+    ),
+    "weighted_mse": OmegaConf.create(
+        {"_target_": "icenet_mp.losses.weighted_mse_loss.WeightedMSELoss"}
+    ),
 }
 
 LOSS_TYPES = {
@@ -38,6 +50,9 @@ LOSS_TYPES = {
     "smooth_l1": torch.nn.SmoothL1Loss,
     "rmse": RMSELoss,
     "amse": AMSELoss,
+    "weighted_bce": WeightedBCEWithLogitsLoss,
+    "weighted_l1": WeightedL1Loss,
+    "weighted_mse": WeightedMSELoss,
 }
 
 
