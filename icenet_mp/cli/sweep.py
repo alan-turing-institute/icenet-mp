@@ -80,11 +80,26 @@ def summarise(
     if n_completed == 0:
         log.info("No trials have completed yet. Nothing to summarise.")
         return
+
+    # Log the best trial and its parameters
     best = sweep.study.best_trial
     log.info("Trial %d performed best, with loss %f.", best.number, best.value)
     log.info("Best trial parameters:")
     for parameter_name, parameter_value in best.params.items():
         log.info("  %s: %s", parameter_name, parameter_value)
+
+    # Log parameter importance, if available
+    importances = sweep.parameter_importances()
+    if not importances:
+        log.info(
+            "Could not estimate parameter importance for %d trials", sweep.n_trials
+        )
+        return
+    log.info("Parameter importance:")
+    name_width = max(len(name) for name in importances)
+    log.info("  %-*s  importance", name_width, "parameter")
+    for parameter_name, importance in importances.items():
+        log.info("  %-*s  %.3f", name_width, parameter_name, importance)
 
 
 @sweep_cli.command()

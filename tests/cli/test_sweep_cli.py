@@ -270,6 +270,54 @@ class TestSweepSummariseCLI:
         assert "Study contains 0 trial(s)" in caplog.text
         assert "No trials have completed yet" in caplog.text
 
+    def test_reports_parameter_importance_with_varying_trial_scores(
+        self,
+        tmp_path: Path,
+        runner: CustomCliRunner,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        study_path, _ = _build_study(tmp_path, n_completed=0)
+        sweep = OptunaSweep.from_path(study_path)
+        for score in (0.1, 0.5, 0.9):
+            trial, _ = sweep.ask()
+            sweep.tell(trial, score)
+
+        with caplog.at_level(logging.INFO):
+            result = runner.call(
+                ["sweep", "summarise", "--sweep-path", str(study_path)]
+            )
+        assert result.exit_code == 0, result.output
+        assert "Parameter importance" in caplog.text
+        assert "train.optimizer.lr" in caplog.text
+
+    def test_skips_parameter_importance_with_a_single_completed_trial(
+        self,
+        tmp_path: Path,
+        runner: CustomCliRunner,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        study_path, _ = _build_study(tmp_path, n_completed=1)
+        with caplog.at_level(logging.INFO):
+            result = runner.call(
+                ["sweep", "summarise", "--sweep-path", str(study_path)]
+            )
+        assert result.exit_code == 0, result.output
+        assert "Could not estimate parameter importance" in caplog.text
+
+    def test_skips_parameter_importance_when_every_trial_scores_the_same(
+        self,
+        tmp_path: Path,
+        runner: CustomCliRunner,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        study_path, _ = _build_study(tmp_path, n_completed=2)
+        with caplog.at_level(logging.INFO):
+            result = runner.call(
+                ["sweep", "summarise", "--sweep-path", str(study_path)]
+            )
+        assert result.exit_code == 0, result.output
+        assert "Could not estimate parameter importance" in caplog.text
+
 
 class TestSweepTrialCLI:
     def test_help(self) -> None:

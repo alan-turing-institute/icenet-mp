@@ -9,6 +9,7 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import OmegaConfBaseException
 from optuna import Study, create_study
+from optuna.importance import get_param_importances
 from optuna.trial import FrozenTrial, Trial, TrialState
 
 from .parameters import Parameter, build_parameter
@@ -215,6 +216,20 @@ class OptunaSweep:
         self._entity = wandb_cfg.get("entity") or os.environ.get("WANDB_ENTITY")
         # Start the sweep
         return wandb.sweep(sweep_config, entity=self.entity, project="train")
+
+    def parameter_importances(self) -> dict[str, float]:
+        """Use Optuna to estimate parameter importance.
+
+        Requires at least two completed trials with varying parameters.
+
+        Returns:
+            A dict mapping parameter names to their importance, from most to least.
+
+        """
+        try:
+            return get_param_importances(self.study)
+        except (ValueError, RuntimeError):
+            return {}
 
     def tell(
         self,
