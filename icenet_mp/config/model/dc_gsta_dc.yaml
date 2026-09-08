@@ -45,10 +45,10 @@ processor:
   _target_: icenet_mp.models.processors.GSTAProcessor
   dilation: 3
   drop_path_prob: 0.1
-  hid_channels: 256
-  kernel_size: 21
-  mlp_ratio: 4.0
-  n_blocks: 8
+  hid_channels: 128
+  kernel_size: 15
+  mlp_ratio: 8.0
+  n_blocks: 6
 
 decoder:
   _target_: icenet_mp.models.decoders.DeepCompressionDecoder
@@ -57,7 +57,7 @@ decoder:
   hid_blocks: [2, 2]
   mask_type: active
   pixel_shuffle: true
-  restrict_range: tanh
+  restrict_range: sigmoid
   stride: 3
   skip_connection:
-    method: none
+    method: additive
