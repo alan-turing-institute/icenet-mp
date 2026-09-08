@@ -1,7 +1,9 @@
 import logging
 from datetime import datetime
+from io import BytesIO
 
 from omegaconf import DictConfig
+from PIL.ImageFile import ImageFile
 
 from icenet_mp.data import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
@@ -12,6 +14,8 @@ from icenet_mp.types import (
     Metadata,
     ModelStepOutput,
     PlotSpec,
+    SupportsImageLogging,
+    SupportsVideoLogging,
     UncertaintyArrays,
 )
 from icenet_mp.utils import npdatetime_from_datetime
@@ -29,9 +33,9 @@ logger = logging.getLogger(__name__)
 
 
 class Plotter:
-    def __init__(self, plot_spec: PlotSpec) -> None:
+    def __init__(self, plot_spec: PlotSpec | None = None) -> None:
         """A helper class to create and log plots."""
-        self.plot_spec = plot_spec
+        self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self.land_mask = LandMask(None)
 
     @staticmethod
@@ -48,7 +52,9 @@ class Plotter:
 
     @staticmethod
     def _log_images(
-        images: dict[str, list], image_loggers: list, log_path: str
+        images: dict[str, list[ImageFile]],
+        image_loggers: list[SupportsImageLogging],
+        log_path: str,
     ) -> None:
         """Send rendered image groups to every configured image logger."""
         for image_name, image_list in images.items():
@@ -57,7 +63,12 @@ class Plotter:
                     key=f"{log_path}/{image_name}", images=image_list
                 )
 
-    def _log_videos(self, videos: dict, video_loggers: list, log_path: str) -> None:
+    def _log_videos(
+        self,
+        videos: dict[str, BytesIO],
+        video_loggers: list[SupportsVideoLogging],
+        log_path: str,
+    ) -> None:
         """Rewind and send rendered videos to every configured video logger."""
         for video_logger in video_loggers:
             for video_name, video_buffer in videos.items():
@@ -80,7 +91,7 @@ class Plotter:
         self,
         inputs: list[SingleDataset],
         dates: list[datetime],
-        image_loggers: list,
+        image_loggers: list[SupportsImageLogging],
         prefix: str | None = None,
     ) -> None:
         """Extract and log static raw input plots."""
@@ -111,7 +122,7 @@ class Plotter:
         self,
         outputs: ModelStepOutput,
         dates: list[datetime],
-        image_loggers: list,
+        image_loggers: list[SupportsImageLogging],
         channel_names: list[str],
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
@@ -168,7 +179,7 @@ class Plotter:
         self,
         inputs: list[SingleDataset],
         dates: list[datetime],
-        video_loggers: list,
+        video_loggers: list[SupportsVideoLogging],
         prefix: str | None = None,
     ) -> None:
         """Extract and log raw input videos."""
@@ -201,7 +212,7 @@ class Plotter:
         self,
         outputs: ModelStepOutput,
         dates: list[datetime],
-        video_loggers: list,
+        video_loggers: list[SupportsVideoLogging],
         channel_names: list[str],
         prefix: str | None = None,
     ) -> None:

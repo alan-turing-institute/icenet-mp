@@ -12,7 +12,14 @@ from torch.utils.data import DataLoader
 
 from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
-from icenet_mp.types import ArrayTHW, Metadata, ModelStepOutput, PlotSpec
+from icenet_mp.types import (
+    ArrayTHW,
+    Metadata,
+    ModelStepOutput,
+    PlotSpec,
+    SupportsImageLogging,
+    SupportsVideoLogging,
+)
 from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
 from icenet_mp.visualisations.land_mask import LandMask
@@ -229,8 +236,12 @@ class PlottingCallback(Callback):
         self.plotter.land_mask = self._land_mask_cache[land_mask_path]
 
         # Get loggers that support image and video logging
-        image_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_image")]
-        video_loggers = [ll for ll in trainer.loggers if hasattr(ll, "log_video")]
+        image_loggers: list[SupportsImageLogging] = [
+            ll for ll in trainer.loggers if isinstance(ll, SupportsImageLogging)
+        ]
+        video_loggers: list[SupportsVideoLogging] = [
+            ll for ll in trainer.loggers if isinstance(ll, SupportsVideoLogging)
+        ]
 
         # Get channel names from the model
         channel_names = getattr(pl_module, "channel_names", None) or ["sic"]
