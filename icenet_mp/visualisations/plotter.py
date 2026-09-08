@@ -9,6 +9,7 @@ from icenet_mp.data import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import (
     ArrayHW,
+    ArrayTCHW,
     ArrayTHW,
     Hemisphere,
     Metadata,
@@ -118,7 +119,7 @@ class Plotter:
         except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Static plotting failed: %s", exc)
 
-    def log_static_outputs(
+    def log_static_outputs(  # noqa: PLR0913, PLR0917
         self,
         outputs: ModelStepOutput,
         dates: list[datetime],
@@ -126,8 +127,13 @@ class Plotter:
         channel_names: list[str],
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
+        climatology: ArrayTCHW | None = None,
     ) -> None:
-        """Create and log static output plots, including uncertainty when available."""
+        """Create and log static output plots, including climatology when available.
+
+        Also logs a standardised uncertainty plot and, when a climatology table is
+        given, a calendar-day-mean (climatology) map for the plotted date and channel.
+        """
         try:
             idx_date = self.plot_spec.selected_timestep
             log_path = self._log_path(prefix, "output_static")
@@ -140,7 +146,12 @@ class Plotter:
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
-                # Plot static prediction images
+                climatology_field: ArrayHW | None = (
+                    climatology[idx_date, idx_channel]
+                    if climatology is not None
+                    else None
+                )
+                # Plot and log output static images
                 images = plot_static_prediction(
                     ground_truth,
                     prediction,
@@ -148,6 +159,7 @@ class Plotter:
                     land_mask=self.land_mask,
                     plot_spec=self.plot_spec,
                     variable_name=variable_name,
+                    climatology=climatology_field,
                 )
                 # Plot static uncertainty images
                 if (

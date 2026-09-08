@@ -2,16 +2,16 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from icenet_mp.models import Persistence
+from icenet_mp.models import Climatology
 
 
-class TestPersistence:
+class TestClimatology:
     @pytest.mark.parametrize("test_input_shape", [(16, 16, 4), (20, 20, 1)])
     @pytest.mark.parametrize("test_output_shape", [(16, 16, 1), (10, 20, 19)])
     @pytest.mark.parametrize("test_batch_size", [1, 2])
     @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
     @pytest.mark.parametrize("test_n_history_steps", [1, 2, 5])
-    def test_forward_shape(
+    def test_forward_returns_climatology(
         self,
         test_batch_size: int,
         test_input_shape: tuple[int, int, int],
@@ -30,8 +30,8 @@ class TestPersistence:
             "name": "target",
             "shape": test_output_shape[0:2],
         }
-        model = Persistence(
-            name="persistence",
+        model = Climatology(
+            name="climatology",
             hemisphere="north",
             input_spaces=[input_space],
             loss=cfg_loss,
@@ -58,49 +58,21 @@ class TestPersistence:
                 test_output_shape[0],
                 test_output_shape[1],
             ),
+            "climatology": torch.randn(
+                test_batch_size,
+                test_n_forecast_steps,
+                test_output_shape[2],
+                test_output_shape[0],
+                test_output_shape[1],
+            ),
         }
         result: torch.Tensor = model(batch)
         assert result.shape == batch["target"].shape
-
-    def test_forward_ignores_climatology_key(self, cfg_loss: DictConfig) -> None:
-        """An extra climatology batch key must not change a non-climatology model's output."""
-        model = Persistence(
-            name="persistence",
-            hemisphere="north",
-            input_spaces=[
-                {
-                    "channels": 1,
-                    "name": "input",
-                    "shape": (1, 1),
-                }
-            ],
-            loss=cfg_loss,
-            n_forecast_steps=1,
-            n_history_steps=1,
-            output_space={
-                "channels": 1,
-                "name": "target",
-                "shape": (1, 1),
-            },
-            optimizer={},
-            scheduler={},
-            lr_scheduler={},
-            target_variable_indices=[0],
-        )
-        batch_without = {
-            "input": torch.randn(1, 1, 1, 1, 1),
-            "target": torch.randn(1, 1, 1, 1, 1),
-        }
-        batch_with = {
-            **batch_without,
-            "climatology": torch.randn(1, 1, 1, 1, 1),
-        }
-
-        assert torch.equal(model(batch_without), model(batch_with))
+        assert torch.equal(result, batch["climatology"])
 
     def test_optimizer(self, cfg_loss: DictConfig) -> None:
-        model = Persistence(
-            name="persistence",
+        model = Climatology(
+            name="climatology",
             hemisphere="north",
             input_spaces=[
                 {
