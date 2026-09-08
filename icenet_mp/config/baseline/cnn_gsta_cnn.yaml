@@ -1,6 +1,5 @@
 # @package _global_
 defaults:
   - /base
-  - override /loss: huber
   - override /model: cnn_gsta_cnn
   - _self_
