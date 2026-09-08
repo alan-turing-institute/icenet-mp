@@ -117,10 +117,10 @@ class TestMetadataAndHemisphere:
         """Forward the config and model name to the metadata builder."""
         expected = Metadata(model="unet")
         fake_build_metadata = MagicMock(return_value=expected)
+        plotter = Plotter()
         monkeypatch.setattr(plotter.metadata_builder, "build", fake_build_metadata)
         config = DictConfig({})
 
-        plotter = Plotter()
         result = plotter.get_metadata(config, "unet")
 
         fake_build_metadata.assert_called_once_with(config, "unet")

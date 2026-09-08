@@ -1,24 +1,13 @@
-import logging
-from collections.abc import Sequence
-from datetime import date, datetime
-
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.colors import ListedColormap
-from matplotlib.figure import Figure
-from matplotlib.text import Text
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayHW, DiffColourmapSpec, PlotSpec
 
 from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
-from .layout import (
-    LayoutConfig,
-    TitleFooterConfig,
-    draw_badge_with_box,
-    set_footer_with_box,
-)
+from .layout import LayoutConfig, TitleFooterConfig
 from .range_checker import RangeChecker
 from .variable_styler import VariableStyler
 
@@ -38,8 +27,6 @@ DEFAULT_SIC_SPEC = PlotSpec(
     severe_outside=0.20,
     include_shared_range_mismatch_check=True,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def _safe_linspace(vmin: float, vmax: float, n: int) -> np.ndarray:
@@ -114,57 +101,6 @@ def _prepare_difference(
         difference, mode=plot_spec.diff_mode
     )
     return difference, diff_colour_scale
-
-
-def _draw_warning_badge(
-    fig: Figure,
-    title_text: Text | None,
-    warnings: Sequence[str],
-) -> None:
-    """Render a warning badge close to the title."""
-    if not warnings:
-        return
-    badge = "Warnings: " + ", ".join(warnings)
-    if title_text is not None:
-        _, title_y = title_text.get_position()
-        n_lines = title_text.get_text().count("\n") + 1
-        warning_y = max(title_y - (0.05 + 0.02 * (n_lines - 1)), 0.0)
-    else:
-        warning_y = 0.90
-    draw_badge_with_box(fig, 0.5, warning_y, badge)
-
-
-def _maybe_add_footer(fig: Figure, plot_spec: PlotSpec) -> None:
-    """Attach footer metadata when enabled."""
-    if not getattr(plot_spec, "include_footer_metadata", True):
-        return
-    try:
-        footer_text = _build_footer_static(plot_spec)
-        if footer_text:
-            set_footer_with_box(fig, footer_text)
-    except Exception:
-        logger.exception("Failed to draw footer; continuing without footer.")
-
-
-def _format_title(
-    variable: str, hemisphere: str | None, when: date | datetime, units: str | None
-) -> str:
-    """Format a title string for a raw input variable plot.
-
-    Args:
-        variable: Variable name.
-        hemisphere: Hemisphere ("north" or "south"), if applicable.
-        when: Date or datetime of the data.
-        units: Display units for the variable.
-
-    Returns:
-        Formatted title string.
-
-    """
-    hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
-    units_s = f" [{units}]" if units else ""
-    shown = when.date().isoformat() if isinstance(when, datetime) else when.isoformat()
-    return f"{variable}{units_s}{hemi}   Shown: {shown}"
 
 
 def _draw_main_panels(
@@ -414,91 +350,3 @@ def _clear_plot(ax: Axes) -> None:
     for coll in ax.collections[:]:
         coll.remove()
     ax.set_title("")
-
-
-# --- Title helpers ---
-def _formatted_variable_name(variable: str) -> str:
-    """Return a human-friendly variable name for titles.
-
-    Example: "sea_ice_concentration" -> "Sea ice concentration".
-    """
-    pretty = variable.replace("_", " ").strip()
-    return pretty.title() if pretty else ""
-
-
-def _format_date_for_title(dt: date | datetime) -> str:
-    """Format a date/datetime to ISO date string (YYYY-MM-DD) for plot titles.
-
-    Args:
-        dt: Date or datetime object to format.
-
-    Returns:
-        ISO format date string (YYYY-MM-DD). Time components are stripped
-        from datetime objects.
-
-    Example:
-        >>> from datetime import date, datetime
-        >>> _format_date_for_title(date(2023, 12, 25))
-        '2023-12-25'
-        >>> _format_date_for_title(datetime(2023, 12, 25, 14, 30))
-        '2023-12-25'
-
-    """
-    if isinstance(dt, datetime):
-        return dt.date().isoformat()
-    return dt.isoformat()
-
-
-def _build_title_static(
-    variable_name: str, plot_spec: PlotSpec, when: date | datetime
-) -> str:
-    """Compose a simple suptitle for static plots.
-
-    Lines:
-      1) "<Variable> (<Hemisphere>)  Shown: YYYY-MM-DD"
-         (Footer contains any metadata such as model/epoch/training data if present)
-    """
-    metric = _formatted_variable_name(variable_name)
-    hemi = f" ({plot_spec.hemisphere.capitalize()})" if plot_spec.hemisphere else ""
-    return f"{metric}{hemi} Prediction   Shown: {_format_date_for_title(when)}"
-
-
-def _build_title_video(
-    variable_name: str,
-    plot_spec: PlotSpec,
-    dates: Sequence[date | datetime],
-    current_index: int,
-) -> str:
-    """Compose a simple suptitle for video plots (date changes per frame).
-
-    Lines:
-      1) "<Variable> (<Hemisphere>)  Frame: YYYY-MM-DD"
-      2) Footer: "Animating from <start> to <end>"
-      3) Footer: "Model: <model>  Epoch: <num>  Training Dates: <start> — <end> (<cadence>) <num> pts" (optional)
-      4) Footer: "Training Data: <source> (<vars>) <source> (<vars>)" (optional)
-    """
-    metric = _formatted_variable_name(variable_name)
-    hemi = f" ({plot_spec.hemisphere.capitalize()})" if plot_spec.hemisphere else ""
-    if dates:
-        return f"{metric}{hemi} Prediction   Frame: {_format_date_for_title(dates[current_index])}"
-    return f"{metric}{hemi} Prediction"
-
-
-def _build_footer_static(plot_spec: PlotSpec) -> str:
-    """Build footer text for static plots using metadata that used to be in title."""
-    lines: list[str] = []
-    if plot_spec.metadata_subtitle:
-        lines.append(plot_spec.metadata_subtitle)
-    return "\n".join(lines)
-
-
-def _build_footer_video(plot_spec: PlotSpec, dates: Sequence[date | datetime]) -> str:
-    """Build footer text for video plots: animation range and metadata."""
-    lines: list[str] = []
-    if dates:
-        start_s = _format_date_for_title(dates[0])
-        end_s = _format_date_for_title(dates[-1])
-        lines.append(f"Animating from {start_s} to {end_s}")
-    if plot_spec.metadata_subtitle:
-        lines.append(plot_spec.metadata_subtitle)
-    return "\n".join(lines)

@@ -20,11 +20,7 @@ from icenet_mp.types import ArrayHW, PlotSpec, UncertaintyArrays
 from .convert import image_from_figure
 from .difference_calculator import DifferenceCalculator
 from .helpers import (
-    _build_title_static,
     _draw_frame,
-    _draw_warning_badge,
-    _format_title,
-    _maybe_add_footer,
     _prepare_difference,
     _prepare_static_plot,
 )
@@ -39,6 +35,7 @@ from .layout import (
     format_symmetric_ticks,
     set_suptitle_with_box,
 )
+from .plot_annotator import PlotAnnotator
 from .variable_styler import VariableStyler
 
 logger = logging.getLogger(__name__)
@@ -122,16 +119,17 @@ def plot_static_prediction(
     )
 
     _set_axes_limits(axs, width=width, height=height)
+    annotator = PlotAnnotator()
     try:
         title_text = set_suptitle_with_box(
-            fig, _build_title_static(variable_name, plot_spec, date)
+            fig, annotator.title_for_static(variable_name, plot_spec, date)
         )
     except Exception:
         logger.exception("Failed to draw suptitle; continuing without title.")
         title_text = None
 
-    _draw_warning_badge(fig, title_text, warnings)
-    _maybe_add_footer(fig, plot_spec)
+    annotator.warning_badge(fig, title_text, warnings)
+    annotator.maybe_add_footer(fig, plot_spec)
 
     try:
         return {
@@ -297,7 +295,9 @@ def plot_static_inputs(
         try:
             set_suptitle_with_box(
                 fig,
-                _format_title(variable_name, plot_spec.hemisphere, when, style.units),
+                PlotAnnotator().format_title(
+                    variable_name, plot_spec.hemisphere, when, style.units
+                ),
             )
         except (ValueError, AttributeError, RuntimeError) as err:
             logger.debug(

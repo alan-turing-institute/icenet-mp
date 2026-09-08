@@ -28,12 +28,7 @@ from icenet_mp.visualisations.layout import (
 
 from .convert import video_from_animation
 from .difference_calculator import DifferenceCalculator
-from .helpers import (
-    _build_footer_video,
-    _build_title_video,
-    _draw_frame,
-    _format_title,
-)
+from .helpers import _draw_frame
 from .land_mask import LandMask
 from .layout import (
     LayoutConfig,
@@ -44,6 +39,7 @@ from .layout import (
     build_layout,
     set_footer_with_box,
 )
+from .plot_annotator import PlotAnnotator
 from .variable_styler import VariableStyler
 
 if TYPE_CHECKING:
@@ -171,9 +167,10 @@ def plot_video_prediction(
         cbar_axes=cbar_axes,
     )
     _set_axes_limits(axs, width=width, height=height)
+    annotator = PlotAnnotator()
     try:
         title_text = set_suptitle_with_box(
-            fig, _build_title_video(variable_name, plot_spec, dates, 0)
+            fig, annotator.title_for_video(variable_name, plot_spec, dates, 0)
         )
     except Exception:
         logger.exception("Failed to draw suptitle; continuing without title.")
@@ -182,7 +179,7 @@ def plot_video_prediction(
     # Footer metadata at the bottom (static across frames)
     if getattr(plot_spec, "include_footer_metadata", True):
         try:
-            footer_text = _build_footer_video(plot_spec, dates)
+            footer_text = annotator.footer_for_video(plot_spec, dates)
             if footer_text:
                 set_footer_with_box(fig, footer_text)
         except Exception:
@@ -209,7 +206,9 @@ def plot_video_prediction(
         _set_titles(axs, plot_spec)
 
         if title_text is not None:
-            title_text.set_text(_build_title_video(variable_name, plot_spec, dates, tt))
+            title_text.set_text(
+                annotator.title_for_video(variable_name, plot_spec, dates, tt)
+            )
         return ()
 
     try:
@@ -351,11 +350,14 @@ def plot_video_single_input(
         )
 
     # Create title (will be updated each frame)
+    annotator = PlotAnnotator()
     title_text: Text | None = None
     try:
         title_text = set_suptitle_with_box(
             fig,
-            _format_title(variable_name, plot_spec.hemisphere, dates[0], style.units),
+            annotator.format_title(
+                variable_name, plot_spec.hemisphere, dates[0], style.units
+            ),
         )
     except (ValueError, AttributeError, RuntimeError) as err:
         logger.debug("Failed to draw title: %s; continuing without title.", err)
@@ -368,7 +370,7 @@ def plot_video_single_input(
         # Update title with current date
         if title_text is not None:
             title_text.set_text(
-                _format_title(
+                annotator.format_title(
                     variable_name, plot_spec.hemisphere, dates[tt], style.units
                 )
             )
