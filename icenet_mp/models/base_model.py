@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from functools import cached_property
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -41,13 +41,14 @@ class BaseModel(LightningModule, ABC):
     def __init__(  # noqa: PLR0913
         self,
         *,
+        channel_names: Sequence[str] | None = None,
         hemisphere: Hemisphere,
-        input_spaces: list[DictConfig],
+        input_spaces: Sequence[DictConfig],
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         loss: DictConfig,
         lr_scheduler: DictConfig,
-        metrics: list[str] | None = None,
+        metrics: Sequence[str] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -70,11 +71,12 @@ class BaseModel(LightningModule, ABC):
         """
         super().__init__()
 
-        # Save model name, hemisphere and lat/lon information
+        # Save model name, hemisphere, lat/lon information and channel names
         self.name = name
         self.hemisphere: Hemisphere = hemisphere
         self.latitudes_fn = latitudes_fn
         self.longitudes_fn = longitudes_fn
+        self.channel_names = list(channel_names) if channel_names else []
 
         # Save history and forecast steps
         if n_forecast_steps <= 0:
@@ -105,7 +107,7 @@ class BaseModel(LightningModule, ABC):
             "centroid_error": CentroidErrorPerForecastDay,
         }
         metric_names = (
-            metrics
+            list(metrics)
             if metrics is not None
             else [
                 "accuracy",

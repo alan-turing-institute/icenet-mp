@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 class EncoderStage(BaseModel):
     def __init__(
         self,
-        channel_names: list[str],
         data_space_in: DataSpace,
         encoder: DictConfig,
         decoder: DictConfig,
@@ -27,9 +26,6 @@ class EncoderStage(BaseModel):
     ) -> None:
         """Initialise an EncoderStage with a trainable encoder and a disposable decoder."""
         super().__init__(**kwargs)
-
-        # Store channel names
-        self.channel_names = channel_names
 
         # Encode from a single input space to a latent space. For most datasets this
         # space is one of the model's raw input spaces, found by name. The target

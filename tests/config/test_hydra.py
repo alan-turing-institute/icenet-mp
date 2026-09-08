@@ -14,7 +14,7 @@ class TestHydraConfigLoading:
         self, compose_config: Callable[..., DictConfig]
     ) -> None:
         cfg = compose_config()
-        for key in ("data", "model", "train", "loss", "predict", "evaluate"):
+        for key in ("data", "evaluate", "loss", "model", "train", "window"):
             assert key in cfg, f"Key '{key}' missing from composed config"
 
     def test_model_group_overridden_by_sample(
