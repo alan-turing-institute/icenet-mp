@@ -19,26 +19,15 @@ from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayTHW, PlotSpec
-from icenet_mp.visualisations.layout import (
-    build_single_panel_figure,
-    format_linear_ticks,
-    format_symmetric_ticks,
-    set_suptitle_with_box,
-)
+from icenet_mp.visualisations.layout import set_suptitle_with_box
 
+from .colourbar_formatter import ColourbarFormatter
 from .convert import video_from_animation
 from .difference_calculator import DifferenceCalculator
 from .frame_renderer import FrameRenderer
 from .land_mask import LandMask
-from .layout import (
-    LayoutConfig,
-    TitleFooterConfig,
-    _add_colourbars,
-    _set_axes_limits,
-    _set_titles,
-    build_layout,
-    set_footer_with_box,
-)
+from .layout import LayoutConfig, TitleFooterConfig, set_footer_with_box
+from .layout_builder import LayoutBuilder
 from .plot_annotator import PlotAnnotator
 from .variable_styler import VariableStyler
 
@@ -103,8 +92,9 @@ def plot_video_prediction(
     masked_prediction = land_mask.apply_to(prediction)
 
     # Initialise the figure and axes with a larger footer space for videos
+    layout_builder = LayoutBuilder()
     layout_config = LayoutConfig(title_footer=TitleFooterConfig(footer_space=0.11))
-    fig, axs, cbar_axes = build_layout(
+    fig, axs, cbar_axes = layout_builder.build_layout(
         plot_spec=plot_spec,
         height=height,
         width=width,
@@ -157,9 +147,9 @@ def plot_video_prediction(
         )
     )
     # Restore axis titles after drawing (they were cleared in draw_frame)
-    _set_titles(axs, plot_spec)
+    layout_builder.set_titles(axs, plot_spec)
     # Colourbars and title
-    _add_colourbars(
+    ColourbarFormatter().add_colourbars(
         axs,
         image_groundtruth=image_groundtruth,
         image_prediction=image_prediction,
@@ -169,7 +159,7 @@ def plot_video_prediction(
         display_ranges=display_ranges,
         cbar_axes=cbar_axes,
     )
-    _set_axes_limits(axs, width=width, height=height)
+    layout_builder.set_axes_limits(axs, width=width, height=height)
     annotator = PlotAnnotator()
     try:
         title_text = set_suptitle_with_box(
@@ -206,7 +196,7 @@ def plot_video_prediction(
             display_ranges_override=display_ranges,
         )
         # Restore axis titles after drawing (they were cleared in draw_frame)
-        _set_titles(axs, plot_spec)
+        layout_builder.set_titles(axs, plot_spec)
 
         if title_text is not None:
             title_text.set_text(
@@ -302,7 +292,7 @@ def plot_video_single_input(
     )
 
     # Build figure with single panel + colourbar
-    fig, ax, cax = build_single_panel_figure(
+    fig, ax, cax = LayoutBuilder().build_single_panel_figure(
         height=height,
         width=width,
         colourbar_location=plot_spec.colourbar_location,
@@ -333,7 +323,7 @@ def plot_video_single_input(
         else False
     )
     if isinstance(norm, TwoSlopeNorm):
-        format_symmetric_ticks(
+        ColourbarFormatter().format_symmetric_ticks(
             cbar,
             vmin=vmin,
             vmax=vmax,
@@ -343,7 +333,7 @@ def plot_video_single_input(
             use_scientific_notation=use_scientific,
         )
     else:
-        format_linear_ticks(
+        ColourbarFormatter().format_linear_ticks(
             cbar,
             vmin=vmin,
             vmax=vmax,

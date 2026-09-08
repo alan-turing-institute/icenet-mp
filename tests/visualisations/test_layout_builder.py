@@ -7,27 +7,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from matplotlib.axes import Axes
-from matplotlib.colors import TwoSlopeNorm
 from matplotlib.figure import Figure
 from matplotlib.text import Text
 
-from icenet_mp.types import DiffColourmapSpec
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC
 from icenet_mp.visualisations.layout import (
     GapConfig,
     LayoutConfig,
-    _add_colourbars,
-    _build_grid_horizontal,
-    _default_vertical_gap_inches,
-    _set_axes_limits,
-    build_layout,
-    build_single_panel_figure,
     draw_badge_with_box,
-    format_symmetric_ticks,
-    get_cbar_limits_from_mappable,
     set_footer_with_box,
     set_suptitle_with_box,
 )
+from icenet_mp.visualisations.layout_builder import LayoutBuilder
 
 EPSILON: float = 1e-6
 RECTANGLE = tuple[float, float, float, float]  # (Left, Bottom, Right, Top)
@@ -109,7 +100,7 @@ class TestBuildLayoutOverlap:
             colourbar_strategy=colourbar_strategy,  # type: ignore[arg-type]
         )
 
-        _, axes, colourbar_axes = build_layout(
+        _, axes, colourbar_axes = LayoutBuilder().build_layout(
             plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
         )
 
@@ -146,7 +137,7 @@ class TestBuildLayoutOverlap:
             colourbar_strategy=colourbar_strategy,  # type: ignore[arg-type]
         )
 
-        _, axes, colourbar_axes = build_layout(
+        _, axes, colourbar_axes = LayoutBuilder().build_layout(
             plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
         )
 
@@ -194,7 +185,7 @@ class TestBuildLayoutOverlap:
             include_difference=include_difference,
         )
 
-        fig, axes, caxes = build_layout(
+        fig, axes, caxes = LayoutBuilder().build_layout(
             plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
         )
 
@@ -228,7 +219,7 @@ class TestSetAxesLimits:
         height, width = 48, 64
 
         # Apply the axis limits function
-        _set_axes_limits([ax], width=width, height=height)
+        LayoutBuilder().set_axes_limits([ax], width=width, height=height)
 
         # Check that y-axis is inverted for geographical convention
         # For polar data (both Arctic and Antarctic), higher latitude values should be
@@ -265,7 +256,7 @@ class TestBuildSinglePanelFigure:
         """Single panel layout: main panel and colourbar must not overlap."""
         height, width = era5_temperature_2d.shape
 
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
             height=height,
             width=width,
             colourbar_location=colourbar_location,  # type: ignore[arg-type]
@@ -292,7 +283,7 @@ class TestBuildSinglePanelFigure:
         """Single panel layout: require a minimum gap between panel and colourbar."""
         height, width = era5_temperature_2d.shape
 
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
             height=height,
             width=width,
             colourbar_location=colourbar_location,  # type: ignore[arg-type]
@@ -326,7 +317,7 @@ class TestBuildSinglePanelFigure:
         """Single panel: title and annotations should not overlap panel or colourbar."""
         height, width = era5_temperature_2d.shape
 
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
             height=height,
             width=width,
             colourbar_location="vertical",
@@ -368,7 +359,7 @@ class TestBuildSinglePanelFigure:
         width: int,
     ) -> None:
         """Single panel layout should handle various aspect ratios without overlap."""
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
             height=height,
             width=width,
             colourbar_location="vertical",
@@ -393,11 +384,13 @@ class TestBuildSinglePanelFigureValidation:
 
     def test_raises_for_non_positive_height(self) -> None:
         with pytest.raises(ValueError, match="height and width must be positive"):
-            build_single_panel_figure(height=0, width=10, colourbar_location="vertical")
+            LayoutBuilder().build_single_panel_figure(
+                height=0, width=10, colourbar_location="vertical"
+            )
 
     def test_raises_for_non_positive_width(self) -> None:
         with pytest.raises(ValueError, match="height and width must be positive"):
-            build_single_panel_figure(
+            LayoutBuilder().build_single_panel_figure(
                 height=10, width=-1, colourbar_location="vertical"
             )
 
@@ -406,7 +399,7 @@ class TestSinglePanelVerticalGapOverride:
     """Explicit cbar_pad takes the override branch and is clipped to GapConfig bounds."""
 
     def test_large_cbar_pad_is_clamped_to_max(self) -> None:
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
             height=100, width=100, colourbar_location="vertical", cbar_pad=100.0
         )
         fig_w_in = fig.get_size_inches()[0]
@@ -419,7 +412,7 @@ class TestSinglePanelVerticalGapOverride:
         plt.close(fig)
 
     def test_small_cbar_pad_is_clamped_to_min(self) -> None:
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
             height=100, width=100, colourbar_location="vertical", cbar_pad=1e-8
         )
         fig_w_in = fig.get_size_inches()[0]
@@ -438,7 +431,7 @@ class TestSinglePanelColourbarWidthClamp:
     def test_extreme_wide_aspect_clamps_colourbar_to_physical_max(self) -> None:
         # aspect=100 forces the minimum-width floor above the physical-width limit,
         # which in turn forces cax_width above max_cax_frac and triggers the clamp.
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
             height=20, width=2000, colourbar_location="vertical"
         )
         fig_w_in = fig.get_size_inches()[0]
@@ -461,13 +454,13 @@ class TestBuildLayoutDefaultFigsize:
 
     def test_falls_back_for_three_panels(self) -> None:
         spec = replace(DEFAULT_SIC_SPEC, include_difference=True)
-        fig, _, _ = build_layout(plot_spec=spec)
+        fig, _, _ = LayoutBuilder().build_layout(plot_spec=spec)
         assert tuple(fig.get_size_inches()) == LayoutConfig().default_figsizes[3]
         plt.close(fig)
 
     def test_falls_back_for_two_panels(self) -> None:
         spec = replace(DEFAULT_SIC_SPEC, include_difference=False)
-        fig, _, _ = build_layout(plot_spec=spec)
+        fig, _, _ = LayoutBuilder().build_layout(plot_spec=spec)
         assert tuple(fig.get_size_inches()) == LayoutConfig().default_figsizes[2]
         plt.close(fig)
 
@@ -477,8 +470,8 @@ class TestBuildGridHorizontalSinglePanel:
 
     build_layout always derives n_panels as 2 or 3, so the "only ground truth present"
     fallback branches inside _build_grid_horizontal can only be reached by calling the
-    private helper directly, matching this file's existing precedent of importing
-    private helpers (e.g. _set_axes_limits) for targeted coverage.
+    private method directly, matching this file's existing precedent of exercising
+    private methods (e.g. set_axes_limits used to be one) for targeted coverage.
     """
 
     def test_separate_strategy_with_single_panel_has_only_groundtruth_colourbar(
@@ -490,7 +483,7 @@ class TestBuildGridHorizontalSinglePanel:
             colourbar_location="horizontal",
         )
         fig = plt.figure(figsize=(6, 6))
-        axs, caxes = _build_grid_horizontal(
+        axs, caxes = LayoutBuilder()._build_grid_horizontal(
             fig,
             n_panels=1,
             plot_spec=spec,
@@ -514,7 +507,7 @@ class TestBuildGridHorizontalSinglePanel:
             colourbar_location="horizontal",
         )
         fig = plt.figure(figsize=(6, 6))
-        axs, caxes = _build_grid_horizontal(
+        axs, caxes = LayoutBuilder()._build_grid_horizontal(
             fig,
             n_panels=1,
             plot_spec=spec,
@@ -531,233 +524,10 @@ class TestBuildGridHorizontalSinglePanel:
         plt.close(fig)
 
 
-class TestGetCbarLimitsFromMappable:
-    """get_cbar_limits_from_mappable falls back through mappable.norm, then defaults."""
-
-    def test_falls_back_to_norm_attributes_without_get_clim(
-        self, monkeypatch: pytest.MonkeyPatch, era5_temperature_2d: np.ndarray
-    ) -> None:
-        fig, ax, cax = build_single_panel_figure(
-            height=16, width=16, colourbar_location="vertical"
-        )
-        image = ax.contourf(era5_temperature_2d, levels=10)
-        cbar = plt.colorbar(image, cax=cax)
-
-        class _FakeNorm:
-            vmin = 260.0
-            vmax = 290.0
-
-        class _FakeMappable:
-            norm = _FakeNorm()
-
-        # _FakeMappable deliberately has no get_clim, forcing the AttributeError fallback.
-        monkeypatch.setattr(cbar, "mappable", _FakeMappable())
-
-        vmin, vmax = get_cbar_limits_from_mappable(cbar)
-        assert vmin == pytest.approx(260.0)
-        assert vmax == pytest.approx(290.0)
-
-        plt.close(fig)
-
-    def test_falls_back_to_default_when_norm_has_no_limits(
-        self, monkeypatch: pytest.MonkeyPatch, era5_temperature_2d: np.ndarray
-    ) -> None:
-        fig, ax, cax = build_single_panel_figure(
-            height=16, width=16, colourbar_location="vertical"
-        )
-        image = ax.contourf(era5_temperature_2d, levels=10)
-        cbar = plt.colorbar(image, cax=cax)
-
-        class _FakeMappable:
-            norm = None
-
-        monkeypatch.setattr(cbar, "mappable", _FakeMappable())
-
-        vmin, vmax = get_cbar_limits_from_mappable(cbar)
-        assert vmin == pytest.approx(0.0)
-        assert vmax == pytest.approx(1.0)
-
-        plt.close(fig)
-
-
-class TestAddColourbars:
-    """_add_colourbars: dedicated cbar_axes vs. automatic-placement fallback."""
-
-    def test_separate_strategy_uses_dedicated_axes_for_each_panel(
-        self, sic_pair_2d: tuple[np.ndarray, np.ndarray, date]
-    ) -> None:
-        ground_truth, prediction, _ = sic_pair_2d
-        spec = replace(
-            DEFAULT_SIC_SPEC,
-            colourbar_strategy="separate",
-            colourbar_location="vertical",
-            include_difference=False,
-        )
-        fig, axs, cbar_axes = build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
-        image_groundtruth = axs[0].contourf(ground_truth, levels=10)
-        image_prediction = axs[1].contourf(prediction, levels=10)
-
-        _add_colourbars(
-            axs,
-            image_groundtruth=image_groundtruth,
-            image_prediction=image_prediction,
-            plot_spec=spec,
-            cbar_axes=cbar_axes,
-        )
-
-        assert cbar_axes["groundtruth"] is not None
-        assert cbar_axes["prediction"] is not None
-        assert len(cbar_axes["groundtruth"].get_yticks()) == 5
-        assert len(cbar_axes["prediction"].get_yticks()) == 5
-
-        plt.close(fig)
-
-    def test_shared_strategy_falls_back_to_automatic_placement_without_cbar_axes(
-        self, sic_pair_2d: tuple[np.ndarray, np.ndarray, date]
-    ) -> None:
-        ground_truth, prediction, _ = sic_pair_2d
-        spec = replace(
-            DEFAULT_SIC_SPEC,
-            colourbar_strategy="shared",
-            colourbar_location="vertical",
-            include_difference=False,
-        )
-        fig, axs, _ = build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
-        image_groundtruth = axs[0].contourf(ground_truth, levels=10)
-        image_prediction = axs[1].contourf(prediction, levels=10)
-
-        n_axes_before = len(fig.axes)
-        _add_colourbars(
-            axs,
-            image_groundtruth=image_groundtruth,
-            image_prediction=image_prediction,
-            plot_spec=spec,
-            cbar_axes=None,
-        )
-        # The fallback path creates one new automatically-placed colourbar axis.
-        assert len(fig.axes) == n_axes_before + 1
-
-        plt.close(fig)
-
-
-class TestAddColourbarsDifferencePanel:
-    """_add_colourbars difference-panel branches: signed (TwoSlopeNorm) vs absolute."""
-
-    def test_signed_difference_uses_symmetric_tick_formatting(
-        self, sic_pair_2d: tuple[np.ndarray, np.ndarray, date]
-    ) -> None:
-        ground_truth, prediction, _ = sic_pair_2d
-        spec = replace(
-            DEFAULT_SIC_SPEC,
-            colourbar_strategy="shared",
-            colourbar_location="vertical",
-            include_difference=True,
-            diff_mode="signed",
-        )
-        fig, axs, cbar_axes = build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
-        image_groundtruth = axs[0].contourf(ground_truth, levels=10)
-        image_prediction = axs[1].contourf(prediction, levels=10)
-
-        norm = TwoSlopeNorm(vmin=-1.0, vcenter=0.0, vmax=1.0)
-        image_difference = axs[2].contourf(
-            prediction - ground_truth, levels=10, cmap="RdBu_r", norm=norm
-        )
-        diff_colour_scale = DiffColourmapSpec(
-            norm=norm, vmin=None, vmax=None, cmap="RdBu_r"
-        )
-
-        _add_colourbars(
-            axs,
-            image_groundtruth=image_groundtruth,
-            image_prediction=image_prediction,
-            image_difference=image_difference,
-            plot_spec=spec,
-            diff_colour_scale=diff_colour_scale,
-            cbar_axes=cbar_axes,
-        )
-
-        diff_cax = cbar_axes["difference"]
-        assert diff_cax is not None
-        ticks = diff_cax.get_yticks()
-        assert len(ticks) == 5
-        # Symmetric ticks: [vmin, mid, centre, mid, vmax], centre defaults to 0.0.
-        assert ticks[2] == pytest.approx(0.0, abs=1e-6)
-        assert ticks[0] == pytest.approx(-ticks[-1])
-
-        plt.close(fig)
-
-    def test_absolute_difference_without_cbar_axes_uses_automatic_placement(
-        self, sic_pair_2d: tuple[np.ndarray, np.ndarray, date]
-    ) -> None:
-        ground_truth, prediction, _ = sic_pair_2d
-        spec = replace(
-            DEFAULT_SIC_SPEC,
-            colourbar_strategy="shared",
-            colourbar_location="vertical",
-            include_difference=True,
-            diff_mode="absolute",
-        )
-        fig, axs, _ = build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
-        image_groundtruth = axs[0].contourf(ground_truth, levels=10)
-        image_prediction = axs[1].contourf(prediction, levels=10)
-        image_difference = axs[2].contourf(
-            np.abs(prediction - ground_truth), levels=10, cmap="magma"
-        )
-        # norm=None routes through the plain Normalize(vmin, vmax) construction branch.
-        diff_colour_scale = DiffColourmapSpec(
-            norm=None, vmin=0.0, vmax=1.0, cmap="magma"
-        )
-
-        n_axes_before = len(fig.axes)
-        _add_colourbars(
-            axs,
-            image_groundtruth=image_groundtruth,
-            image_prediction=image_prediction,
-            image_difference=image_difference,
-            plot_spec=spec,
-            diff_colour_scale=diff_colour_scale,
-            cbar_axes=None,
-        )
-        # Both the shared GT/prediction fallback and the difference fallback fire,
-        # each creating one new automatically-placed colourbar axis.
-        assert len(fig.axes) == n_axes_before + 2
-
-        plt.close(fig)
-
-
-class TestFormatSymmetricTicksScientificNotation:
-    """format_symmetric_ticks supports scientific-notation tick labels."""
-
-    def test_use_scientific_notation_sets_exponential_formatter(self) -> None:
-        fig, ax, cax = build_single_panel_figure(
-            height=16, width=16, colourbar_location="vertical"
-        )
-        image = ax.contourf(np.random.default_rng(1).random((16, 16)), levels=10)
-        cbar = plt.colorbar(image, cax=cax)
-
-        format_symmetric_ticks(
-            cbar, vmin=-1.0, vmax=1.0, is_vertical=True, use_scientific_notation=True
-        )
-
-        formatter = cbar.ax.yaxis.get_major_formatter()
-        formatted = formatter(0.123456, 0)
-        assert "e" in formatted.lower()
-
-        plt.close(fig)
-
-
 class TestDefaultVerticalGapInchesWideLimit:
     """_default_vertical_gap_inches early-returns cfg.base when wide_limit is ~1.0."""
 
     def test_wide_limit_equal_to_one_returns_base_gap(self) -> None:
         cfg = GapConfig(wide_limit=1.0)
-        gap = _default_vertical_gap_inches(2.0, cfg)
+        gap = LayoutBuilder()._default_vertical_gap_inches(2.0, cfg)
         assert gap == pytest.approx(cfg.base)

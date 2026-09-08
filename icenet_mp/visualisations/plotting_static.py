@@ -17,20 +17,13 @@ from PIL.ImageFile import ImageFile
 
 from icenet_mp.types import ArrayHW, PlotSpec, UncertaintyArrays
 
+from .colourbar_formatter import ColourbarFormatter
 from .convert import image_from_figure
 from .difference_calculator import DifferenceCalculator
 from .frame_renderer import FrameRenderer
 from .land_mask import LandMask
-from .layout import (
-    _add_colourbars,
-    _set_axes_limits,
-    _set_titles,
-    build_layout,
-    build_single_panel_figure,
-    format_linear_ticks,
-    format_symmetric_ticks,
-    set_suptitle_with_box,
-)
+from .layout import set_suptitle_with_box
+from .layout_builder import LayoutBuilder
 from .plot_annotator import PlotAnnotator
 from .variable_styler import VariableStyler
 
@@ -71,6 +64,7 @@ def plot_static_prediction(
 
     """
     frame_renderer = FrameRenderer()
+    layout_builder = LayoutBuilder()
     (
         height,
         width,
@@ -79,7 +73,7 @@ def plot_static_prediction(
     ) = frame_renderer.prepare_static_plot(plot_spec, ground_truth, prediction)
 
     # Initialise the figure and axes with dynamic top spacing if needed
-    fig, axs, cbar_axes = build_layout(
+    fig, axs, cbar_axes = layout_builder.build_layout(
         plot_spec=plot_spec,
         height=height,
         width=width,
@@ -105,10 +99,10 @@ def plot_static_prediction(
     )
 
     # Restore axis titles after drawing (they were cleared in draw_frame)
-    _set_titles(axs, plot_spec)
+    layout_builder.set_titles(axs, plot_spec)
 
     # Colourbars and title
-    _add_colourbars(
+    ColourbarFormatter().add_colourbars(
         axs,
         image_groundtruth=image_groundtruth,
         image_prediction=image_prediction,
@@ -117,7 +111,7 @@ def plot_static_prediction(
         cbar_axes=cbar_axes,
     )
 
-    _set_axes_limits(axs, width=width, height=height)
+    layout_builder.set_axes_limits(axs, width=width, height=height)
     annotator = PlotAnnotator()
     try:
         title_text = set_suptitle_with_box(
@@ -160,7 +154,7 @@ def plot_static_uncertainty(
     z_difference = land_mask.apply_to(z_difference)
 
     height, width = z_difference.shape
-    fig, ax, cax = build_single_panel_figure(
+    fig, ax, cax = LayoutBuilder().build_single_panel_figure(
         height=height,
         width=width,
         colourbar_location=plot_spec.colourbar_location,
@@ -182,7 +176,7 @@ def plot_static_uncertainty(
         cax=cax,
         orientation=plot_spec.colourbar_location,
     )
-    format_symmetric_ticks(
+    ColourbarFormatter().format_symmetric_ticks(
         colourbar,
         vmin=vmin,
         vmax=vmax,
@@ -218,6 +212,8 @@ def plot_static_inputs(
     Returns list of (name, list[PIL.ImageFile]).
     """
     results: dict[str, list[ImageFile]] = {}
+    layout_builder = LayoutBuilder()
+    colourbar_formatter = ColourbarFormatter()
 
     for variable_name, variable_values in variables.items():
         if variable_values.ndim != 2:  # noqa: PLR2004
@@ -242,7 +238,7 @@ def plot_static_inputs(
         )
 
         # Build figure and axis
-        fig, ax, cax = build_single_panel_figure(
+        fig, ax, cax = layout_builder.build_single_panel_figure(
             height=masked_variable_values.shape[0],
             width=masked_variable_values.shape[1],
             colourbar_location=plot_spec.colourbar_location,
@@ -271,7 +267,7 @@ def plot_static_inputs(
             else False
         )
         if isinstance(norm, TwoSlopeNorm):
-            format_symmetric_ticks(
+            colourbar_formatter.format_symmetric_ticks(
                 cbar,
                 vmin=vmin,
                 vmax=vmax,
@@ -281,7 +277,7 @@ def plot_static_inputs(
                 use_scientific_notation=use_scientific,
             )
         else:
-            format_linear_ticks(
+            colourbar_formatter.format_linear_ticks(
                 cbar,
                 vmin=vmin,
                 vmax=vmax,
