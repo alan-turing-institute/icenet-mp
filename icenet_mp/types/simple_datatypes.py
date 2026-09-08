@@ -8,14 +8,6 @@ from torch import Tensor
 from .typedefs import ArrayHW, TensorNTCHW
 
 
-class AnemoiDatasetStatus(NamedTuple):
-    """Status of an Anemoi dataset."""
-
-    copy_in_progress: bool
-    download_complete: bool
-    is_finalised: bool
-
-
 @dataclass
 class AnemoiCleanupArgs:
     """Arguments for anemoi cleanup."""
@@ -23,6 +15,14 @@ class AnemoiCleanupArgs:
     path: str
     command: str = "unused"
     delta: list[str] | None = None
+
+
+class AnemoiDatasetStatus(NamedTuple):
+    """Status of an Anemoi dataset."""
+
+    copy_in_progress: bool
+    download_complete: bool
+    is_finalised: bool
 
 
 @dataclass
