@@ -1,9 +1,7 @@
-"""CentroidError metric: pixel distance between predicted and target centroids."""
-
 import torch
 
-from .mixins import SicOnlyMetricMixin
-from .pointwise_error import BaseErrorMetricDaily
+from .base_daily_metric import BaseDailyMetric
+from .helpers import SicOnlyMetricMixin
 
 # Frames whose target has less total mass than this are treated as empty (undefined
 # centroid) and excluded from the average; it also floors the denominator so the
@@ -11,7 +9,7 @@ from .pointwise_error import BaseErrorMetricDaily
 _EMPTY_MASS_THRESHOLD = 1e-8
 
 
-class CentroidErrorPerForecastDay(SicOnlyMetricMixin, BaseErrorMetricDaily):
+class CentroidErrorPerForecastDay(SicOnlyMetricMixin, BaseDailyMetric):
     """Euclidean distance (in pixels) between the predicted and target centroids.
 
     The centroid of a (batch, time) frame is its value-weighted center of mass over
@@ -43,11 +41,11 @@ class CentroidErrorPerForecastDay(SicOnlyMetricMixin, BaseErrorMetricDaily):
         return torch.stack([row_centroid, col_centroid], dim=-1), mass
 
     def _compute_batch_stats(
-        self, preds: torch.Tensor, target: torch.Tensor
+        self, preds: torch.Tensor, targets: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        self.ensure_single_channel(preds, target)
+        self.ensure_single_channel(preds, targets)
         preds_values = preds.clamp(min=0)
-        target_values = target.clamp(min=0)
+        target_values = targets.clamp(min=0)
         land_mask = getattr(self, "land_mask", None)
         if land_mask is not None:
             # `torch.where`, not `* land_mask`: multiplying can't zero out a NaN

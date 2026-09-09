@@ -12,8 +12,7 @@ from torchmetrics import Metric
 
 from icenet_mp.types import SEA_ICE_THRESHOLD
 
-from .ice_edge import binary_edge
-from .mixins import SicOnlyMetricMixin
+from .helpers import SicOnlyMetricMixin, binary_ice_edge
 
 
 class FractionalSkillScorePerForecastDay(SicOnlyMetricMixin, Metric):
@@ -156,8 +155,12 @@ class FractionalSkillScorePerForecastDay(SicOnlyMetricMixin, Metric):
         target_mask = (target > SEA_ICE_THRESHOLD).reshape(-1, height, width)
 
         land_mask = getattr(self, "land_mask", None)
-        lambda_model = self._neighborhood_fraction(binary_edge(preds_mask, land_mask))
-        lambda_truth = self._neighborhood_fraction(binary_edge(target_mask, land_mask))
+        lambda_model = self._neighborhood_fraction(
+            binary_ice_edge(preds_mask, land_mask)
+        )
+        lambda_truth = self._neighborhood_fraction(
+            binary_ice_edge(target_mask, land_mask)
+        )
 
         mse, mse_ref = self._config_stats(lambda_truth, lambda_model)
 

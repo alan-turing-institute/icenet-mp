@@ -1,21 +1,16 @@
-"""Pixel-wise error metrics (MAE, RMSE) and their shared accumulation base class.
-
-The base classes here are also reused by `icenet_mp.metrics.ssim` and
-`icenet_mp.metrics.centroid_error`, which need the same per-timestep
-sufficient-statistics accumulation but compute a different per-batch error.
-"""
-
 import torch
 from torchmetrics import Metric
 
 
-class _BaseErrorMetricDaily(Metric):
+class BaseDailyMetric(Metric):
     """Shared state management for per-timestep error metrics.
 
     Provides ``sum_errors`` and ``count`` buffers with distributed-reduction support,
     plus the common accumulation logic used by both daily error metrics and centroid
-    distance metrics.  Subclasses override ``_compute_batch_stats()`` to supply their
-    own per-batch ``(sum_errors, count)`` tensors.
+    distance metrics. The default ``_compute_batch_stats()`` computes an element-wise
+    error (via ``_compute_errors()``, overridden per metric) with optional land
+    masking; subclasses that need a different per-batch reduction (e.g. centroid
+    distance) can override ``_compute_batch_stats()`` directly instead.
     """
 
     sum_errors: torch.Tensor
@@ -76,19 +71,9 @@ class _BaseErrorMetricDaily(Metric):
         mean_errors = self.sum_errors / count.float()
         return self._finalize(mean_errors)
 
-    def _compute_batch_stats(
-        self, preds: torch.Tensor, target: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute per-time-step sums and counts for a single batch. Override in subclasses."""
-        raise NotImplementedError
-
     def _finalize(self, mean_errors: torch.Tensor) -> torch.Tensor:
         """Apply final transformation to mean errors. Override in subclasses."""
         return mean_errors
-
-
-class BaseErrorMetricDaily(_BaseErrorMetricDaily):
-    """Base class for per-timestep error metrics using sufficient statistics."""
 
     def _compute_errors(
         self, preds: torch.Tensor, targets: torch.Tensor
@@ -123,24 +108,3 @@ class BaseErrorMetricDaily(_BaseErrorMetricDaily):
             device=errors.device,
         )
         return batch_sum_errors, batch_count
-
-
-class RMSEPerForecastDay(BaseErrorMetricDaily):
-    """Root Mean Squared Error per forecast lead time."""
-
-    def _compute_errors(
-        self, preds: torch.Tensor, targets: torch.Tensor
-    ) -> torch.Tensor:
-        return (preds - targets) ** 2
-
-    def _finalize(self, mean_errors: torch.Tensor) -> torch.Tensor:
-        return torch.sqrt(mean_errors)
-
-
-class MAEPerForecastDay(BaseErrorMetricDaily):
-    """Mean Absolute Error per forecast lead time."""
-
-    def _compute_errors(
-        self, preds: torch.Tensor, targets: torch.Tensor
-    ) -> torch.Tensor:
-        return torch.abs(preds - targets)

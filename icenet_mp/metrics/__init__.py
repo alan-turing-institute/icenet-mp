@@ -1,12 +1,11 @@
 from .centroid_error import CentroidErrorPerForecastDay
-from .extent_metrics import (
-    DistanceAveragedIceEdgeErrorPerForecastDay,
-    IntegratedIceEdgeErrorPerForecastDay,
-    SeaIceExtentErrorPerForecastDay,
-)
+from .distance_averaged_iee import DistanceAveragedIceEdgeErrorPerForecastDay
 from .fss import FractionalSkillScorePerForecastDay
 from .icenet_accuracy import IceNetAccuracyPerForecastDay
-from .pointwise_error import MAEPerForecastDay, RMSEPerForecastDay
+from .iiee import IntegratedIceEdgeErrorPerForecastDay
+from .mae import MAEPerForecastDay
+from .rmse import RMSEPerForecastDay
+from .sie import SeaIceExtentErrorPerForecastDay
 from .ssim import SSIMPerForecastDay
 
 __all__ = [

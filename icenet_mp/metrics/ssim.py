@@ -1,16 +1,7 @@
-"""StructuralSimilarityIndex (SSIM) metric.
-
-Follows the standard SSIM definition from Wang et al. (2004), "Image quality
-assessment: from error visibility to structural similarity", IEEE Transactions on
-Image Processing, vol. 13, no. 4, pp. 600-612. Adapted (channels-first, PyTorch) from
-the Gaussian-filtered dm_pix/cloudcasting implementation at:
-https://github.com/openclimatefix/cloudcasting/blob/main/src/cloudcasting/metrics.py
-"""
-
 import torch
 import torch.nn.functional as F
 
-from .pointwise_error import BaseErrorMetricDaily
+from .base_daily_metric import BaseDailyMetric
 
 
 def _gaussian_kernel(filter_size: int, filter_sigma: float) -> torch.Tensor:
@@ -20,8 +11,14 @@ def _gaussian_kernel(filter_size: int, filter_sigma: float) -> torch.Tensor:
     return filt / filt.sum()
 
 
-class SSIMPerForecastDay(BaseErrorMetricDaily):
+class SSIMPerForecastDay(BaseDailyMetric):
     """Structural Similarity Index (SSIM) per forecast lead time.
+
+    Follows the standard SSIM definition from Wang et al. (2004), "Image quality
+    assessment: from error visibility to structural similarity", IEEE Transactions on
+    Image Processing, vol. 13, no. 4, pp. 600-612. Adapted (channels-first, PyTorch)
+    from the Gaussian-filtered dm_pix/cloudcasting implementation at:
+    https://github.com/openclimatefix/cloudcasting/blob/main/src/cloudcasting/metrics.py
 
     Each field is locally compared to the other within a Gaussian-weighted
     `filter_size` x `filter_size` window around every cell, following the standard

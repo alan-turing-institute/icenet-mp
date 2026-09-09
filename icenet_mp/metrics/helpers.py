@@ -1,10 +1,25 @@
-"""Shared raster ice-edge detection, used by both FSS and DIIEE."""
+"""Shared input validation for SIC-only metrics."""
 
 import torch
 import torch.nn.functional as F
 
 
-def binary_edge(
+class SicOnlyMetricMixin:
+    """Mixin guarding metric inputs that are only defined for a single SIC channel."""
+
+    def ensure_single_channel(self, preds: torch.Tensor, targets: torch.Tensor) -> None:
+        if preds.shape[2] != 1 or targets.shape[2] != 1:
+            msg = (
+                f"{type(self).__name__} is only defined for a single "
+                f"sea-ice-concentration channel, but got preds with "
+                f"{preds.shape[2]} channel(s) and target with {targets.shape[2]} "
+                f"channel(s). Multi-channel targets (e.g. an auxiliary "
+                f"ice-thickness variable) are not supported by this metric."
+            )
+            raise ValueError(msg)
+
+
+def binary_ice_edge(
     ice_mask: torch.Tensor, land_mask: torch.Tensor | None = None
 ) -> torch.Tensor:
     """Boolean ice-edge map: True for ice cells that border a non-ice ocean cell.
