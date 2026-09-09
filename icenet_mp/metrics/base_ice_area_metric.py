@@ -1,10 +1,10 @@
 import torch
 from torchmetrics import Metric
 
-from .helpers import SicOnlyMetricMixin
+from .helpers import AccumulatorMixin, LandMaskMixin, SicOnlyMetricMixin
 
 
-class BaseIceAreaMetric(SicOnlyMetricMixin, Metric):
+class BaseIceAreaMetric(SicOnlyMetricMixin, LandMaskMixin, AccumulatorMixin, Metric):
     """Shared construction for threshold-based sea ice extent/edge metrics."""
 
     def __init__(
@@ -23,8 +23,7 @@ class BaseIceAreaMetric(SicOnlyMetricMixin, Metric):
         """
         super().__init__()
         self.pixel_size = pixel_size
-        if land_mask is not None:
-            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
+        self._register_land_mask(land_mask)
 
     def _masked_mismatch(
         self, preds_extent: torch.Tensor, target_extent: torch.Tensor
@@ -74,12 +73,7 @@ class MeanIceAreaMetric(BaseIceAreaMetric):
         self.ensure_single_channel(preds, target)
         error = self._batch_error(preds, target)
 
-        # Initialize states on first update
-        if self.sum_errors.numel() == 0:
-            self.sum_errors = error.sum(dim=0)
-        else:
-            # Accumulate sums and counts per lead time
-            self.sum_errors += error.sum(dim=0)  # Sum across batch dimension
+        self._accumulate("sum_errors", error.sum(dim=0))  # Sum across batch dimension
         self.sample_count += error.shape[0]  # Increment count by batch size
 
     def compute(self) -> torch.Tensor:

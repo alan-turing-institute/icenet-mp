@@ -1,22 +1,27 @@
-"""FractionalSkill Score (FSS) metric.
-
-Computes the FSS of the sea-ice edge at a fixed neighbourhood size, following
-Roberts and Lean (2008) and its application to sea-ice edge position by
-Melsom et al. (2019, https://doi.org/10.5194/os-15-615-2019). Adapted from the
-`effectiveres_icenetv2_FSS` notebook's step-by-step computation.
-"""
-
 import torch
 import torch.nn.functional as F
 from torchmetrics import Metric
 
 from icenet_mp.types import SEA_ICE_THRESHOLD
 
-from .helpers import SicOnlyMetricMixin, binary_ice_edge
+from .helpers import (
+    AccumulatorMixin,
+    LandMaskMixin,
+    SicOnlyMetricMixin,
+    binary_ice_edge,
+)
 
 
-class FractionalSkillScorePerForecastDay(SicOnlyMetricMixin, Metric):
+class FractionalSkillScorePerForecastDay(
+    SicOnlyMetricMixin, LandMaskMixin, AccumulatorMixin, Metric
+):
     """FractionalSkill Score (FSS) of the sea-ice edge, for use at multiple lead times.
+
+    Computes the FSS of the sea-ice edge at a fixed neighbourhood size, following
+    Roberts and Lean (2008) and its application to sea-ice edge position by
+    Melsom et al. (2019, https://doi.org/10.5194/os-15-615-2019). Adapted from the
+    `effectiveres_icenetv2_FSS` notebook's step-by-step computation.
+
 
     Each field is first reduced to a binary ice-edge map (cells that are ice but
     border a non-ice cell). The local fraction of edge cells is then computed within
@@ -52,8 +57,7 @@ class FractionalSkillScorePerForecastDay(SicOnlyMetricMixin, Metric):
             msg = "neighbourhood_size must be a positive odd integer."
             raise ValueError(msg)
         self.neighbourhood_size = neighbourhood_size
-        if land_mask is not None:
-            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
+        self._register_land_mask(land_mask)
 
         self.sum_mse: torch.Tensor
         self.sum_mse_ref: torch.Tensor
@@ -170,14 +174,9 @@ class FractionalSkillScorePerForecastDay(SicOnlyMetricMixin, Metric):
             (n_steps,), batch_size * n_channels, dtype=torch.long, device=preds.device
         )
 
-        if self.sum_mse.numel() == 0:
-            self.sum_mse = mse
-            self.sum_mse_ref = mse_ref
-            self.count = batch_count
-        else:
-            self.sum_mse += mse
-            self.sum_mse_ref += mse_ref
-            self.count += batch_count
+        self._accumulate("sum_mse", mse)
+        self._accumulate("sum_mse_ref", mse_ref)
+        self._accumulate("count", batch_count)
 
     def compute(self) -> torch.Tensor:
         """Compute the final FSS per lead time.

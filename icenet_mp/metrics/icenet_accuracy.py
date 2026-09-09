@@ -3,10 +3,12 @@ from torchmetrics import Metric
 
 from icenet_mp.types import SEA_ICE_THRESHOLD
 
-from .helpers import SicOnlyMetricMixin
+from .helpers import AccumulatorMixin, LandMaskMixin, SicOnlyMetricMixin
 
 
-class IceNetAccuracyPerForecastDay(SicOnlyMetricMixin, Metric):
+class IceNetAccuracyPerForecastDay(
+    SicOnlyMetricMixin, LandMaskMixin, AccumulatorMixin, Metric
+):
     """Binary accuracy metric for use at multiple leadtimes.
 
     Adapted from the IceNet implementation at:
@@ -26,8 +28,7 @@ class IceNetAccuracyPerForecastDay(SicOnlyMetricMixin, Metric):
 
         """
         super().__init__()
-        if land_mask is not None:
-            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
+        self._register_land_mask(land_mask)
         self.add_state(
             "weighted_score",
             default=torch.tensor([], dtype=torch.float32),
@@ -54,18 +55,12 @@ class IceNetAccuracyPerForecastDay(SicOnlyMetricMixin, Metric):
         )
         land_mask = getattr(self, "land_mask", None)
         if land_mask is not None:
-            sample_weight = sample_weight * land_mask.to(dtype=sample_weight_.dtype)
+            sample_weight_ = sample_weight_ * land_mask.to(dtype=sample_weight_.dtype)
         base_score = preds == target
         weighted_score = torch.sum(base_score * sample_weight_, dim=[0, 2, 3, 4])
-        if self.weighted_score.numel() == 0:  # type: ignore[has-type]
-            self.weighted_score = weighted_score
-        else:
-            self.weighted_score += weighted_score
+        self._accumulate("weighted_score", weighted_score)
         possible_score = torch.sum(sample_weight_, dim=[0, 2, 3, 4])
-        if self.possible_score.numel() == 0:  # type: ignore[has-type]
-            self.possible_score = possible_score
-        else:
-            self.possible_score += possible_score
+        self._accumulate("possible_score", possible_score)
 
     def compute(self) -> torch.Tensor:
         """Compute the final accuracy metric as a percentage at each leadtime."""

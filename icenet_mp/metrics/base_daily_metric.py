@@ -1,8 +1,10 @@
 import torch
 from torchmetrics import Metric
 
+from .helpers import AccumulatorMixin, LandMaskMixin
 
-class BaseDailyMetric(Metric):
+
+class BaseDailyMetric(LandMaskMixin, AccumulatorMixin, Metric):
     """Shared state management for per-timestep error metrics.
 
     Provides ``sum_errors`` and ``count`` buffers with distributed-reduction support,
@@ -27,8 +29,7 @@ class BaseDailyMetric(Metric):
 
         """
         super().__init__()
-        if land_mask is not None:
-            self.register_buffer("land_mask", land_mask.bool(), persistent=False)
+        self._register_land_mask(land_mask)
         self.add_state(
             "sum_errors",
             default=torch.tensor([], dtype=torch.float32),
@@ -49,19 +50,17 @@ class BaseDailyMetric(Metric):
         """
         batch_sum_errors, batch_count = self._compute_batch_stats(preds, target)
 
-        if self.sum_errors.numel() == 0:
-            # First batch — initialise accumulators from incoming shapes
-            self.sum_errors = batch_sum_errors
-            self.count = batch_count
-        elif self.sum_errors.shape[0] != batch_sum_errors.shape[0]:
+        if (
+            self.sum_errors.numel() != 0
+            and self.sum_errors.shape[0] != batch_sum_errors.shape[0]
+        ):
             msg = (
                 f"Time dimension mismatch: expected {self.sum_errors.shape[0]}, "
                 f"got {batch_sum_errors.shape[0]}"
             )
             raise ValueError(msg)
-        else:
-            self.sum_errors += batch_sum_errors
-            self.count += batch_count
+        self._accumulate("sum_errors", batch_sum_errors)
+        self._accumulate("count", batch_count)
 
     def compute(self) -> torch.Tensor:
         """Compute metric per lead time from accumulated sufficient statistics."""

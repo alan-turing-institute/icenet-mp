@@ -87,12 +87,8 @@ class DistanceAveragedIceEdgeErrorPerForecastDay(BaseIceAreaMetric):
             batch_size, n_steps, n_channels
         ).sum(dim=(0, 2)) * self.pixel_size
 
-        if self.sum_mismatch_area.numel() == 0:
-            self.sum_mismatch_area = mismatch_area
-            self.sum_edge_length = edge_length
-        else:
-            self.sum_mismatch_area += mismatch_area
-            self.sum_edge_length += edge_length
+        self._accumulate("sum_mismatch_area", mismatch_area)
+        self._accumulate("sum_edge_length", edge_length)
 
     def compute(self) -> torch.Tensor:
         """Compute the final DIIEE (average ice-edge displacement, in km) per lead time."""

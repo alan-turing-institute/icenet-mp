@@ -4,13 +4,6 @@ import torch.nn.functional as F
 from .base_daily_metric import BaseDailyMetric
 
 
-def _gaussian_kernel(filter_size: int, filter_sigma: float) -> torch.Tensor:
-    """1D Gaussian filter of the given size and standard deviation, normalized to sum to 1."""
-    coords = torch.arange(filter_size, dtype=torch.float32) - filter_size // 2
-    filt = torch.exp(-0.5 * (coords / filter_sigma) ** 2)
-    return filt / filt.sum()
-
-
 class SSIMPerForecastDay(BaseDailyMetric):
     """Structural Similarity Index (SSIM) per forecast lead time.
 
@@ -69,8 +62,15 @@ class SSIMPerForecastDay(BaseDailyMetric):
         self.c2 = (k2 * max_val) ** 2
         self.padding = filter_size // 2
 
-        kernel_1d = _gaussian_kernel(filter_size, filter_sigma)
+        kernel_1d = self._gaussian_kernel(filter_size, filter_sigma)
         self.register_buffer("kernel", kernel_1d.outer(kernel_1d)[None, None])
+
+    @staticmethod
+    def _gaussian_kernel(filter_size: int, filter_sigma: float) -> torch.Tensor:
+        """1D Gaussian filter of the given size and standard deviation, normalized to sum to 1."""
+        coords = torch.arange(filter_size, dtype=torch.float32) - filter_size // 2
+        filt = torch.exp(-0.5 * (coords / filter_sigma) ** 2)
+        return filt / filt.sum()
 
     def _filter(self, images: torch.Tensor) -> torch.Tensor:
         """Apply the Gaussian filter to each channel of a (N, C, H, W) tensor independently."""

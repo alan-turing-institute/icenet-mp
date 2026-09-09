@@ -1,7 +1,26 @@
-"""Shared input validation for SIC-only metrics."""
-
 import torch
 import torch.nn.functional as F
+
+
+class AccumulatorMixin:
+    """Mixin providing lazy first-batch accumulation for torchmetrics states.
+
+    Several metrics in this package hold a running-sum state that starts as an
+    empty tensor (so its dtype/shape isn't known until the first batch arrives)
+    and must be initialised in place, rather than added to, on that first call.
+    """
+
+    def _accumulate(self, name: str, value: torch.Tensor) -> None:
+        current = getattr(self, name)
+        setattr(self, name, value if current.numel() == 0 else current + value)
+
+
+class LandMaskMixin:
+    """Mixin providing shared registration of an optional land-mask buffer."""
+
+    def _register_land_mask(self, land_mask: torch.Tensor | None) -> None:
+        if land_mask is not None:
+            self.register_buffer("land_mask", land_mask.bool(), persistent=False)  # type: ignore[attr-defined]
 
 
 class SicOnlyMetricMixin:
