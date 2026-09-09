@@ -52,7 +52,7 @@ def render_panels(  # noqa: PLR0913
     axes: list[Axes] = np.atleast_1d(axes_).tolist()
 
     images = [
-        ax.imshow(arr, cmap=c, vmin=lo, vmax=hi, origin="lower")
+        ax.imshow(arr, cmap=c, vmin=lo, vmax=hi, origin="upper")
         for ax, arr, c, lo, hi in zip(axes, arrays, cmaps, vmins, vmaxs, strict=True)
     ]
     for ax, title in zip(axes, panel_titles or [""] * n, strict=True):
