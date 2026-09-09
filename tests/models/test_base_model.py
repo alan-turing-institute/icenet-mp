@@ -6,8 +6,30 @@ import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from icenet_mp.metrics import (
+    CentroidErrorPerForecastDay,
+    DistanceAveragedIceEdgeErrorPerForecastDay,
+    FractionalSkillScorePerForecastDay,
+    IceNetAccuracyPerForecastDay,
+    IntegratedIceEdgeErrorPerForecastDay,
+    MAEPerForecastDay,
+    RMSEPerForecastDay,
+    SeaIceExtentErrorPerForecastDay,
+    SSIMPerForecastDay,
+)
 from icenet_mp.models import BaseModel
 from icenet_mp.types import ModelStepOutput, TensorNTCHW
+
+NON_FSS_METRIC_TYPES = {
+    "accuracy": IceNetAccuracyPerForecastDay,
+    "mae": MAEPerForecastDay,
+    "rmse": RMSEPerForecastDay,
+    "sieerror": SeaIceExtentErrorPerForecastDay,
+    "iiee": IntegratedIceEdgeErrorPerForecastDay,
+    "diiee": DistanceAveragedIceEdgeErrorPerForecastDay,
+    "centroid_error": CentroidErrorPerForecastDay,
+    "ssim": SSIMPerForecastDay,
+}
 
 
 class FakeDataModel(BaseModel):
@@ -342,3 +364,75 @@ class TestBaseModel:
         output = model.validation_step(batch, 0)
         assert isinstance(output, ModelStepOutput)
         assert output.loss.shape == torch.Size([])
+
+
+class TestBaseModelMetricSelection:
+    @staticmethod
+    def _build_model(metrics: list[str]) -> FakeDataModel:
+        return FakeDataModel(
+            name="fake data",
+            input_spaces=[{"channels": 1, "name": "input", "shape": (2, 2)}],
+            metrics=metrics,
+            n_forecast_steps=1,
+            n_history_steps=1,
+            output_space={"channels": 1, "name": "target", "shape": (2, 2)},
+            optimizer=DictConfig({}),
+            scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
+        )
+
+    @pytest.mark.parametrize(
+        ("metric_name", "metric_type"), list(NON_FSS_METRIC_TYPES.items())
+    )
+    def test_non_fss_metric_selection(
+        self, metric_name: str, metric_type: type
+    ) -> None:
+        model = self._build_model([metric_name])
+
+        assert set(model.train_metrics.keys()) == {metric_name}
+        assert isinstance(model.train_metrics[metric_name], metric_type)
+
+    @pytest.mark.parametrize("neighbourhood_size", [1, 3, 7, 15])
+    def test_fss_metric_selection_parses_neighbourhood_size(
+        self, neighbourhood_size: int
+    ) -> None:
+        metric_name = f"fss_{neighbourhood_size}"
+        model = self._build_model([metric_name])
+
+        metric = model.train_metrics[metric_name]
+        assert isinstance(metric, FractionalSkillScorePerForecastDay)
+        assert metric.neighbourhood_size == neighbourhood_size
+
+    def test_multiple_metrics_are_all_present_and_exclusive(self) -> None:
+        selected = ["accuracy", "rmse", "fss_7", "ssim"]
+        model = self._build_model(selected)
+
+        assert set(model.train_metrics.keys()) == set(selected)
+
+    def test_metric_collections_are_built_identically(self) -> None:
+        """train/test/validation metrics are independent copies of one selection."""
+        model = self._build_model(["accuracy", "fss_7"])
+
+        assert (
+            set(model.train_metrics.keys())
+            == set(model.test_metrics.keys())
+            == set(model.validation_metrics.keys())
+        )
+
+    def test_empty_metrics_list_builds_no_metrics(self) -> None:
+        model = self._build_model([])
+
+        assert set(model.train_metrics.keys()) == set()
+
+    def test_unknown_metric_name_raises_key_error(self) -> None:
+        with pytest.raises(KeyError):
+            self._build_model(["not-a-real-metric"])
+
+    def test_fss_even_neighbourhood_size_raises(self) -> None:
+        with pytest.raises(ValueError, match="positive odd integer"):
+            self._build_model(["fss_4"])
+
+    def test_model_metrics_attribute_matches_requested_list(self) -> None:
+        selected = ["accuracy", "mae"]
+        model = self._build_model(selected)
+        assert model.metrics == selected

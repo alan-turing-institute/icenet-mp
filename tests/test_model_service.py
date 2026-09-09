@@ -939,6 +939,8 @@ class TestModelService:
     def test_train_stage_processor_trains_new_processor(self, tmp_path: Path) -> None:
         service = ModelService.__new__(ModelService)
         service.config_ = DictConfig({"model": {"processor": {"foo": "bar"}}})
+        service.data_module_ = MagicMock()
+        service.data_module_.mask_directory = tmp_path
         decoder_model = MagicMock()
         target_encoder = MagicMock()
         processor_model = MagicMock()
@@ -965,6 +967,7 @@ class TestModelService:
             processor=service.config_["model"]["processor"],
             decoder_model=decoder_model,
             target_encoder=target_encoder,
+            mask_dir=str(tmp_path),
         )
         processor_model.load_state_dict.assert_called_once_with("processor_state")
         assert result is processor_model
@@ -974,6 +977,8 @@ class TestModelService:
     ) -> None:
         service = ModelService.__new__(ModelService)
         service.config_ = DictConfig({"model": {"processor": {"foo": "bar"}}})
+        service.data_module_ = MagicMock()
+        service.data_module_.mask_directory = tmp_path
         decoder_model = MagicMock()
         target_encoder = MagicMock()
         checkpoint_path = tmp_path / "processor.epoch=1-step=5.ckpt"
@@ -997,5 +1002,6 @@ class TestModelService:
             processor=service.config_["model"]["processor"],
             decoder_model=decoder_model,
             target_encoder=target_encoder,
+            mask_dir=str(tmp_path),
         )
         assert result is loaded_processor
