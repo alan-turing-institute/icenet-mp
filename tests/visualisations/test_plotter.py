@@ -444,11 +444,10 @@ class TestLogVideoInputs:
 
 class TestLogVideoOutputs:
     def test_logs_videos_per_channel(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Plot and log one video group per output channel, named from channel_names."""
-        buffer = MagicMock()
-        fake_plot = MagicMock(return_value={"forecast": buffer})
+        """Render and log one video per output channel, keyed by date and variable name."""
+        fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_prediction", fake_plot
+            "icenet_mp.visualisations.plotter.render_panels_video", fake_render
         )
         video_logger = MagicMock()
 
@@ -460,10 +459,14 @@ class TestLogVideoOutputs:
             channel_names=["sic"],
         )
 
-        assert fake_plot.call_count == N_CHANNELS
-        assert fake_plot.call_args_list[0].kwargs["variable_name"] == "sic"
-        assert fake_plot.call_args_list[1].kwargs["variable_name"] == "channel_1"
+        assert fake_render.call_count == N_CHANNELS
         assert video_logger.log_video.call_count == N_CHANNELS
+        # Second channel has no configured name, so it falls back to channel_1.
+        logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
+        assert logged_keys == [
+            "output_video/2020-01-01-sic",
+            "output_video/2020-01-01-channel_1",
+        ]
 
     def test_skips_on_invalid_array_error(
         self,
@@ -472,7 +475,7 @@ class TestLogVideoOutputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_prediction",
+            "icenet_mp.visualisations.plotter.render_panels_video",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
@@ -494,7 +497,7 @@ class TestLogVideoOutputs:
     ) -> None:
         """Swallow VideoRenderError and log a warning."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_prediction",
+            "icenet_mp.visualisations.plotter.render_panels_video",
             MagicMock(side_effect=VideoRenderError("encoding failed")),
         )
 
@@ -516,7 +519,7 @@ class TestLogVideoOutputs:
     ) -> None:
         """Swallow a generic rendering error but log it at ERROR level with a traceback."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_prediction",
+            "icenet_mp.visualisations.plotter.render_panels_video",
             MagicMock(side_effect=ValueError("bad shape")),
         )
 
@@ -540,8 +543,8 @@ class TestLogVideoOutputs:
         buffer.seek(5)
 
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_prediction",
-            lambda *args, **kwargs: {"forecast": buffer},  # noqa: ARG005
+            "icenet_mp.visualisations.plotter.render_panels_video",
+            lambda *args, **kwargs: buffer,  # noqa: ARG005
         )
         video_logger = MagicMock()
         plotter = Plotter(PlotSpec(video_format="gif"))
@@ -555,6 +558,8 @@ class TestLogVideoOutputs:
         )
 
         video_logger.log_video.assert_called_once_with(
-            key="test/output_video/forecast", videos=[buffer], format=["gif"]
+            key="test/output_video/2020-01-01-ice_conc",
+            videos=[buffer],
+            format=["gif"],
         )
         assert buffer.tell() == 0

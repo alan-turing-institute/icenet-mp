@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from io import BytesIO
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -127,6 +128,7 @@ def render_panels_video(  # noqa: PLR0913
     panel_titles: Sequence[str] | None = None,
     vmax: float | Sequence[float | None] | None = None,
     vmin: float | Sequence[float | None] | None = None,
+    video_format: Literal["mp4", "gif"] = "mp4",
 ) -> BytesIO:
     """Render multiple panels side-by-side, animated over time.
 
@@ -143,6 +145,7 @@ def render_panels_video(  # noqa: PLR0913
         panel_titles: Optional per-panel titles, one per panel.
         vmax: Optional upper colour-scale bound(s), either shared or one per panel.
         vmin: Optional lower colour-scale bound(s), either shared or one per panel.
+        video_format: Encode as "mp4" or "gif".
 
     Returns:
         A BytesIO buffer containing the encoded video.
@@ -168,6 +171,6 @@ def render_panels_video(  # noqa: PLR0913
         anim = animation.FuncAnimation(
             figure, animate, frames=arrays[0].shape[0], interval=1000 // fps
         )
-        return video_from_animation(anim, dpi=dpi, fps=fps, video_format="mp4")
+        return video_from_animation(anim, dpi=dpi, fps=fps, video_format=video_format)
     finally:
         plt.close(figure)

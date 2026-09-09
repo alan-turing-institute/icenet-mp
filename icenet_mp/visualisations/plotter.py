@@ -25,8 +25,8 @@ from .land_mask import LandMask
 from .metadata_builder import MetadataBuilder
 from .plot_annotator import PlotAnnotator
 from .plotting_static import plot_static_inputs, plot_static_uncertainty
-from .plotting_video import plot_video_inputs, plot_video_prediction
-from .render import render_panels_static
+from .plotting_video import plot_video_inputs
+from .render import render_panels_static, render_panels_video
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +266,66 @@ class Plotter:
         except (IndexError, ValueError, MemoryError, OSError):
             logger.exception("Video plotting failed")
 
+    def _render_video_prediction(
+        self,
+        ground_truth: ArrayTHW,
+        prediction: ArrayTHW,
+        *,
+        dates: list[datetime],
+        variable_name: str,
+    ) -> BytesIO:
+        """Render the ground-truth/prediction(/difference) triptych video via render_panels_video."""
+        plot_spec = self.plot_spec
+        masked_ground_truth = self.land_mask.apply_to(ground_truth)
+        masked_prediction = self.land_mask.apply_to(prediction)
+
+        arrays = [masked_ground_truth, masked_prediction]
+        titles = [plot_spec.title_groundtruth, plot_spec.title_prediction]
+        cmaps: list[str] = [plot_spec.colourmap, plot_spec.colourmap]
+        vmins: list[float | None] = [plot_spec.vmin, plot_spec.vmin]
+        vmaxs: list[float | None] = [plot_spec.vmax, plot_spec.vmax]
+
+        if plot_spec.include_difference:
+            difference_calculator = DifferenceCalculator()
+            difference = self.land_mask.apply_to(
+                difference_calculator.compute_difference(
+                    masked_ground_truth, masked_prediction, plot_spec.diff_mode
+                )
+            )
+            diff_colour_scale = difference_calculator.make_diff_colourmap(
+                difference, mode=plot_spec.diff_mode
+            )
+            if diff_colour_scale.norm is not None:
+                diff_vmin = diff_colour_scale.norm.vmin
+                diff_vmax = diff_colour_scale.norm.vmax
+            else:
+                diff_vmin = diff_colour_scale.vmin
+                diff_vmax = diff_colour_scale.vmax
+
+            arrays.append(difference)
+            titles.append(f"{plot_spec.title_difference} ({plot_spec.diff_mode})")
+            cmaps.append(diff_colour_scale.cmap)
+            vmins.append(diff_vmin)
+            vmaxs.append(diff_vmax)
+
+        annotator = PlotAnnotator()
+        title_line = annotator.title_for_video(variable_name, plot_spec, dates, 0)
+        footer_line = annotator.footer_for_video(plot_spec, dates)
+        figure_title = f"{title_line}\n{footer_line}" if footer_line else title_line
+
+        return render_panels_video(
+            arrays,
+            cmap=cmaps,
+            dpi=plot_spec.dpi,
+            figure_title=figure_title,
+            fps=plot_spec.video_fps,
+            group_axes=(0, 1) if plot_spec.include_difference else None,
+            panel_titles=titles,
+            vmax=vmaxs,
+            vmin=vmins,
+            video_format=plot_spec.video_format,
+        )
+
     def log_video_outputs(
         self,
         outputs: ModelStepOutput,
@@ -285,15 +345,16 @@ class Plotter:
                 prediction: ArrayTHW = (
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
-                # Plot output animations
-                video_data = plot_video_prediction(
+                variable_name = self._channel_name(channel_names, idx_channel)
+                # Plot output animation via the minimal render_panels core
+                video = self._render_video_prediction(
                     ground_truth,
                     prediction,
                     dates=dates,
-                    land_mask=self.land_mask,
-                    plot_spec=self.plot_spec,
-                    variable_name=self._channel_name(channel_names, idx_channel),
+                    variable_name=variable_name,
                 )
+                date_key = dates[0].strftime(r"%Y-%m-%d")
+                video_data = {f"{date_key}-{variable_name}": video}
                 # Log output animations
                 self._log_videos(video_data, video_loggers, log_path)
         except (InvalidArrayError, VideoRenderError) as err:
