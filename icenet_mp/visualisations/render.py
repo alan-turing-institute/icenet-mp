@@ -24,17 +24,19 @@ def render_panels(  # noqa: PLR0913
     cmap: str | Sequence[str] = "viridis",
     dpi: int = 150,
     figure_title: str | None = None,
+    group_axes: tuple[int, int] | None = None,
     panel_titles: Sequence[str] | None = None,
     vmax: float | Sequence[float | None] | None = None,
     vmin: float | Sequence[float | None] | None = None,
 ) -> ImageFile:
-    """Draw 1-3 side-by-side panels, each with its own colourbar.
+    """Render multiple panels side-by-side.
 
     Args:
         arrays: 1 to 3 2D `[H, W]` arrays, one per panel.
         cmap: Optional colourmap(s), either shared by all panels or one per panel.
         dpi: Dots per inch for the rendered image.
         figure_title: Optional figure-level title drawn above all panels.
+        group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
         panel_titles: Optional per-panel title, one per panel.
         vmax: Optional upper colour-scale bound(s), either shared or one per panel.
         vmin: Optional lower colour-scale bound(s), either shared or one per panel.
@@ -55,10 +57,20 @@ def render_panels(  # noqa: PLR0913
         ax.imshow(arr, cmap=c, vmin=lo, vmax=hi, origin="lower")
         for ax, arr, c, lo, hi in zip(axes, arrays, cmaps, vmins, vmaxs, strict=True)
     ]
-    for ax, image, title in zip(axes, images, panel_titles or [""] * n, strict=True):
+    for ax, title in zip(axes, panel_titles or [""] * n, strict=True):
         ax.set_title(title)
         ax.axis("off")
-        fig.colorbar(image, ax=ax)
+
+    if group_axes is not None:
+        start, end = group_axes
+        fig.colorbar(images[start], ax=axes[start : end + 1], orientation="horizontal")
+        for i, (ax, image) in enumerate(zip(axes, images, strict=True)):
+            if i < start or i > end:
+                fig.colorbar(image, ax=ax, orientation="horizontal")
+    else:
+        for ax, image in zip(axes, images, strict=True):
+            fig.colorbar(image, ax=ax, orientation="horizontal")
+
     if figure_title:
         fig.suptitle(figure_title)
 
@@ -79,7 +91,7 @@ def render_panels_video(  # noqa: PLR0913
     vmax: float | None = None,
     vmin: float | None = None,
 ) -> BytesIO:
-    """Draw 1-3 side-by-side panels sharing one colourbar, animated over time.
+    """Render multiple panels side-by-side, animated over time.
 
     Args:
         arrays: 1 to 3 3D `[T, H, W]` arrays, one per panel, animated in lockstep.

@@ -165,12 +165,13 @@ class Plotter:
         suptitle = PlotAnnotator().title_for_static(variable_name, plot_spec, when)
         return render_panels(
             arrays,
-            panel_titles=titles,
-            figure_title=suptitle,
             cmap=cmaps,
-            vmin=vmins,
-            vmax=vmaxs,
             dpi=plot_spec.dpi,
+            figure_title=suptitle,
+            group_axes=(0, 1) if plot_spec.include_difference else None,
+            panel_titles=titles,
+            vmax=vmaxs,
+            vmin=vmins,
         )
 
     def log_static_outputs(
