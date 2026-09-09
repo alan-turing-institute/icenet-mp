@@ -105,8 +105,9 @@ class FractionalSkillScorePerForecastDay(Metric):
 
         """
         n = self.neighbourhood_size
-        mse_terms = []
-        mse_ref_terms = []
+        mse_sum = None
+        mse_ref_sum = None
+        total_area = 0
         for dx in range(n):
             for dy in range(n):
                 truth_slice = lambda_truth[:, dx::n, dy::n]
@@ -115,16 +116,21 @@ class FractionalSkillScorePerForecastDay(Metric):
                 if area == 0:
                     continue
                 diff = model_slice - truth_slice
-                mse_terms.append(diff.pow(2).mean(dim=(-2, -1)))
+                mse_term = diff.pow(2).mean(dim=(-2, -1))
                 term1 = truth_slice.pow(2).sum(dim=(-2, -1)) + model_slice.pow(2).sum(
                     dim=(-2, -1)
                 )
                 term2 = (1 - truth_slice).pow(2).sum(dim=(-2, -1)) + (
                     1 - model_slice
                 ).pow(2).sum(dim=(-2, -1))
-                mse_ref_terms.append(torch.minimum(term1, term2) / area)
-        mse = torch.stack(mse_terms, dim=0).mean(dim=0)
-        mse_ref = torch.stack(mse_ref_terms, dim=0).mean(dim=0)
+                mse_ref_term = torch.minimum(term1, term2)
+                mse_sum = mse_term if mse_sum is None else mse_sum + mse_term
+                mse_ref_sum = (
+                    mse_ref_term if mse_ref_sum is None else mse_ref_sum + mse_ref_term
+                )
+                total_area += area
+        mse = torch.tensor(0) if mse_sum is None else mse_sum / total_area
+        mse_ref = torch.tensor(0) if mse_ref_sum is None else mse_ref_sum / total_area
         return mse, mse_ref
 
     def update(
