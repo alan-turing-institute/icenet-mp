@@ -162,12 +162,15 @@ class Plotter:
             vmins.append(diff_vmin)
             vmaxs.append(diff_vmax)
 
-        suptitle = PlotAnnotator().title_for_static(variable_name, plot_spec, when)
+        annotator = PlotAnnotator()
+        suptitle = annotator.title_for_static(variable_name, plot_spec, when)
+        footer_text = annotator.footer_for_static(plot_spec)
         return render_panels_static(
             arrays,
             cmap=cmaps,
             dpi=plot_spec.dpi,
             figure_title=suptitle,
+            footer_text=footer_text or None,
             group_axes=(0, 1) if plot_spec.include_difference else None,
             panel_titles=titles,
             vmax=vmaxs,
@@ -310,14 +313,14 @@ class Plotter:
 
         annotator = PlotAnnotator()
         title_line = annotator.title_for_video(variable_name, plot_spec, dates, 0)
-        footer_line = annotator.footer_for_video(plot_spec, dates)
-        figure_title = f"{title_line}\n{footer_line}" if footer_line else title_line
+        footer_text = annotator.footer_for_video(plot_spec, dates)
 
         return render_panels_video(
             arrays,
             cmap=cmaps,
             dpi=plot_spec.dpi,
-            figure_title=figure_title,
+            figure_title=title_line,
+            footer_text=footer_text or None,
             fps=plot_spec.video_fps,
             group_axes=(0, 1) if plot_spec.include_difference else None,
             panel_titles=titles,
