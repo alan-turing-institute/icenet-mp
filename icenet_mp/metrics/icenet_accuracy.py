@@ -9,8 +9,10 @@ from torchmetrics import Metric
 
 from icenet_mp.types import SEA_ICE_THRESHOLD
 
+from .mixins import SicOnlyMetricMixin
 
-class IceNetAccuracyPerForecastDay(Metric):
+
+class IceNetAccuracyPerForecastDay(SicOnlyMetricMixin, Metric):
     """Binary accuracy metric for use at multiple leadtimes."""
 
     def __init__(self, land_mask: torch.Tensor | None = None) -> None:
@@ -45,6 +47,7 @@ class IceNetAccuracyPerForecastDay(Metric):
         sample_weight: torch.Tensor | None = None,
     ) -> None:
         """Update metric state with a new batch of predictions and targets."""
+        self.ensure_single_channel(preds, target)
         preds = (preds > SEA_ICE_THRESHOLD).long()
         target = (target > SEA_ICE_THRESHOLD).long()
         if sample_weight is None:

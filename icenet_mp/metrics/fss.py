@@ -13,9 +13,10 @@ from torchmetrics import Metric
 from icenet_mp.types import SEA_ICE_THRESHOLD
 
 from .ice_edge import binary_edge
+from .mixins import SicOnlyMetricMixin
 
 
-class FractionalSkillScorePerForecastDay(Metric):
+class FractionalSkillScorePerForecastDay(SicOnlyMetricMixin, Metric):
     """FractionalSkill Score (FSS) of the sea-ice edge, for use at multiple lead times.
 
     Each field is first reduced to a binary ice-edge map (cells that are ice but
@@ -148,6 +149,7 @@ class FractionalSkillScorePerForecastDay(Metric):
             Ground truth values of shape (B, T, C, H, W).
 
         """
+        self.ensure_single_channel(preds, target)
         batch_size, n_steps, n_channels, height, width = preds.shape
 
         preds_mask = (preds > SEA_ICE_THRESHOLD).reshape(-1, height, width)

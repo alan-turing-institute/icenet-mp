@@ -24,9 +24,10 @@ from torchmetrics import Metric
 from icenet_mp.types import SEA_ICE_THRESHOLD
 
 from .ice_edge import binary_edge
+from .mixins import SicOnlyMetricMixin
 
 
-class _IceAreaMetricBase(Metric):
+class _IceAreaMetricBase(SicOnlyMetricMixin, Metric):
     """Shared construction for threshold-based sea ice extent/edge metrics."""
 
     def __init__(
@@ -93,6 +94,7 @@ class _MeanIceAreaMetric(_IceAreaMetricBase):
             Ground truth values of shape (B, T, C, H, W).
 
         """
+        self.ensure_single_channel(preds, target)
         error = self._batch_error(preds, target)
 
         # Initialize states on first update
@@ -209,6 +211,7 @@ class DistanceAveragedIceEdgeErrorPerForecastDay(_IceAreaMetricBase):
             Ground-truth satellite SIC of shape (B, T, C, H, W).
 
         """
+        self.ensure_single_channel(preds, target)
         batch_size, n_steps, n_channels, height, width = preds.shape
 
         preds_extent = (preds > SEA_ICE_THRESHOLD).reshape(-1, height, width)

@@ -2,6 +2,7 @@
 
 import torch
 
+from .mixins import SicOnlyMetricMixin
 from .pointwise_error import BaseErrorMetricDaily
 
 # Frames whose target has less total mass than this are treated as empty (undefined
@@ -10,7 +11,7 @@ from .pointwise_error import BaseErrorMetricDaily
 _EMPTY_MASS_THRESHOLD = 1e-8
 
 
-class CentroidErrorPerForecastDay(BaseErrorMetricDaily):
+class CentroidErrorPerForecastDay(SicOnlyMetricMixin, BaseErrorMetricDaily):
     """Euclidean distance (in pixels) between the predicted and target centroids.
 
     The centroid of a (batch, time) frame is its value-weighted center of mass over
@@ -44,6 +45,7 @@ class CentroidErrorPerForecastDay(BaseErrorMetricDaily):
     def _compute_batch_stats(
         self, preds: torch.Tensor, target: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        self.ensure_single_channel(preds, target)
         preds_values = preds.clamp(min=0)
         target_values = target.clamp(min=0)
         land_mask = getattr(self, "land_mask", None)

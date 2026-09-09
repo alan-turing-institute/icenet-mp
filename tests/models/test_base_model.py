@@ -365,6 +365,49 @@ class TestBaseModel:
         assert isinstance(output, ModelStepOutput)
         assert output.loss.shape == torch.Size([])
 
+    def test_test_step_two_channel_target_raises_for_sic_only_metrics(
+        self,
+        cfg_input_space: DictConfig,
+        cfg_optimizer: DictConfig,
+        cfg_scheduler: DictConfig,
+    ) -> None:
+        """A second target channel must not be folded into SIC-only metrics."""
+        two_channel_output_space = DictConfig(
+            {"channels": 2, "name": "target", "shape": (16, 16)}
+        )
+        batch_size = n_history_steps = n_forecast_steps = 1
+        batch = {
+            cfg_input_space["name"]: torch.randn(
+                batch_size,
+                n_history_steps,
+                cfg_input_space["channels"],
+                cfg_input_space["shape"][0],
+                cfg_input_space["shape"][1],
+            ),
+            two_channel_output_space["name"]: torch.randn(
+                batch_size,
+                n_forecast_steps,
+                two_channel_output_space["channels"],
+                two_channel_output_space["shape"][0],
+                two_channel_output_space["shape"][1],
+            ),
+        }
+        model = FakeDataModel(
+            name="fake data",
+            input_spaces=[cfg_input_space],
+            n_forecast_steps=n_forecast_steps,
+            n_history_steps=n_history_steps,
+            output_space=two_channel_output_space,
+            optimizer=cfg_optimizer,
+            scheduler=cfg_scheduler,
+            lr_scheduler=DictConfig({}),
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"is only defined for a single sea-ice-concentration channel",
+        ):
+            model.test_step(batch, 0)
+
 
 class TestBaseModelMetricSelection:
     @staticmethod
