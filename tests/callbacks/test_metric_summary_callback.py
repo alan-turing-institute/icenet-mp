@@ -177,8 +177,8 @@ class TestOnTestEnd:
         # should stay on its own plot
         metric_collection = MetricCollection(
             {
-                "fss_1": FractionalSkillScorePerForecastDay(neighborhood_size=1),
-                "fss_5": FractionalSkillScorePerForecastDay(neighborhood_size=5),
+                "fss_1": FractionalSkillScorePerForecastDay(neighbourhood_size=1),
+                "fss_5": FractionalSkillScorePerForecastDay(neighbourhood_size=5),
                 "mae_daily": MAEPerForecastDay(),
             }
         )

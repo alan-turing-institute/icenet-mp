@@ -20,7 +20,7 @@ class FractionalSkillScorePerForecastDay(Metric):
 
     Each field is first reduced to a binary ice-edge map (cells that are ice but
     border a non-ice cell). The local fraction of edge cells is then computed within
-    a fixed `neighborhood_size` x `neighborhood_size` window around every cell. FSS
+    a fixed `neighbourhood_size` x `neighbourhood_size` window around every cell. FSS
     compares the mean squared error (MSE) between the predicted and true fraction
     fields to a reference (worst-case) MSE:
 
@@ -32,13 +32,13 @@ class FractionalSkillScorePerForecastDay(Metric):
     """
 
     def __init__(
-        self, neighborhood_size: int = 1, land_mask: torch.Tensor | None = None
+        self, neighbourhood_size: int = 1, land_mask: torch.Tensor | None = None
     ) -> None:
         """Initialize the FSS metric.
 
         Parameters
         ----------
-        neighborhood_size: int, optional
+        neighbourhood_size: int, optional
             Size (in pixels) of the square neighbourhood window used to compute local
             edge-cell fractions. Must be a positive odd integer (default is 1).
         land_mask: torch.Tensor, optional
@@ -48,10 +48,10 @@ class FractionalSkillScorePerForecastDay(Metric):
 
         """
         super().__init__()
-        if neighborhood_size < 1 or neighborhood_size % 2 == 0:
-            msg = "neighborhood_size must be a positive odd integer."
+        if neighbourhood_size < 1 or neighbourhood_size % 2 == 0:
+            msg = "neighbourhood_size must be a positive odd integer."
             raise ValueError(msg)
-        self.neighborhood_size = neighborhood_size
+        self.neighbourhood_size = neighbourhood_size
         if land_mask is not None:
             self.register_buffer("land_mask", land_mask.bool(), persistent=False)
 
@@ -83,7 +83,7 @@ class FractionalSkillScorePerForecastDay(Metric):
             Boolean tensor of shape (N, H, W).
 
         """
-        n = self.neighborhood_size
+        n = self.neighbourhood_size
         kernel = torch.ones((1, 1, n, n), dtype=torch.float32, device=edge.device)
         summed = F.conv2d(edge.float().unsqueeze(1), kernel, padding=n // 2)
         return summed.squeeze(1) / (n * n)
@@ -104,7 +104,7 @@ class FractionalSkillScorePerForecastDay(Metric):
             Local edge-cell fraction field for the prediction, shape (N, H, W).
 
         """
-        n = self.neighborhood_size
+        n = self.neighbourhood_size
         mse_terms = []
         mse_ref_terms = []
         for dx in range(n):

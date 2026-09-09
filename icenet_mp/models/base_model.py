@@ -61,7 +61,7 @@ class BaseModel(LightningModule, ABC):
         mask_dir: str | Path | None = None,
         lr_scheduler: DictConfig,
         metrics: list[str] | None = None,
-        fss_neighborhood_sizes: list[int] | None = None,
+        fss_neighbourhood_sizes: list[int] | None = None,
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -85,9 +85,9 @@ class BaseModel(LightningModule, ABC):
         The ``metrics`` parameter controls which metrics are computed during training,
         validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
         "iiee", "diiee", "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``, where
-        the ``"fss_*"`` entries are named after ``fss_neighborhood_sizes`` (see below).
+        the ``"fss_*"`` entries are named after ``fss_neighbourhood_sizes`` (see below).
 
-        ``fss_neighborhood_sizes``, if given, replaces the default FSS neighbourhood
+        ``fss_neighbourhood_sizes``, if given, replaces the default FSS neighbourhood
         sizes of ``[1, 5, 15]``. Each size ``n`` becomes a ``"fss_n"`` entry available
         to (and, unless overridden, included in) ``metrics``.
         """
@@ -131,12 +131,14 @@ class BaseModel(LightningModule, ABC):
 
         # Metrics
         fss_sizes = (
-            fss_neighborhood_sizes if fss_neighborhood_sizes is not None else [1, 5, 15]
+            fss_neighbourhood_sizes
+            if fss_neighbourhood_sizes is not None
+            else [1, 5, 15]
         )
         fss_metric_classes: dict[str, Callable[[], Metric]] = {
             f"fss_{n}": partial(
                 FractionalSkillScorePerForecastDay,
-                neighborhood_size=n,
+                neighbourhood_size=n,
                 land_mask=land_mask,
             )
             for n in fss_sizes

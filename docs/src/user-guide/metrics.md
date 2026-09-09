@@ -24,17 +24,17 @@ model:
 
 The default is every metric in the table below (`"fss_1"`, `"fss_5"`, `"fss_15"` are
 `FractionalSkillScorePerForecastDay` at three different neighbourhood sizes). Those
-sizes are themselves overridable via `fss_neighborhood_sizes` (default `[1, 5, 15]`,
+sizes are themselves overridable via `fss_neighbourhood_sizes` (default `[1, 5, 15]`,
 each must be a positive odd integer):
 
 ```yaml
 model:
-  fss_neighborhood_sizes: [1, 5, 15, 25]
+  fss_neighbourhood_sizes: [1, 5, 15, 25]
   metrics: [accuracy, mae, rmse, sieerror, iiee, diiee, centroid_error, fss_1, fss_5, fss_15, fss_25, ssim]
 ```
 
 A new size only needs adding to `metrics` explicitly if you also override `metrics`
-yourself — leave `metrics` unset and every configured `fss_neighborhood_sizes` entry
+yourself — leave `metrics` unset and every configured `fss_neighbourhood_sizes` entry
 is included automatically.
 
 ## The scenarios
@@ -213,7 +213,7 @@ constant rather than improved.
 
 `FractionalSkillScorePerForecastDay` reduces each field to a binary ice-edge map,
 then compares the local fraction of edge cells within a
-`neighborhood_size × neighborhood_size` window (Roberts and Lean, 2008; Melsom et
+`neighbourhood_size × neighbourhood_size` window (Roberts and Lean, 2008; Melsom et
 al., 2019). A small neighbourhood only forgives sub-pixel jitter; a large one
 forgives an edge displaced by many grid cells — computing FSS across a range of
 sizes and finding where it crosses 0.5 gives a rough "effective resolution" for edge
