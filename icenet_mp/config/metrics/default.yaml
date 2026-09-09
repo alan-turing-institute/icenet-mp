@@ -1,0 +1,12 @@
+enabled:
+  - accuracy
+  - mae
+  - rmse
+  - sieerror
+  - iiee
+  - diiee
+  - centroid_error
+  - fss_1
+  - fss_5
+  - fss_15
+  - ssim

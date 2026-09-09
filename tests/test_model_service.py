@@ -94,6 +94,7 @@ class TestModelService:
         assert kwargs["output_space"] == DataSpace(1, "output", (10, 10)).to_dict()
         assert kwargs["n_forecast_steps"] == 2
         assert kwargs["n_history_steps"] == 3
+        assert kwargs["metrics"] == cfg_model_service["metrics"]["enabled"]
         assert kwargs["optimizer"] is cfg_model_service["train"]["optimizer"]
         assert kwargs["scheduler"] is cfg_model_service["train"]["scheduler"]
         assert kwargs["lr_scheduler"] is cfg_model_service["train"]["lr_scheduler"]

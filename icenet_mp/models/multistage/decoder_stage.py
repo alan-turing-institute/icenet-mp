@@ -105,6 +105,7 @@ class DecoderStage(BaseModel):
             output_space=encoders[0].output_space.to_dict(),
             scheduler=copy.deepcopy(encoders[0].scheduler_cfg),
             loss=copy.deepcopy(encoders[0].loss_cfg),
+            metrics=copy.deepcopy(encoders[0].metrics),
         )
 
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:

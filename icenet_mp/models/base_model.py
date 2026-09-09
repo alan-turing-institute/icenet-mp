@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from copy import deepcopy
 from functools import cached_property, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -60,8 +59,7 @@ class BaseModel(LightningModule, ABC):
         loss: DictConfig,
         mask_dir: str | Path | None = None,
         lr_scheduler: DictConfig,
-        metrics: list[str] | None = None,
-        fss_neighbourhood_sizes: list[int] | None = None,
+        metrics: list[str],
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -82,14 +80,8 @@ class BaseModel(LightningModule, ABC):
         metrics use it to exclude land/ice boundaries from ice-edge detection, so only
         ocean ice/no-ice transitions count as the sea-ice edge.
 
-        The ``metrics`` parameter controls which metrics are computed during training,
-        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror",
-        "iiee", "diiee", "centroid_error", "fss_1", "fss_5", "fss_15", "ssim"]``, where
-        the ``"fss_*"`` entries are named after ``fss_neighbourhood_sizes`` (see below).
-
-        ``fss_neighbourhood_sizes``, if given, replaces the default FSS neighbourhood
-        sizes of ``[1, 5, 15]``. Each size ``n`` becomes a ``"fss_n"`` entry available
-        to (and, unless overridden, included in) ``metrics``.
+        ``metrics`` is the list of metric names to compute during training,
+        validation, and testing.
         """
         super().__init__()
 
@@ -118,6 +110,7 @@ class BaseModel(LightningModule, ABC):
         self.scheduler_cfg = scheduler
         self.lr_scheduler_cfg = lr_scheduler
         self.loss_cfg = loss
+        self.metrics = list(metrics)
 
         # Land mask for ice-edge metrics (excludes land/ice boundaries from FSS/DIIEE).
         try:
@@ -130,53 +123,40 @@ class BaseModel(LightningModule, ABC):
             land_mask = None
 
         # Metrics
-        fss_sizes = (
-            fss_neighbourhood_sizes
-            if fss_neighbourhood_sizes is not None
-            else [1, 5, 15]
-        )
         fss_metric_classes: dict[str, Callable[[], Metric]] = {
-            f"fss_{n}": partial(
+            f"fss_{neighbourhood_size}": partial(
                 FractionalSkillScorePerForecastDay,
-                neighbourhood_size=n,
+                neighbourhood_size=neighbourhood_size,
                 land_mask=land_mask,
             )
-            for n in fss_sizes
+            for neighbourhood_size in (
+                int(metric.replace("fss_", ""))
+                for metric in metrics
+                if metric.startswith("fss_")
+            )
         }
         _metric_classes: dict[str, Callable[[], Metric]] = {
             "accuracy": partial(IceNetAccuracyPerForecastDay, land_mask=land_mask),
-            "mae": partial(MAEPerForecastDay, land_mask=land_mask),
-            "rmse": partial(RMSEPerForecastDay, land_mask=land_mask),
-            "sieerror": partial(SeaIceExtentErrorPerForecastDay, land_mask=land_mask),
-            "iiee": partial(IntegratedIceEdgeErrorPerForecastDay, land_mask=land_mask),
+            "centroid_error": partial(CentroidErrorPerForecastDay, land_mask=land_mask),
             "diiee": partial(
                 DistanceAveragedIceEdgeErrorPerForecastDay, land_mask=land_mask
             ),
-            "centroid_error": partial(CentroidErrorPerForecastDay, land_mask=land_mask),
             **fss_metric_classes,
+            "iiee": partial(IntegratedIceEdgeErrorPerForecastDay, land_mask=land_mask),
+            "mae": partial(MAEPerForecastDay, land_mask=land_mask),
+            "rmse": partial(RMSEPerForecastDay, land_mask=land_mask),
+            "sieerror": partial(SeaIceExtentErrorPerForecastDay, land_mask=land_mask),
             "ssim": partial(SSIMPerForecastDay, land_mask=land_mask),
         }
-        metric_names = (
-            metrics
-            if metrics is not None
-            else [
-                "accuracy",
-                "mae",
-                "rmse",
-                "sieerror",
-                "iiee",
-                "diiee",
-                "centroid_error",
-                *fss_metric_classes,
-                "ssim",
-            ]
+        self.test_metrics = MetricCollection(
+            {name: _metric_classes[name]() for name in metrics}
         )
-        _common_metrics: dict[str, Metric | MetricCollection] = {
-            name: _metric_classes[name]() for name in metric_names
-        }
-        self.test_metrics = MetricCollection(deepcopy(_common_metrics))
-        self.train_metrics = MetricCollection(deepcopy(_common_metrics))
-        self.validation_metrics = MetricCollection(deepcopy(_common_metrics))
+        self.train_metrics = MetricCollection(
+            {name: _metric_classes[name]() for name in metrics}
+        )
+        self.validation_metrics = MetricCollection(
+            {name: _metric_classes[name]() for name in metrics}
+        )
 
         # All arguments to the ultimate child class will be logged as hyperparameters,
         # and saved to W&B, unless explicitly ignored here.

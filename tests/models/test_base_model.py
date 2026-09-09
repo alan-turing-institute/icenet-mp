@@ -16,7 +16,25 @@ class FakeDataModel(BaseModel):
         loss_cfg = kwargs.pop(
             "loss", OmegaConf.create({"_target_": "torch.nn.HuberLoss", "delta": 0.5})
         )
-        super().__init__(*args, loss=loss_cfg, hemisphere="north", **kwargs)
+        metrics = kwargs.pop(
+            "metrics",
+            [
+                "accuracy",
+                "mae",
+                "rmse",
+                "sieerror",
+                "iiee",
+                "diiee",
+                "centroid_error",
+                "fss_1",
+                "fss_5",
+                "fss_15",
+                "ssim",
+            ],
+        )
+        super().__init__(
+            *args, loss=loss_cfg, metrics=metrics, hemisphere="north", **kwargs
+        )
         self.t = kwargs["n_forecast_steps"]
         self.c = kwargs["output_space"]["channels"]
         self.h = kwargs["output_space"]["shape"][0]

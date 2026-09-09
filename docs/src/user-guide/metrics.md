@@ -7,35 +7,26 @@ captures and what its strengths and weaknesses are.
 
 ## Selecting which metrics run
 
-Which metrics are computed during training, validation, and testing is controlled by
-the model's `metrics` list, a normal Hydra-overridable parameter — no code changes
-are needed to turn a metric on or off:
+Which metrics are computed during training, validation, and testing is controlled by the `metrics` Hydra config group (`icenet_mp/config/metrics/`):
 
 ```bash
-uv run imp train --config-name <config> ++model.metrics=[accuracy,mae,rmse]
+uv run imp train --config-name <config> metrics.enabled=[accuracy,mae,rmse]
 ```
 
 or in a config file:
 
 ```yaml
-model:
-  metrics: [accuracy, mae, rmse, sieerror, iiee, diiee, centroid_error, fss_1, fss_5, fss_15, ssim]
+metrics:
+  enabled: [accuracy, mae, rmse, sieerror, iiee, diiee, centroid_error, fss_1, fss_5, fss_15, ssim]
 ```
 
 The default is every metric in the table below (`"fss_1"`, `"fss_5"`, `"fss_15"` are
-`FractionalSkillScorePerForecastDay` at three different neighbourhood sizes). Those
-sizes are themselves overridable via `fss_neighbourhood_sizes` (default `[1, 5, 15]`,
-each must be a positive odd integer):
+`FractionalSkillScorePerForecastDay` at three different neighbourhood sizes).
 
-```yaml
-model:
-  fss_neighbourhood_sizes: [1, 5, 15, 25]
-  metrics: [accuracy, mae, rmse, sieerror, iiee, diiee, centroid_error, fss_1, fss_5, fss_15, fss_25, ssim]
+```bash
+uv run imp train --config-name <config> \
+  metrics.enabled=[accuracy,mae,rmse,sieerror,iiee,diiee,centroid_error,fss_1,fss_5,fss_15,fss_25,ssim]
 ```
-
-A new size only needs adding to `metrics` explicitly if you also override `metrics`
-yourself — leave `metrics` unset and every configured `fss_neighbourhood_sizes` entry
-is included automatically.
 
 ## The scenarios
 

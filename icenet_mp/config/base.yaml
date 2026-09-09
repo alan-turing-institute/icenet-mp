@@ -5,6 +5,7 @@ defaults:
   - loggers:
     - wandb
   - loss: amse
+  - metrics: default
   - model: quick_test
   - predict: sic-osisaf-2d
   - random: default

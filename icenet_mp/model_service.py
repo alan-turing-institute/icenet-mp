@@ -79,6 +79,7 @@ class ModelService:
             loss=config["loss"],
             lr_scheduler=config["train"]["lr_scheduler"],
             mask_dir=str(builder.data_module.mask_directory),
+            metrics=config["metrics"]["enabled"],
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
             optimizer=config["train"]["optimizer"],
