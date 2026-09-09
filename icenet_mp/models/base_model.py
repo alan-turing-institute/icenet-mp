@@ -119,14 +119,15 @@ class BaseModel(LightningModule, ABC):
         self.lr_scheduler_cfg = lr_scheduler
         self.loss_cfg = loss
 
-        # Land mask for ice-edge metrics (excludes land/ice boundaries from FSS/DIIEE)
-        land_mask: torch.Tensor | None = None
-        if mask_dir is not None:
+        # Land mask for ice-edge metrics (excludes land/ice boundaries from FSS/DIIEE).
+        try:
             land_mask = Mask(
                 mask_type=MaskType.LAND,
                 output_shape=self.output_space.shape,
                 mask_dir=mask_dir,
-            ).mask.bool()
+            ).mask
+        except FileNotFoundError:
+            land_mask = None
 
         # Metrics
         fss_sizes = (

@@ -1,5 +1,7 @@
+from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -102,6 +104,38 @@ class TestBaseModel:
         assert model.output_space.channels == test_output_chw[0]
         assert model.output_space.name == "target"
         assert model.output_space.shape == test_output_chw[1:]
+
+    def test_init_mask_dir_without_land_mask_does_not_raise(
+        self, tmp_path: Path
+    ) -> None:
+        model = FakeDataModel(
+            name="fake data",
+            input_spaces=[{"channels": 1, "name": "input", "shape": (2, 2)}],
+            mask_dir=tmp_path,
+            n_forecast_steps=1,
+            n_history_steps=1,
+            output_space={"channels": 1, "name": "target", "shape": (2, 2)},
+            optimizer=DictConfig({}),
+            scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
+        )
+        assert model.name == "fake data"
+
+    def test_init_mask_dir_with_land_mask_is_used(self, tmp_path: Path) -> None:
+        np.save(tmp_path / "land_mask.npy", np.ones((2, 2), dtype=np.uint8))
+        model = FakeDataModel(
+            name="fake data",
+            input_spaces=[{"channels": 1, "name": "input", "shape": (2, 2)}],
+            mask_dir=tmp_path,
+            n_forecast_steps=1,
+            n_history_steps=1,
+            output_space={"channels": 1, "name": "target", "shape": (2, 2)},
+            optimizer=DictConfig({}),
+            scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
+        )
+        land_mask = getattr(model.train_metrics["accuracy"], "land_mask")  # noqa: B009
+        assert land_mask.all()
 
     def test_loss(
         self, cfg_input_space: DictConfig, cfg_output_space: DictConfig
