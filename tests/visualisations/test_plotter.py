@@ -215,10 +215,10 @@ class TestLogStaticInputs:
 
 class TestLogStaticOutputs:
     def test_logs_images_per_channel(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Plot and log one image group per output channel, named from channel_names."""
-        fake_plot = MagicMock(return_value={"comparison": [object()]})
+        """Render and log one image per output channel, keyed by date and variable name."""
+        fake_render = MagicMock(return_value=object())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_prediction", fake_plot
+            "icenet_mp.visualisations.plotter.render_panels", fake_render
         )
         image_logger = MagicMock()
 
@@ -230,19 +230,22 @@ class TestLogStaticOutputs:
             channel_names=["sic"],
         )
 
-        assert fake_plot.call_count == N_CHANNELS
-        # Second channel has no configured name, so it falls back to channel_1.
-        assert fake_plot.call_args_list[0].kwargs["variable_name"] == "sic"
-        assert fake_plot.call_args_list[1].kwargs["variable_name"] == "channel_1"
+        assert fake_render.call_count == N_CHANNELS
         assert image_logger.log_image.call_count == N_CHANNELS
+        # Second channel has no configured name, so it falls back to channel_1.
+        logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
+        assert logged_keys == [
+            "output_static/2020-01-01-sic",
+            "output_static/2020-01-01-channel_1",
+        ]
 
     def test_includes_uncertainty_when_provided(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Merge uncertainty images into the logged output for channels with data."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_prediction",
-            MagicMock(side_effect=lambda *_a, **_kw: {"comparison": [object()]}),
+            "icenet_mp.visualisations.plotter.render_panels",
+            MagicMock(return_value=object()),
         )
         fake_uncertainty = MagicMock(return_value={"uncertainty": [object()]})
         monkeypatch.setattr(
@@ -276,7 +279,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_prediction",
+            "icenet_mp.visualisations.plotter.render_panels",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
@@ -298,7 +301,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Swallow MemoryError from the plotting layer and log a warning."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_prediction",
+            "icenet_mp.visualisations.plotter.render_panels",
             MagicMock(side_effect=MemoryError),
         )
 
@@ -317,16 +320,10 @@ class TestLogStaticOutputs:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Static routing keeps prefixes and fallback channel names stable."""
-        seen_variables: list[str] = []
         image = object()
-
-        def fake_plot_static_prediction(*args, variable_name: str, **kwargs):  # noqa: ANN002, ANN003, ANN202, ARG001
-            seen_variables.append(variable_name)
-            return {"forecast": [image]}
-
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_prediction",
-            fake_plot_static_prediction,
+            "icenet_mp.visualisations.plotter.render_panels",
+            MagicMock(return_value=image),
         )
         image_logger = MagicMock()
         plotter = Plotter(PlotSpec(selected_timestep=1))
@@ -339,10 +336,9 @@ class TestLogStaticOutputs:
             prefix="evaluate",
         )
 
-        assert seen_variables == ["ice_conc", "channel_1"]
         assert [c.kwargs for c in image_logger.log_image.call_args_list] == [
-            {"key": "evaluate/output_static/forecast", "images": [image]},
-            {"key": "evaluate/output_static/forecast", "images": [image]},
+            {"key": "evaluate/output_static/2020-01-02-ice_conc", "images": [image]},
+            {"key": "evaluate/output_static/2020-01-02-channel_1", "images": [image]},
         ]
 
     def test_without_prefix_uses_default_namespace(
@@ -350,8 +346,8 @@ class TestLogStaticOutputs:
     ) -> None:
         """Static routing keeps the established default logging namespace."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_prediction",
-            lambda *args, **kwargs: {"map": [object()]},  # noqa: ARG005
+            "icenet_mp.visualisations.plotter.render_panels",
+            MagicMock(return_value=object()),
         )
         image_logger = MagicMock()
 
@@ -362,7 +358,10 @@ class TestLogStaticOutputs:
             channel_names=["ice_conc"],
         )
 
-        assert image_logger.log_image.call_args.kwargs["key"] == "output_static/map"
+        assert (
+            image_logger.log_image.call_args.kwargs["key"]
+            == "output_static/2020-01-01-ice_conc"
+        )
 
 
 class TestLogVideoInputs:

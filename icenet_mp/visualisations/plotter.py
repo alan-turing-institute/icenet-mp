@@ -20,14 +20,13 @@ from icenet_mp.types import (
 )
 from icenet_mp.utils import npdatetime_from_datetime
 
+from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .metadata_builder import MetadataBuilder
-from .plotting_static import (
-    plot_static_inputs,
-    plot_static_prediction,
-    plot_static_uncertainty,
-)
+from .plot_annotator import PlotAnnotator
+from .plotting_static import plot_static_inputs, plot_static_uncertainty
 from .plotting_video import plot_video_inputs, plot_video_prediction
+from .render import render_panels
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +120,59 @@ class Plotter:
         except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Static plotting failed: %s", exc)
 
+    def _render_static_prediction(
+        self,
+        ground_truth: ArrayHW,
+        prediction: ArrayHW,
+        *,
+        when: datetime,
+        variable_name: str,
+    ) -> ImageFile:
+        """Render the ground-truth/prediction(/difference) triptych via render_panels."""
+        plot_spec = self.plot_spec
+        masked_ground_truth = self.land_mask.apply_to(ground_truth)
+        masked_prediction = self.land_mask.apply_to(prediction)
+
+        arrays = [masked_ground_truth, masked_prediction]
+        titles = [plot_spec.title_groundtruth, plot_spec.title_prediction]
+        cmaps: list[str] = [plot_spec.colourmap, plot_spec.colourmap]
+        vmins: list[float | None] = [plot_spec.vmin, plot_spec.vmin]
+        vmaxs: list[float | None] = [plot_spec.vmax, plot_spec.vmax]
+
+        if plot_spec.include_difference:
+            difference_calculator = DifferenceCalculator()
+            difference = self.land_mask.apply_to(
+                difference_calculator.compute_difference(
+                    masked_ground_truth, masked_prediction, plot_spec.diff_mode
+                )
+            )
+            diff_colour_scale = difference_calculator.make_diff_colourmap(
+                difference, mode=plot_spec.diff_mode
+            )
+            if diff_colour_scale.norm is not None:
+                diff_vmin = diff_colour_scale.norm.vmin
+                diff_vmax = diff_colour_scale.norm.vmax
+            else:
+                diff_vmin = diff_colour_scale.vmin
+                diff_vmax = diff_colour_scale.vmax
+
+            arrays.append(difference)
+            titles.append(f"{plot_spec.title_difference} ({plot_spec.diff_mode})")
+            cmaps.append(diff_colour_scale.cmap)
+            vmins.append(diff_vmin)
+            vmaxs.append(diff_vmax)
+
+        suptitle = PlotAnnotator().title_for_static(variable_name, plot_spec, when)
+        return render_panels(
+            arrays,
+            panel_titles=titles,
+            figure_title=suptitle,
+            cmap=cmaps,
+            vmin=vmins,
+            vmax=vmaxs,
+            dpi=plot_spec.dpi,
+        )
+
     def log_static_outputs(
         self,
         outputs: ModelStepOutput,
@@ -143,15 +195,17 @@ class Plotter:
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
-                # Plot static prediction images
-                images = plot_static_prediction(
+                # Plot static prediction image via the minimal render_panels core
+                image = self._render_static_prediction(
                     ground_truth,
                     prediction,
-                    date=dates[idx_date],
-                    land_mask=self.land_mask,
-                    plot_spec=self.plot_spec,
+                    when=dates[idx_date],
                     variable_name=variable_name,
                 )
+                date_key = dates[idx_date].strftime(r"%Y-%m-%d")
+                images: dict[str, list[ImageFile]] = {
+                    f"{date_key}-{variable_name}": [image]
+                }
                 # Plot static uncertainty images
                 if (
                     uncertainty := (

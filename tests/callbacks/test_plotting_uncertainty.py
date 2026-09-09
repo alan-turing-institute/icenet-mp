@@ -148,8 +148,8 @@ class TestLogStaticOutputsUncertainty:
         uncertainty = np.full((1, 2, 2), 0.1, dtype=np.float32)
 
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_prediction",
-            MagicMock(return_value={"prediction": [MagicMock()]}),
+            "icenet_mp.visualisations.plotter.render_panels",
+            MagicMock(return_value=MagicMock()),
         )
         plot_uncertainty = MagicMock(return_value={"uncertainty": [MagicMock()]})
         monkeypatch.setattr(
@@ -168,6 +168,6 @@ class TestLogStaticOutputsUncertainty:
         assert [
             call.kwargs["key"] for call in image_logger.log_image.call_args_list
         ] == [
-            "output_static/prediction",
+            "output_static/2026-08-21-ice_conc",
             "output_static/uncertainty",
         ]

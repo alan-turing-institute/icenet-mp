@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -60,8 +61,8 @@ def npdatetime_from_datetime(dt: datetime) -> np.datetime64:
     return np.datetime64(dt.replace(tzinfo=None))
 
 
-def to_list(value: str | list[str]) -> list[str]:
-    """Convert a string or list of strings to a list of strings."""
+def to_list(value: str | Sequence[str]) -> list[str]:
+    """Convert a value or sequence of values to a list of values."""
     if isinstance(value, str):
         return [value]
-    return value
+    return value if isinstance(value, list) else list(value)

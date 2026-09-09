@@ -28,7 +28,7 @@ class TestRenderPanels:
         assert triple.width > single.width
 
     def test_titles_applied(self, era5_temperature_2d: ArrayHW) -> None:
-        result = render_panels([era5_temperature_2d], titles=["Ground Truth"])
+        result = render_panels([era5_temperature_2d], panel_titles=["Ground Truth"])
 
         assert isinstance(result, ImageFile)
 
@@ -41,7 +41,24 @@ class TestRenderPanels:
         self, era5_temperature_2d: ArrayHW
     ) -> None:
         with pytest.raises(ValueError, match=r"zip\(\)"):
-            render_panels([era5_temperature_2d], titles=["a", "b"])
+            render_panels([era5_temperature_2d], panel_titles=["a", "b"])
+
+    def test_per_panel_cmap_and_scale(
+        self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
+    ) -> None:
+        result = render_panels(
+            [era5_temperature_2d, osisaf_ice_conc_2d],
+            cmap=["RdBu_r", "Blues_r"],
+            vmin=[260.0, 0.0],
+            vmax=[290.0, 1.0],
+        )
+
+        assert isinstance(result, ImageFile)
+
+    def test_suptitle(self, era5_temperature_2d: ArrayHW) -> None:
+        result = render_panels([era5_temperature_2d], figure_title="Shown: 2020-01-15")
+
+        assert isinstance(result, ImageFile)
 
 
 class TestRenderPanelsVideo:
@@ -63,7 +80,7 @@ class TestRenderPanelsVideo:
         self, era5_temperature_thw: ArrayTHW
     ) -> None:
         with pytest.raises(ValueError, match=r"zip\(\)"):
-            render_panels_video([era5_temperature_thw], titles=["a", "b"])
+            render_panels_video([era5_temperature_thw], panel_titles=["a", "b"])
 
     def test_fps_is_configurable(self, era5_temperature_thw: ArrayTHW) -> None:
         result = render_panels_video([era5_temperature_thw], fps=4)
