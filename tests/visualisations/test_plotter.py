@@ -218,7 +218,7 @@ class TestLogStaticOutputs:
         """Render and log one image per output channel, keyed by date and variable name."""
         fake_render = MagicMock(return_value=object())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels", fake_render
+            "icenet_mp.visualisations.plotter.render_panels_static", fake_render
         )
         image_logger = MagicMock()
 
@@ -244,7 +244,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Merge uncertainty images into the logged output for channels with data."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(return_value=object()),
         )
         fake_uncertainty = MagicMock(return_value={"uncertainty": [object()]})
@@ -279,7 +279,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
@@ -301,7 +301,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Swallow MemoryError from the plotting layer and log a warning."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(side_effect=MemoryError),
         )
 
@@ -322,7 +322,7 @@ class TestLogStaticOutputs:
         """Static routing keeps prefixes and fallback channel names stable."""
         image = object()
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(return_value=image),
         )
         image_logger = MagicMock()
@@ -346,7 +346,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Static routing keeps the established default logging namespace."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(return_value=object()),
         )
         image_logger = MagicMock()

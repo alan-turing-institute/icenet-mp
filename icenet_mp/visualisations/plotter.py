@@ -26,7 +26,7 @@ from .metadata_builder import MetadataBuilder
 from .plot_annotator import PlotAnnotator
 from .plotting_static import plot_static_inputs, plot_static_uncertainty
 from .plotting_video import plot_video_inputs, plot_video_prediction
-from .render import render_panels
+from .render import render_panels_static
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ class Plotter:
             vmaxs.append(diff_vmax)
 
         suptitle = PlotAnnotator().title_for_static(variable_name, plot_spec, when)
-        return render_panels(
+        return render_panels_static(
             arrays,
             cmap=cmaps,
             dpi=plot_spec.dpi,

@@ -148,7 +148,7 @@ class TestLogStaticOutputsUncertainty:
         uncertainty = np.full((1, 2, 2), 0.1, dtype=np.float32)
 
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(return_value=MagicMock()),
         )
         plot_uncertainty = MagicMock(return_value={"uncertainty": [MagicMock()]})
