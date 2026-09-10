@@ -94,6 +94,7 @@ class TestLossConfig:
             scheduler=DictConfig({}),
             lr_scheduler=DictConfig({}),
             loss=LOSS_CONFIGS[loss_name],
+            metrics=[],
         )
         assert isinstance(model.loss_fn, LOSS_TYPES[loss_name])
 
@@ -116,4 +117,5 @@ class TestLossConfig:
                 scheduler=DictConfig({}),
                 lr_scheduler=DictConfig({}),
                 loss=bad_loss,
+                metrics=[],
             )

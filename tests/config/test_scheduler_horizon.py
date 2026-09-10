@@ -26,12 +26,12 @@ class TestSchedulerHorizon:
             config.train.scheduler._target_
             == "torch.optim.lr_scheduler.CosineAnnealingLR"
         )
-        assert config.train.scheduler.scheduler_parameters.T_max == 17
+        assert config.train.scheduler.T_max == 17
 
     def test_cosine_scheduler_horizon_changes_with_max_epochs(self) -> None:
         """Changing max_epochs changes T_max rather than leaving it stale."""
         short_run = self._compose(["train.trainer.max_epochs=3"])
         long_run = self._compose(["train.trainer.max_epochs=25"])
 
-        assert short_run.train.scheduler.scheduler_parameters.T_max == 3
-        assert long_run.train.scheduler.scheduler_parameters.T_max == 25
+        assert short_run.train.scheduler.T_max == 3
+        assert long_run.train.scheduler.T_max == 25
