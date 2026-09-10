@@ -14,7 +14,7 @@ nav = [
         { "Configuration" = "user-guide/configuration.md" },
         { "Data" = "user-guide/data.md" },
         { "Commands" = "user-guide/commands.md" },
-        { "Loss functions" = "user-guide/losses.md" },
+        { "Loss functions" = "user-guide/loss-functions.md" },
         { "Metrics" = "user-guide/metrics.md" },
     ] },
     { "How-to" = [
