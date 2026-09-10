@@ -1,7 +1,7 @@
 wandb:
   _target_: lightning.pytorch.loggers.wandb.WandbLogger
   entity: "turing-seaice"
-  save_dir: ${...base_path}/training/
-  offline: false # set true to keep run data local instead of uploading to W&B
-  log_model: false # do not log the model to W&B
+  log_model: false # set 'true' to log the model to W&B (requires sufficient storage space)
   name: null # Run name: defaults to random, can be overridden by the user
+  offline: false # set 'true' to run locally instead of uploading to W&B
+  save_dir: ${base_path}/training/

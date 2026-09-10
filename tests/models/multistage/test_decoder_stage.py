@@ -79,6 +79,7 @@ class TestDecoderStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
     ) -> None:
         with pytest.raises(ValueError, match="at least two history steps"):
@@ -95,6 +96,7 @@ class TestDecoderStage:
                 optimizer=cfg_optimizer,
                 output_space=cfg_output_space,
                 scheduler=cfg_scheduler,
+                lr_scheduler=cfg_lr_scheduler,
                 loss=cfg_loss,
             )
 
@@ -107,6 +109,7 @@ class TestDecoderStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
     ) -> None:
         with pytest.raises(ValueError, match="target_variable_indices selects"):
@@ -123,6 +126,7 @@ class TestDecoderStage:
                 optimizer=cfg_optimizer,
                 output_space=cfg_output_space,
                 scheduler=cfg_scheduler,
+                lr_scheduler=cfg_lr_scheduler,
                 loss=cfg_loss,
             )
 
@@ -154,6 +158,7 @@ class TestDecoderStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
     ) -> None:
         # from_template reads n_history_steps/n_forecast_steps/etc. off the source
@@ -173,6 +178,7 @@ class TestDecoderStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
         )
 
