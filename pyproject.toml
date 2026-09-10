@@ -74,7 +74,7 @@ docs = [
 notebooks = [
     "cmocean>=4.0.3",
     "download-toolbox>=0.0.6",
-    "gdal>=3.10.0",
+    "gdal>=3.10.0", # PyPI only ships an sdist; requires a matching system GDAL install and build toolchain
     "jupyter>=1.1.1",
     "s2sphere>=0.2.5",
 ]
