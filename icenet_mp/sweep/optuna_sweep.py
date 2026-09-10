@@ -229,6 +229,11 @@ class OptunaSweep:
             A dict mapping parameter names to their importance, from most to least.
 
         """
+        trial_values = {
+            t.value for t in self.study.get_trials() if t.state == TrialState.COMPLETE
+        }
+        if len(trial_values) < 2:  # noqa: PLR2004
+            return {}
         try:
             return get_param_importances(self.study)
         except (ValueError, RuntimeError):
