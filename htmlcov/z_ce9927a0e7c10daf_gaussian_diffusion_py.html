@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_ce9927a0e7c10daf_unet_diffusion_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-10 08:17 +0000
+            created at 2026-09-10 12:38 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -97,7 +97,7 @@
     <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">import</span> <span class="nam">math</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="key">import</span> <span class="nam">torch</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="key">import</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">nn</span><span class="op">.</span><span class="nam">functional</span> <span class="key">as</span> <span class="nam">f</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="key">import</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">nn</span><span class="op">.</span><span class="nam">functional</span> <span class="key">as</span> <span class="nam">F</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t"><span class="key">from</span> <span class="nam">icenet_mp</span><span class="op">.</span><span class="nam">types</span> <span class="key">import</span> <span class="nam">BetaSchedule</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -133,7 +133,7 @@
     <p class="pln"><span class="n"><a id="t51" href="#t51">51</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t52" href="#t52">52</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">alphas</span> <span class="op">=</span> <span class="num">1.0</span> <span class="op">-</span> <span class="nam">self</span><span class="op">.</span><span class="nam">betas</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">alphas_cumprod</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">cumprod</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">alphas</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">alphas_cumprod_prev</span> <span class="op">=</span> <span class="nam">f</span><span class="op">.</span><span class="nam">pad</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">alphas_cumprod</span><span class="op">[</span><span class="op">:</span><span class="op">-</span><span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="op">(</span><span class="num">1</span><span class="op">,</span> <span class="num">0</span><span class="op">)</span><span class="op">,</span> <span class="nam">value</span><span class="op">=</span><span class="num">1.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">alphas_cumprod_prev</span> <span class="op">=</span> <span class="nam">F</span><span class="op">.</span><span class="nam">pad</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">alphas_cumprod</span><span class="op">[</span><span class="op">:</span><span class="op">-</span><span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="op">(</span><span class="num">1</span><span class="op">,</span> <span class="num">0</span><span class="op">)</span><span class="op">,</span> <span class="nam">value</span><span class="op">=</span><span class="num">1.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">sqrt_alphas_cumprod</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">sqrt</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">alphas_cumprod</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">sqrt_one_minus_alphas_cumprod</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">sqrt</span><span class="op">(</span><span class="num">1.0</span> <span class="op">-</span> <span class="nam">self</span><span class="op">.</span><span class="nam">alphas_cumprod</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">sqrt_recip_alphas</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">sqrt</span><span class="op">(</span><span class="num">1.0</span> <span class="op">/</span> <span class="nam">self</span><span class="op">.</span><span class="nam">alphas</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -309,7 +309,7 @@
             <a class="nav" href="z_ce9927a0e7c10daf_unet_diffusion_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-10 08:17 +0000
+            created at 2026-09-10 12:38 +0000
         </p>
     </div>
 </footer>
