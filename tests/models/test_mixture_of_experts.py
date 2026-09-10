@@ -87,7 +87,9 @@ def test_moe_backpropagates_to_gate_and_trainable_expert() -> None:
     assert gate_gradients
     assert expert_gradients
     assert any(torch.count_nonzero(gradient).item() > 0 for gradient in gate_gradients)
-    assert any(torch.count_nonzero(gradient).item() > 0 for gradient in expert_gradients)
+    assert any(
+        torch.count_nonzero(gradient).item() > 0 for gradient in expert_gradients
+    )
 
 
 def test_moe_requires_at_least_one_expert() -> None:

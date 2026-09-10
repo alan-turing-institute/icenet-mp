@@ -76,9 +76,7 @@ class MixtureOfExpertsProcessor(BaseProcessor):
         pooled = latest.mean(dim=(-2, -1))
         return torch.softmax(self.gate(pooled), dim=-1)
 
-    def rollout(
-        self, x: TensorNTCHW, y: TensorNTCHW | None = None
-    ) -> ProcessorOutput:
+    def rollout(self, x: TensorNTCHW, y: TensorNTCHW | None = None) -> ProcessorOutput:
         """Run all experts and return their gated weighted forecast."""
         weights = self.expert_weights(x)
         predictions = []
