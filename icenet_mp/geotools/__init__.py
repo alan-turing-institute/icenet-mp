@@ -7,7 +7,7 @@ from .grid_factory import (
     epsg_6931_builder,
     epsg_6932_builder,
 )
-from .reproject import nearest_neighbour_indices
+from .reproject import nearest_neighbour_indices, pairwise_haversine_distances
 
 grid_factory = GridFactory()
 grid_factory.register_crs("EPSG:4326n", epsg_4326n_builder)
@@ -20,4 +20,5 @@ __all__ = [
     "GeographicGrid",
     "grid_factory",
     "nearest_neighbour_indices",
+    "pairwise_haversine_distances",
 ]
