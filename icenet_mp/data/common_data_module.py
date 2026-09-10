@@ -56,6 +56,10 @@ class CommonDataModule(LightningDataModule):
         self._target_variables: list[str] = config["predict"]["target"].get(
             "variables", []
         )
+        uncertainty_variable = config.get("loss", {}).get("uncertainty_variable", None)
+        self.target_uncertainty_variable = (
+            None if uncertainty_variable is None else str(uncertainty_variable)
+        )
 
         # Set periods for train, validation, and test
         self.batch_size = int(config["data"]["split"]["batch_size"])
@@ -200,6 +204,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            target_uncertainty_variable=self.target_uncertainty_variable,
         )
         logger.info(
             "Loaded predict dataset with %d dates between %s and %s.",
@@ -219,6 +224,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            target_uncertainty_variable=self.target_uncertainty_variable,
         )
         logger.info(
             "Loaded test dataset with %d dates between %s and %s.",
@@ -241,6 +247,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            target_uncertainty_variable=self.target_uncertainty_variable,
         )
         logger.info(
             "Loaded training dataset with %d dates between %s and %s.",
@@ -260,6 +267,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            target_uncertainty_variable=self.target_uncertainty_variable,
         )
         logger.info(
             "Loaded validation dataset with %d dates between %s and %s.",
