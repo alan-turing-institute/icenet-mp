@@ -389,6 +389,48 @@ class TestLogPerRunMetrics:
             "validation_prediction",
         }
 
+    def test_renames_fss_prefix_to_size_across_stages(
+        self,
+        wandb_run: tuple[MagicMock, MockWandbRun],
+    ) -> None:
+        """Multi-stage FSS keys rename the "fss" prefix to "size".
+
+        e.g. "train_fss_1" becomes "train_size_1", and
+        "validation_fss_5" becomes "validation_size_5".
+        """
+        callback = MetricSummaryCallback()
+        mock_wandb, _ = wandb_run
+
+        trainer = MagicMock(spec=Trainer)
+        trainer.sanity_checking = False
+
+        preds = torch.rand(1, 3, 1, 6, 6)
+        targets = torch.rand(1, 3, 1, 6, 6)
+        metrics_by_stage = {}
+        for stage in ("train", "validation"):
+            metric_collection = MetricCollection(
+                {
+                    "fss_1": FractionalSkillScorePerForecastDay(neighbourhood_size=1),
+                    "fss_5": FractionalSkillScorePerForecastDay(neighbourhood_size=5),
+                }
+            )
+            metric_collection.update(preds, targets)
+            metrics_by_stage[stage] = metric_collection
+
+        callback.log_per_run_metrics(trainer, metrics_by_stage)
+
+        fss_call = next(
+            call
+            for call in mock_wandb.plot.line_series.call_args_list
+            if call.kwargs["title"] == "fss_per_forecast_day"
+        )
+        assert set(fss_call.kwargs["keys"]) == {
+            "train_size_1",
+            "train_size_5",
+            "validation_size_1",
+            "validation_size_5",
+        }
+
 
 class TestEpochStartResets:
     """Tests for the on_*_epoch_start metric-reset hooks."""
@@ -406,7 +448,7 @@ class TestEpochStartResets:
 
         callback.on_test_epoch_start(mock_trainer, mock_module)
 
-        assert metric_collection["mae"]._update_called is False
+        assert metric_collection["mae"].update_called is False
 
     def test_on_train_epoch_start_resets_train_metrics(
         self,
@@ -421,7 +463,7 @@ class TestEpochStartResets:
 
         callback.on_train_epoch_start(mock_trainer, mock_module)
 
-        assert metric_collection["mae"]._update_called is False
+        assert metric_collection["mae"].update_called is False
 
     def test_on_validation_epoch_start_resets_validation_metrics(
         self,
@@ -436,7 +478,7 @@ class TestEpochStartResets:
 
         callback.on_validation_epoch_start(mock_trainer, mock_module)
 
-        assert metric_collection["mae"]._update_called is False
+        assert metric_collection["mae"].update_called is False
 
 
 class TestOnTrainEpochEnd:

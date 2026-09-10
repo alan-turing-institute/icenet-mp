@@ -1,7 +1,7 @@
 import logging
 import re
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import wandb
 from lightning import LightningModule, Trainer
@@ -20,18 +20,10 @@ logger = logging.getLogger(__name__)
 class MetricSummaryCallback(Callback):
     """A callback to summarise metrics at the end of an epoch or a run."""
 
-    @staticmethod
-    def _metric_group(metric_name: str) -> str:
-        """Group name for a metric, so parametrised variants share one plot.
-
-        FSS values at different neighbourhood sizes are grouped under "fss".
-        Spatial mean ground truth and prediction are grouped under "spatial_mean".
-        """
-        if metric_name.startswith("fss_"):
-            return "fss"
-        if metric_name.startswith("spatial_mean_"):
-            return "spatial_mean"
-        return metric_name
+    _STAGES_BY_TRAINER_FN: ClassVar[dict[str, list[str]]] = {
+        TrainerFn.FITTING.value: ["train", "validation"],
+        TrainerFn.TESTING.value: ["test"],
+    }
 
     @staticmethod
     def _series_key(
@@ -45,13 +37,10 @@ class MetricSummaryCallback(Callback):
         """Series key for a per-forecast-day plot that is used by W&B legend."""
         if not grouped:
             return stage
+        metric_name = metric_name.replace("fss_", "neighbourhood_")
         if not multiple_stages:
             return metric_name
-        suffix = (
-            metric_name.removeprefix(f"{group_name}_")
-            if group_name != "fss"
-            else metric_name
-        )
+        suffix = metric_name.removeprefix(f"{group_name}_")
         return f"{stage}_{suffix}"
 
     def _collect_values_per_forecast_day(
@@ -61,30 +50,43 @@ class MetricSummaryCallback(Callback):
         values_per_forecast_day: dict[str, dict[str, Tensor]] = defaultdict(dict)
         for stage, metric_collection in metrics.items():
             for metric_name, metric in metric_collection.items():
-                if not metric._update_called:
+                if not metric.update_called:
                     continue
                 metric_tensor: Tensor = metric.compute()
-                if metric_tensor.reshape(-1).shape[0] > 1:
+                if metric_tensor.numel() > 1:
                     values_per_forecast_day[metric_name][stage] = metric_tensor
         return values_per_forecast_day
 
-    def _log_per_forecast_day_plots(
+    def _metrics_for_stage(
+        self, pl_module: LightningModule, stage: str
+    ) -> MetricCollection | None:
+        """Return a stage's metrics collection off pl_module, or None if unavailable."""
+        metrics = getattr(pl_module, f"{stage}_metrics")
+        return metrics if isinstance(metrics, MetricCollection) else None
+
+    def _per_forecast_day_plots(
         self,
-        run: wandb.Run,
         values_per_forecast_day: dict[str, dict[str, "Tensor"]],
         *,
         multiple_stages: bool,
-    ) -> list[str]:
-        """Log a per-forecast-day plot for each metric group.
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Build a per-forecast-day plot for each metric group.
 
-        Metrics that should share a single plot (e.g. FSS at several neighbourhood
-        sizes) are grouped; all other metrics get one plot each. Returns the metric
-        names in the "fss" group, for use in the FSS-vs-neighbourhood-size plot.
+        Metrics that should share a single plot are grouped; all other metrics get one
+        plot each. Returns the plots keyed by name, and the metric names in the group,
+        for use in the FSS-vs-neighbourhood-size plot.
         """
+        # Group any metrics that belong to common groups (e.g. FSS and spatial mean)
         metric_names_by_group: dict[str, list[str]] = defaultdict(list)
         for metric_name in values_per_forecast_day:
-            metric_names_by_group[self._metric_group(metric_name)].append(metric_name)
+            if metric_name.startswith("fss_"):
+                metric_names_by_group["fss"].append(metric_name)
+            elif metric_name.startswith("spatial_mean_"):
+                metric_names_by_group["spatial_mean"].append(metric_name)
+            else:
+                metric_names_by_group[metric_name].append(metric_name)
 
+        plots: dict[str, Any] = {}
         for group_name, metric_names in metric_names_by_group.items():
             grouped = len(metric_names) > 1
             series: dict[str, Tensor] = {
@@ -102,34 +104,29 @@ class MetricSummaryCallback(Callback):
             keys = list(series.keys())
             days = list(range(1, len(series[keys[0]]) + 1))
             plot_name = f"{group_name}_per_forecast_day"
-            run.log(
-                {
-                    plot_name: wandb.plot.line_series(
-                        xs=days,
-                        ys=[series[key].tolist() for key in keys],
-                        keys=keys,
-                        title=plot_name,
-                        xname="day",
-                    )
-                },
+            plots[plot_name] = wandb.plot.line_series(
+                xs=days,
+                ys=[series[key].tolist() for key in keys],
+                keys=keys,
+                title=plot_name,
+                xname="day",
             )
 
-        return metric_names_by_group.get("fss", [])
+        return plots, metric_names_by_group.get("fss", [])
 
-    def _log_fss_vs_neighbourhood_size(
+    def _fss_vs_neighbourhood_size_plot(
         self,
-        run: wandb.Run,
         values_per_forecast_day: dict[str, dict[str, "Tensor"]],
         fss_metric_names: list[str],
-    ) -> None:
-        """Plot mean FSS (over forecast days) against neighbourhood size."""
+    ) -> dict[str, Any]:
+        """Build a plot of mean FSS (over forecast days) against neighbourhood size."""
         sizes_and_names = sorted(
             (int(match.group(1)), name)
             for name in fss_metric_names
             if (match := re.match(r"^fss_(\d+)$", name))
         )
         if not sizes_and_names:
-            return
+            return {}
 
         stages = list(values_per_forecast_day[sizes_and_names[0][1]])
         sizes = [size for size, _ in sizes_and_names]
@@ -142,17 +139,15 @@ class MetricSummaryCallback(Callback):
         ]
 
         plot_name = "fss_vs_neighbourhood_size"
-        run.log(
-            {
-                plot_name: wandb.plot.line_series(
-                    xs=sizes,
-                    ys=ys,
-                    keys=stages,
-                    title=plot_name,
-                    xname="neighbourhood_size",
-                )
-            },
-        )
+        return {
+            plot_name: wandb.plot.line_series(
+                xs=sizes,
+                ys=ys,
+                keys=stages,
+                title=plot_name,
+                xname="neighbourhood_size",
+            )
+        }
 
     def log_per_epoch_metrics(
         self, trainer: Trainer, metrics: MetricCollection, stage: str
@@ -162,20 +157,17 @@ class MetricSummaryCallback(Callback):
         if trainer.sanity_checking:
             return
 
-        # Compute the metric value (e.g., SIEError) across all batches
-        for name, metric in metrics.items():
-            if not metric._update_called:
-                continue
-            values: Tensor = metric.compute()
+        # Compute the mean value of each metric (e.g., SIEError) across all days
+        means = {
+            f"{stage}_{name}_mean".lower(): metric.compute().mean().item()
+            for name, metric in metrics.items()
+            if metric.update_called
+        }
+        if not means:
+            return
 
-            # Log the mean value of the metric across all days
-            for logger_ in trainer.loggers:
-                logger_.log_metrics(
-                    {
-                        f"{stage}_{name}_mean".lower(): values.mean().item(),
-                        "epoch": trainer.current_epoch,
-                    }
-                )
+        for logger_ in trainer.loggers:
+            logger_.log_metrics({**means, "epoch": trainer.current_epoch})
 
     def log_per_run_metrics(
         self, trainer: Trainer, metrics: dict[str, MetricCollection]
@@ -200,40 +192,50 @@ class MetricSummaryCallback(Callback):
         # Only consider metrics that have a value for each forecast day
         values_per_forecast_day = self._collect_values_per_forecast_day(metrics)
 
-        fss_metric_names = self._log_per_forecast_day_plots(
-            run, values_per_forecast_day, multiple_stages=len(metrics) > 1
+        plots, fss_metric_names = self._per_forecast_day_plots(
+            values_per_forecast_day, multiple_stages=len(metrics) > 1
         )
-        self._log_fss_vs_neighbourhood_size(
-            run, values_per_forecast_day, fss_metric_names
+        plots.update(
+            self._fss_vs_neighbourhood_size_plot(
+                values_per_forecast_day, fss_metric_names
+            )
         )
+        if plots:
+            run.log(plots)
+
+    def _on_epoch_start(self, pl_module: LightningModule, stage: str) -> None:
+        """Reset a stage's metrics collection, if present."""
+        if (metrics := self._metrics_for_stage(pl_module, stage)) is not None:
+            metrics.reset()
+
+    def _on_epoch_end(
+        self, trainer: Trainer, pl_module: LightningModule, stage: str
+    ) -> None:
+        """Log a stage's per-epoch metrics, warning if the collection is missing."""
+        if (metrics := self._metrics_for_stage(pl_module, stage)) is not None:
+            self.log_per_epoch_metrics(trainer, metrics, stage=stage)
+        else:
+            logger.warning("Could not load %s metrics!", stage)
 
     def on_test_epoch_start(self, trainer: Trainer, pl_module: LightningModule) -> None:  # noqa: ARG002
         """Called at the start of a test epoch."""
-        if isinstance(pl_module.test_metrics, MetricCollection):
-            pl_module.test_metrics.reset()
+        self._on_epoch_start(pl_module, "test")
 
     def on_test_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called at the end of a test epoch."""
-        if isinstance(pl_module.test_metrics, MetricCollection):
-            self.log_per_epoch_metrics(trainer, pl_module.test_metrics, stage="test")
-        else:
-            logger.warning("Could not load test metrics!")
+        self._on_epoch_end(trainer, pl_module, "test")
 
     def on_train_epoch_start(
         self,
         trainer: Trainer,  # noqa: ARG002
         pl_module: LightningModule,
     ) -> None:
-        """Called at the start of a train epoch."""
-        if isinstance(pl_module.train_metrics, MetricCollection):
-            pl_module.train_metrics.reset()
+        """Called at the start of a training epoch."""
+        self._on_epoch_start(pl_module, "train")
 
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called at the end of a training epoch."""
-        if isinstance(pl_module.train_metrics, MetricCollection):
-            self.log_per_epoch_metrics(trainer, pl_module.train_metrics, stage="train")
-        else:
-            logger.warning("Could not load train metrics!")
+        self._on_epoch_end(trainer, pl_module, "train")
 
     def on_validation_epoch_start(
         self,
@@ -241,40 +243,23 @@ class MetricSummaryCallback(Callback):
         pl_module: LightningModule,
     ) -> None:
         """Called at the start of a validation epoch."""
-        if isinstance(pl_module.validation_metrics, MetricCollection):
-            pl_module.validation_metrics.reset()
+        self._on_epoch_start(pl_module, "validation")
 
     def on_validation_epoch_end(
         self, trainer: Trainer, pl_module: LightningModule
     ) -> None:
         """Called at the end of a validation epoch."""
-        if isinstance(pl_module.validation_metrics, MetricCollection):
-            self.log_per_epoch_metrics(
-                trainer, pl_module.validation_metrics, stage="validation"
-            )
-        else:
-            logger.warning("Could not load validation metrics!")
+        self._on_epoch_end(trainer, pl_module, "validation")
 
     def teardown(
         self, trainer: Trainer, pl_module: LightningModule, stage: str
     ) -> None:
-        """Called at the end of a run."""
+        """Called at the end of a run: log train/validation or test metrics."""
         metrics = {}
-        # If this was a training run we want to log train and validation metrics
-        if stage == TrainerFn.FITTING.value:
-            if isinstance(pl_module.train_metrics, MetricCollection):
-                metrics["train"] = pl_module.train_metrics
+
+        for run_stage in self._STAGES_BY_TRAINER_FN.get(stage, []):
+            if (m := self._metrics_for_stage(pl_module, run_stage)) is not None:
+                metrics[run_stage] = m
             else:
-                logger.warning("Could not load train metrics!")
-            if isinstance(pl_module.validation_metrics, MetricCollection):
-                metrics["validation"] = pl_module.validation_metrics
-            else:
-                logger.warning("Could not load validation metrics!")
-        # If this was a testing run we want to log test metrics
-        elif stage == TrainerFn.TESTING.value:
-            if isinstance(pl_module.test_metrics, MetricCollection):
-                metrics["test"] = pl_module.test_metrics
-            else:
-                logger.warning("Could not load test metrics!")
-        # Log the metrics
+                logger.warning("Could not load %s metrics!", run_stage)
         self.log_per_run_metrics(trainer, metrics)
