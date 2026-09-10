@@ -5,7 +5,6 @@ from .dataset_plotting import plot_variables_static, plot_variables_video
 from .default_plot_spec import DEFAULT_SIC_SPEC
 from .difference_calculator import DifferenceCalculator
 from .plotter import Plotter
-from .plotting_static import plot_static_uncertainty
 
 
 def register_animation_backends() -> None:
@@ -17,7 +16,6 @@ __all__ = [
     "DEFAULT_SIC_SPEC",
     "DifferenceCalculator",
     "Plotter",
-    "plot_static_uncertainty",
     "plot_variables_static",
     "plot_variables_video",
 ]
