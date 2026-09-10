@@ -132,9 +132,9 @@ class BaseModel(LightningModule, ABC):
                 land_mask=land_mask,
             )
             for neighbourhood_size in (
-                int(metric.replace("fss_neighbourhood_size_", ""))
+                int(metric.removeprefix("fss_neighbourhood_size_"))
                 for metric in metrics
-                if metric.startswith("fss_")
+                if metric.startswith("fss_neighbourhood_size_")
             )
         }
         _metric_classes: dict[str, Callable[[], Metric]] = {
