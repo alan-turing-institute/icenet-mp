@@ -153,10 +153,11 @@ class TestLogStaticInputs:
     def test_logs_images_for_each_input_dataset(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Plot and log one image group per variable, under the input_static prefix."""
-        fake_plot = MagicMock(return_value={"ice_conc": [object()]})
+        """Render and log one image per variable, under the input_static prefix."""
+        image = object()
+        fake_render = MagicMock(return_value=image)
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_inputs", fake_plot
+            "icenet_mp.visualisations.plotter.render_panels_static", fake_render
         )
         image_logger = MagicMock()
 
@@ -165,13 +166,14 @@ class TestLogStaticInputs:
             [fake_single_dataset()], TEST_DATES, [image_logger], prefix="validation"
         )
 
-        fake_plot.assert_called_once()
-        assert fake_plot.call_args.kwargs["when"] == TEST_DATES[0]
-        variables = fake_plot.call_args.args[0]
-        assert set(variables) == {"example:ice_conc", "example:temperature"}
-        image_logger.log_image.assert_called_once_with(
-            key="validation/input_static/ice_conc",
-            images=[fake_plot.return_value["ice_conc"][0]],
+        assert fake_render.call_count == N_CHANNELS
+        logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
+        assert logged_keys == [
+            "validation/input_static/2020-01-01-example:ice_conc",
+            "validation/input_static/2020-01-01-example:temperature",
+        ]
+        assert all(
+            c.kwargs["images"] == [image] for c in image_logger.log_image.call_args_list
         )
 
     def test_skips_on_invalid_array_error(
@@ -181,7 +183,7 @@ class TestLogStaticInputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_inputs",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
@@ -200,7 +202,7 @@ class TestLogStaticInputs:
     ) -> None:
         """Swallow ValueError from the plotting layer and log a warning."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_inputs",
+            "icenet_mp.visualisations.plotter.render_panels_static",
             MagicMock(side_effect=ValueError("bad shape")),
         )
 

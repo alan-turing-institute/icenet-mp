@@ -24,9 +24,10 @@ from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .metadata_builder import MetadataBuilder
 from .plot_annotator import PlotAnnotator
-from .plotting_static import plot_static_inputs, plot_static_uncertainty
+from .plotting_static import plot_static_uncertainty
 from .plotting_video import plot_video_inputs
 from .render import render_panels_static, render_panels_video
+from .variable_styler import VariableStyler
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +38,6 @@ class Plotter:
         self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self.land_mask = LandMask(None)
         self.metadata_builder = MetadataBuilder()
-
-    @staticmethod
-    def _log_path(prefix: str | None, name: str) -> str:
-        """Build a consistent logger namespace."""
-        return f"{prefix}/{name}" if prefix else name
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
@@ -63,6 +59,11 @@ class Plotter:
                     key=f"{log_path}/{image_name}", images=image_list
                 )
 
+    @staticmethod
+    def _log_path(prefix: str | None, name: str) -> str:
+        """Build a consistent logger namespace."""
+        return f"{prefix}/{name}" if prefix else name
+
     def _log_videos(
         self,
         videos: dict[str, BytesIO],
@@ -79,46 +80,30 @@ class Plotter:
                     format=[self.plot_spec.video_format],
                 )
 
-    def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
-        """Get metadata for the plotter based on the model test output."""
-        return self.metadata_builder.build(config, model_name)
-
-    def set_metadata(self, metadata: Metadata) -> None:
-        """Set metadata for the plotter, which may be used in titles and subtitles."""
-        self.plot_spec.metadata_subtitle = self.metadata_builder.format_subtitle(
-            metadata
-        )
-
-    def log_static_inputs(
+    def _render_static_input(
         self,
-        inputs: list[SingleDataset],
-        dates: list[datetime],
-        image_loggers: list[SupportsImageLogging],
-        prefix: str | None = None,
-    ) -> None:
-        """Extract and log static raw input plots."""
-        try:
-            idx_date = self.plot_spec.selected_timestep
-            log_path = self._log_path(prefix, "input_static")
-            for input_ds in inputs:
-                # Get data for all variables at the selected timestep
-                variables = {
-                    f"{input_ds.name}:{v_name}": input_ds[idx_date][channel, :]
-                    for channel, v_name in enumerate(input_ds.variable_names)
-                }
-                # Plot static input images
-                images = plot_static_inputs(
-                    variables,
-                    land_mask=self.land_mask,
-                    plot_spec=self.plot_spec,
-                    when=dates[idx_date],
-                )
-                # Log static input images
-                self._log_images(images, image_loggers, log_path)
-        except InvalidArrayError as exc:
-            logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
-        except (IndexError, ValueError, MemoryError, OSError) as exc:
-            logger.warning("Static plotting failed: %s", exc)
+        values: ArrayHW,
+        *,
+        when: datetime,
+        variable_name: str,
+    ) -> ImageFile:
+        """Render a single static input panel via render_panels_static."""
+        plot_spec = self.plot_spec
+        masked_values = self.land_mask.apply_to(values)
+        style = VariableStyler().style_for_variable(
+            variable_name, plot_spec.per_variable_styles
+        )
+        title = PlotAnnotator().format_title(
+            variable_name, plot_spec.hemisphere, when, style.units
+        )
+        return render_panels_static(
+            [masked_values],
+            cmap=style.cmap or plot_spec.colourmap,
+            dpi=plot_spec.dpi,
+            figure_title=title,
+            vmax=style.vmax,
+            vmin=style.vmin,
+        )
 
     def _render_static_prediction(
         self,
@@ -176,6 +161,100 @@ class Plotter:
             vmax=vmaxs,
             vmin=vmins,
         )
+
+    def _render_video_prediction(
+        self,
+        ground_truth: ArrayTHW,
+        prediction: ArrayTHW,
+        *,
+        dates: list[datetime],
+        variable_name: str,
+    ) -> BytesIO:
+        """Render the ground-truth/prediction(/difference) triptych video via render_panels_video."""
+        plot_spec = self.plot_spec
+        masked_ground_truth = self.land_mask.apply_to(ground_truth)
+        masked_prediction = self.land_mask.apply_to(prediction)
+
+        arrays = [masked_ground_truth, masked_prediction]
+        titles = [plot_spec.title_groundtruth, plot_spec.title_prediction]
+        cmaps: list[str] = [plot_spec.colourmap, plot_spec.colourmap]
+        vmins: list[float | None] = [plot_spec.vmin, plot_spec.vmin]
+        vmaxs: list[float | None] = [plot_spec.vmax, plot_spec.vmax]
+
+        if plot_spec.include_difference:
+            difference_calculator = DifferenceCalculator()
+            difference = self.land_mask.apply_to(
+                difference_calculator.compute_difference(
+                    masked_ground_truth, masked_prediction, plot_spec.diff_mode
+                )
+            )
+            diff_colour_scale = difference_calculator.make_diff_colourmap(
+                difference, mode=plot_spec.diff_mode
+            )
+            if diff_colour_scale.norm is not None:
+                diff_vmin = diff_colour_scale.norm.vmin
+                diff_vmax = diff_colour_scale.norm.vmax
+            else:
+                diff_vmin = diff_colour_scale.vmin
+                diff_vmax = diff_colour_scale.vmax
+
+            arrays.append(difference)
+            titles.append(f"{plot_spec.title_difference} ({plot_spec.diff_mode})")
+            cmaps.append(diff_colour_scale.cmap)
+            vmins.append(diff_vmin)
+            vmaxs.append(diff_vmax)
+
+        annotator = PlotAnnotator()
+        title_line = annotator.title_for_video(variable_name, plot_spec, dates, 0)
+        footer_text = annotator.footer_for_video(plot_spec, dates)
+
+        return render_panels_video(
+            arrays,
+            cmap=cmaps,
+            dpi=plot_spec.dpi,
+            figure_title=title_line,
+            footer_text=footer_text or None,
+            fps=plot_spec.video_fps,
+            group_axes=(0, 1) if plot_spec.include_difference else None,
+            panel_titles=titles,
+            vmax=vmaxs,
+            vmin=vmins,
+            video_format=plot_spec.video_format,
+        )
+
+    def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
+        """Get metadata for the plotter based on the model test output."""
+        return self.metadata_builder.build(config, model_name)
+
+    def log_static_inputs(
+        self,
+        inputs: list[SingleDataset],
+        dates: list[datetime],
+        image_loggers: list[SupportsImageLogging],
+        prefix: str | None = None,
+    ) -> None:
+        """Extract and log static raw input plots."""
+        try:
+            idx_date = self.plot_spec.selected_timestep
+            when = dates[idx_date]
+            log_path = self._log_path(prefix, "input_static")
+            for input_ds in inputs:
+                # Get data for all variables at the selected timestep
+                for channel, v_name in enumerate(input_ds.variable_names):
+                    variable_name = f"{input_ds.name}:{v_name}"
+                    image = self._render_static_input(
+                        input_ds[idx_date][channel, :],
+                        when=when,
+                        variable_name=variable_name,
+                    )
+                    key = f"{when.strftime(r'%Y-%m-%d')}-{variable_name}"
+                    images: dict[str, list[ImageFile]] = {key: [image]}
+                    # Log static input images
+                    self._log_images(images, image_loggers, log_path)
+        except InvalidArrayError as exc:
+            logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
+        except (IndexError, ValueError, MemoryError, OSError) as exc:
+            logger.warning("Static plotting failed: %s", exc)
 
     def log_static_outputs(
         self,
@@ -269,66 +348,6 @@ class Plotter:
         except (IndexError, ValueError, MemoryError, OSError):
             logger.exception("Video plotting failed")
 
-    def _render_video_prediction(
-        self,
-        ground_truth: ArrayTHW,
-        prediction: ArrayTHW,
-        *,
-        dates: list[datetime],
-        variable_name: str,
-    ) -> BytesIO:
-        """Render the ground-truth/prediction(/difference) triptych video via render_panels_video."""
-        plot_spec = self.plot_spec
-        masked_ground_truth = self.land_mask.apply_to(ground_truth)
-        masked_prediction = self.land_mask.apply_to(prediction)
-
-        arrays = [masked_ground_truth, masked_prediction]
-        titles = [plot_spec.title_groundtruth, plot_spec.title_prediction]
-        cmaps: list[str] = [plot_spec.colourmap, plot_spec.colourmap]
-        vmins: list[float | None] = [plot_spec.vmin, plot_spec.vmin]
-        vmaxs: list[float | None] = [plot_spec.vmax, plot_spec.vmax]
-
-        if plot_spec.include_difference:
-            difference_calculator = DifferenceCalculator()
-            difference = self.land_mask.apply_to(
-                difference_calculator.compute_difference(
-                    masked_ground_truth, masked_prediction, plot_spec.diff_mode
-                )
-            )
-            diff_colour_scale = difference_calculator.make_diff_colourmap(
-                difference, mode=plot_spec.diff_mode
-            )
-            if diff_colour_scale.norm is not None:
-                diff_vmin = diff_colour_scale.norm.vmin
-                diff_vmax = diff_colour_scale.norm.vmax
-            else:
-                diff_vmin = diff_colour_scale.vmin
-                diff_vmax = diff_colour_scale.vmax
-
-            arrays.append(difference)
-            titles.append(f"{plot_spec.title_difference} ({plot_spec.diff_mode})")
-            cmaps.append(diff_colour_scale.cmap)
-            vmins.append(diff_vmin)
-            vmaxs.append(diff_vmax)
-
-        annotator = PlotAnnotator()
-        title_line = annotator.title_for_video(variable_name, plot_spec, dates, 0)
-        footer_text = annotator.footer_for_video(plot_spec, dates)
-
-        return render_panels_video(
-            arrays,
-            cmap=cmaps,
-            dpi=plot_spec.dpi,
-            figure_title=title_line,
-            footer_text=footer_text or None,
-            fps=plot_spec.video_fps,
-            group_axes=(0, 1) if plot_spec.include_difference else None,
-            panel_titles=titles,
-            vmax=vmaxs,
-            vmin=vmins,
-            video_format=plot_spec.video_format,
-        )
-
     def log_video_outputs(
         self,
         outputs: ModelStepOutput,
@@ -371,3 +390,9 @@ class Plotter:
     ) -> None:
         """Set the hemisphere and update the plot spec accordingly."""
         self.plot_spec.hemisphere = hemisphere
+
+    def set_metadata(self, metadata: Metadata) -> None:
+        """Set metadata for the plotter, which may be used in titles and subtitles."""
+        self.plot_spec.metadata_subtitle = self.metadata_builder.format_subtitle(
+            metadata
+        )
