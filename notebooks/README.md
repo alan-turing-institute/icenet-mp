@@ -1,52 +1,43 @@
-# Notebooks
+# IceNet-MP notebooks
 
-This directory contains exploratory, diagnostic, case-study, and model-reference
-notebooks used alongside IceNet-MP. The notebooks are not part of the automated test
-suite, so the supported command-line workflows and installation instructions in the
-main documentation should be preferred when reproducing normal training or evaluation
-runs.
+The notebooks in this directory are supplementary examples and research artifacts for IceNet-MP. They are not required to use the package.
 
-## Notebook inventory
+## Setup
 
-| Notebook | Purpose |
-| --- | --- |
-| `0_notebook_tf.ipynb` | TensorFlow IceNet reference workflow. |
-| `1_icenet_forecast_unet.ipynb` | PyTorch UNet IceNet forecasting reference. |
-| `2_icenet_forecast_cgan.ipynb` | PyTorch CGAN IceNet forecasting reference. |
-| `ARGO_data.ipynb` | Exploration and visualisation of Argo data. |
-| `case_study_whale_corridors.ipynb` | Whale-corridor downstream case study. |
-| `degrid_and_visualise.ipynb` | De-gridding and visualisation exploration. |
-| `demo_pipeline.ipynb` | End-to-end pipeline demonstration. |
-| `extract_anomalies.ipynb` | Anomaly extraction workflow. |
-| `layer_diagnostics.ipynb` | Model-layer and activation diagnostics. |
-| `persistence.ipynb` | Persistence-baseline exploration. |
+For the current IceNet-MP CLI demo, use the project environment:
 
-The first three notebooks are based on material combined from the following IceNet
-repositories:
+```bash
+uv sync --group notebooks
+cd notebooks
+uv run jupyter lab
+```
 
-- [eds-book-gallery](https://github.com/eds-book-gallery/67a1e320-7c47-4ea9-8df8-e868326bc90b/tree/main)
-- [icenet-notebooks](https://github.com/icenet-ai/icenet-notebooks)
+Research/case-study notebooks can have additional data, credential, environment, or checkpoint prerequisites described below or in the notebooks themselves.
 
-They were assembled and adapted to run on Baskerville as reference implementations of
-TensorFlow UNet, PyTorch UNet, and PyTorch CGAN workflows.
+## Recommended order
 
-## Environments
+| Notebook | Decision and purpose | Prerequisite |
+| --- | --- | --- |
+| [`demo_pipeline.ipynb`](demo_pipeline.ipynb) | **Maintain.** Primary educational IceNet-MP walkthrough covering account-free synthetic data, training/evaluation artifacts, model architecture and persistence, Hydra configuration, multimodality, and an optional real-data route. | Start here. The default route uses generated synthetic data and local-file logging; the optional `demo_notebook` route documents the CDS/W&B prerequisites for real data. |
+| [`layer_diagnostics.ipynb`](layer_diagnostics.ipynb) | **Maintain for diagnostics.** Activation-capture investigation for the current UNet/`quick_test` model and multimodal real-data path. | Advanced/research use. Supply a compatible checkpoint and existing real datasets; the notebook uses local-file logging for evaluation. |
+| [`ARGO_data.ipynb`](ARGO_data.ipynb) | **Retain as a research example.** Download, inspect and grid ARGO float observations for the non-gridded data path. | Independent of the demo pipeline; requires network access and its geospatial/data dependencies. |
+| [`case_study_whale_corridors.ipynb`](case_study_whale_corridors.ipynb) | **Retain as a case-study artifact.** Produce whale-corridor and shipping visualisations. | Requires the case-study data/configuration and is not part of the default CLI walkthrough. |
 
-The directory also contains notebook-specific environment files:
+## Optional synthetic non-gridded workflow
 
-- `environment.yml`
-- `environment_full.yml`
-- `nongriddedenv.yaml`
-- `seaice_env_min.yml`
+The following pair predates the use of ARGO floats but remains useful when a controlled synthetic non-gridded dataset is needed. Retain them as an optional two-step research workflow:
 
-For the current IceNet-MP package and CLI, use the project environment defined in
-`pyproject.toml` and the installation instructions in
-`docs/src/user-guide/installation.md`. Notebook-specific environments should only be
-used when a notebook explicitly requires them.
+1. [`extract_anomalies.ipynb`](extract_anomalies.ipynb) creates gridded ERA5 pressure anomalies.
+2. [`degrid_and_visualise.ipynb`](degrid_and_visualise.ipynb) samples those anomalies into synthetic station and buoy observations.
+
+Use [`nongriddedenv.yaml`](nongriddedenv.yaml) for this standalone research workflow.
+
+## Removed legacy notebooks
+
+The three legacy IceNet modelling notebooks and the early standalone persistence prototype were removed because they use the separate `icenet` code path rather than the current IceNet-MP pipeline. Notebook 0 was adapted from the [Environmental Data Science book gallery](https://github.com/eds-book-gallery/67a1e320-7c47-4ea9-8df8-e868326bc90b/tree/main); notebooks 1 and 2 came from the [IceNet notebooks repository](https://github.com/icenet-ai/icenet-notebooks).
+
+The removed Conda environment files are not referenced by any retained notebook. Current IceNet-MP notebooks should use the project dependency groups where possible.
 
 ## Maintenance
 
-When adding, removing, or renaming a notebook, update this inventory so users can tell
-what each file is for without opening large notebook files. If a notebook is no longer
-useful, remove it in a focused PR rather than leaving an undocumented copy in this
-directory.
+When adding, removing, or renaming a notebook, update this inventory and the user guide. The notebooks are supplementary and are not part of the automated test suite; use the supported command-line workflows for normal training and evaluation.
