@@ -79,6 +79,7 @@ class ModelService:
             loss=config["loss"],
             lr_scheduler=config["train"]["lr_scheduler"],
             mask_dir=str(builder.data_module.mask_directory),
+            metrics=config["reporting"]["metrics"],
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
             optimizer=config["train"]["optimizer"],
@@ -166,6 +167,7 @@ class ModelService:
         model: BaseModel | None = None,
         config: DictConfig,
         job_stage: str | None = None,
+        ckpt_path: Path | None = None,
     ) -> Trainer:
         """Build a trainer and run trainer.fit() for the given config and stage.
 
@@ -173,6 +175,7 @@ class ModelService:
             model: Model to train. Defaults to ``self.model`` if not provided.
             config: Job-specific config section (e.g. ``self.config["train"]``).
             job_stage: Label passed to ``PlottingCallback.prefix`` and used in log messages.
+            ckpt_path: Optional checkpoint to load training state from.
 
         Returns:
             The trainer after fitting, so callers can save checkpoints or inspect
@@ -197,7 +200,9 @@ class ModelService:
             trainer.num_devices,
             get_device_name(trainer.accelerator.name()),
         )
-        trainer.fit(model=current_model, datamodule=self.data_module)
+        trainer.fit(
+            model=current_model, datamodule=self.data_module, ckpt_path=ckpt_path
+        )
 
         # Explicitly release cached device memory rather than delegating this to the
         # Python garbage collector. Multistage training runs many stages in one
@@ -309,7 +314,8 @@ class ModelService:
 
         # Setup Lightning loggers — only pass job_type/project to W&B loggers.
         extra_loggers = []
-        for logger_config in self.config.get("loggers", {}).values():
+        logger_configs = self.config.get("reporting", {}).get("loggers", {})
+        for logger_config in logger_configs.values():
             is_wandb = logger_config.get("_target_", "").split(".")[-1] == "WandbLogger"
             if is_wandb:
                 extra_loggers.append(
@@ -434,7 +440,15 @@ class ModelService:
     def train(
         self, *, checkpoint_dir: Path | None = None, multistage: bool = False
     ) -> Trainer:
-        """Train a model."""
+        """Train a model.
+
+        Args:
+            checkpoint_dir: For multistage training, a directory of existing per-stage
+                checkpoints to skip completed stages. For single-stage training, if the
+                directory contains a ``last*.ckpt`` file, training will resume from it.
+            multistage: Whether to train an ``EncodeProcessDecode`` model in stages.
+
+        """
         if multistage:
             return self.train_multistage(checkpoint_dir=checkpoint_dir)
         if self.model.multistage_only:
@@ -444,13 +458,15 @@ class ModelService:
                 "training. Use `imp train --multistage` instead."
             )
             raise ValueError(msg)
+        ckpt_path = None
         if checkpoint_dir is not None:
-            msg = (
-                "`checkpoint_dir` is only used for multistage training. Single-stage "
-                "training has no per-component checkpoints to resume from."
-            )
-            raise ValueError(msg)
-        return self._fit(config=self.config["train"])
+            matches = sorted(checkpoint_dir.glob("last*.ckpt"))
+            if not matches:
+                msg = f"No resumable checkpoint (last*.ckpt) found in {checkpoint_dir}."
+                raise FileNotFoundError(msg)
+            ckpt_path = matches[-1]
+            log.info("Resuming single-stage training from %s.", ckpt_path)
+        return self._fit(config=self.config["train"], ckpt_path=ckpt_path)
 
     def train_multistage(self, *, checkpoint_dir: Path | None = None) -> Trainer:
         """Train an EncodeProcessDecode model in multiple stages.
@@ -669,12 +685,14 @@ class ModelService:
                 processor=self.config["model"]["processor"],
                 decoder_model=decoder_model,
                 target_encoder=target_encoder,
+                mask_dir=str(self.data_module.mask_directory),
             )
 
         processor_model = ProcessorStage.from_template(
             processor=self.config["model"]["processor"],
             decoder_model=decoder_model,
             target_encoder=target_encoder,
+            mask_dir=str(self.data_module.mask_directory),
         )
         log.info(
             "Training processor: history (%d, %d, %d, %d) -> forecast (%d, %d, %d, %d)",
