@@ -24,7 +24,6 @@ from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .metadata_builder import MetadataBuilder
 from .plot_annotator import PlotAnnotator
-from .plotting_video import plot_video_inputs
 from .render import render_panels_static, render_panels_video
 from .variable_styler import VariableStyler
 
@@ -105,6 +104,33 @@ class Plotter:
             figure_title=title,
             vmax=style.vmax,
             vmin=style.vmin,
+        )
+
+    def _render_video_singlet(
+        self,
+        values: ArrayTHW,
+        *,
+        dates: list[datetime],
+        variable_name: str,
+    ) -> BytesIO:
+        """Render a single video input panel via render_panels_video."""
+        plot_spec = self.plot_spec
+        masked_values = self.land_mask.apply_to(values)
+        style = VariableStyler().style_for_variable(
+            variable_name, plot_spec.per_variable_styles
+        )
+        title = PlotAnnotator().format_title(
+            variable_name, plot_spec.hemisphere, dates[0], style.units
+        )
+        return render_panels_video(
+            [masked_values],
+            cmap=style.cmap or plot_spec.colourmap,
+            dpi=plot_spec.dpi,
+            figure_title=title,
+            fps=plot_spec.video_fps,
+            vmax=style.vmax,
+            vmin=style.vmin,
+            video_format=plot_spec.video_format,
         )
 
     def _render_static_triplet(
@@ -359,24 +385,20 @@ class Plotter:
         """Extract and log raw input videos."""
         try:
             log_path = self._log_path(prefix, "input_video")
+            np_dates = [npdatetime_from_datetime(date) for date in dates]
+            date_key = dates[0].strftime(r"%Y-%m-%d")
             for input_ds in inputs:
-                # Get data for all variables at the selected timestep
-                np_dates = [npdatetime_from_datetime(date) for date in dates]
-                variables = {
-                    f"{input_ds.name}:{v_name}": input_ds.get_tchw(np_dates)[
-                        :, channel, :
-                    ]
-                    for channel, v_name in enumerate(input_ds.variable_names)
-                }
-                # Plot input animations
-                videos = plot_video_inputs(
-                    variables,
-                    dates=dates,
-                    plot_spec=self.plot_spec,
-                    land_mask=self.land_mask,
-                )
-                # Log input animations
-                self._log_videos(videos, video_loggers, log_path)
+                # Get data for all variables over the full date range
+                for channel, v_name in enumerate(input_ds.variable_names):
+                    variable_name = f"{input_ds.name}:{v_name}"
+                    video = self._render_video_singlet(
+                        input_ds.get_tchw(np_dates)[:, channel, :],
+                        dates=dates,
+                        variable_name=variable_name,
+                    )
+                    video_data = {f"{date_key}-{variable_name}": video}
+                    # Log input animations
+                    self._log_videos(video_data, video_loggers, log_path)
         except (InvalidArrayError, VideoRenderError) as err:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from io import BytesIO
 from typing import TYPE_CHECKING, ClassVar, cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import numpy as np
 import pytest
@@ -274,8 +274,11 @@ class TestLogStaticOutputs:
         # The z-score render is the one with a norm set for its extra panel.
         z_score_call = fake_render.call_args_list[1]
         assert z_score_call.kwargs["norm"][-1] is not None
-        for call in (fake_render.call_args_list[0], fake_render.call_args_list[2]):
-            assert all(n is None for n in call.kwargs["norm"])
+        for difference_call in (
+            fake_render.call_args_list[0],
+            fake_render.call_args_list[2],
+        ):
+            assert all(n is None for n in difference_call.kwargs["norm"])
 
     def test_skips_on_invalid_array_error(
         self,
@@ -379,11 +382,11 @@ class TestLogVideoInputs:
     def test_logs_videos_for_each_input_dataset(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Plot and log one video group per variable, under the input_video prefix."""
+        """Plot and log one video per variable, under the input_video prefix."""
         buffer = MagicMock()
-        fake_plot = MagicMock(return_value={"ice_conc": buffer})
+        fake_render = MagicMock(return_value=buffer)
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_inputs", fake_plot
+            "icenet_mp.visualisations.plotter.render_panels_video", fake_render
         )
         video_logger = MagicMock()
 
@@ -392,13 +395,19 @@ class TestLogVideoInputs:
             [fake_single_dataset()], TEST_DATES, [video_logger], prefix="validation"
         )
 
-        variables = fake_plot.call_args.args[0]
-        assert set(variables) == {"example:ice_conc", "example:temperature"}
-        video_logger.log_video.assert_called_once_with(
-            key="validation/input_video/ice_conc",
-            videos=[buffer],
-            format=[plotter.plot_spec.video_format],
-        )
+        assert fake_render.call_count == N_CHANNELS
+        assert video_logger.log_video.call_args_list == [
+            call(
+                key="validation/input_video/2020-01-01-example:ice_conc",
+                videos=[buffer],
+                format=[plotter.plot_spec.video_format],
+            ),
+            call(
+                key="validation/input_video/2020-01-01-example:temperature",
+                videos=[buffer],
+                format=[plotter.plot_spec.video_format],
+            ),
+        ]
 
     def test_skips_on_invalid_array_error(
         self,
@@ -407,7 +416,7 @@ class TestLogVideoInputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_inputs",
+            "icenet_mp.visualisations.plotter.render_panels_video",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
@@ -424,7 +433,7 @@ class TestLogVideoInputs:
     ) -> None:
         """Swallow VideoRenderError and log a warning."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_inputs",
+            "icenet_mp.visualisations.plotter.render_panels_video",
             MagicMock(side_effect=VideoRenderError("encoding failed")),
         )
 
@@ -441,7 +450,7 @@ class TestLogVideoInputs:
     ) -> None:
         """Swallow a generic rendering error but log it at ERROR level with a traceback."""
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_video_inputs",
+            "icenet_mp.visualisations.plotter.render_panels_video",
             MagicMock(side_effect=ValueError("bad shape")),
         )
 
