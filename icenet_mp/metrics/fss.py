@@ -120,7 +120,7 @@ class FractionalSkillScorePerForecastDay(
                 if area == 0:
                     continue
                 diff = model_slice - truth_slice
-                mse_term = diff.pow(2).mean(dim=(-2, -1))
+                mse_term = diff.pow(2).sum(dim=(-2, -1))
                 term1 = truth_slice.pow(2).sum(dim=(-2, -1)) + model_slice.pow(2).sum(
                     dim=(-2, -1)
                 )
@@ -133,9 +133,12 @@ class FractionalSkillScorePerForecastDay(
                     mse_ref_term if mse_ref_sum is None else mse_ref_sum + mse_ref_term
                 )
                 total_area += area
-        mse = torch.tensor(0) if mse_sum is None else mse_sum / total_area
-        mse_ref = torch.tensor(0) if mse_ref_sum is None else mse_ref_sum / total_area
-        return mse, mse_ref
+        if mse_sum is None or mse_ref_sum is None:
+            zeros = torch.zeros(
+                lambda_truth.shape[0], dtype=torch.float32, device=lambda_truth.device
+            )
+            return zeros, zeros.clone()
+        return mse_sum / total_area, mse_ref_sum / total_area
 
     def update(
         self,
