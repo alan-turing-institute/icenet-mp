@@ -7,9 +7,12 @@ import matplotlib as mpl
 import numpy as np
 from matplotlib.colors import Colormap, Normalize, TwoSlopeNorm
 
+from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import DiffColourmapSpec, DiffMode, DiffStrategy, PlotSpec
 
 logger = logging.getLogger(__name__)
+
+_SPATIAL_NDIM = 2
 
 
 @dataclass
@@ -263,6 +266,52 @@ def compute_difference(
         return np.abs(prediction - ground_truth) / denom
     msg = f"Invalid difference mode: {diff_mode}"
     raise ValueError(msg)
+
+
+def compute_standardised_difference(
+    ground_truth: np.ndarray,
+    prediction: np.ndarray,
+    uncertainty: np.ndarray,
+) -> np.ndarray:
+    """Return prediction error in units of observational standard uncertainty.
+
+    The signed convention matches the existing plotting difference convention:
+    ``ground_truth - prediction``. Locations with non-finite or non-positive
+    uncertainty are returned as NaN because a z value is undefined there.
+
+    Args:
+        ground_truth: Two-dimensional observed values.
+        prediction: Two-dimensional predicted values.
+        uncertainty: Two-dimensional standard uncertainty for the observations.
+
+    Returns:
+        Two-dimensional standardised difference array.
+
+    Raises:
+        InvalidArrayError: If inputs are not two-dimensional arrays of equal shape.
+
+    """
+    arrays = (ground_truth, prediction, uncertainty)
+    if any(array.ndim != _SPATIAL_NDIM for array in arrays):
+        shapes = tuple(array.shape for array in arrays)
+        msg = f"Expected 2D ground truth, prediction and uncertainty arrays, got {shapes}."
+        raise InvalidArrayError(msg)
+    if not (ground_truth.shape == prediction.shape == uncertainty.shape):
+        msg = (
+            "Ground truth, prediction and uncertainty must have matching shapes; "
+            f"got {ground_truth.shape}, {prediction.shape} and {uncertainty.shape}."
+        )
+        raise InvalidArrayError(msg)
+
+    result = np.full(ground_truth.shape, np.nan, dtype=float)
+    valid = np.isfinite(uncertainty) & (uncertainty > 0)
+    np.divide(
+        compute_difference(ground_truth, prediction, "signed"),
+        uncertainty,
+        out=result,
+        where=valid,
+    )
+    return result
 
 
 def make_diff_colourmap(

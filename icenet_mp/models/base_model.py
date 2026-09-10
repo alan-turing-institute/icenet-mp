@@ -1,14 +1,15 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from copy import deepcopy
-from functools import cached_property
-from typing import Any, ClassVar
+from functools import cached_property, partial
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import hydra
 import torch
 from lightning import LightningModule
 from lightning.pytorch.utilities.types import (
     LRSchedulerConfigType,
+    LRSchedulerTypeUnion,
     OptimizerConfig,
     OptimizerLRScheduler,
     OptimizerLRSchedulerConfig,
@@ -18,12 +19,28 @@ from torchmetrics import Metric, MetricCollection
 
 from icenet_mp.metrics import (
     CentroidErrorPerForecastDay,
-    IceNetAccuracy,
+    DistanceAveragedIceEdgeErrorPerForecastDay,
+    FractionalSkillScorePerForecastDay,
+    IceNetAccuracyPerForecastDay,
+    IntegratedIceEdgeErrorPerForecastDay,
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
+    SpatialMeanGroundTruthPerForecastDay,
+    SpatialMeanPredictionPerForecastDay,
+    SSIMPerForecastDay,
 )
-from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, TensorNTCHW
+from icenet_mp.models.common import Mask
+from icenet_mp.types import (
+    DataSpace,
+    Hemisphere,
+    MaskType,
+    ModelStepOutput,
+    TensorNTCHW,
+)
+
+if TYPE_CHECKING:
+    from torch.optim import Optimizer
 
 
 class BaseModel(LightningModule, ABC):
@@ -31,7 +48,7 @@ class BaseModel(LightningModule, ABC):
 
     # Parameters that should be excluded from hyperparameter logging
     ignored_hparams: ClassVar[frozenset[str]] = frozenset(
-        ("latitudes_fn", "longitudes_fn")
+        ("latitudes_fn", "longitudes_fn", "mask_dir")
     )
 
     def __init__(  # noqa: PLR0913
@@ -42,7 +59,9 @@ class BaseModel(LightningModule, ABC):
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         loss: DictConfig,
-        metrics: list[str] | None = None,
+        mask_dir: str | Path | None = None,
+        lr_scheduler: DictConfig,
+        metrics: list[str],
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -58,10 +77,13 @@ class BaseModel(LightningModule, ABC):
 
         Optimizer configuration is also set here.
 
-        The ``metrics`` parameter controls which metrics are computed during training,
-        validation, and testing. Defaults to ``["accuracy", "mae", "rmse", "sieerror"]``;
-        pass ``"centroid_error"`` to add the value-weighted centre-of-mass distance
-        metric (only meaningful for synthetic checks where the field is a single blob).
+        ``mask_dir``, if given, is a directory holding `land_mask.npy` (generated for
+        SSMIS datasets by `datasets create`). When present, the ``"diiee"``/``"fss_*"``
+        metrics use it to exclude land/ice boundaries from ice-edge detection, so only
+        ocean ice/no-ice transitions count as the sea-ice edge.
+
+        ``metrics`` is the list of metric names to compute during training,
+        validation, and testing.
         """
         super().__init__()
 
@@ -88,32 +110,61 @@ class BaseModel(LightningModule, ABC):
         # Store the optimizer, scheduler and loss configs
         self.optimizer_cfg = optimizer
         self.scheduler_cfg = scheduler
+        self.lr_scheduler_cfg = lr_scheduler
         self.loss_cfg = loss
+        self.metrics = list(metrics)
+
+        # Land mask for ice-edge metrics (excludes land/ice boundaries from FSS/DIIEE).
+        try:
+            land_mask = Mask(
+                mask_type=MaskType.LAND,
+                output_shape=self.output_space.shape,
+                mask_dir=mask_dir,
+            ).mask
+        except FileNotFoundError:
+            land_mask = None
 
         # Metrics
-        _metric_classes: dict[str, type[Metric]] = {
-            "accuracy": IceNetAccuracy,
-            "mae": MAEPerForecastDay,
-            "rmse": RMSEPerForecastDay,
-            "sieerror": SeaIceExtentErrorPerForecastDay,
-            "centroid_error": CentroidErrorPerForecastDay,
+        fss_metric_classes: dict[str, Callable[[], Metric]] = {
+            f"fss_neighbourhood_size_{neighbourhood_size}": partial(
+                FractionalSkillScorePerForecastDay,
+                neighbourhood_size=neighbourhood_size,
+                land_mask=land_mask,
+            )
+            for neighbourhood_size in (
+                int(metric.removeprefix("fss_neighbourhood_size_"))
+                for metric in metrics
+                if metric.startswith("fss_neighbourhood_size_")
+            )
         }
-        metric_names = (
-            metrics
-            if metrics is not None
-            else [
-                "accuracy",
-                "mae",
-                "rmse",
-                "sieerror",
-            ]
+        _metric_classes: dict[str, Callable[[], Metric]] = {
+            "accuracy": partial(IceNetAccuracyPerForecastDay, land_mask=land_mask),
+            "centroid_error": partial(CentroidErrorPerForecastDay, land_mask=land_mask),
+            "diiee": partial(
+                DistanceAveragedIceEdgeErrorPerForecastDay, land_mask=land_mask
+            ),
+            **fss_metric_classes,
+            "iiee": partial(IntegratedIceEdgeErrorPerForecastDay, land_mask=land_mask),
+            "mae": partial(MAEPerForecastDay, land_mask=land_mask),
+            "rmse": partial(RMSEPerForecastDay, land_mask=land_mask),
+            "sieerror": partial(SeaIceExtentErrorPerForecastDay, land_mask=land_mask),
+            "spatial_mean_ground_truth": partial(
+                SpatialMeanGroundTruthPerForecastDay, land_mask=land_mask
+            ),
+            "spatial_mean_prediction": partial(
+                SpatialMeanPredictionPerForecastDay, land_mask=land_mask
+            ),
+            "ssim": partial(SSIMPerForecastDay, land_mask=land_mask),
+        }
+        self.test_metrics = MetricCollection(
+            {name: _metric_classes[name]() for name in metrics}
         )
-        _common_metrics: dict[str, Metric | MetricCollection] = {
-            name: _metric_classes[name]() for name in metric_names
-        }
-        self.test_metrics = MetricCollection(deepcopy(_common_metrics))
-        self.train_metrics = MetricCollection(deepcopy(_common_metrics))
-        self.validation_metrics = MetricCollection(deepcopy(_common_metrics))
+        self.train_metrics = MetricCollection(
+            {name: _metric_classes[name]() for name in metrics}
+        )
+        self.validation_metrics = MetricCollection(
+            {name: _metric_classes[name]() for name in metrics}
+        )
 
         # All arguments to the ultimate child class will be logged as hyperparameters,
         # and saved to W&B, unless explicitly ignored here.
@@ -133,8 +184,8 @@ class BaseModel(LightningModule, ABC):
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         """Construct the optimizer and optional scheduler from the config."""
-        # Optimizer
-        optimizer = hydra.utils.instantiate(
+        # Create the optimizer
+        optimizer: Optimizer = hydra.utils.instantiate(
             self.optimizer_cfg,
             params=filter(lambda p: p.requires_grad, self.parameters()),
         )
@@ -143,33 +194,40 @@ class BaseModel(LightningModule, ABC):
         if not self.scheduler_cfg:
             return OptimizerConfig(optimizer=optimizer)
 
-        # Scheduler
-        scheduler = hydra.utils.instantiate(
-            self.scheduler_cfg["scheduler_parameters"],
-            _target_=self.scheduler_cfg["_target_"],
-            optimizer=optimizer,
+        # Create the scheduler
+        scheduler: LRSchedulerTypeUnion = hydra.utils.instantiate(
+            self.scheduler_cfg, optimizer=optimizer
+        )
+
+        # Create the Lightning LRScheduler wrapper
+        lr_scheduler = LRSchedulerConfigType(
+            frequency=self.lr_scheduler_cfg.get("frequency", 1),
+            interval=self.lr_scheduler_cfg.get("interval", "epoch"),
+            monitor=self.lr_scheduler_cfg.get("monitor"),
+            name=self.lr_scheduler_cfg.get("name"),
+            reduce_on_plateau=self.lr_scheduler_cfg.get("reduce_on_plateau", False),
+            scheduler=scheduler,
+            strict=self.lr_scheduler_cfg.get("strict", True),
         )
 
         # Return the optimizer and scheduler
         return OptimizerLRSchedulerConfig(
             optimizer=optimizer,
-            lr_scheduler=LRSchedulerConfigType(
-                scheduler=scheduler, **self.scheduler_cfg["lr_scheduler_parameters"]
-            ),
+            lr_scheduler=lr_scheduler,
         )
 
     @abstractmethod
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model.
 
-        - start with multiple [NTCHW] inputs, one for each input dataset
-        - return a single [NTCHW] output representing the predicted output
+        - start with multiple `NTCHW` inputs, one for each input dataset
+        - return a single `NTCHW` output representing the predicted output
 
         Args:
-            inputs: Dictionary of dataset name to TensorNTCHW with shape [batch, n_history_steps, C_input_k, H_input_k, W_input_k]
+            inputs: Dictionary of dataset name to TensorNTCHW with shape (batch, n_history_steps, C_input_k, H_input_k, W_input_k)
 
         Returns:
-            Predicted TensorNTCHW with shape [batch, n_forecast_steps, C_output, H_output, W_output]
+            Predicted TensorNTCHW with shape (batch, n_forecast_steps, C_output, H_output, W_output)
 
         """
 

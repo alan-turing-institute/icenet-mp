@@ -1,13 +1,4 @@
 # PyTorch Lightning scheduler settings
 _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-
-# These parameters are part of an `lr_scheduler_config`
-lr_scheduler_parameters:
-  frequency: 1
-  interval: epoch
-  name: learning-rate  # used when logging to W&B
-
-# These parameters are passed to the scheduler instance
-scheduler_parameters:
-  eta_min: 1e-6
-  T_max: ${...trainer.max_epochs}
+eta_min: 1e-6
+T_max: ${..trainer.max_epochs}

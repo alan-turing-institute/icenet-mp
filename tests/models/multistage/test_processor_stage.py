@@ -36,7 +36,9 @@ class TestProcessorStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
         cfg_decoder: DictConfig,
     ) -> EncoderStage:
         # The target encoder encodes the forecast target itself, not a raw input
@@ -60,7 +62,9 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
+            metrics=cfg_metrics,
         )
 
     @pytest.fixture
@@ -74,7 +78,9 @@ class TestProcessorStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
     ) -> ProcessorStage:
         return ProcessorStage(
             processor=cfg_processor,
@@ -88,7 +94,9 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
+            metrics=cfg_metrics,
         )
 
     def test_forward_shape(
@@ -229,7 +237,9 @@ class TestProcessorStage:
         cfg_output_space: DictConfig,
         cfg_optimizer: DictConfig,
         cfg_scheduler: DictConfig,
+        cfg_lr_scheduler: DictConfig,
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
     ) -> None:
         skip_connection_decoder = DictConfig(
             {
@@ -250,7 +260,9 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
+            metrics=cfg_metrics,
         )
         processor_stage = ProcessorStage(
             processor=cfg_processor,
@@ -264,7 +276,9 @@ class TestProcessorStage:
             optimizer=cfg_optimizer,
             output_space=cfg_output_space,
             scheduler=cfg_scheduler,
+            lr_scheduler=cfg_lr_scheduler,
             loss=cfg_loss,
+            metrics=cfg_metrics,
         )
 
         batch_size = 2

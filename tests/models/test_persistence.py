@@ -19,6 +19,7 @@ class TestPersistence:
         test_n_history_steps: int,
         test_output_shape: tuple[int, int, int],
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
     ) -> None:
         input_space = {
             "channels": test_input_shape[2],
@@ -35,11 +36,13 @@ class TestPersistence:
             hemisphere="north",
             input_spaces=[input_space],
             loss=cfg_loss,
+            metrics=cfg_metrics,
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=output_space,
             optimizer={},
             scheduler={},
+            lr_scheduler={},
             target_variable_indices=list(range(test_output_shape[2])),
         )
         batch = {
@@ -61,7 +64,7 @@ class TestPersistence:
         result: torch.Tensor = model(batch)
         assert result.shape == batch["target"].shape
 
-    def test_optimizer(self, cfg_loss: DictConfig) -> None:
+    def test_optimizer(self, cfg_loss: DictConfig, cfg_metrics: list[str]) -> None:
         model = Persistence(
             name="persistence",
             hemisphere="north",
@@ -73,6 +76,7 @@ class TestPersistence:
                 }
             ],
             loss=cfg_loss,
+            metrics=cfg_metrics,
             n_forecast_steps=1,
             n_history_steps=1,
             output_space={
@@ -82,6 +86,7 @@ class TestPersistence:
             },
             optimizer={},
             scheduler={},
+            lr_scheduler={},
             target_variable_indices=[0],
         )
         assert model.configure_optimizers() is None, (

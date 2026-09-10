@@ -42,6 +42,7 @@ def test_encode_process_decode_uses_attention_fusion() -> None:
         input_spaces=input_spaces,
         loss=DictConfig({"_target_": "torch.nn.HuberLoss"}),
         lr_scheduler=DictConfig({}),
+        metrics=[],
         n_forecast_steps=2,
         n_history_steps=3,
         output_space=output_space,

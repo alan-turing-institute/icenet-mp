@@ -34,7 +34,7 @@ class EncodeProcessDecode(BaseModel):
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model."""
-        super().__init__(**kwargs)
+        super().__init__(mask_dir=mask_dir, **kwargs)
 
         # Check that the number of variable indices provided matches the number of
         # channels in the output space.
@@ -186,11 +186,11 @@ class EncodeProcessDecode(BaseModel):
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model (used for inference).
 
-        - start with multiple [NTCHW] inputs each with shape [batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k]
-        - encode inputs to [NTCHW] latent space [batch, n_history_steps, n_latent_channels, H_latent, W_latent]
-        - fuse inputs in [NTCHW] latent space [batch, n_history_steps, n_latent_channels_total, H_latent, W_latent]
-        - process in latent space [NTCHW] [batch, n_forecast_steps, n_latent_channels_total, H_latent, W_latent]
-        - decode back to [NTCHW] output space [batch, n_forecast_steps, n_output_channels, H_output, W_output]
+        - start with multiple `NTCHW` inputs each with shape (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
+        - encode inputs to `NTCHW` latent space (batch, n_history_steps, n_latent_channels, H_latent, W_latent)
+        - fuse inputs in `NTCHW` latent space (batch, n_history_steps, n_latent_channels_total, H_latent, W_latent)
+        - process in latent space `NTCHW` (batch, n_forecast_steps, n_latent_channels_total, H_latent, W_latent)
+        - decode back to `NTCHW` output space (batch, n_forecast_steps, n_output_channels, H_output, W_output)
         - add a skip connection from the most recent target value to every forecast step
         """
         # Encode inputs into latent space: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
