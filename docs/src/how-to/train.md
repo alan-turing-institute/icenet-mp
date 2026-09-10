@@ -121,6 +121,17 @@ ${BASE_DIR}/training/wandb/run-<date>-<id>/checkpoints/
 where `BASE_DIR` is the `base_path` defined in your local config.
 Pass this path to `evaluate` to assess the trained model.
 
+As `save_last` is enabled by default in the checkpointing callback, a `last.ckpt` tracking the most recently completed epoch is kept alongside the best-validation checkpoint.
+If a run is killed before completion, it can be resumed with:
+
+```bash
+uv run imp train --config-name <name> --checkpoint-dir <run-dir>/checkpoints [other overrides...]
+```
+
+This restores model, optimizer, scheduler and epoch/step state from `last.ckpt` and continues training.
+Use the *same* config and overrides as the original run — anything else changes the experiment rather than resuming it.
+If the directory has no `last*.ckpt` file, the command raises `FileNotFoundError` rather than silently starting a fresh run.
+
 ## 4. Check results in W&B
 
 Once training starts, the run appears in the W&B project `train` under the `turing-seaice` entity at [wandb.ai](https://wandb.ai).

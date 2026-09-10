@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import hydra
 import torch
@@ -82,7 +82,8 @@ class MixtureOfExpertsProcessor(BaseProcessor):
         """Run all experts and return their gated weighted forecast."""
         weights = self.expert_weights(x)
         predictions = []
-        for expert in self.experts:
+        for module in self.experts:
+            expert = cast("BaseProcessor", module)
             output = expert.rollout(x, y)
             if output.loss is not None:
                 msg = "Mixture experts must return prediction-only ProcessorOutput."
