@@ -180,9 +180,7 @@ def cfg_model_service() -> DictConfig:
             },
             "evaluate": {"callbacks": {}},
             "hemisphere": "north",
-            "loggers": {},
             "loss": {"_target_": "torch.nn.HuberLoss", "delta": 0.5},
-            "metrics": {"enabled": ["accuracy", "mae"]},
             "model": {
                 "_target_": "MockModel",
                 "name": "mock-model",
@@ -191,6 +189,10 @@ def cfg_model_service() -> DictConfig:
                 "target": {"group_name": "mock-dataset-group-1"},
                 "n_forecast_steps": 2,
                 "n_history_steps": 3,
+            },
+            "reporting": {
+                "loggers": {},
+                "metrics": ["accuracy", "mae"],
             },
             "train": {
                 "callbacks": {},

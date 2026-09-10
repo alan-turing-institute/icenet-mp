@@ -7,25 +7,20 @@ Here we use six synthetic scenarios to show what each metric actually captures a
 
 ## Selecting which metrics run
 
-Which metrics are computed during training, validation, and testing is controlled by the `metrics` Hydra config group (`icenet_mp/config/metrics/`):
+Which metrics are computed during training, validation, and testing is controlled by the `reporting.metrics` Hydra config group.
 
 ```bash
-uv run imp train --config-name <config> metrics.enabled=[accuracy,mae,rmse]
+uv run imp train --config-name <config> reporting.metrics="[accuracy,mae,rmse]"
 ```
 
 or in a config file:
 
 ```yaml
-metrics:
-  enabled: [accuracy, mae, rmse, sieerror, iiee, diiee, centroid_error, fss_1, fss_5, fss_15, ssim, spatial_mean_ground_truth, spatial_mean_prediction]
-```
-
-The default is every metric in the table below (`"fss_1"`, `"fss_5"`, `"fss_15"` are
-`FractionalSkillScorePerForecastDay` at three different neighbourhood sizes).
-
-```bash
-uv run imp train --config-name <config> \
-  metrics.enabled=[accuracy,mae,rmse,sieerror,iiee,diiee,centroid_error,fss_1,fss_5,fss_15,fss_25,ssim,spatial_mean_ground_truth,spatial_mean_prediction]
+reporting:
+  metrics:
+  - accuracy
+  - sieerror
+  - fss_neighbourhood_5
 ```
 
 ## The scenarios

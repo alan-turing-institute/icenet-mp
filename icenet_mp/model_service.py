@@ -79,7 +79,7 @@ class ModelService:
             loss=config["loss"],
             lr_scheduler=config["train"]["lr_scheduler"],
             mask_dir=str(builder.data_module.mask_directory),
-            metrics=config["metrics"]["enabled"],
+            metrics=config["reporting"]["metrics"],
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
             optimizer=config["train"]["optimizer"],
@@ -314,7 +314,8 @@ class ModelService:
 
         # Setup Lightning loggers — only pass job_type/project to W&B loggers.
         extra_loggers = []
-        for logger_config in self.config.get("loggers", {}).values():
+        logger_configs = self.config.get("reporting", {}).get("loggers", {})
+        for logger_config in logger_configs.values():
             is_wandb = logger_config.get("_target_", "").split(".")[-1] == "WandbLogger"
             if is_wandb:
                 extra_loggers.append(
