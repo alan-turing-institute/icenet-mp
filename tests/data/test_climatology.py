@@ -1,10 +1,15 @@
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 import pytest
 
-from icenet_mp.data import generate_daily_climatology, save_daily_climatology
+from icenet_mp.data import (
+    SingleDataset,
+    generate_daily_climatology,
+    save_daily_climatology,
+)
 
 
 class _FakeDataset:
@@ -50,7 +55,7 @@ def _dataset() -> _FakeDataset:
 def test_daily_climatology_averages_calendar_days_and_ignores_nonfinite() -> None:
     """Average each calendar day pixel-wise over valid reference observations."""
     result = generate_daily_climatology(
-        _dataset(),
+        cast("SingleDataset", _dataset()),
         variable="ice_conc",
         reference_end_year=2001,
         years=2,
@@ -70,7 +75,7 @@ def test_daily_climatology_averages_calendar_days_and_ignores_nonfinite() -> Non
 def test_daily_climatology_keeps_february_29_separate() -> None:
     """Represent leap day explicitly and average it over leap years only."""
     result = generate_daily_climatology(
-        _dataset(),
+        cast("SingleDataset", _dataset()),
         variable="ice_conc",
         reference_end_year=2001,
         years=2,
@@ -90,9 +95,9 @@ def test_daily_climatology_requires_every_reference_year() -> None:
         {np.datetime64("2000-01-01"): np.ones((2, 2), dtype=np.float32)}
     )
 
-    with pytest.raises(ValueError, match="missing years:.*2001"):
+    with pytest.raises(ValueError, match=r"missing years:.*2001"):
         generate_daily_climatology(
-            dataset,
+            cast("SingleDataset", dataset),
             variable="ice_conc",
             reference_end_year=2001,
             years=2,
@@ -105,14 +110,14 @@ def test_daily_climatology_validates_variable_and_window() -> None:
 
     with pytest.raises(ValueError, match="Variable 'unknown'"):
         generate_daily_climatology(
-            dataset,
+            cast("SingleDataset", dataset),
             variable="unknown",
             reference_end_year=2001,
             years=2,
         )
     with pytest.raises(ValueError, match="years must be greater than 0"):
         generate_daily_climatology(
-            dataset,
+            cast("SingleDataset", dataset),
             variable="ice_conc",
             reference_end_year=2001,
             years=0,
@@ -122,7 +127,7 @@ def test_daily_climatology_validates_variable_and_window() -> None:
 def test_save_daily_climatology_preserves_data_and_provenance(tmp_path: Path) -> None:
     """Persist the baseline values, counts, calendar labels and reference metadata."""
     result = generate_daily_climatology(
-        _dataset(),
+        cast("SingleDataset", _dataset()),
         variable="ice_conc",
         reference_end_year=2001,
         years=2,
