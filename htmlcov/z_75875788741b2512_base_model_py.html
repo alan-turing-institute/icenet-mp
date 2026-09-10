@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_e3325f9e99862f0f___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-10 12:39 +0000
+            created at 2026-09-10 12:52 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -214,9 +214,9 @@
     <p class="run run2"><span class="n"><a id="t132" href="#t132">132</a></span><span class="t">                <span class="nam">land_mask</span><span class="op">=</span><span class="nam">land_mask</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t133" href="#t133">133</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t134" href="#t134">134</a></span><span class="t">            <span class="key">for</span> <span class="nam">neighbourhood_size</span> <span class="key">in</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t135" href="#t135">135</a></span><span class="t">                <span class="nam">int</span><span class="op">(</span><span class="nam">metric</span><span class="op">.</span><span class="nam">replace</span><span class="op">(</span><span class="str">&quot;fss_neighbourhood_size_&quot;</span><span class="op">,</span> <span class="str">&quot;&quot;</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t135" href="#t135">135</a></span><span class="t">                <span class="nam">int</span><span class="op">(</span><span class="nam">metric</span><span class="op">.</span><span class="nam">removeprefix</span><span class="op">(</span><span class="str">&quot;fss_neighbourhood_size_&quot;</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t136" href="#t136">136</a></span><span class="t">                <span class="key">for</span> <span class="nam">metric</span> <span class="key">in</span> <span class="nam">metrics</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t137" href="#t137">137</a></span><span class="t">                <span class="key">if</span> <span class="nam">metric</span><span class="op">.</span><span class="nam">startswith</span><span class="op">(</span><span class="str">&quot;fss_&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t137" href="#t137">137</a></span><span class="t">                <span class="key">if</span> <span class="nam">metric</span><span class="op">.</span><span class="nam">startswith</span><span class="op">(</span><span class="str">&quot;fss_neighbourhood_size_&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t138" href="#t138">138</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t139" href="#t139">139</a></span><span class="t">        <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t140" href="#t140">140</a></span><span class="t">        <span class="nam">_metric_classes</span><span class="op">:</span> <span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">Callable</span><span class="op">[</span><span class="op">[</span><span class="op">]</span><span class="op">,</span> <span class="nam">Metric</span><span class="op">]</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
@@ -467,7 +467,7 @@
             <a class="nav" href="z_e3325f9e99862f0f___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.15.4">coverage.py v7.15.4</a>,
-            created at 2026-09-10 12:39 +0000
+            created at 2026-09-10 12:52 +0000
         </p>
     </div>
 </footer>
