@@ -6,8 +6,7 @@ from icenet_mp.utils import datetime_from_npdatetime, mask_dir
 
 from .default_plot_spec import DEFAULT_SIC_SPEC
 from .land_mask import LandMask
-from .plotting_static import plot_static_inputs
-from .plotting_video import plot_video_inputs
+from .panel_builder import render_static_singlet, render_video_singlet
 
 
 def plot_variables_static(
@@ -37,22 +36,23 @@ def plot_variables_static(
         for channel, variable_name in enumerate(dataset.variable_names)
     }
     land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
-    images = plot_static_inputs(
-        variables,
-        land_mask=LandMask(land_mask_path),
-        plot_spec=plot_spec,
-        when=when,
-    )
+    land_mask = LandMask(land_mask_path)
 
     dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
-    for image_name, image_list in images.items():
+    for variable_name, variable_values in variables.items():
+        image = render_static_singlet(
+            variable_values,
+            land_mask=land_mask,
+            plot_spec=plot_spec,
+            when=when,
+            variable_name=variable_name,
+        )
+        image_name = f"{when.strftime(r'%Y-%m-%d')}-{variable_name}"
         safe_name = image_name.replace(":", "_").replace("/", "_")
-        for idx_image, image in enumerate(image_list):
-            suffix = f"-{idx_image}" if len(image_list) > 1 else ""
-            image.save(dataset_output_dir / f"{safe_name}{suffix}.png")
-            saved += 1
+        image.save(dataset_output_dir / f"{safe_name}.png")
+        saved += 1
     return saved
 
 
@@ -88,17 +88,20 @@ def plot_variables_video(
         for channel, variable_name in enumerate(dataset.variable_names)
     }
     land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
-    videos = plot_video_inputs(
-        variables,
-        dates=dates,
-        land_mask=LandMask(land_mask_path),
-        plot_spec=plot_spec,
-    )
+    land_mask = LandMask(land_mask_path)
 
     dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
-    for video_name, video_buffer in videos.items():
+    for variable_name, variable_values in variables.items():
+        video_buffer = render_video_singlet(
+            variable_values,
+            dates=dates,
+            land_mask=land_mask,
+            plot_spec=plot_spec,
+            variable_name=variable_name,
+        )
+        video_name = f"{dates[0].strftime(r'%Y-%m-%d')}-{variable_name}"
         safe_name = video_name.replace(":", "_").replace("/", "_")
         video_buffer.seek(0)
         video_path = dataset_output_dir / f"{safe_name}.{plot_spec.video_format}"

@@ -67,15 +67,12 @@ class TestPlotDataset:
             "icenet_mp.visualisations.dataset_plotting.SingleDataset", FakeDataset
         )
 
-        def fake_plot_static_inputs(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
-            return {
-                "2020-01-01-example:ice_conc": [Image.new("RGB", (4, 4))],
-                "2020-01-01-example:temperature": [Image.new("RGB", (4, 4))],
-            }
+        def fake_render_static_singlet(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
+            return Image.new("RGB", (4, 4))
 
         monkeypatch.setattr(
-            "icenet_mp.visualisations.dataset_plotting.plot_static_inputs",
-            fake_plot_static_inputs,
+            "icenet_mp.visualisations.dataset_plotting.render_static_singlet",
+            fake_render_static_singlet,
         )
 
         saved = plot_variables_static(
@@ -126,15 +123,12 @@ class TestPlotDatasetVideo:
             "icenet_mp.visualisations.dataset_plotting.SingleDataset", FakeVideoDataset
         )
 
-        def fake_plot_video_inputs(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
-            return {
-                "2020-01-01-example:ice_conc": io.BytesIO(b"ice_conc video"),
-                "2020-01-01-example:temperature": io.BytesIO(b"temperature video"),
-            }
+        def fake_render_video_singlet(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
+            return io.BytesIO(b"video data")
 
         monkeypatch.setattr(
-            "icenet_mp.visualisations.dataset_plotting.plot_video_inputs",
-            fake_plot_video_inputs,
+            "icenet_mp.visualisations.dataset_plotting.render_video_singlet",
+            fake_render_video_singlet,
         )
 
         saved = plot_variables_video(
