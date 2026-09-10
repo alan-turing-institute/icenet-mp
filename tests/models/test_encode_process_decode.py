@@ -25,6 +25,8 @@ def test_uncertainty_loss_rejects_processor_owned_training_loss(
         loss=DictConfig(
             {"_target_": "icenet_mp.losses.UncertaintyWeightedLoss", "delta": 0.5}
         ),
+        lr_scheduler=DictConfig({}),
+        metrics=[],
         n_forecast_steps=1,
         n_history_steps=1,
         output_space=cfg_output_space,
@@ -67,7 +69,7 @@ def test_uncertainty_loss_rejects_processor_owned_training_loss(
 @pytest.mark.parametrize("test_n_forecast_steps", [1, 2, 5])
 @pytest.mark.parametrize("test_n_history_steps", [1, 2, 5])
 class TestEncodeProcessDecode:
-    def test_init(  # noqa: PLR0917
+    def test_init(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -75,6 +77,7 @@ class TestEncodeProcessDecode:
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
         test_n_forecast_steps: int,
         test_n_history_steps: int,
     ) -> None:
@@ -90,7 +93,9 @@ class TestEncodeProcessDecode:
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             loss=cfg_loss,
+            metrics=cfg_metrics,
             target_variable_indices=[0],
         )
 
@@ -105,7 +110,7 @@ class TestEncodeProcessDecode:
         assert model.output_space.shape == cfg_output_space["shape"]
 
     @pytest.mark.parametrize("test_batch_size", [1, 2, 5])
-    def test_forward(  # noqa: PLR0917
+    def test_forward(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -113,6 +118,7 @@ class TestEncodeProcessDecode:
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
         test_batch_size: int,
         test_n_forecast_steps: int,
         test_n_history_steps: int,
@@ -125,11 +131,13 @@ class TestEncodeProcessDecode:
             hemisphere="north",
             input_spaces=[cfg_input_space],
             loss=cfg_loss,
+            metrics=cfg_metrics,
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             target_variable_indices=[0],
         )
         result: torch.Tensor = model(
@@ -158,7 +166,7 @@ class TestEncodeProcessDecode:
             cfg_output_space["shape"][1],
         )
 
-    def test_processor_default_does_not_require_multistage(  # noqa: PLR0917
+    def test_processor_default_does_not_require_multistage(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -166,6 +174,7 @@ class TestEncodeProcessDecode:
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
         test_n_forecast_steps: int,
         test_n_history_steps: int,
     ) -> None:
@@ -177,16 +186,18 @@ class TestEncodeProcessDecode:
             hemisphere="north",
             input_spaces=[cfg_input_space],
             loss=cfg_loss,
+            metrics=cfg_metrics,
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             target_variable_indices=[0],
         )
         assert model.multistage_only is False
 
-    def test_processor_with_custom_loss_multistage_only(  # noqa: PLR0917
+    def test_processor_with_custom_loss_multistage_only(
         self,
         cfg_decoder: DictConfig,
         cfg_encoders: DictConfig,
@@ -194,6 +205,7 @@ class TestEncodeProcessDecode:
         cfg_input_space: DictConfig,
         cfg_output_space: DictConfig,
         cfg_loss: DictConfig,
+        cfg_metrics: list[str],
         test_n_forecast_steps: int,
         test_n_history_steps: int,
     ) -> None:
@@ -208,11 +220,13 @@ class TestEncodeProcessDecode:
             hemisphere="north",
             input_spaces=[cfg_input_space],
             loss=cfg_loss,
+            metrics=cfg_metrics,
             n_forecast_steps=test_n_forecast_steps,
             n_history_steps=test_n_history_steps,
             output_space=cfg_output_space,
             optimizer=DictConfig({}),
             scheduler=DictConfig({}),
+            lr_scheduler=DictConfig({}),
             target_variable_indices=[0],
         )
         assert model.multistage_only is True

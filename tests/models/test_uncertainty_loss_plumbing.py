@@ -23,6 +23,7 @@ def _make_model() -> IdentityModel:
                 "delta": 0.5,
             }
         ),
+        lr_scheduler=DictConfig({}),
         metrics=[],
         n_forecast_steps=1,
         n_history_steps=1,
