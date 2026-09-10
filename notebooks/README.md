@@ -37,3 +37,7 @@ Use [`nongriddedenv.yaml`](nongriddedenv.yaml) for this standalone research work
 The three legacy IceNet modelling notebooks and the early standalone persistence prototype were removed because they use the separate `icenet` code path rather than the current IceNet-MP pipeline. Notebook 0 was adapted from the [Environmental Data Science book gallery](https://github.com/eds-book-gallery/67a1e320-7c47-4ea9-8df8-e868326bc90b/tree/main); notebooks 1 and 2 came from the [IceNet notebooks repository](https://github.com/icenet-ai/icenet-notebooks).
 
 The removed Conda environment files are not referenced by any retained notebook. Current IceNet-MP notebooks should use the project dependency groups where possible.
+
+## Maintenance
+
+When adding, removing, or renaming a notebook, update this inventory and the user guide. The notebooks are supplementary and are not part of the automated test suite; use the supported command-line workflows for normal training and evaluation.
