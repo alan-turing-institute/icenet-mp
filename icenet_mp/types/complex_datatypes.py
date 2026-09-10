@@ -5,6 +5,7 @@ from typing import Any, Literal, Self, cast
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
+from .constants import SEA_ICE_THRESHOLD
 from .typedefs import DiffMode, DiffStrategy, TensorNTCHW
 
 
@@ -101,6 +102,8 @@ class PlotSpec:
         outside_warn: Threshold for “values outside display range” warnings.
         severe_outside: Severe threshold for clipping warnings.
         include_shared_range_mismatch_check: If True, add magnitude mismatch nudges.
+        include_ice_edge: Whether to overlay the sea ice edge contour in red.
+        ice_edge_threshold: Concentration value defining the sea ice edge contour.
 
     """
 
@@ -131,6 +134,10 @@ class PlotSpec:
     outside_warn: float = 0.05
     severe_outside: float = 0.20
     include_shared_range_mismatch_check: bool = True
+
+    # Sea ice edge overlay
+    include_ice_edge: bool = False
+    ice_edge_threshold: float = SEA_ICE_THRESHOLD
 
     # Optional metadata for titling
     # hemisphere: "north" | "south" when known (used in titles)
