@@ -62,8 +62,12 @@ class PredictionWriter(Callback):
         dataset: CombinedDataset,
     ) -> np.ndarray:
         """Convert model outputs from target normalisation back to source units."""
-        minimum = np.asarray(dataset.target.statistics["minimum"], dtype=prediction.dtype)
-        maximum = np.asarray(dataset.target.statistics["maximum"], dtype=prediction.dtype)
+        minimum = np.asarray(
+            dataset.target.statistics["minimum"], dtype=prediction.dtype
+        )
+        maximum = np.asarray(
+            dataset.target.statistics["maximum"], dtype=prediction.dtype
+        )
         if prediction.shape[2] != len(minimum) or len(minimum) != len(maximum):
             msg = (
                 "Prediction channel count does not match target dataset statistics: "
@@ -224,9 +228,9 @@ class PredictionWriter(Callback):
             )
             raise IndexError(msg)
 
-        reference_dates = start_dates + (
-            self._dataset.n_history_steps - 1
-        ) * self._dataset.frequency
+        reference_dates = (
+            start_dates + (self._dataset.n_history_steps - 1) * self._dataset.frequency
+        )
         reference_seconds = self._seconds(reference_dates)
         lead_seconds = np.asarray(self._file.variables["lead_time"][:], dtype=np.int64)
         valid_seconds = reference_seconds[:, None] + lead_seconds[None, :]

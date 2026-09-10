@@ -49,7 +49,7 @@ class TestMaskDir:
     def test_builds_expected_path(self, tmp_path: Path) -> None:
         """Build the preprocessing mask directory beneath the configured root."""
         assert mask_dir(tmp_path, "sic-ssmis") == (
-            tmp_path / "data" / "preprocessing" / "masks" / "sic-ssmis"
+            tmp_path / "data" / "masks" / "sic-ssmis"
         )
 
 

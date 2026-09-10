@@ -5,6 +5,7 @@ from typing import Any, cast
 import numpy as np
 import pytest
 import torch
+from lightning import LightningModule, Trainer
 from netCDF4 import Dataset as NetCDFDataset
 
 from icenet_mp.callbacks import PredictionWriter
@@ -47,23 +48,25 @@ class TestPredictionWriter:
     def test_disabled_writer_is_a_noop(self) -> None:
         writer = PredictionWriter()
 
-        writer.on_test_start(SimpleNamespace(world_size=4), None)  # type: ignore[arg-type]
-        writer.on_test_batch_end(  # type: ignore[arg-type]
-            SimpleNamespace(),
-            None,
+        writer.on_test_start(
+            cast("Trainer", SimpleNamespace(world_size=4)), LightningModule()
+        )
+        writer.on_test_batch_end(
+            cast("Trainer", SimpleNamespace()),
+            LightningModule(),
             None,
             None,
             0,
         )
-        writer.on_test_end(SimpleNamespace(), None)  # type: ignore[arg-type]
+        writer.on_test_end(cast("Trainer", SimpleNamespace()), LightningModule())
 
     def test_rejects_multi_process_export(self, tmp_path: Path) -> None:
         writer = PredictionWriter(tmp_path / "predictions.nc")
 
         with pytest.raises(RuntimeError, match="single-process evaluation"):
-            writer.on_test_start(  # type: ignore[arg-type]
+            writer.on_test_start(
                 _trainer(_combined_dataset(), world_size=2),
-                None,
+                LightningModule(),
             )
 
     def test_writes_denormalised_predictions_and_coordinates(
@@ -74,26 +77,26 @@ class TestPredictionWriter:
         trainer = _trainer(dataset)
         writer = PredictionWriter(output_path)
 
-        writer.on_test_start(trainer, None)  # type: ignore[arg-type]
+        writer.on_test_start(trainer, LightningModule())
 
         first_batch = torch.full((2, 2, 1, 2, 2), 0.5, dtype=torch.float32)
         second_batch = torch.ones((1, 2, 1, 2, 2), dtype=torch.float32)
 
-        writer.on_test_batch_end(  # type: ignore[arg-type]
+        writer.on_test_batch_end(
             trainer,
-            None,
+            LightningModule(),
             {"prediction": first_batch},
             None,
             0,
         )
-        writer.on_test_batch_end(  # type: ignore[arg-type]
+        writer.on_test_batch_end(
             trainer,
-            None,
+            LightningModule(),
             {"prediction": second_batch},
             None,
             1,
         )
-        writer.on_test_end(trainer, None)  # type: ignore[arg-type]
+        writer.on_test_end(trainer, LightningModule())
 
         with NetCDFDataset(output_path) as netcdf:
             assert netcdf.getncattr("Conventions") == "CF-1.10"
@@ -105,10 +108,7 @@ class TestPredictionWriter:
             assert prediction.shape == (3, 2, 2, 2)
             assert np.allclose(prediction[:2], 0.5)
             assert np.allclose(prediction[2:], 0.8)
-            assert (
-                netcdf.variables["ice_conc"].standard_name
-                == "sea_ice_area_fraction"
-            )
+            assert netcdf.variables["ice_conc"].standard_name == "sea_ice_area_fraction"
 
             assert np.array_equal(
                 np.asarray(netcdf.variables["lead_time"][:]),
@@ -116,13 +116,17 @@ class TestPredictionWriter:
             )
 
             reference = np.asarray(netcdf.variables["forecast_reference_time"][:])
-            expected_reference = np.asarray(
-                [
-                    np.datetime64("2026-01-02T12:00:00"),
-                    np.datetime64("2026-01-03T12:00:00"),
-                    np.datetime64("2026-01-04T12:00:00"),
-                ],
-            ).astype("datetime64[s]").astype(np.int64)
+            expected_reference = (
+                np.asarray(
+                    [
+                        np.datetime64("2026-01-02T12:00:00"),
+                        np.datetime64("2026-01-03T12:00:00"),
+                        np.datetime64("2026-01-04T12:00:00"),
+                    ],
+                )
+                .astype("datetime64[s]")
+                .astype(np.int64)
+            )
             assert np.array_equal(reference, expected_reference)
 
             valid = np.asarray(netcdf.variables["valid_time"][:])
@@ -143,15 +147,15 @@ class TestPredictionWriter:
         dataset = _combined_dataset()
         trainer = _trainer(dataset)
         writer = PredictionWriter(tmp_path / "predictions.nc")
-        writer.on_test_start(trainer, None)  # type: ignore[arg-type]
+        writer.on_test_start(trainer, LightningModule())
 
         with pytest.raises(ValueError, match="channel count"):
-            writer.on_test_batch_end(  # type: ignore[arg-type]
+            writer.on_test_batch_end(
                 trainer,
-                None,
+                LightningModule(),
                 {"prediction": torch.zeros((1, 2, 2, 2, 2))},
                 None,
                 0,
             )
 
-        writer.teardown(trainer, None, "test")  # type: ignore[arg-type]
+        writer.teardown(trainer, LightningModule(), "test")

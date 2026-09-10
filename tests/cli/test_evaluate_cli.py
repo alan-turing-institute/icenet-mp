@@ -177,8 +177,7 @@ class TestEvaluateCLI:
 
         assert result.exit_code == 0, result.output
         assert len(captured) == 1
-        assert (
-            captured[0].evaluate.callbacks.prediction_writer.output_path
-            == str(output_path.resolve())
+        assert captured[0].evaluate.callbacks.prediction_writer.output_path == str(
+            output_path.resolve()
         )
         assert service.evaluate_calls == 1
