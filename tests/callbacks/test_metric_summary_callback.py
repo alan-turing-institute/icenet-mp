@@ -349,6 +349,46 @@ class TestLogPerRunMetrics:
         line_series_kwargs = mock_wandb.plot.line_series.call_args[1]
         assert line_series_kwargs["title"] == "mae_daily_per_forecast_day"
 
+    def test_strips_group_prefix_from_spatial_mean_keys_across_stages(
+        self,
+        wandb_run: tuple[MagicMock, MockWandbRun],
+    ) -> None:
+        """Multi-stage spatial-mean keys drop the redundant group prefix.
+
+        e.g. "train_spatial_mean_ground_truth" becomes "train_ground_truth", and
+        "validation_spatial_mean_prediction" becomes "validation_prediction".
+        """
+        callback = MetricSummaryCallback()
+        mock_wandb, _ = wandb_run
+
+        trainer = MagicMock(spec=Trainer)
+        trainer.sanity_checking = False
+
+        preds = torch.rand(1, 3, 1, 2, 2)
+        targets = torch.rand(1, 3, 1, 2, 2)
+        metrics_by_stage = {}
+        for stage in ("train", "validation"):
+            metric_collection = MetricCollection(
+                {
+                    "spatial_mean_ground_truth": SpatialMeanGroundTruthPerForecastDay(),
+                    "spatial_mean_prediction": SpatialMeanPredictionPerForecastDay(),
+                }
+            )
+            metric_collection.update(preds, targets)
+            metrics_by_stage[stage] = metric_collection
+
+        callback.log_per_run_metrics(trainer, metrics_by_stage)
+
+        mock_wandb.plot.line_series.assert_called_once()
+        line_series_kwargs = mock_wandb.plot.line_series.call_args[1]
+        assert line_series_kwargs["title"] == "spatial_mean_per_forecast_day"
+        assert set(line_series_kwargs["keys"]) == {
+            "train_ground_truth",
+            "train_prediction",
+            "validation_ground_truth",
+            "validation_prediction",
+        }
+
 
 class TestEpochStartResets:
     """Tests for the on_*_epoch_start metric-reset hooks."""

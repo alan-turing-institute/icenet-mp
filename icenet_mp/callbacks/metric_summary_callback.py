@@ -16,38 +16,143 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_FSS_NEIGHBOURHOOD_SIZE_RE = re.compile(r"^fss_(\d+)$")
-
-
-def _metric_group(metric_name: str) -> str:
-    """Group name for a metric, so parametrised variants share one plot.
-
-    FSS is computed at several neighbourhood sizes (``fss_1``, ``fss_5``, ...); these
-    are grouped under ``"fss"`` so they land on a single per-forecast-day plot instead
-    of one plot each. Similarly, ``spatial_mean_ground_truth`` and
-    ``spatial_mean_prediction`` are grouped under ``"spatial_mean"`` so the two traces
-    land on one plot for direct comparison. All other metrics are their own group.
-    """
-    if metric_name.startswith("fss_"):
-        return "fss"
-    if metric_name.startswith("spatial_mean_"):
-        return "spatial_mean"
-    return metric_name
-
-
-def _series_key(
-    stage: str, metric_name: str, *, grouped: bool, multiple_stages: bool
-) -> str:
-    """Series key for a per-forecast-day plot: only vary on what actually varies."""
-    if not grouped:
-        return stage
-    if multiple_stages:
-        return f"{stage}_{metric_name}"
-    return metric_name
-
 
 class MetricSummaryCallback(Callback):
     """A callback to summarise metrics at the end of an epoch or a run."""
+
+    @staticmethod
+    def _metric_group(metric_name: str) -> str:
+        """Group name for a metric, so parametrised variants share one plot.
+
+        FSS values at different neighbourhood sizes are grouped under "fss".
+        Spatial mean ground truth and prediction are grouped under "spatial_mean".
+        """
+        if metric_name.startswith("fss_"):
+            return "fss"
+        if metric_name.startswith("spatial_mean_"):
+            return "spatial_mean"
+        return metric_name
+
+    @staticmethod
+    def _series_key(
+        stage: str,
+        metric_name: str,
+        group_name: str,
+        *,
+        grouped: bool,
+        multiple_stages: bool,
+    ) -> str:
+        """Series key for a per-forecast-day plot that is used by W&B legend."""
+        if not grouped:
+            return stage
+        if not multiple_stages:
+            return metric_name
+        suffix = (
+            metric_name.removeprefix(f"{group_name}_")
+            if group_name != "fss"
+            else metric_name
+        )
+        return f"{stage}_{suffix}"
+
+    def _collect_values_per_forecast_day(
+        self, metrics: dict[str, MetricCollection]
+    ) -> dict[str, dict[str, "Tensor"]]:
+        """Collect metric values that have a value for each forecast day."""
+        values_per_forecast_day: dict[str, dict[str, Tensor]] = defaultdict(dict)
+        for stage, metric_collection in metrics.items():
+            for metric_name, metric in metric_collection.items():
+                if not metric._update_called:
+                    continue
+                metric_tensor: Tensor = metric.compute()
+                if metric_tensor.reshape(-1).shape[0] > 1:
+                    values_per_forecast_day[metric_name][stage] = metric_tensor
+        return values_per_forecast_day
+
+    def _log_per_forecast_day_plots(
+        self,
+        run: wandb.Run,
+        values_per_forecast_day: dict[str, dict[str, "Tensor"]],
+        *,
+        multiple_stages: bool,
+    ) -> list[str]:
+        """Log a per-forecast-day plot for each metric group.
+
+        Metrics that should share a single plot (e.g. FSS at several neighbourhood
+        sizes) are grouped; all other metrics get one plot each. Returns the metric
+        names in the "fss" group, for use in the FSS-vs-neighbourhood-size plot.
+        """
+        metric_names_by_group: dict[str, list[str]] = defaultdict(list)
+        for metric_name in values_per_forecast_day:
+            metric_names_by_group[self._metric_group(metric_name)].append(metric_name)
+
+        for group_name, metric_names in metric_names_by_group.items():
+            grouped = len(metric_names) > 1
+            series: dict[str, Tensor] = {
+                self._series_key(
+                    stage,
+                    metric_name,
+                    group_name,
+                    grouped=grouped,
+                    multiple_stages=multiple_stages,
+                ): tensor
+                for metric_name in metric_names
+                for stage, tensor in values_per_forecast_day[metric_name].items()
+            }
+
+            keys = list(series.keys())
+            days = list(range(1, len(series[keys[0]]) + 1))
+            plot_name = f"{group_name}_per_forecast_day"
+            run.log(
+                {
+                    plot_name: wandb.plot.line_series(
+                        xs=days,
+                        ys=[series[key].tolist() for key in keys],
+                        keys=keys,
+                        title=plot_name,
+                        xname="day",
+                    )
+                },
+            )
+
+        return metric_names_by_group.get("fss", [])
+
+    def _log_fss_vs_neighbourhood_size(
+        self,
+        run: wandb.Run,
+        values_per_forecast_day: dict[str, dict[str, "Tensor"]],
+        fss_metric_names: list[str],
+    ) -> None:
+        """Plot mean FSS (over forecast days) against neighbourhood size."""
+        sizes_and_names = sorted(
+            (int(match.group(1)), name)
+            for name in fss_metric_names
+            if (match := re.match(r"^fss_(\d+)$", name))
+        )
+        if not sizes_and_names:
+            return
+
+        stages = list(values_per_forecast_day[sizes_and_names[0][1]])
+        sizes = [size for size, _ in sizes_and_names]
+        ys = [
+            [
+                values_per_forecast_day[name][stage].mean().item()
+                for _, name in sizes_and_names
+            ]
+            for stage in stages
+        ]
+
+        plot_name = "fss_vs_neighbourhood_size"
+        run.log(
+            {
+                plot_name: wandb.plot.line_series(
+                    xs=sizes,
+                    ys=ys,
+                    keys=stages,
+                    title=plot_name,
+                    xname="neighbourhood_size",
+                )
+            },
+        )
 
     def log_per_epoch_metrics(
         self, trainer: Trainer, metrics: MetricCollection, stage: str
@@ -100,102 +205,6 @@ class MetricSummaryCallback(Callback):
         )
         self._log_fss_vs_neighbourhood_size(
             run, values_per_forecast_day, fss_metric_names
-        )
-
-    def _collect_values_per_forecast_day(
-        self, metrics: dict[str, MetricCollection]
-    ) -> dict[str, dict[str, "Tensor"]]:
-        """Collect metric values that have a value for each forecast day."""
-        values_per_forecast_day: dict[str, dict[str, Tensor]] = defaultdict(dict)
-        for stage, metric_collection in metrics.items():
-            for metric_name, metric in metric_collection.items():
-                if not metric._update_called:
-                    continue
-                metric_tensor: Tensor = metric.compute()
-                if metric_tensor.reshape(-1).shape[0] > 1:
-                    values_per_forecast_day[metric_name][stage] = metric_tensor
-        return values_per_forecast_day
-
-    def _log_per_forecast_day_plots(
-        self,
-        run: wandb.Run,
-        values_per_forecast_day: dict[str, dict[str, "Tensor"]],
-        *,
-        multiple_stages: bool,
-    ) -> list[str]:
-        """Log a per-forecast-day plot for each metric group.
-
-        Metrics that should share a single plot (e.g. FSS at several neighbourhood
-        sizes) are grouped; all other metrics get one plot each. Returns the metric
-        names in the "fss" group, for use in the FSS-vs-neighbourhood-size plot.
-        """
-        metric_names_by_group: dict[str, list[str]] = defaultdict(list)
-        for metric_name in values_per_forecast_day:
-            metric_names_by_group[_metric_group(metric_name)].append(metric_name)
-
-        for group_name, metric_names in metric_names_by_group.items():
-            grouped = len(metric_names) > 1
-            series: dict[str, Tensor] = {
-                _series_key(
-                    stage, metric_name, grouped=grouped, multiple_stages=multiple_stages
-                ): tensor
-                for metric_name in metric_names
-                for stage, tensor in values_per_forecast_day[metric_name].items()
-            }
-
-            keys = list(series.keys())
-            days = list(range(1, len(series[keys[0]]) + 1))
-            plot_name = f"{group_name}_per_forecast_day"
-            run.log(
-                {
-                    plot_name: wandb.plot.line_series(
-                        xs=days,
-                        ys=[series[key].tolist() for key in keys],
-                        keys=keys,
-                        title=plot_name,
-                        xname="day",
-                    )
-                },
-            )
-
-        return metric_names_by_group.get("fss", [])
-
-    def _log_fss_vs_neighbourhood_size(
-        self,
-        run: wandb.Run,
-        values_per_forecast_day: dict[str, dict[str, "Tensor"]],
-        fss_metric_names: list[str],
-    ) -> None:
-        """Plot mean FSS (over forecast days) against neighbourhood size."""
-        sizes_and_names = sorted(
-            (int(match.group(1)), name)
-            for name in fss_metric_names
-            if (match := _FSS_NEIGHBOURHOOD_SIZE_RE.match(name))
-        )
-        if not sizes_and_names:
-            return
-
-        stages = list(values_per_forecast_day[sizes_and_names[0][1]])
-        sizes = [size for size, _ in sizes_and_names]
-        ys = [
-            [
-                values_per_forecast_day[name][stage].mean().item()
-                for _, name in sizes_and_names
-            ]
-            for stage in stages
-        ]
-
-        plot_name = "fss_vs_neighbourhood_size"
-        run.log(
-            {
-                plot_name: wandb.plot.line_series(
-                    xs=sizes,
-                    ys=ys,
-                    keys=stages,
-                    title=plot_name,
-                    xname="neighbourhood_size",
-                )
-            },
         )
 
     def on_test_epoch_start(self, trainer: Trainer, pl_module: LightningModule) -> None:  # noqa: ARG002
