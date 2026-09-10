@@ -31,6 +31,16 @@ def evaluate(
             ),
         ),
     ] = None,
+    save_predictions: Annotated[
+        Path | None,
+        typer.Option(
+            "--save-predictions",
+            help=(
+                "Write predictions for the configured test period to a NetCDF file. "
+                "Evaluation must use a single process."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Evaluate a pre-trained model."""
     # If activation saving is enabled, then add requested layers
@@ -38,6 +48,13 @@ def evaluate(
         config.get("evaluate", {}).get("callbacks", {}).get("activation_saver", {})[
             "layer_paths"
         ] = layer_paths
+
+    # If prediction saving is enabled, set the requested NetCDF output path.
+    if save_predictions is not None:
+        config.get("evaluate", {}).get("callbacks", {}).get("prediction_writer", {})[
+            "output_path"
+        ] = str(save_predictions.resolve())
+
     model = ModelService.from_checkpoint(config, Path(checkpoint).resolve())
     model.evaluate()
 

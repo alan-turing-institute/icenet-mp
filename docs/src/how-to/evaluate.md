@@ -1,6 +1,6 @@
 # Run an evaluation job
 
-This guide walks through running an evaluation on a trained checkpoint: launching the job, enabling visualisations, and finding the outputs.
+This guide walks through running an evaluation on a trained checkpoint: launching the job, enabling visualisations, saving predictions, and finding the outputs.
 
 ## Prerequisites
 
@@ -50,6 +50,23 @@ evaluate:
     plotting:
       make_input_plots: false
 ```
+
+### Saving predictions as NetCDF
+
+Pass `--save-predictions` to write the model output from the configured test period to a NetCDF file:
+
+```bash
+uv run imp evaluate \
+  --config-name <your-name>.local \
+  --checkpoint PATH_TO_CHECKPOINT \
+  --save-predictions predictions.nc
+```
+
+The file is written incrementally during evaluation, so the full test period does not need to be held in memory. It contains `forecast_reference_time`, `lead_time`, `valid_time`, latitude/longitude coordinates, and one data variable per prediction target. Sea-ice concentration is exported as `ice_conc` in its original source scale with CF `sea_ice_area_fraction` metadata.
+
+Prediction export uses the existing `data.split.test` date ranges. To export a smaller date range, change the test split in the config rather than running a separate prediction pass.
+
+NetCDF export currently supports single-process evaluation. If the evaluation config uses multiple devices, set `evaluate.trainer.devices=1` for the export run.
 
 ## 4. Check results in W&B
 
