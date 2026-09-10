@@ -20,17 +20,16 @@ from icenet_mp.types import ArrayTHW
 from icenet_mp.utils import datetime_from_npdatetime
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC
 from icenet_mp.visualisations.land_mask import LandMask
-from icenet_mp.visualisations.plotting_video import (
-    plot_video_prediction,
-    plot_video_single_input,
+from icenet_mp.visualisations.panel_builder import (
+    render_video_singlet,
+    render_video_triplet,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _write_first_video(videos: dict[str, io.BytesIO], output_path: Path) -> None:
+def _write_buffer(buffer: io.BytesIO, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    buffer = next(iter(videos.values()))
     buffer.seek(0)
     output_path.write_bytes(buffer.read())
 
@@ -43,16 +42,14 @@ def write_full_dataset_video(
     output_path: Path,
 ) -> None:
     """Render every generated frame as a single video, for visual sanity-checking."""
-    buffer = plot_video_single_input(
-        variable_name,
+    buffer = render_video_singlet(
         frames,
         dates=dates,
         land_mask=LandMask(None),
         plot_spec=DEFAULT_SIC_SPEC,
+        variable_name=variable_name,
     )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    buffer.seek(0)
-    output_path.write_bytes(buffer.read())
+    _write_buffer(buffer, output_path)
 
 
 def write_full_rollout_video(  # noqa: PLR0913
@@ -111,7 +108,7 @@ def write_full_rollout_video(  # noqa: PLR0913
         dates[0],
         dates[-1],
     )
-    videos = plot_video_prediction(
+    buffer = render_video_triplet(
         ground_truth,
         prediction,
         dates=dates,
@@ -119,4 +116,4 @@ def write_full_rollout_video(  # noqa: PLR0913
         plot_spec=DEFAULT_SIC_SPEC,
         variable_name=variable_name,
     )
-    _write_first_video(videos, output_path)
+    _write_buffer(buffer, output_path)
