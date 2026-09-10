@@ -56,6 +56,7 @@ class DDPMProcessor(BaseProcessor):
         normalization: str = "groupnorm",
         activation: str = "SiLU",
         use_autoregressive: bool = True,
+        x0_scale: float = 1.0,
         loss: DictConfig | nn.Module,
         **kwargs: Any,
     ) -> None:
@@ -73,6 +74,9 @@ class DDPMProcessor(BaseProcessor):
             activation (str): Activation function used throughout the network (e.g., "SiLU").
             use_autoregressive (bool): Whether to use autoregressive sampling and
                 one-step training. Default is True.
+            x0_scale (float): Positive scale used to normalize clean target latents
+                before diffusion. Predictions are restored to the original latent
+                scale before returning. Default is 1.0.
             loss (DictConfig | nn.Module): Loss module applied to (pred_v,
                 target_v). Set this to ``${loss}`` in the yaml to reuse the
                 top-level configured loss.
@@ -112,8 +116,13 @@ class DDPMProcessor(BaseProcessor):
         self.c_target = c_target
         self.c_combined = c_combined
 
+        if x0_scale <= 0:
+            msg = f"x0_scale must be positive, got {x0_scale}."
+            raise ValueError(msg)
+
         self.timesteps = timesteps
         self.use_autoregressive = use_autoregressive
+        self.x0_scale = x0_scale
 
         # UNet conditioning channels: history folded NTCHW -> NCHW.
         cond_channels = c_combined * self.n_history_steps
@@ -298,12 +307,16 @@ class DDPMProcessor(BaseProcessor):
         # History frames folded into channels for the 2D UNet.
         cond = x.flatten(start_dim=1, end_dim=2)  # (B, T_hist * C_combined, H, W)
 
-        # Clean target to denoise: AR uses step 0 only; parallel folds all steps into channels.
+        # Normalize the clean target before diffusion. AR uses step 0 only; parallel folds
+        # all steps into channels.
+        y_scaled = y / self.x0_scale
         if self.use_autoregressive:
             # AR trains on forecast step 0 (T=0) only.
-            y_flat = y[:, 0]  # (B, C_target, H, W)
+            y_flat = y_scaled[:, 0]  # (B, C_target, H, W)
         else:
-            y_flat = y.reshape(b, self.n_forecast_steps * self.c_target, *y.shape[-2:])
+            y_flat = y_scaled.reshape(
+                b, self.n_forecast_steps * self.c_target, *y.shape[-2:]
+            )
 
         # Random diffusion timestep per sample.
         t = torch.randint(0, self.timesteps, (b,), device=device).long()
@@ -326,7 +339,9 @@ class DDPMProcessor(BaseProcessor):
             # calculate_v() has the same formula as the x_0 reconstruction,
             # so we reuse it by passing pred_v as x_start.
             pred_x0 = self.diffusion.calculate_v(x_start=pred_v, noise=noisy_y, t=t)
-            prediction = self._build_metrics_prediction(pred_x0, last_frame)
+            prediction = self._build_metrics_prediction(
+                pred_x0 * self.x0_scale, last_frame
+            )
 
         return ProcessorOutput(prediction=prediction, loss=loss)
 
@@ -348,7 +363,7 @@ class DDPMProcessor(BaseProcessor):
             t = torch.full((b,), t_step, dtype=torch.long, device=device)
             pred_v = self.model(y, t, cond)
             y = self.diffusion.p_sample(y, t, pred_v)
-        return y
+        return y * self.x0_scale
 
     def _sample_autoregressive(self, x: TensorNTCHW) -> TensorNTCHW:
         """Autoregressive reverse diffusion sampling (one forecast step at a time).
