@@ -60,7 +60,7 @@ class MetricSummaryCallback(Callback):
         self, pl_module: LightningModule, stage: str
     ) -> MetricCollection | None:
         """Return a stage's metrics collection off pl_module, or None if unavailable."""
-        metrics = getattr(pl_module, f"{stage}_metrics")
+        metrics = getattr(pl_module, f"{stage}_metrics", None)
         return metrics if isinstance(metrics, MetricCollection) else None
 
     def _per_forecast_day_plots(
