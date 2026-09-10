@@ -4,12 +4,32 @@ from datetime import date
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.axes import Axes
 from matplotlib.colors import TwoSlopeNorm
+from matplotlib.figure import Figure
 
 from icenet_mp.types import DiffColourmapSpec
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC
 from icenet_mp.visualisations.colourbar_formatter import ColourbarFormatter
-from icenet_mp.visualisations.layout_builder import LayoutBuilder
+
+
+def _single_panel_axes() -> tuple[Figure, Axes, Axes]:
+    """A plot axis plus a dedicated colourbar axis, enough to exercise ColourbarFormatter."""
+    fig, ax = plt.subplots(figsize=(6, 6))
+    cax = fig.add_axes((0.82, 0.15, 0.03, 0.7))
+    return fig, ax, cax
+
+
+def _dedicated_cbar_axes(fig: Figure, *names: str) -> dict[str, Axes | None]:
+    """Dedicated colourbar axes for `names`; every other panel name defaults to None."""
+    cbar_axes: dict[str, Axes | None] = {
+        "groundtruth": None,
+        "prediction": None,
+        "difference": None,
+    }
+    for name in names:
+        cbar_axes[name] = fig.add_axes((0.1, 0.1, 0.03, 0.8))
+    return cbar_axes
 
 
 class TestGetCbarLimitsFromMappable:
@@ -18,9 +38,7 @@ class TestGetCbarLimitsFromMappable:
     def test_falls_back_to_norm_attributes_without_get_clim(
         self, monkeypatch: pytest.MonkeyPatch, era5_temperature_2d: np.ndarray
     ) -> None:
-        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
-            height=16, width=16, colourbar_location="vertical"
-        )
+        fig, ax, cax = _single_panel_axes()
         image = ax.contourf(era5_temperature_2d, levels=10)
         cbar = plt.colorbar(image, cax=cax)
 
@@ -43,9 +61,7 @@ class TestGetCbarLimitsFromMappable:
     def test_falls_back_to_default_when_norm_has_no_limits(
         self, monkeypatch: pytest.MonkeyPatch, era5_temperature_2d: np.ndarray
     ) -> None:
-        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
-            height=16, width=16, colourbar_location="vertical"
-        )
+        fig, ax, cax = _single_panel_axes()
         image = ax.contourf(era5_temperature_2d, levels=10)
         cbar = plt.colorbar(image, cax=cax)
 
@@ -74,9 +90,9 @@ class TestAddColourbars:
             colourbar_location="vertical",
             include_difference=False,
         )
-        fig, axs, cbar_axes = LayoutBuilder().build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        axs = list(axs)
+        cbar_axes = _dedicated_cbar_axes(fig, "groundtruth", "prediction")
         image_groundtruth = axs[0].contourf(ground_truth, levels=10)
         image_prediction = axs[1].contourf(prediction, levels=10)
 
@@ -105,9 +121,8 @@ class TestAddColourbars:
             colourbar_location="vertical",
             include_difference=False,
         )
-        fig, axs, _ = LayoutBuilder().build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
+        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+        axs = list(axs)
         image_groundtruth = axs[0].contourf(ground_truth, levels=10)
         image_prediction = axs[1].contourf(prediction, levels=10)
 
@@ -139,9 +154,9 @@ class TestAddColourbarsDifferencePanel:
             include_difference=True,
             diff_mode="signed",
         )
-        fig, axs, cbar_axes = LayoutBuilder().build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
+        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+        axs = list(axs)
+        cbar_axes = _dedicated_cbar_axes(fig, "prediction", "difference")
         image_groundtruth = axs[0].contourf(ground_truth, levels=10)
         image_prediction = axs[1].contourf(prediction, levels=10)
 
@@ -184,9 +199,8 @@ class TestAddColourbarsDifferencePanel:
             include_difference=True,
             diff_mode="absolute",
         )
-        fig, axs, _ = LayoutBuilder().build_layout(
-            plot_spec=spec, height=ground_truth.shape[0], width=ground_truth.shape[1]
-        )
+        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+        axs = list(axs)
         image_groundtruth = axs[0].contourf(ground_truth, levels=10)
         image_prediction = axs[1].contourf(prediction, levels=10)
         image_difference = axs[2].contourf(
@@ -218,9 +232,7 @@ class TestFormatSymmetricTicksScientificNotation:
     """format_symmetric_ticks supports scientific-notation tick labels."""
 
     def test_use_scientific_notation_sets_exponential_formatter(self) -> None:
-        fig, ax, cax = LayoutBuilder().build_single_panel_figure(
-            height=16, width=16, colourbar_location="vertical"
-        )
+        fig, ax, cax = _single_panel_axes()
         image = ax.contourf(np.random.default_rng(1).random((16, 16)), levels=10)
         cbar = plt.colorbar(image, cax=cax)
 
