@@ -52,9 +52,9 @@ class FakeDataModel(BaseModel):
                 "iiee",
                 "diiee",
                 "centroid_error",
-                "fss_1",
-                "fss_5",
-                "fss_15",
+                "fss_neighbourhood_size_1",
+                "fss_neighbourhood_size_5",
+                "fss_neighbourhood_size_15",
                 "ssim",
                 "spatial_mean_ground_truth",
                 "spatial_mean_prediction",
@@ -445,7 +445,7 @@ class TestBaseModelMetricSelection:
     def test_fss_metric_selection_parses_neighbourhood_size(
         self, neighbourhood_size: int
     ) -> None:
-        metric_name = f"fss_{neighbourhood_size}"
+        metric_name = f"fss_neighbourhood_size_{neighbourhood_size}"
         model = self._build_model([metric_name])
 
         metric = model.train_metrics[metric_name]
@@ -453,14 +453,14 @@ class TestBaseModelMetricSelection:
         assert metric.neighbourhood_size == neighbourhood_size
 
     def test_multiple_metrics_are_all_present_and_exclusive(self) -> None:
-        selected = ["accuracy", "rmse", "fss_7", "ssim"]
+        selected = ["accuracy", "rmse", "fss_neighbourhood_size_7", "ssim"]
         model = self._build_model(selected)
 
         assert set(model.train_metrics.keys()) == set(selected)
 
     def test_metric_collections_are_built_identically(self) -> None:
         """train/test/validation metrics are independent copies of one selection."""
-        model = self._build_model(["accuracy", "fss_7"])
+        model = self._build_model(["accuracy", "fss_neighbourhood_size_7"])
 
         assert (
             set(model.train_metrics.keys())
@@ -479,7 +479,7 @@ class TestBaseModelMetricSelection:
 
     def test_fss_even_neighbourhood_size_raises(self) -> None:
         with pytest.raises(ValueError, match="positive odd integer"):
-            self._build_model(["fss_4"])
+            self._build_model(["fss_neighbourhood_size_4"])
 
     def test_model_metrics_attribute_matches_requested_list(self) -> None:
         selected = ["accuracy", "mae"]

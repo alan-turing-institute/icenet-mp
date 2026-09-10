@@ -37,7 +37,6 @@ class MetricSummaryCallback(Callback):
         """Series key for a per-forecast-day plot that is used by W&B legend."""
         if not grouped:
             return stage
-        metric_name = metric_name.replace("fss_", "neighbourhood_")
         if not multiple_stages:
             return metric_name
         suffix = metric_name.removeprefix(f"{group_name}_")
@@ -123,7 +122,7 @@ class MetricSummaryCallback(Callback):
         sizes_and_names = sorted(
             (int(match.group(1)), name)
             for name in fss_metric_names
-            if (match := re.match(r"^fss_(\d+)$", name))
+            if (match := re.match(r"^fss_neighbourhood_size_(\d+)$", name))
         )
         if not sizes_and_names:
             return {}

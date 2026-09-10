@@ -179,8 +179,12 @@ class TestOnTestEnd:
         # should stay on its own plot
         metric_collection = MetricCollection(
             {
-                "fss_1": FractionalSkillScorePerForecastDay(neighbourhood_size=1),
-                "fss_5": FractionalSkillScorePerForecastDay(neighbourhood_size=5),
+                "fss_neighbourhood_size_1": FractionalSkillScorePerForecastDay(
+                    neighbourhood_size=1
+                ),
+                "fss_neighbourhood_size_5": FractionalSkillScorePerForecastDay(
+                    neighbourhood_size=5
+                ),
                 "mae_daily": MAEPerForecastDay(),
             }
         )
@@ -213,7 +217,10 @@ class TestOnTestEnd:
             for call in mock_wandb.plot.line_series.call_args_list
             if call.kwargs["title"] == "fss_per_forecast_day"
         )
-        assert fss_call.kwargs["keys"] == ["fss_1", "fss_5"]
+        assert fss_call.kwargs["keys"] == [
+            "fss_neighbourhood_size_1",
+            "fss_neighbourhood_size_5",
+        ]
 
         fss_vs_size_call = next(
             call
@@ -389,15 +396,11 @@ class TestLogPerRunMetrics:
             "validation_prediction",
         }
 
-    def test_renames_fss_prefix_to_size_across_stages(
+    def test_removes_fss_prefix_across_stages(
         self,
         wandb_run: tuple[MagicMock, MockWandbRun],
     ) -> None:
-        """Multi-stage FSS keys rename the "fss" prefix to "size".
-
-        e.g. "train_fss_1" becomes "train_size_1", and
-        "validation_fss_5" becomes "validation_size_5".
-        """
+        """Multi-stage FSS keys remove the "fss" prefix."""
         callback = MetricSummaryCallback()
         mock_wandb, _ = wandb_run
 
@@ -410,8 +413,12 @@ class TestLogPerRunMetrics:
         for stage in ("train", "validation"):
             metric_collection = MetricCollection(
                 {
-                    "fss_1": FractionalSkillScorePerForecastDay(neighbourhood_size=1),
-                    "fss_5": FractionalSkillScorePerForecastDay(neighbourhood_size=5),
+                    "fss_neighbourhood_size_1": FractionalSkillScorePerForecastDay(
+                        neighbourhood_size=1
+                    ),
+                    "fss_neighbourhood_size_5": FractionalSkillScorePerForecastDay(
+                        neighbourhood_size=5
+                    ),
                 }
             )
             metric_collection.update(preds, targets)
@@ -425,10 +432,10 @@ class TestLogPerRunMetrics:
             if call.kwargs["title"] == "fss_per_forecast_day"
         )
         assert set(fss_call.kwargs["keys"]) == {
-            "train_size_1",
-            "train_size_5",
-            "validation_size_1",
-            "validation_size_5",
+            "train_neighbourhood_size_1",
+            "train_neighbourhood_size_5",
+            "validation_neighbourhood_size_1",
+            "validation_neighbourhood_size_5",
         }
 
 

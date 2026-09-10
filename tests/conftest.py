@@ -256,9 +256,9 @@ def cfg_metrics() -> list[str]:
         "iiee",
         "diiee",
         "centroid_error",
-        "fss_1",
-        "fss_5",
-        "fss_15",
+        "fss_neighbourhood_size_1",
+        "fss_neighbourhood_size_5",
+        "fss_neighbourhood_size_15",
         "ssim",
     ]
 

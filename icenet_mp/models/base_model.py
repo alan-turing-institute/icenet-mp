@@ -126,13 +126,13 @@ class BaseModel(LightningModule, ABC):
 
         # Metrics
         fss_metric_classes: dict[str, Callable[[], Metric]] = {
-            f"fss_{neighbourhood_size}": partial(
+            f"fss_neighbourhood_size_{neighbourhood_size}": partial(
                 FractionalSkillScorePerForecastDay,
                 neighbourhood_size=neighbourhood_size,
                 land_mask=land_mask,
             )
             for neighbourhood_size in (
-                int(metric.replace("fss_", ""))
+                int(metric.replace("fss_neighbourhood_size_", ""))
                 for metric in metrics
                 if metric.startswith("fss_")
             )
