@@ -1,6 +1,6 @@
 """A Lightning logger that writes images, videos, and metrics to local files.
 
-Implements the subset of the `WandbLogger` interface used by `PlottingCallback`
+Implements the subset of the `WandbLogger` interface used by `ImageLoggingCallback`
 (`log_image`/`log_video`) and Lightning's own metric logging (`log_metrics`), so a
 training/evaluation job can produce local, human-inspectable artefacts (loss curves,
 prediction plots) without network access or a W&B account -- e.g. in CI. Enable it

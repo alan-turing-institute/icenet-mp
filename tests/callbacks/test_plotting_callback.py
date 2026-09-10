@@ -8,7 +8,7 @@ import torch
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from icenet_mp.callbacks.plotting_callback import PlottingCallback
+from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
 from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
 from icenet_mp.types import Metadata, ModelStepOutput
@@ -30,7 +30,7 @@ def make_plots_args(mock_trainer: MagicMock) -> tuple[MagicMock, MagicMock, Magi
 
 
 def _stub_plotter(
-    callback: PlottingCallback, monkeypatch: pytest.MonkeyPatch
+    callback: ImageLoggingCallback, monkeypatch: pytest.MonkeyPatch
 ) -> dict[str, MagicMock]:
     """Replace load_target_uncertainties and all Plotter output methods with spies."""
     mocks = {
@@ -58,11 +58,11 @@ def _stub_plotter(
 
 
 class TestInit:
-    """Tests for PlottingCallback construction."""
+    """Tests for ImageLoggingCallback construction."""
 
     def test_defaults_frequency_to_negative_one_when_not_given(self) -> None:
         """Disable all frequency-based triggers when no frequency dict is given."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
 
         assert callback.frequency_batch == -1
         assert callback.frequency_epoch == -1
@@ -70,7 +70,7 @@ class TestInit:
 
     def test_parses_frequency_dict(self) -> None:
         """Read batch/epoch/number frequencies from the given dict."""
-        callback = PlottingCallback(frequency={"batch": 5, "epoch": 2, "number": 3})
+        callback = ImageLoggingCallback(frequency={"batch": 5, "epoch": 2, "number": 3})
 
         assert callback.frequency_batch == 5
         assert callback.frequency_epoch == 2
@@ -78,7 +78,7 @@ class TestInit:
 
     def test_stores_plot_toggles_and_prefix(self) -> None:
         """Store the plot-type toggles and key prefix as configured."""
-        callback = PlottingCallback(
+        callback = ImageLoggingCallback(
             make_input_plots=True,
             make_static_plots=False,
             make_video_plots=False,
@@ -96,7 +96,7 @@ class TestCacheBatch:
 
     def test_caches_when_outputs_is_a_mapping(self) -> None:
         """Cache batch index, dataloader index, and outputs when given a mapping."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         outputs = {
             "prediction": torch.zeros(1, 1, 1, 2, 2),
             "target": torch.ones(1, 1, 1, 2, 2),
@@ -111,7 +111,7 @@ class TestCacheBatch:
 
     def test_does_not_cache_when_outputs_is_not_a_mapping(self) -> None:
         """Leave the cache untouched when outputs is not a mapping."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
 
         callback.cache_batch(3, 1, torch.tensor(0.0))
 
@@ -125,7 +125,7 @@ class TestIsSampleBatch:
 
     def test_returns_false_when_frequency_number_not_positive(self) -> None:
         """Never select a batch when sampling is disabled."""
-        callback = PlottingCallback(frequency={"number": 0})
+        callback = ImageLoggingCallback(frequency={"number": 0})
 
         assert callback.is_sample_batch(0, 10) is False
 
@@ -136,19 +136,19 @@ class TestIsSampleBatch:
         self, total_batches: float
     ) -> None:
         """Never select a batch when the total batch count is not finite."""
-        callback = PlottingCallback(frequency={"number": 3})
+        callback = ImageLoggingCallback(frequency={"number": 3})
 
         assert callback.is_sample_batch(0, total_batches) is False
 
     def test_returns_false_when_total_batches_not_positive(self) -> None:
         """Never select a batch when there are no batches to sample from."""
-        callback = PlottingCallback(frequency={"number": 3})
+        callback = ImageLoggingCallback(frequency={"number": 3})
 
         assert callback.is_sample_batch(0, 0) is False
 
     def test_single_target_selects_last_batch(self) -> None:
         """Sample only the final batch when frequency_number resolves to one target."""
-        callback = PlottingCallback(frequency={"number": 1})
+        callback = ImageLoggingCallback(frequency={"number": 1})
 
         assert callback.is_sample_batch(4, 5) is True
         assert callback.is_sample_batch(0, 5) is False
@@ -162,7 +162,7 @@ class TestIsSampleBatch:
         self, batch_idx: int, *, expected: bool
     ) -> None:
         """Sample evenly-spaced batch indices across the epoch."""
-        callback = PlottingCallback(frequency={"number": 3})
+        callback = ImageLoggingCallback(frequency={"number": 3})
 
         assert callback.is_sample_batch(batch_idx, 10) is expected
 
@@ -172,20 +172,20 @@ class TestLoadDataset:
 
     def test_returns_none_when_dataloader_is_none(self) -> None:
         """Return None when there is no dataloader to inspect."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         callback.cached_dataloader_idx_ = 0
 
         assert callback.load_dataset(None) is None
 
     def test_returns_none_when_cached_dataloader_idx_is_none(self) -> None:
         """Return None when no batch has been cached yet."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
 
         assert callback.load_dataset(MagicMock(spec=DataLoader)) is None
 
     def test_indexes_into_sequence_of_dataloaders(self) -> None:
         """Select the dataloader at cached_dataloader_idx_ from a sequence."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         callback.cached_dataloader_idx_ = 1
         dataset = MagicMock(spec=CombinedDataset)
         dataloader = MagicMock(spec=DataLoader)
@@ -199,7 +199,7 @@ class TestLoadDataset:
 
     def test_uses_single_dataloader_directly(self) -> None:
         """Use the dataloader directly when it is not a sequence."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         callback.cached_dataloader_idx_ = 0
         dataset = MagicMock(spec=CombinedDataset)
         dataloader = MagicMock(spec=DataLoader)
@@ -212,7 +212,7 @@ class TestLoadDataset:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Warn and return None when the dataloader's dataset is the wrong type."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         callback.cached_dataloader_idx_ = 0
         dataloader = MagicMock(spec=DataLoader)
         dataloader.dataset = object()
@@ -228,7 +228,7 @@ class TestLoadDataset:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Warn and return None when the dataloader has no batch size."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         callback.cached_dataloader_idx_ = 0
         dataloader = MagicMock(spec=DataLoader)
         dataloader.dataset = MagicMock(spec=CombinedDataset)
@@ -248,7 +248,7 @@ class TestSetMetadata:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Store the plotter's metadata computed from the given config and model name."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         metadata = MagicMock(spec=Metadata)
         get_metadata = MagicMock(return_value=metadata)
         monkeypatch.setattr(callback.plotter, "get_metadata", get_metadata)
@@ -269,7 +269,7 @@ class TestMakePlots:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Skip plotting entirely when no batch has been cached."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         trainer, pl_module, dataset = make_plots_args
 
         with caplog.at_level(logging.WARNING):
@@ -284,7 +284,7 @@ class TestMakePlots:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Skip plotting when the module is not a BaseModel (no hemisphere info)."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
         trainer, _pl_module, dataset = make_plots_args
@@ -300,7 +300,7 @@ class TestMakePlots:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Push the cached plotter_metadata (with current_epoch) onto the plotter."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
@@ -320,7 +320,7 @@ class TestMakePlots:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Index into dataset.dates using batch_size * cached_batch_idx_, not just 0."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 2
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
@@ -340,7 +340,7 @@ class TestMakePlots:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Build a LandMask once per mask directory and reuse it on repeat calls."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
@@ -360,7 +360,7 @@ class TestMakePlots:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Do not call any plotter output methods when both toggles are disabled."""
-        callback = PlottingCallback(make_static_plots=False, make_video_plots=False)
+        callback = ImageLoggingCallback(make_static_plots=False, make_video_plots=False)
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
@@ -377,7 +377,7 @@ class TestMakePlots:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Also log static and video input plots when make_input_plots is enabled."""
-        callback = PlottingCallback(make_input_plots=True)
+        callback = ImageLoggingCallback(make_input_plots=True)
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
@@ -394,7 +394,7 @@ class TestMakePlots:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Only pass loggers with log_image/log_video to the respective plot calls."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
@@ -428,7 +428,7 @@ class TestOnTestBatchEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Cache and plot when the batch index matches the configured frequency."""
-        callback = PlottingCallback(frequency={"batch": 2})
+        callback = ImageLoggingCallback(frequency={"batch": 2})
         cache_batch = MagicMock()
         dataset = MagicMock(spec=CombinedDataset)
         load_dataset = MagicMock(return_value=(dataset, 2))
@@ -453,7 +453,7 @@ class TestOnTestBatchEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Cache the final batch of the epoch but defer plotting to epoch end."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         cache_batch = MagicMock()
         make_plots = MagicMock()
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
@@ -474,7 +474,7 @@ class TestOnTestBatchEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Skip caching entirely when the batch matches no trigger."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         cache_batch = MagicMock()
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
         mock_trainer.is_last_batch = False
@@ -492,7 +492,7 @@ class TestOnTestBatchEnd:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn and skip plotting when the dataset cannot be loaded."""
-        callback = PlottingCallback(frequency={"batch": 1})
+        callback = ImageLoggingCallback(frequency={"batch": 1})
         monkeypatch.setattr(callback, "cache_batch", MagicMock())
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
         make_plots = MagicMock()
@@ -517,7 +517,7 @@ class TestOnTestEpochEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Never load the dataset when epoch-based plotting is disabled."""
-        callback = PlottingCallback()
+        callback = ImageLoggingCallback()
         load_dataset = MagicMock()
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
         mock_trainer.current_epoch = 5
@@ -533,7 +533,7 @@ class TestOnTestEpochEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Skip plotting on epochs that do not match the configured frequency."""
-        callback = PlottingCallback(frequency={"epoch": 2})
+        callback = ImageLoggingCallback(frequency={"epoch": 2})
         load_dataset = MagicMock()
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
         mock_trainer.current_epoch = 3
@@ -549,7 +549,7 @@ class TestOnTestEpochEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Plot on epochs that match the configured frequency."""
-        callback = PlottingCallback(frequency={"epoch": 2})
+        callback = ImageLoggingCallback(frequency={"epoch": 2})
         dataset = MagicMock(spec=CombinedDataset)
         monkeypatch.setattr(
             callback, "load_dataset", MagicMock(return_value=(dataset, 2))
@@ -570,7 +570,7 @@ class TestOnTestEpochEnd:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when the dataset cannot be loaded at epoch end."""
-        callback = PlottingCallback(frequency={"epoch": 1})
+        callback = ImageLoggingCallback(frequency={"epoch": 1})
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
         mock_trainer.current_epoch = 0
 
@@ -590,7 +590,7 @@ class TestOnValidationBatchEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Ignore the initial sanity-checking run entirely."""
-        callback = PlottingCallback(frequency={"batch": 1})
+        callback = ImageLoggingCallback(frequency={"batch": 1})
         cache_batch = MagicMock()
         monkeypatch.setattr(callback, "cache_batch", cache_batch)
         mock_trainer.sanity_checking = True
@@ -608,7 +608,7 @@ class TestOnValidationBatchEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Cache and plot when the batch index matches the configured frequency."""
-        callback = PlottingCallback(frequency={"batch": 2})
+        callback = ImageLoggingCallback(frequency={"batch": 2})
         cache_batch = MagicMock()
         dataset = MagicMock(spec=CombinedDataset)
         load_dataset = MagicMock(return_value=(dataset, 3))
@@ -636,7 +636,7 @@ class TestOnValidationBatchEnd:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn and skip plotting when the dataset cannot be loaded."""
-        callback = PlottingCallback(frequency={"batch": 1})
+        callback = ImageLoggingCallback(frequency={"batch": 1})
         monkeypatch.setattr(callback, "cache_batch", MagicMock())
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
         make_plots = MagicMock()
@@ -665,7 +665,7 @@ class TestOnValidationEpochEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Skip plotting on epochs that do not match the configured frequency."""
-        callback = PlottingCallback(frequency={"epoch": 2})
+        callback = ImageLoggingCallback(frequency={"epoch": 2})
         load_dataset = MagicMock()
         monkeypatch.setattr(callback, "load_dataset", load_dataset)
         mock_trainer.current_epoch = 3
@@ -681,7 +681,7 @@ class TestOnValidationEpochEnd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Plot on epochs that match the configured frequency."""
-        callback = PlottingCallback(frequency={"epoch": 2})
+        callback = ImageLoggingCallback(frequency={"epoch": 2})
         dataset = MagicMock(spec=CombinedDataset)
         monkeypatch.setattr(
             callback, "load_dataset", MagicMock(return_value=(dataset, 2))
@@ -702,7 +702,7 @@ class TestOnValidationEpochEnd:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Warn when the dataset cannot be loaded at epoch end."""
-        callback = PlottingCallback(frequency={"epoch": 1})
+        callback = ImageLoggingCallback(frequency={"epoch": 1})
         monkeypatch.setattr(callback, "load_dataset", MagicMock(return_value=None))
         mock_trainer.current_epoch = 0
 

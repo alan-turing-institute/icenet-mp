@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import torch
 
-from icenet_mp.callbacks.plotting_callback import PlottingCallback
+from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
 from icenet_mp.types import ModelStepOutput
 from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
 
@@ -41,7 +41,7 @@ class TestLoadTargetUncertainties:
         """Scale source uncertainty to target space and mask invalid values."""
         dataset, _ = dataset_with_uncertainty
 
-        result = PlottingCallback().load_target_uncertainties(
+        result = ImageLoggingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -62,7 +62,7 @@ class TestLoadTargetUncertainties:
         dataset, _ = dataset_with_uncertainty
         dataset.inputs[0].name = "other"
 
-        result = PlottingCallback().load_target_uncertainties(
+        result = ImageLoggingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -76,7 +76,7 @@ class TestLoadTargetUncertainties:
         dataset, _ = dataset_with_uncertainty
         dataset.target.variable_names = ["other_variable"]
 
-        result = PlottingCallback().load_target_uncertainties(
+        result = ImageLoggingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -93,7 +93,7 @@ class TestLoadTargetUncertainties:
         uncertainty_ds.get_tchw.side_effect = ValueError("missing uncertainty")
 
         with caplog.at_level(logging.WARNING):
-            result = PlottingCallback().load_target_uncertainties(
+            result = ImageLoggingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
@@ -110,7 +110,7 @@ class TestLoadTargetUncertainties:
         dataset.target.statistics = {}
 
         with caplog.at_level(logging.WARNING):
-            result = PlottingCallback().load_target_uncertainties(
+            result = ImageLoggingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
@@ -127,7 +127,7 @@ class TestLoadTargetUncertainties:
         dataset.target.statistics = {"minimum": [1.0], "maximum": [1.0]}
 
         with caplog.at_level(logging.WARNING):
-            result = PlottingCallback().load_target_uncertainties(
+            result = ImageLoggingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 

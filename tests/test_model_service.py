@@ -10,7 +10,7 @@ import pytest
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
-from icenet_mp.callbacks import PlottingCallback
+from icenet_mp.callbacks import ImageLoggingCallback
 from icenet_mp.model_service import ModelService
 from icenet_mp.models import EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
@@ -301,7 +301,7 @@ class TestModelService:
         service.config_ = DictConfig({"model": {"name": "test_model"}})
         config = DictConfig({"trainer": {}})
 
-        plotting_callback = MagicMock(spec=PlottingCallback)
+        plotting_callback = MagicMock(spec=ImageLoggingCallback)
         checkpoint_callback = MagicMock(spec=ModelCheckpoint)
 
         fake_trainer = MagicMock()

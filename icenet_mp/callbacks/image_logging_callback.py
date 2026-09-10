@@ -30,8 +30,8 @@ if TYPE_CHECKING:  # per rule TC003
 logger = logging.getLogger(__name__)
 
 
-class PlottingCallback(Callback):
-    """A callback to create plots during evaluation."""
+class ImageLoggingCallback(Callback):
+    """A callback to create and log images during evaluation."""
 
     def __init__(
         self,
@@ -43,7 +43,7 @@ class PlottingCallback(Callback):
         plot_spec: PlotSpec | None = None,
         prefix: str | None = None,
     ) -> None:
-        """Create plots during evaluation or training validation.
+        """Create images during evaluation or training validation.
 
         Note that we do not plot during training as the data is shuffled so it would be
         difficult to work out which date corresponds to each batch.

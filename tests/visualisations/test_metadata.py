@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from omegaconf import DictConfig
 
-from icenet_mp.callbacks.plotting_callback import PlottingCallback
+from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
 from icenet_mp.types import Metadata
 from icenet_mp.visualisations.metadata_builder import MetadataBuilder
 
@@ -429,7 +429,7 @@ def test_format_metadata_subtitle_minimal() -> None:
 
 
 def test_plotting_callback_metadata_subtitle_from_config() -> None:
-    """Test that PlottingCallback sets metadata_subtitle when config is provided."""
+    """Test that ImageLoggingCallback sets metadata_subtitle when config is provided."""
     config = DictConfig(
         {
             "train": {"trainer": {"max_epochs": 5}},
@@ -451,7 +451,7 @@ def test_plotting_callback_metadata_subtitle_from_config() -> None:
     )
 
     # Should start with no metadata subtitle
-    callback = PlottingCallback()
+    callback = ImageLoggingCallback()
     assert (
         callback.plotter.plot_spec.metadata_subtitle is None
         or callback.plotter.plot_spec.metadata_subtitle == ""
