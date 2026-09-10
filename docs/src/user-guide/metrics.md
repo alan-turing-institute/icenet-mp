@@ -17,7 +17,7 @@ or in a config file:
 
 ```yaml
 metrics:
-  enabled: [accuracy, mae, rmse, sieerror, iiee, diiee, centroid_error, fss_1, fss_5, fss_15, ssim]
+  enabled: [accuracy, mae, rmse, sieerror, iiee, diiee, centroid_error, fss_1, fss_5, fss_15, ssim, spatial_mean_ground_truth, spatial_mean_prediction]
 ```
 
 The default is every metric in the table below (`"fss_1"`, `"fss_5"`, `"fss_15"` are
@@ -25,7 +25,7 @@ The default is every metric in the table below (`"fss_1"`, `"fss_5"`, `"fss_15"`
 
 ```bash
 uv run imp train --config-name <config> \
-  metrics.enabled=[accuracy,mae,rmse,sieerror,iiee,diiee,centroid_error,fss_1,fss_5,fss_15,fss_25,ssim]
+  metrics.enabled=[accuracy,mae,rmse,sieerror,iiee,diiee,centroid_error,fss_1,fss_5,fss_15,fss_25,ssim,spatial_mean_ground_truth,spatial_mean_prediction]
 ```
 
 ## The scenarios
@@ -53,6 +53,7 @@ All metrics below are computed against the same synthetic truth (a circular ice 
 | [`RMSEPerForecastDay`](#mae-rmse) | root-mean-squared pixel-wise concentration error | concentration |
 | [`SSIMPerForecastDay`](#ssim) | local structural similarity (luminance, contrast, structure) | score (≤ 1) |
 | [`CentroidErrorPerForecastDay`](#centroid-error) | distance between the predicted and true value-weighted centroids | pixels |
+| [`SpatialMeanGroundTruthPerForecastDay` / `SpatialMeanPredictionPerForecastDay`](#spatial-mean-trace) | spatial-mean concentration of the true / predicted field | concentration |
 | [`IceNetAccuracyPerForecastDay`](#accuracy) | binary ice/no-ice classification accuracy at the 0.15 threshold | % |
 | [`SeaIceExtentErrorPerForecastDay`](#sie-error) | signed difference between predicted and true total ice area | km² |
 | [`IntegratedIceEdgeErrorPerForecastDay`](#iiee) | area of the symmetric difference between predicted and true ice extent | km² |
@@ -89,6 +90,12 @@ It broadly agrees with most metrics that `persistence` and `shifted edge` are wo
 **Limitations:** centroid error is blind to size bias by construction: growing or shrinking a circle around a fixed centre never moves its centre of mass, so `overestimate extent`, `underestimate extent`, and `persistence` all score ≈ 0 despite being some of the worst-performing scenarios by every area-based metric.
 `shifted edge` is the only scenario it penalises, converging toward the true 6-pixel displacement as the forecast progresses.
 Pair it with an area-based metric (SIE error, IIEE) to separate "wrong amount of ice" from "ice in the wrong place."
+
+### Spatial-mean trace
+
+`SpatialMeanGroundTruthPerForecastDay` and `SpatialMeanPredictionPerForecastDay` each report the land-masked spatial mean of one field — the true concentration and the predicted concentration respectively — per forecast lead time. They are computed identically to every other `PerForecastDay` metric, and only differ in what they report: the field itself rather than an error between fields. Enabling both plots their traces together (they share the `spatial_mean` group, [as `fss_*` does](#fss)), so a systematic bias or a collapse toward a constant value shows up directly as the two traces pulling apart.
+
+**Limitations:** like SIE error, the spatial mean is blind to spatial displacement — `shifted edge` has the same mean concentration as the truth throughout, so the two traces overlap despite the scenario being one of the worst by every other metric. It is not an error metric in its own right; pair it with MAE/RMSE or an area-based metric to see whether a matching mean also means a matching field.
 
 ## Threshold-based (sea ice) metrics
 

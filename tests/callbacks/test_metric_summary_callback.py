@@ -17,6 +17,8 @@ from icenet_mp.metrics import (
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
+    SpatialMeanGroundTruthPerForecastDay,
+    SpatialMeanPredictionPerForecastDay,
 )
 
 
@@ -222,6 +224,42 @@ class TestOnTestEnd:
         assert fss_vs_size_call.kwargs["keys"] == ["test"]
         assert len(fss_vs_size_call.kwargs["ys"]) == 1
         assert len(fss_vs_size_call.kwargs["ys"][0]) == 2
+
+    def test_on_test_end_with_wandb_logger_groups_spatial_mean_trace(
+        self,
+        mock_module: MagicMock,
+        mock_trainer: MagicMock,
+        wandb_run: tuple[MagicMock, MockWandbRun],
+    ) -> None:
+        """Ground-truth and prediction spatial-mean traces combine onto one plot."""
+        callback = MetricSummaryCallback()
+        mock_wandb, _ = wandb_run
+
+        metric_collection = MetricCollection(
+            {
+                "spatial_mean_ground_truth": SpatialMeanGroundTruthPerForecastDay(),
+                "spatial_mean_prediction": SpatialMeanPredictionPerForecastDay(),
+            }
+        )
+        mock_module.test_metrics = metric_collection
+
+        # Sample 5D data: (batch=1, time=3, channels=1, height=2, width=2)
+        preds = torch.rand(1, 3, 1, 2, 2)
+        targets = torch.rand(1, 3, 1, 2, 2)
+        metric_collection.update(preds, targets)
+
+        mock_plot = MagicMock()
+        mock_wandb.plot.line_series.return_value = mock_plot
+
+        callback.teardown(mock_trainer, mock_module, stage="test")
+
+        mock_wandb.plot.line_series.assert_called_once()
+        line_series_kwargs = mock_wandb.plot.line_series.call_args[1]
+        assert line_series_kwargs["title"] == "spatial_mean_per_forecast_day"
+        assert set(line_series_kwargs["keys"]) == {
+            "spatial_mean_ground_truth",
+            "spatial_mean_prediction",
+        }
 
 
 class TestLogPerEpochMetrics:
@@ -780,3 +818,91 @@ class TestMetricCalculations:
         expected_diiee = torch.tensor([10.0, 0.0])  # default pixel_size=25
 
         assert torch.allclose(daily_result, expected_diiee, atol=1e-5)
+
+    def test_calculates_ground_truth_mean_daily_correctly(self) -> None:
+        """Test that the ground-truth spatial-mean trace is calculated correctly."""
+        preds = self.to_5d(
+            [[1.0, 2.0, 4.0], [1.0, 3.0, 4.0], [2.0, 3.0, 5.0], [2.0, 4.0, 6.0]]
+        )
+        targets = self.to_5d(
+            [[1.5, 2.5, 4.0], [0.5, 3.5, 4.0], [2.0, 4.0, 5.0], [2.5, 3.0, 6.0]]
+        )
+
+        metric = SpatialMeanGroundTruthPerForecastDay()
+        metric.update(preds, targets)
+        daily_result = metric.compute()
+
+        # Expected spatial-mean ground truth per day (preds are ignored):
+        # Day 1: (1.5+0.5+2.0+2.5)/4 = 1.625
+        # Day 2: (2.5+3.5+4.0+3.0)/4 = 3.25
+        # Day 3: (4.0+4.0+5.0+6.0)/4 = 4.75
+        expected = torch.tensor([1.625, 3.25, 4.75])
+
+        assert torch.allclose(daily_result, expected, atol=1e-5)
+
+    def test_calculates_prediction_mean_daily_correctly(self) -> None:
+        """Test that the prediction spatial-mean trace is calculated correctly."""
+        preds = self.to_5d(
+            [[1.0, 2.0, 4.0], [1.0, 3.0, 4.0], [2.0, 3.0, 5.0], [2.0, 4.0, 6.0]]
+        )
+        targets = self.to_5d(
+            [[1.5, 2.5, 4.0], [0.5, 3.5, 4.0], [2.0, 4.0, 5.0], [2.5, 3.0, 6.0]]
+        )
+
+        metric = SpatialMeanPredictionPerForecastDay()
+        metric.update(preds, targets)
+        daily_result = metric.compute()
+
+        # Expected spatial-mean prediction per day (targets are ignored):
+        # Day 1: (1.0+1.0+2.0+2.0)/4 = 1.5
+        # Day 2: (2.0+3.0+3.0+4.0)/4 = 3.0
+        # Day 3: (4.0+4.0+5.0+6.0)/4 = 4.75
+        expected = torch.tensor([1.5, 3.0, 4.75])
+
+        assert torch.allclose(daily_result, expected, atol=1e-5)
+
+    def test_ground_truth_mean_daily_excludes_land_cells(self) -> None:
+        """Land cells are excluded from the spatial-mean ground-truth trace."""
+        preds = self.to_5d(
+            [[1.0, 2.0, 4.0], [1.0, 3.0, 4.0], [2.0, 3.0, 5.0], [2.0, 4.0, 6.0]]
+        )
+        targets = self.to_5d(
+            [[1.5, 2.5, 4.0], [0.5, 3.5, 4.0], [2.0, 4.0, 5.0], [2.5, 3.0, 6.0]]
+        )
+        # Mask out the second grid cell (the [0.5, 3.5, 4.0] row above).
+        land_mask = torch.tensor([[True, False], [True, True]])
+
+        metric = SpatialMeanGroundTruthPerForecastDay(land_mask=land_mask)
+        metric.update(preds, targets)
+        daily_result = metric.compute()
+
+        # Expected spatial-mean ground truth per day over the 3 unmasked cells only:
+        # Day 1: (1.5+2.0+2.5)/3 = 2.0
+        # Day 2: (2.5+4.0+3.0)/3 = 3.16667
+        # Day 3: (4.0+5.0+6.0)/3 = 5.0
+        expected = torch.tensor([2.0, 3.16667, 5.0])
+
+        assert torch.allclose(daily_result, expected, atol=1e-4)
+
+    def test_prediction_mean_daily_excludes_land_cells(self) -> None:
+        """Land cells are excluded from the spatial-mean prediction trace."""
+        preds = self.to_5d(
+            [[1.0, 2.0, 4.0], [1.0, 3.0, 4.0], [2.0, 3.0, 5.0], [2.0, 4.0, 6.0]]
+        )
+        targets = self.to_5d(
+            [[1.5, 2.5, 4.0], [0.5, 3.5, 4.0], [2.0, 4.0, 5.0], [2.5, 3.0, 6.0]]
+        )
+        # Mask out the second grid cell (the [1.0, 3.0, 4.0] row above).
+        land_mask = torch.tensor([[True, False], [True, True]])
+
+        metric = SpatialMeanPredictionPerForecastDay(land_mask=land_mask)
+        metric.update(preds, targets)
+        daily_result = metric.compute()
+
+        # Expected spatial-mean prediction per day over the 3 unmasked cells only:
+        # Day 1: (1.0+2.0+2.0)/3 = 1.66667
+        # Day 2: (2.0+3.0+4.0)/3 = 3.0
+        # Day 3: (4.0+5.0+6.0)/3 = 5.0
+        expected = torch.tensor([1.66667, 3.0, 5.0])
+
+        assert torch.allclose(daily_result, expected, atol=1e-4)

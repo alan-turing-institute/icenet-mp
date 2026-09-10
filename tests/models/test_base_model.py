@@ -15,6 +15,8 @@ from icenet_mp.metrics import (
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
+    SpatialMeanGroundTruthPerForecastDay,
+    SpatialMeanPredictionPerForecastDay,
     SSIMPerForecastDay,
 )
 from icenet_mp.models import BaseModel
@@ -29,6 +31,8 @@ NON_FSS_METRIC_TYPES = {
     "diiee": DistanceAveragedIceEdgeErrorPerForecastDay,
     "centroid_error": CentroidErrorPerForecastDay,
     "ssim": SSIMPerForecastDay,
+    "spatial_mean_ground_truth": SpatialMeanGroundTruthPerForecastDay,
+    "spatial_mean_prediction": SpatialMeanPredictionPerForecastDay,
 }
 
 
@@ -52,6 +56,8 @@ class FakeDataModel(BaseModel):
                 "fss_5",
                 "fss_15",
                 "ssim",
+                "spatial_mean_ground_truth",
+                "spatial_mean_prediction",
             ],
         )
         super().__init__(

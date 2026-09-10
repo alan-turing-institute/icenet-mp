@@ -26,6 +26,8 @@ from icenet_mp.metrics import (
     MAEPerForecastDay,
     RMSEPerForecastDay,
     SeaIceExtentErrorPerForecastDay,
+    SpatialMeanGroundTruthPerForecastDay,
+    SpatialMeanPredictionPerForecastDay,
     SSIMPerForecastDay,
 )
 from icenet_mp.models.common import Mask
@@ -146,6 +148,12 @@ class BaseModel(LightningModule, ABC):
             "mae": partial(MAEPerForecastDay, land_mask=land_mask),
             "rmse": partial(RMSEPerForecastDay, land_mask=land_mask),
             "sieerror": partial(SeaIceExtentErrorPerForecastDay, land_mask=land_mask),
+            "spatial_mean_ground_truth": partial(
+                SpatialMeanGroundTruthPerForecastDay, land_mask=land_mask
+            ),
+            "spatial_mean_prediction": partial(
+                SpatialMeanPredictionPerForecastDay, land_mask=land_mask
+            ),
             "ssim": partial(SSIMPerForecastDay, land_mask=land_mask),
         }
         self.test_metrics = MetricCollection(

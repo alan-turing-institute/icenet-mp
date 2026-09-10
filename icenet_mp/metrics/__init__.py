@@ -6,6 +6,10 @@ from .iiee import IntegratedIceEdgeErrorPerForecastDay
 from .mae import MAEPerForecastDay
 from .rmse import RMSEPerForecastDay
 from .sie import SeaIceExtentErrorPerForecastDay
+from .spatial_mean_trace import (
+    SpatialMeanGroundTruthPerForecastDay,
+    SpatialMeanPredictionPerForecastDay,
+)
 from .ssim import SSIMPerForecastDay
 
 __all__ = [
@@ -18,4 +22,6 @@ __all__ = [
     "RMSEPerForecastDay",
     "SSIMPerForecastDay",
     "SeaIceExtentErrorPerForecastDay",
+    "SpatialMeanGroundTruthPerForecastDay",
+    "SpatialMeanPredictionPerForecastDay",
 ]

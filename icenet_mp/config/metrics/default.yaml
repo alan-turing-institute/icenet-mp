@@ -10,3 +10,5 @@ enabled:
   - fss_5
   - fss_15
   - ssim
+  - spatial_mean_ground_truth
+  - spatial_mean_prediction

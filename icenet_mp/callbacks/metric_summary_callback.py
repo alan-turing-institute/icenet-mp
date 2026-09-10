@@ -24,10 +24,14 @@ def _metric_group(metric_name: str) -> str:
 
     FSS is computed at several neighbourhood sizes (``fss_1``, ``fss_5``, ...); these
     are grouped under ``"fss"`` so they land on a single per-forecast-day plot instead
-    of one plot each. All other metrics are their own group.
+    of one plot each. Similarly, ``spatial_mean_ground_truth`` and
+    ``spatial_mean_prediction`` are grouped under ``"spatial_mean"`` so the two traces
+    land on one plot for direct comparison. All other metrics are their own group.
     """
     if metric_name.startswith("fss_"):
         return "fss"
+    if metric_name.startswith("spatial_mean_"):
+        return "spatial_mean"
     return metric_name
 
 
