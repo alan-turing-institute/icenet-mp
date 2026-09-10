@@ -18,9 +18,9 @@ or in a config file:
 ```yaml
 reporting:
   metrics:
-  - accuracy
-  - sieerror
-  - fss_neighbourhood_5
+    - accuracy
+    - sieerror
+    - fss_neighbourhood_size_5
 ```
 
 ## The scenarios
