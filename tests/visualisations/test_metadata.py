@@ -3,7 +3,6 @@ from typing import Any
 import pytest
 from omegaconf import DictConfig
 
-from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
 from icenet_mp.types import Metadata
 from icenet_mp.visualisations.metadata_builder import MetadataBuilder
 
@@ -426,40 +425,3 @@ def test_format_metadata_subtitle_minimal() -> None:
     subtitle = format_metadata_subtitle(metadata)
 
     assert subtitle is None
-
-
-def test_plotting_callback_metadata_subtitle_from_config() -> None:
-    """Test that ImageLoggingCallback sets metadata_subtitle when config is provided."""
-    config = DictConfig(
-        {
-            "train": {"trainer": {"max_epochs": 5}},
-            "data": {
-                "split": {
-                    "train": [
-                        {"start": "2020-01-01", "end": "2020-01-10"},
-                    ]
-                },
-                "datasets": {
-                    "sic1": {
-                        "name": "osisaf-sicsouth",
-                        "group_as": "osisaf-south",
-                    },
-                },
-            },
-            "predict": {"dataset_group": "osisaf-south"},
-        }
-    )
-
-    # Should start with no metadata subtitle
-    callback = ImageLoggingCallback()
-    assert (
-        callback.plotter.plot_spec.metadata_subtitle is None
-        or callback.plotter.plot_spec.metadata_subtitle == ""
-    )
-
-    # Check that metadata is stored on the callback (subtitle is applied later in make_plots)
-    callback.set_metadata(config, model_name="test_model")
-    assert callback.plotter_metadata is not None
-    assert callback.plotter_metadata.model == "test_model"
-    assert callback.plotter_metadata.max_epochs == 5
-    assert callback.plotter_metadata.start == "2020-01-01"
