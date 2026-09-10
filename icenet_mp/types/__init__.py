@@ -1,11 +1,12 @@
 from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
+from .constants import SEA_ICE_THRESHOLD
 from .enums import (
     BetaSchedule,
     MaskType,
     RangeRestriction,
     SkipConnectionType,
 )
-from .protocols import SupportsMetadata
+from .protocols import SupportsImageLogging, SupportsMetadata, SupportsVideoLogging
 from .simple_datatypes import (
     AnemoiCleanupArgs,
     AnemoiDatasetStatus,
@@ -34,6 +35,7 @@ from .typedefs import (
 )
 
 __all__ = [
+    "SEA_ICE_THRESHOLD",
     "AnemoiCleanupArgs",
     "AnemoiDatasetStatus",
     "AnemoiFinaliseArgs",
@@ -60,7 +62,9 @@ __all__ = [
     "ProcessorOutput",
     "RangeRestriction",
     "SkipConnectionType",
+    "SupportsImageLogging",
     "SupportsMetadata",
+    "SupportsVideoLogging",
     "TensorNCHW",
     "TensorNTCHW",
     "UncertaintyArrays",

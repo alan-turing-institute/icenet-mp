@@ -41,8 +41,10 @@ def test_spacetime_vit_model_config_enables_missing_argo_strategy() -> None:
     assert config.model.encoders["float-argo"].missing_fill_value == pytest.approx(-1.0)
 
 
-def test_spacetime_vit_config_runs_full_model_with_missing_argo() -> None:
+@pytest.mark.parametrize("seed", [0, 22, 123])
+def test_spacetime_vit_config_runs_full_model_with_missing_argo(seed: int) -> None:
     """Run configured encoders, processor, decoder and training loss end to end."""
+    torch.manual_seed(seed)
     config = _compose_spacetime_vit_config()
     config.model.encoders.latent_space = [4, 4]
     config.model.encoders["float-argo"].conditioning_dropout_probability = 0.0
@@ -65,6 +67,7 @@ def test_spacetime_vit_config_runs_full_model_with_missing_argo() -> None:
         ],
         loss=DictConfig({"_target_": "torch.nn.MSELoss"}),
         lr_scheduler=DictConfig({}),
+        metrics=[],
         n_forecast_steps=2,
         n_history_steps=3,
         optimizer=DictConfig({}),
@@ -74,6 +77,15 @@ def test_spacetime_vit_config_runs_full_model_with_missing_argo() -> None:
         _convert_="object",
         _recursive_=False,
     )
+
+    # Keep the readout inside the clamp interval: a random negative readout
+    # can suppress every gradient independently of the processor wiring.
+    readout = model.decoder.model[-1]
+    assert isinstance(readout, torch.nn.Conv2d)
+    with torch.no_grad():
+        readout.weight.fill_(0.01)
+        assert readout.bias is not None
+        readout.bias.fill_(0.5)
 
     batch_size = 2
     inputs = {
@@ -99,6 +111,8 @@ def test_spacetime_vit_config_runs_full_model_with_missing_argo() -> None:
     assert output.prediction.shape == (batch_size, 2, 1, 8, 8)
     assert torch.isfinite(output.prediction).all()
     assert torch.isfinite(output.loss)
+    assert torch.all(output.prediction > 0)
+    assert torch.all(output.prediction < 1)
 
     output.loss.backward()
     processor_gradient = model.processor.delta_head.weight.grad
