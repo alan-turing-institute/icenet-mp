@@ -137,7 +137,6 @@ class TestLoadTargetUncertainties:
 
 class TestLogStaticOutputsUncertainty:
     def test_includes_uncertainty_image(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Log the uncertainty image alongside the standard static prediction."""
         plotter = Plotter(replace(DEFAULT_SIC_SPEC, selected_timestep=0))
         image_logger = MagicMock()
         outputs = ModelStepOutput(
@@ -147,13 +146,9 @@ class TestLogStaticOutputsUncertainty:
         )
         uncertainty = np.full((1, 2, 2), 0.1, dtype=np.float32)
 
+        fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels_static",
-            MagicMock(return_value=MagicMock()),
-        )
-        plot_uncertainty = MagicMock(return_value={"uncertainty": [MagicMock()]})
-        monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_uncertainty", plot_uncertainty
+            "icenet_mp.visualisations.plotter.render_panels_static", fake_render
         )
 
         plotter.log_static_outputs(
@@ -164,10 +159,15 @@ class TestLogStaticOutputsUncertainty:
             uncertainties={0: uncertainty},
         )
 
-        plot_uncertainty.assert_called_once()
+        assert fake_render.call_count == 2
+        # First call renders the ground-truth/prediction/difference triptych,
+        # second renders the ground-truth/prediction/z-score triptych.
+        difference_call, z_score_call = fake_render.call_args_list
+        assert all(n is None for n in difference_call.kwargs["norm"])
+        assert z_score_call.kwargs["norm"][-1] is not None
         assert [
             call.kwargs["key"] for call in image_logger.log_image.call_args_list
         ] == [
-            "output_static/2026-08-21-ice_conc",
-            "output_static/uncertainty",
+            "output_static/2026-08-21-ice_conc-difference",
+            "output_static/2026-08-21-ice_conc-z-score",
         ]

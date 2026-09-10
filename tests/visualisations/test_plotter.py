@@ -237,21 +237,17 @@ class TestLogStaticOutputs:
         # Second channel has no configured name, so it falls back to channel_1.
         logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
         assert logged_keys == [
-            "output_static/2020-01-01-sic",
-            "output_static/2020-01-01-channel_1",
+            "output_static/2020-01-01-sic-difference",
+            "output_static/2020-01-01-channel_1-difference",
         ]
 
     def test_includes_uncertainty_when_provided(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Merge uncertainty images into the logged output for channels with data."""
+        """Log an extra standardised-difference image for channels with uncertainty data."""
+        fake_render = MagicMock(return_value=object())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.render_panels_static",
-            MagicMock(return_value=object()),
-        )
-        fake_uncertainty = MagicMock(return_value={"uncertainty": [object()]})
-        monkeypatch.setattr(
-            "icenet_mp.visualisations.plotter.plot_static_uncertainty", fake_uncertainty
+            "icenet_mp.visualisations.plotter.render_panels_static", fake_render
         )
         image_logger = MagicMock()
         uncertainties = {0: torch.zeros((N_TIMESTEPS, HEIGHT, WIDTH)).numpy()}
@@ -265,14 +261,21 @@ class TestLogStaticOutputs:
             uncertainties=uncertainties,
         )
 
-        # Only channel 0 has an uncertainty array.
-        fake_uncertainty.assert_called_once()
-        assert fake_uncertainty.call_args.kwargs["variable_name"] == "sic"
-        logged_keys = [
-            call.kwargs["key"] for call in image_logger.log_image.call_args_list
+        # Channel 0 (has uncertainty) renders twice: difference and z-score.
+        # Channel 1 (no uncertainty) renders once: difference only.
+        assert fake_render.call_count == N_CHANNELS + 1
+        logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
+        assert logged_keys == [
+            "output_static/2020-01-01-sic-difference",
+            "output_static/2020-01-01-sic-z-score",
+            "output_static/2020-01-01-temperature-difference",
         ]
-        assert "output_static/uncertainty" in logged_keys
-        assert logged_keys.count("output_static/uncertainty") == 1
+
+        # The z-score render is the one with a norm set for its extra panel.
+        z_score_call = fake_render.call_args_list[1]
+        assert z_score_call.kwargs["norm"][-1] is not None
+        for call in (fake_render.call_args_list[0], fake_render.call_args_list[2]):
+            assert all(n is None for n in call.kwargs["norm"])
 
     def test_skips_on_invalid_array_error(
         self,
@@ -339,8 +342,14 @@ class TestLogStaticOutputs:
         )
 
         assert [c.kwargs for c in image_logger.log_image.call_args_list] == [
-            {"key": "evaluate/output_static/2020-01-02-ice_conc", "images": [image]},
-            {"key": "evaluate/output_static/2020-01-02-channel_1", "images": [image]},
+            {
+                "key": "evaluate/output_static/2020-01-02-ice_conc-difference",
+                "images": [image],
+            },
+            {
+                "key": "evaluate/output_static/2020-01-02-channel_1-difference",
+                "images": [image],
+            },
         ]
 
     def test_without_prefix_uses_default_namespace(
@@ -362,7 +371,7 @@ class TestLogStaticOutputs:
 
         assert (
             image_logger.log_image.call_args.kwargs["key"]
-            == "output_static/2020-01-01-ice_conc"
+            == "output_static/2020-01-01-ice_conc-difference"
         )
 
 

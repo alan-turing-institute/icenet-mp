@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
 from matplotlib.axes import Axes
+from matplotlib.colors import Colormap, Normalize
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 from PIL.ImageFile import ImageFile
 
 from icenet_mp.types import ArrayHW, ArrayTHW
-from icenet_mp.utils import to_list
 
 from .convert import image_from_figure, video_from_animation
 
@@ -43,10 +43,11 @@ def _add_colourbar(fig: Figure, image: AxesImage, axes: Axes | list[Axes]) -> No
 def render_panels(  # noqa: PLR0913
     arrays: Sequence[ArrayHW],
     *,
-    cmap: str | Sequence[str] = "viridis",
+    cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
     figure_title: str | None = None,
     footer_text: str | None = None,
     group_axes: tuple[int, int] | None = None,
+    norm: Sequence[Normalize | None] | None = None,
     panel_titles: Sequence[str] | None = None,
     vmax: float | Sequence[float | None] | None = None,
     vmin: float | Sequence[float | None] | None = None,
@@ -59,6 +60,7 @@ def render_panels(  # noqa: PLR0913
         figure_title: Optional figure-level title drawn above all panels.
         footer_text: Optional footer text drawn below the colourbars.
         group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
+        norm: Optional per-panel `Normalize` that is used instead of `vmin`/`vmax`.
         panel_titles: Optional per-panel title, one per panel.
         vmax: Optional upper colour-scale bound(s), either shared or one per panel.
         vmin: Optional lower colour-scale bound(s), either shared or one per panel.
@@ -69,9 +71,12 @@ def render_panels(  # noqa: PLR0913
 
     """
     n = len(arrays)
-    cmaps = (to_list(cmap) * n)[:n]
+    cmaps: list[str | Colormap] = (
+        [cmap] * n if isinstance(cmap, str | Colormap) else (list(cmap) * n)[:n]
+    )
     vmins = list(vmin) if isinstance(vmin, Sequence) else [vmin] * n
     vmaxs = list(vmax) if isinstance(vmax, Sequence) else [vmax] * n
+    norms: list[Normalize | None] = list(norm) if norm is not None else [None] * n
 
     fig, axes_ = plt.subplots(
         1, n, figsize=(_PANEL_HEIGHT_IN * n, _PANEL_HEIGHT_IN), layout="compressed"
@@ -81,8 +86,12 @@ def render_panels(  # noqa: PLR0913
         ax.set_box_aspect(array.shape[0] / array.shape[1])
 
     images = [
-        ax.imshow(arr, cmap=c, vmin=lo, vmax=hi, origin="upper")
-        for ax, arr, c, lo, hi in zip(axes, arrays, cmaps, vmins, vmaxs, strict=True)
+        ax.imshow(arr, cmap=c, norm=nrm, origin="upper")
+        if nrm is not None
+        else ax.imshow(arr, cmap=c, vmin=lo, vmax=hi, origin="upper")
+        for ax, arr, c, lo, hi, nrm in zip(
+            axes, arrays, cmaps, vmins, vmaxs, norms, strict=True
+        )
     ]
     for ax, title in zip(axes, panel_titles or [""] * n, strict=True):
         ax.set_title(title)
@@ -109,11 +118,12 @@ def render_panels(  # noqa: PLR0913
 def render_panels_static(  # noqa: PLR0913
     arrays: Sequence[ArrayHW],
     *,
-    cmap: str | Sequence[str] = "viridis",
+    cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
     dpi: int = 150,
     figure_title: str | None = None,
     footer_text: str | None = None,
     group_axes: tuple[int, int] | None = None,
+    norm: Sequence[Normalize | None] | None = None,
     panel_titles: Sequence[str] | None = None,
     vmax: float | Sequence[float | None] | None = None,
     vmin: float | Sequence[float | None] | None = None,
@@ -127,6 +137,7 @@ def render_panels_static(  # noqa: PLR0913
         figure_title: Optional figure-level title drawn above all panels.
         footer_text: Optional footer text drawn below the colourbars.
         group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
+        norm: Optional per-panel `Normalize` that is used instead of `vmin`/`vmax`.
         panel_titles: Optional per-panel title, one per panel.
         vmax: Optional upper colour-scale bound(s), either shared or one per panel.
         vmin: Optional lower colour-scale bound(s), either shared or one per panel.
@@ -141,6 +152,7 @@ def render_panels_static(  # noqa: PLR0913
         figure_title=figure_title,
         footer_text=footer_text,
         group_axes=group_axes,
+        norm=norm,
         panel_titles=panel_titles,
         vmax=vmax,
         vmin=vmin,

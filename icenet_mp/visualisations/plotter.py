@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from omegaconf import DictConfig
 from PIL.ImageFile import ImageFile
@@ -16,7 +17,6 @@ from icenet_mp.types import (
     PlotSpec,
     SupportsImageLogging,
     SupportsVideoLogging,
-    UncertaintyArrays,
 )
 from icenet_mp.utils import npdatetime_from_datetime
 
@@ -24,10 +24,12 @@ from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .metadata_builder import MetadataBuilder
 from .plot_annotator import PlotAnnotator
-from .plotting_static import plot_static_uncertainty
 from .plotting_video import plot_video_inputs
 from .render import render_panels_static, render_panels_video
 from .variable_styler import VariableStyler
+
+if TYPE_CHECKING:
+    from matplotlib.colors import Colormap, Normalize
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,7 @@ class Plotter:
                     format=[self.plot_spec.video_format],
                 )
 
-    def _render_static_input(
+    def _render_static_singlet(
         self,
         values: ArrayHW,
         *,
@@ -105,26 +107,56 @@ class Plotter:
             vmin=style.vmin,
         )
 
-    def _render_static_prediction(
+    def _render_static_triplet(
         self,
         ground_truth: ArrayHW,
         prediction: ArrayHW,
         *,
         when: datetime,
         variable_name: str,
+        uncertainty: ArrayHW | None = None,
     ) -> ImageFile:
-        """Render the ground-truth/prediction(/difference) triptych via render_panels."""
+        """Render the ground-truth/prediction(/difference)(/uncertainty) panels via render_panels.
+
+        When `uncertainty` is provided, an extra panel shows the standardised
+        difference `z = (ground_truth - prediction) / uncertainty`. A value of
+        `z=1` means the observation exceeds the prediction by one reported
+        standard uncertainty.
+        """
         plot_spec = self.plot_spec
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
 
         arrays = [masked_ground_truth, masked_prediction]
         titles = [plot_spec.title_groundtruth, plot_spec.title_prediction]
-        cmaps: list[str] = [plot_spec.colourmap, plot_spec.colourmap]
+        cmaps: list[str | Colormap] = [plot_spec.colourmap, plot_spec.colourmap]
+        norms: list[Normalize | None] = [None, None]
         vmins: list[float | None] = [plot_spec.vmin, plot_spec.vmin]
         vmaxs: list[float | None] = [plot_spec.vmax, plot_spec.vmax]
 
-        if plot_spec.include_difference:
+        # If we have uncertainty data then use z-score as the third panel
+        if uncertainty is not None:
+            variable_styler = VariableStyler()
+            z_difference = self.land_mask.apply_to(
+                DifferenceCalculator().compute_standardised_difference(
+                    ground_truth, prediction, uncertainty
+                )
+            )
+            z_norm, _, _ = variable_styler.create_normalisation(
+                z_difference, centre=0.0
+            )
+
+            arrays.append(z_difference)
+            titles.append("Standardised Difference (z)")
+            cmaps.append(
+                variable_styler.colourmap_with_bad("RdBu_r", bad_color="lightgrey")
+            )
+            norms.append(z_norm)
+            vmins.append(None)
+            vmaxs.append(None)
+
+        # Otherwise, use the difference panel if requested
+        elif plot_spec.include_difference:
             difference_calculator = DifferenceCalculator()
             difference = self.land_mask.apply_to(
                 difference_calculator.compute_difference(
@@ -144,6 +176,7 @@ class Plotter:
             arrays.append(difference)
             titles.append(f"{plot_spec.title_difference} ({plot_spec.diff_mode})")
             cmaps.append(diff_colour_scale.cmap)
+            norms.append(None)
             vmins.append(diff_vmin)
             vmaxs.append(diff_vmax)
 
@@ -156,13 +189,16 @@ class Plotter:
             dpi=plot_spec.dpi,
             figure_title=suptitle,
             footer_text=footer_text or None,
-            group_axes=(0, 1) if plot_spec.include_difference else None,
+            group_axes=(0, 1)
+            if plot_spec.include_difference or uncertainty is not None
+            else None,
+            norm=norms,
             panel_titles=titles,
             vmax=vmaxs,
             vmin=vmins,
         )
 
-    def _render_video_prediction(
+    def _render_video_triplet(
         self,
         ground_truth: ArrayTHW,
         prediction: ArrayTHW,
@@ -242,7 +278,7 @@ class Plotter:
                 # Get data for all variables at the selected timestep
                 for channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    image = self._render_static_input(
+                    image = self._render_static_singlet(
                         input_ds[idx_date][channel, :],
                         when=when,
                         variable_name=variable_name,
@@ -278,18 +314,18 @@ class Plotter:
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
-                # Plot static prediction image via the minimal render_panels core
-                image = self._render_static_prediction(
-                    ground_truth,
-                    prediction,
-                    when=dates[idx_date],
-                    variable_name=variable_name,
-                )
                 date_key = dates[idx_date].strftime(r"%Y-%m-%d")
-                images: dict[str, list[ImageFile]] = {
-                    f"{date_key}-{variable_name}": [image]
-                }
-                # Plot static uncertainty images
+                images: dict[str, list[ImageFile]] = {}
+                # Plot static truth/prediction/difference image
+                images[f"{date_key}-{variable_name}-difference"] = [
+                    self._render_static_triplet(
+                        ground_truth,
+                        prediction,
+                        when=dates[idx_date],
+                        variable_name=variable_name,
+                    )
+                ]
+                # Plot static truth/prediction/z-score image
                 if (
                     uncertainty := (
                         uncertainties.get(idx_channel)
@@ -297,17 +333,15 @@ class Plotter:
                         else None
                     )
                 ) is not None:
-                    images.update(
-                        plot_static_uncertainty(
-                            UncertaintyArrays(
-                                ground_truth, prediction, uncertainty[idx_date]
-                            ),
-                            date=dates[idx_date],
-                            land_mask=self.land_mask,
-                            plot_spec=self.plot_spec,
+                    images[f"{date_key}-{variable_name}-z-score"] = [
+                        self._render_static_triplet(
+                            ground_truth,
+                            prediction,
+                            when=dates[idx_date],
                             variable_name=variable_name,
+                            uncertainty=uncertainty[idx_date],
                         )
-                    )
+                    ]
                 # Log static output images
                 self._log_images(images, image_loggers, log_path)
         except InvalidArrayError as err:
@@ -369,7 +403,7 @@ class Plotter:
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
                 # Plot output animation via the minimal render_panels core
-                video = self._render_video_prediction(
+                video = self._render_video_triplet(
                     ground_truth,
                     prediction,
                     dates=dates,
