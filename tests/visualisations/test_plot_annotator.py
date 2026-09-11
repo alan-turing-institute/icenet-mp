@@ -1,8 +1,7 @@
-from dataclasses import replace
 from datetime import date, datetime
 from typing import Any
 
-from icenet_mp.visualisations import DEFAULT_SIC_SPEC
+from icenet_mp.types import PlotSpec
 from icenet_mp.visualisations.plot_annotator import PlotAnnotator
 
 
@@ -58,7 +57,7 @@ class TestBuildTitleVideo:
     def test_empty_dates_omits_frame_segment(self) -> None:
         """Omit the 'Frame:' segment entirely when no dates are given."""
         result = PlotAnnotator().title_for_video(
-            "sea_ice_concentration", DEFAULT_SIC_SPEC, [], 0
+            "sea_ice_concentration", PlotSpec(), [], 0
         )
 
         assert "Frame:" not in result
@@ -68,13 +67,13 @@ class TestBuildTitleVideo:
 class TestBuildFooterStatic:
     def test_includes_metadata_subtitle_when_present(self) -> None:
         """Include the metadata subtitle line when set."""
-        spec = replace(DEFAULT_SIC_SPEC, metadata_subtitle="epochs=50")
+        spec = PlotSpec(metadata_subtitle="epochs=50")
 
         assert PlotAnnotator().footer_for_static(spec) == "epochs=50"
 
     def test_empty_when_no_metadata_subtitle(self) -> None:
         """Return an empty string when there is no metadata subtitle."""
-        spec = replace(DEFAULT_SIC_SPEC, metadata_subtitle=None)
+        spec = PlotSpec(metadata_subtitle=None)
 
         assert PlotAnnotator().footer_for_static(spec) == ""
 
@@ -82,7 +81,7 @@ class TestBuildFooterStatic:
 class TestBuildFooterVideo:
     def test_includes_metadata_subtitle_alongside_animation_range(self) -> None:
         """Include both the animation range and the metadata subtitle."""
-        spec = replace(DEFAULT_SIC_SPEC, metadata_subtitle="epochs=50")
+        spec = PlotSpec(metadata_subtitle="epochs=50")
         dates: list[Any] = [date(2020, 1, 1), date(2020, 1, 5)]
 
         result = PlotAnnotator().footer_for_video(spec, dates)
@@ -92,6 +91,6 @@ class TestBuildFooterVideo:
 
     def test_empty_dates_omits_animation_range(self) -> None:
         """Omit the animation-range line when no dates are given."""
-        spec = replace(DEFAULT_SIC_SPEC, metadata_subtitle=None)
+        spec = PlotSpec(metadata_subtitle=None)
 
         assert PlotAnnotator().footer_for_video(spec, []) == ""

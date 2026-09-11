@@ -1,5 +1,4 @@
 import logging
-from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
@@ -8,8 +7,8 @@ import pytest
 import torch
 
 from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
-from icenet_mp.types import ModelStepOutput
-from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
+from icenet_mp.types import ModelStepOutput, PlotSpec
+from icenet_mp.visualisations import Plotter
 
 
 @pytest.fixture
@@ -137,7 +136,7 @@ class TestLoadTargetUncertainties:
 
 class TestLogStaticOutputsUncertainty:
     def test_includes_uncertainty_image(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        plotter = Plotter(replace(DEFAULT_SIC_SPEC, selected_timestep=0))
+        plotter = Plotter(PlotSpec(selected_timestep=0))
         image_logger = MagicMock()
         outputs = ModelStepOutput(
             prediction=torch.zeros(1, 1, 1, 2, 2),

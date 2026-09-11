@@ -1,10 +1,9 @@
-from dataclasses import replace
 from pathlib import Path
 
 from icenet_mp.data import SingleDataset
+from icenet_mp.types import PlotSpec
 from icenet_mp.utils import datetime_from_npdatetime, mask_dir
 
-from .default_plot_spec import DEFAULT_SIC_SPEC
 from .land_mask import LandMask
 from .panel_renderer import PanelRenderer
 
@@ -22,7 +21,7 @@ def plot_variables_static(
         input_files=[dataset_path],
         normalise=False,
     )
-    plot_spec = replace(DEFAULT_SIC_SPEC, hemisphere=dataset.hemisphere)
+    plot_spec = PlotSpec(hemisphere=dataset.hemisphere)
     if timestep < 0 or timestep >= len(dataset):
         msg = (
             f"Timestep {timestep} is out of range for dataset {dataset_name} "
@@ -68,7 +67,7 @@ def plot_variables_video(
         input_files=[dataset_path],
         normalise=False,
     )
-    plot_spec = replace(DEFAULT_SIC_SPEC, hemisphere=dataset.hemisphere)
+    plot_spec = PlotSpec(hemisphere=dataset.hemisphere)
     if timestep < 0 or n_steps < 1 or timestep + n_steps > len(dataset):
         msg = (
             f"Timesteps {timestep}:{timestep + n_steps} are out of range for dataset "

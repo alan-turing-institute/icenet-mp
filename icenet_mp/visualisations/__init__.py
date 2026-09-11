@@ -2,7 +2,6 @@ from imageio_ffmpeg import get_ffmpeg_exe
 from matplotlib import rcParams
 
 from .dataset_plotting import plot_variables_static, plot_variables_video
-from .default_plot_spec import DEFAULT_SIC_SPEC
 from .difference_calculator import DifferenceCalculator
 from .plotter import Plotter
 
@@ -13,7 +12,6 @@ def register_animation_backends() -> None:
 
 
 __all__ = [
-    "DEFAULT_SIC_SPEC",
     "DifferenceCalculator",
     "Plotter",
     "plot_variables_static",

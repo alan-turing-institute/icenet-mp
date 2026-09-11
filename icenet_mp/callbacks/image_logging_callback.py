@@ -21,7 +21,7 @@ from icenet_mp.types import (
     SupportsVideoLogging,
 )
 from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
-from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
+from icenet_mp.visualisations import Plotter
 from icenet_mp.visualisations.land_mask import LandMask
 
 if TYPE_CHECKING:  # per rule TC003
@@ -72,7 +72,7 @@ class ImageLoggingCallback(Callback):
         self.uncertainty_variables = {"ice_conc": "total_standard_uncertainty"}
 
         # Plotter instance
-        self.plotter = Plotter(DEFAULT_SIC_SPEC + plot_spec)
+        self.plotter = Plotter(PlotSpec() + plot_spec)
         self.plotter_metadata: Metadata | None = None
         self._land_mask_cache: dict[Path | None, LandMask] = {}
         self.prefix: str | None = prefix
