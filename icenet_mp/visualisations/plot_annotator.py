@@ -1,5 +1,7 @@
+import contextlib
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date, datetime
 
 from matplotlib.figure import Figure
@@ -7,9 +9,98 @@ from matplotlib.text import Text
 
 from icenet_mp.types import PlotSpec
 
-from .layout import draw_badge_with_box, set_footer_with_box
-
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class TitleFooterConfig:
+    """Title and footer spacing, positioning, and styling."""
+
+    title_space: float = 0.07  # Fraction of figure height reserved for title
+    footer_space: float = 0.08  # Fraction of figure height reserved for footer
+    title_fontsize: int = 12  # Font size for title
+    footer_fontsize: int = 11  # Font size for footer and badge
+    title_y: float = 0.98  # Y position for title (near top, in figure coordinates)
+    footer_y: float = 0.03  # Y position for footer (near bottom, in figure coordinates)
+    bbox_pad_title: float = 2.0  # Padding for title bbox
+    bbox_pad_badge: float = 1.5  # Padding for badge bbox
+    zorder_high: int = 1000  # High z-order for text overlays
+
+
+# Default title/footer configuration instance
+_DEFAULT_TITLE_FOOTER_CONFIG = TitleFooterConfig()
+
+
+def set_footer_with_box(fig: Figure, text: str) -> Text:
+    """Draw a fixed-position footer with a white box at bottom centre.
+
+    Footer is intended for metadata and secondary information.
+
+    Args:
+        fig: Matplotlib Figure object.
+        text: Footer text to display.
+
+    Returns:
+        Text artist for the footer.
+
+    """
+    config = _DEFAULT_TITLE_FOOTER_CONFIG
+    bbox = {
+        "facecolor": "white",
+        "edgecolor": "none",
+        "pad": config.bbox_pad_title,
+        "alpha": 1.0,
+    }
+    t = fig.text(
+        x=0.5,
+        y=config.footer_y,
+        s=text,
+        ha="center",
+        va="bottom",
+        fontsize=config.footer_fontsize,
+        fontfamily="monospace",
+        transform=fig.transFigure,
+        bbox=bbox,
+    )
+    with contextlib.suppress(Exception):
+        t.set_zorder(config.zorder_high)
+    return t
+
+
+def draw_badge_with_box(fig: Figure, x: float, y: float, text: str) -> Text:
+    """Draw a warning/info badge with white background box at figure coords.
+
+    Args:
+        fig: Matplotlib Figure object.
+        x: X position in figure coordinates (0-1).
+        y: Y position in figure coordinates (0-1).
+        text: Badge text to display.
+
+    Returns:
+        Text artist for the badge.
+
+    """
+    config = _DEFAULT_TITLE_FOOTER_CONFIG
+    bbox = {
+        "facecolor": "white",
+        "edgecolor": "none",
+        "pad": config.bbox_pad_badge,
+        "alpha": 1.0,
+    }
+    t = fig.text(
+        x=x,
+        y=y,
+        s=text,
+        fontsize=config.footer_fontsize,
+        fontfamily="monospace",
+        color="firebrick",
+        ha="center",
+        va="top",
+        bbox=bbox,
+    )
+    with contextlib.suppress(Exception):
+        t.set_zorder(config.zorder_high)
+    return t
 
 
 class PlotAnnotator:
