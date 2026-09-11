@@ -4,8 +4,8 @@ defaults:
     - best_checkpoint
     - early_stopping
     - ema_weight_averaging
+    - image_logging
     - learning_rate
-    - plotting
   - _self_
 
 trainer:

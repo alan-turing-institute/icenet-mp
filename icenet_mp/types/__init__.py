@@ -6,7 +6,7 @@ from .enums import (
     RangeRestriction,
     SkipConnectionType,
 )
-from .protocols import SupportsImageLogging, SupportsMetadata, SupportsVideoLogging
+from .protocols import SupportsImageLogging, SupportsVideoLogging
 from .simple_datatypes import (
     AnemoiCleanupArgs,
     AnemoiDatasetStatus,
@@ -61,7 +61,6 @@ __all__ = [
     "RangeRestriction",
     "SkipConnectionType",
     "SupportsImageLogging",
-    "SupportsMetadata",
     "SupportsVideoLogging",
     "TensorNCHW",
     "TensorNTCHW",

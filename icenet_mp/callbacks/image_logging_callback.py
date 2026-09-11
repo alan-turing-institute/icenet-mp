@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
-from omegaconf import DictConfig
 from torch import Tensor
 from torch.utils.data import DataLoader
 
@@ -32,13 +31,14 @@ logger = logging.getLogger(__name__)
 class ImageLoggingCallback(Callback):
     """A callback to create and log images during evaluation."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         frequency: dict[str, int] | None = None,
         make_input_plots: bool = False,
         make_static_plots: bool = True,
         make_video_plots: bool = True,
+        model_name: str | None = None,
         plot_spec: PlotSpec | None = None,
         prefix: str | None = None,
     ) -> None:
@@ -55,6 +55,7 @@ class ImageLoggingCallback(Callback):
             make_input_plots: Whether to plot the raw inputs.
             make_static_plots: Whether to create static plots.
             make_video_plots: Whether to create video plots.
+            model_name: The name of the model to include in plot subtitles.
             plot_spec: Plotting specification to use (contains difference settings, timestep selection, etc.).
             prefix: An optional prefix to add to all plot keys when logging.
 
@@ -72,7 +73,7 @@ class ImageLoggingCallback(Callback):
 
         # Plotter instance
         self.plotter = Plotter(PlotSpec() + plot_spec)
-        self._model_name: str | None = None
+        self._model_name: str | None = model_name
         self._land_mask_cache: dict[Path | None, LandMask] = {}
         self.prefix: str | None = prefix
 
@@ -376,12 +377,3 @@ class ImageLoggingCallback(Callback):
 
         # Make the plots
         self.make_plots(trainer, pl_module, *ds_tuple)
-
-    def set_metadata(self, config: DictConfig, model_name: str) -> None:  # noqa: ARG002
-        """Capture the model name for plot subtitles.
-
-        The rest of the plot metadata (training date range, cadence, point
-        count, history window, and per-source variable lists) is derived
-        directly from the dataset in `make_plots`, not from `config`.
-        """
-        self._model_name = model_name

@@ -1,8 +1,8 @@
 defaults:
   - callbacks:
     - activation_saver
+    - image_logging
     - metric_summary
-    - plotting
   - _self_
 
 trainer: ${train.trainer}

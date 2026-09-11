@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 import torch
-from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
@@ -242,19 +241,6 @@ class TestLoadDataset:
 
         assert result is None
         assert "does not have a batch size" in caplog.text
-
-
-class TestSetMetadata:
-    """Tests for set_metadata."""
-
-    def test_captures_model_name(self) -> None:
-        """Store the model name for use when metadata is built in make_plots."""
-        callback = ImageLoggingCallback()
-        config = DictConfig({"train": {}})
-
-        callback.set_metadata(config, "my_model")
-
-        assert callback._model_name == "my_model"
 
 
 class TestMakePlots:

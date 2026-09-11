@@ -21,7 +21,6 @@ from icenet_mp.compatibility.torch import (
 from icenet_mp.data import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
-from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
 log = logging.getLogger(__name__)
@@ -392,17 +391,10 @@ class ModelService:
         # Additional configuration for callbacks
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
             log.debug("Configuring callback %s.", callback.__class__.__name__)
-            # Set metadata for supported callbacks
-            if isinstance(callback, SupportsMetadata):
-                log.debug("Setting metadata for %s.", callback.__class__.__name__)
-                model_name = self.config["model"].get(
-                    "name", self.model.__class__.__name__
-                )
-                callback.set_metadata(self.config, model_name)
-            # Set plotting stage
+            # Set image logging prefix
             if isinstance(callback, ImageLoggingCallback):
                 log.debug(
-                    "Setting plotting prefix for %s to %s.",
+                    "Setting image logging prefix for %s to %s.",
                     callback.__class__.__name__,
                     job_stage,
                 )

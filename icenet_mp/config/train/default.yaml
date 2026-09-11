@@ -3,9 +3,9 @@ defaults:
     - best_checkpoint
     - early_stopping
     - ema_weight_averaging
+    - image_logging
     - learning_rate
     - metric_summary
-    - plotting
   - lr_scheduler: default
   - multistage: default
   - optimizer: default

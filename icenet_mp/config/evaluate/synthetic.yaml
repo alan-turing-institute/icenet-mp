@@ -1,5 +1,5 @@
 defaults:
   - default
   - override callbacks:
-    - plotting
+    - image_logging
   - _self_

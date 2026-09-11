@@ -293,7 +293,7 @@ class TestModelService:
     def test_build_trainer_configures_run_directory_and_callbacks(
         self, tmp_path: Path
     ) -> None:
-        """Wire up workers, the run directory, and per-callback metadata/dirpath."""
+        """Wire up workers, the run directory, and per-callback prefix/dirpath."""
         service = ModelService.__new__(ModelService)
         service.fully_deterministic = False
         service.model_ = MagicMock()
@@ -331,9 +331,6 @@ class TestModelService:
 
         service.data_module_.assign_workers.assert_called_once_with(4)
         assert (run_dir / "files" / "model_config.yaml").exists()
-        plotting_callback.set_metadata.assert_called_once_with(
-            service.config_, "test_model"
-        )
         assert plotting_callback.prefix == "processor"
         assert checkpoint_callback.dirpath == run_dir / "checkpoints"
         assert result is fake_trainer
