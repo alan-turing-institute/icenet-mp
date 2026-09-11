@@ -1,11 +1,7 @@
-import contextlib
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-
-from matplotlib.figure import Figure
-from matplotlib.text import Text
 
 from icenet_mp.types import PlotSpec
 
@@ -25,82 +21,6 @@ class TitleFooterConfig:
     bbox_pad_title: float = 2.0  # Padding for title bbox
     bbox_pad_badge: float = 1.5  # Padding for badge bbox
     zorder_high: int = 1000  # High z-order for text overlays
-
-
-# Default title/footer configuration instance
-_DEFAULT_TITLE_FOOTER_CONFIG = TitleFooterConfig()
-
-
-def set_footer_with_box(fig: Figure, text: str) -> Text:
-    """Draw a fixed-position footer with a white box at bottom centre.
-
-    Footer is intended for metadata and secondary information.
-
-    Args:
-        fig: Matplotlib Figure object.
-        text: Footer text to display.
-
-    Returns:
-        Text artist for the footer.
-
-    """
-    config = _DEFAULT_TITLE_FOOTER_CONFIG
-    bbox = {
-        "facecolor": "white",
-        "edgecolor": "none",
-        "pad": config.bbox_pad_title,
-        "alpha": 1.0,
-    }
-    t = fig.text(
-        x=0.5,
-        y=config.footer_y,
-        s=text,
-        ha="center",
-        va="bottom",
-        fontsize=config.footer_fontsize,
-        fontfamily="monospace",
-        transform=fig.transFigure,
-        bbox=bbox,
-    )
-    with contextlib.suppress(Exception):
-        t.set_zorder(config.zorder_high)
-    return t
-
-
-def draw_badge_with_box(fig: Figure, x: float, y: float, text: str) -> Text:
-    """Draw a warning/info badge with white background box at figure coords.
-
-    Args:
-        fig: Matplotlib Figure object.
-        x: X position in figure coordinates (0-1).
-        y: Y position in figure coordinates (0-1).
-        text: Badge text to display.
-
-    Returns:
-        Text artist for the badge.
-
-    """
-    config = _DEFAULT_TITLE_FOOTER_CONFIG
-    bbox = {
-        "facecolor": "white",
-        "edgecolor": "none",
-        "pad": config.bbox_pad_badge,
-        "alpha": 1.0,
-    }
-    t = fig.text(
-        x=x,
-        y=y,
-        s=text,
-        fontsize=config.footer_fontsize,
-        fontfamily="monospace",
-        color="firebrick",
-        ha="center",
-        va="top",
-        bbox=bbox,
-    )
-    with contextlib.suppress(Exception):
-        t.set_zorder(config.zorder_high)
-    return t
 
 
 class PlotAnnotator:
@@ -216,32 +136,3 @@ class PlotAnnotator:
         if plot_spec.metadata_subtitle:
             lines.append(plot_spec.metadata_subtitle)
         return "\n".join(lines)
-
-    def warning_badge(
-        self,
-        fig: Figure,
-        title_text: Text | None,
-        warnings: Sequence[str],
-    ) -> None:
-        """Render a warning badge close to the title."""
-        if not warnings:
-            return
-        badge = "Warnings: " + ", ".join(warnings)
-        if title_text is not None:
-            _, title_y = title_text.get_position()
-            n_lines = title_text.get_text().count("\n") + 1
-            warning_y = max(title_y - (0.05 + 0.02 * (n_lines - 1)), 0.0)
-        else:
-            warning_y = 0.90
-        draw_badge_with_box(fig, 0.5, warning_y, badge)
-
-    def maybe_add_footer(self, fig: Figure, plot_spec: PlotSpec) -> None:
-        """Attach footer metadata when enabled."""
-        if not getattr(plot_spec, "include_footer_metadata", True):
-            return
-        try:
-            footer_text = self.footer_for_static(plot_spec)
-            if footer_text:
-                set_footer_with_box(fig, footer_text)
-        except Exception:
-            logger.exception("Failed to draw footer; continuing without footer.")
