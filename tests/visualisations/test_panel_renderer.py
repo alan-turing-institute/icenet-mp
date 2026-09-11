@@ -8,12 +8,7 @@ from PIL.ImageFile import ImageFile
 
 from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
-from icenet_mp.visualisations.panel_builder import (
-    render_static_singlet,
-    render_static_triplet,
-    render_video_singlet,
-    render_video_triplet,
-)
+from icenet_mp.visualisations.panel_renderer import PanelRenderer
 
 
 class TestRenderStaticSinglet:
@@ -23,10 +18,10 @@ class TestRenderStaticSinglet:
         no_land_mask: LandMask,
         base_plot_spec: PlotSpec,
     ) -> None:
-        result = render_static_singlet(
+        renderer = PanelRenderer(no_land_mask, base_plot_spec)
+
+        result = renderer.static_singlet(
             era5_temperature_2d,
-            land_mask=no_land_mask,
-            plot_spec=base_plot_spec,
             when=datetime(2020, 1, 15),
             variable_name="era5:2t",
         )
@@ -45,11 +40,11 @@ class TestRenderVideoSinglet:
         base_plot_spec: PlotSpec,
     ) -> None:
         dates = [datetime.combine(d, datetime.min.time()) for d in test_dates_short]
-        result = render_video_singlet(
+        renderer = PanelRenderer(no_land_mask, base_plot_spec)
+
+        result = renderer.video_singlet(
             era5_temperature_thw,
             dates=dates,
-            land_mask=no_land_mask,
-            plot_spec=base_plot_spec,
             variable_name="era5:2t",
         )
 
@@ -63,12 +58,11 @@ class TestRenderStaticTriplet:
     ) -> None:
         ground_truth, prediction, raw_when = sic_pair_2d
         when = datetime.combine(raw_when, datetime.min.time())
+        renderer = PanelRenderer(no_land_mask, PlotSpec(include_difference=True))
 
-        result = render_static_triplet(
+        result = renderer.static_triplet(
             ground_truth,
             prediction,
-            land_mask=no_land_mask,
-            plot_spec=PlotSpec(include_difference=True),
             when=when,
             variable_name="ice_conc",
         )
@@ -81,19 +75,21 @@ class TestRenderStaticTriplet:
         ground_truth, prediction, raw_when = sic_pair_2d
         when = datetime.combine(raw_when, datetime.min.time())
 
-        two_panel = render_static_triplet(
+        two_panel_renderer = PanelRenderer(
+            no_land_mask, PlotSpec(include_difference=False)
+        )
+        two_panel = two_panel_renderer.static_triplet(
             ground_truth,
             prediction,
-            land_mask=no_land_mask,
-            plot_spec=PlotSpec(include_difference=False),
             when=when,
             variable_name="ice_conc",
         )
-        three_panel = render_static_triplet(
+        three_panel_renderer = PanelRenderer(
+            no_land_mask, PlotSpec(include_difference=True)
+        )
+        three_panel = three_panel_renderer.static_triplet(
             ground_truth,
             prediction,
-            land_mask=no_land_mask,
-            plot_spec=PlotSpec(include_difference=True),
             when=when,
             variable_name="ice_conc",
         )
@@ -108,28 +104,26 @@ class TestRenderStaticTriplet:
         when = datetime.combine(raw_when, datetime.min.time())
         uncertainty = np.full_like(ground_truth, 0.1)
 
-        with_difference = render_static_triplet(
+        renderer = PanelRenderer(no_land_mask, PlotSpec(include_difference=True))
+        with_difference = renderer.static_triplet(
             ground_truth,
             prediction,
-            land_mask=no_land_mask,
-            plot_spec=PlotSpec(include_difference=True),
             when=when,
             variable_name="ice_conc",
         )
-        with_uncertainty = render_static_triplet(
+        with_uncertainty = renderer.static_triplet(
             ground_truth,
             prediction,
-            land_mask=no_land_mask,
-            plot_spec=PlotSpec(include_difference=True),
             when=when,
             variable_name="ice_conc",
             uncertainty=uncertainty,
         )
-        two_panel = render_static_triplet(
+        two_panel_renderer = PanelRenderer(
+            no_land_mask, PlotSpec(include_difference=False)
+        )
+        two_panel = two_panel_renderer.static_triplet(
             ground_truth,
             prediction,
-            land_mask=no_land_mask,
-            plot_spec=PlotSpec(include_difference=False),
             when=when,
             variable_name="ice_conc",
         )
@@ -147,13 +141,12 @@ class TestRenderVideoTriplet:
     ) -> None:
         ground_truth, prediction, raw_dates = sic_pair_3d_stream
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        renderer = PanelRenderer(LandMask(None), PlotSpec(include_difference=True))
 
-        result = render_video_triplet(
+        result = renderer.video_triplet(
             ground_truth,
             prediction,
             dates=dates,
-            land_mask=LandMask(None),
-            plot_spec=PlotSpec(include_difference=True),
             variable_name="ice_conc",
         )
 

@@ -21,12 +21,7 @@ from icenet_mp.utils import npdatetime_from_datetime
 
 from .land_mask import LandMask
 from .metadata_builder import MetadataBuilder
-from .panel_builder import (
-    render_static_singlet,
-    render_static_triplet,
-    render_video_singlet,
-    render_video_triplet,
-)
+from .panel_renderer import PanelRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +32,7 @@ class Plotter:
         self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self.land_mask = LandMask(None)
         self.metadata_builder = MetadataBuilder()
+        self._renderer = PanelRenderer(self.land_mask, self.plot_spec)
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
@@ -99,10 +95,8 @@ class Plotter:
                 # Get data for all variables at the selected timestep
                 for channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    image = render_static_singlet(
+                    image = self._renderer.static_singlet(
                         input_ds[idx_date][channel, :],
-                        land_mask=self.land_mask,
-                        plot_spec=self.plot_spec,
                         when=when,
                         variable_name=variable_name,
                     )
@@ -141,11 +135,9 @@ class Plotter:
                 images: dict[str, list[ImageFile]] = {}
                 # Plot static truth/prediction/difference image
                 images[f"{date_key}-{variable_name}-difference"] = [
-                    render_static_triplet(
+                    self._renderer.static_triplet(
                         ground_truth,
                         prediction,
-                        land_mask=self.land_mask,
-                        plot_spec=self.plot_spec,
                         when=dates[idx_date],
                         variable_name=variable_name,
                     )
@@ -159,11 +151,9 @@ class Plotter:
                     )
                 ) is not None:
                     images[f"{date_key}-{variable_name}-z-score"] = [
-                        render_static_triplet(
+                        self._renderer.static_triplet(
                             ground_truth,
                             prediction,
-                            land_mask=self.land_mask,
-                            plot_spec=self.plot_spec,
                             when=dates[idx_date],
                             variable_name=variable_name,
                             uncertainty=uncertainty[idx_date],
@@ -192,11 +182,9 @@ class Plotter:
                 # Get data for all variables over the full date range
                 for channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    video = render_video_singlet(
+                    video = self._renderer.video_singlet(
                         input_ds.get_tchw(np_dates)[:, channel, :],
                         dates=dates,
-                        land_mask=self.land_mask,
-                        plot_spec=self.plot_spec,
                         variable_name=variable_name,
                     )
                     video_data = {f"{date_key}-{variable_name}": video}
@@ -228,12 +216,10 @@ class Plotter:
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
                 # Plot output animation via the minimal render_panels core
-                video = render_video_triplet(
+                video = self._renderer.video_triplet(
                     ground_truth,
                     prediction,
                     dates=dates,
-                    land_mask=self.land_mask,
-                    plot_spec=self.plot_spec,
                     variable_name=variable_name,
                 )
                 date_key = dates[0].strftime(r"%Y-%m-%d")

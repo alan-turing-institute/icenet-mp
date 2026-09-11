@@ -7,6 +7,7 @@ import pytest
 from PIL import Image
 
 from icenet_mp.visualisations import plot_variables_static, plot_variables_video
+from icenet_mp.visualisations.panel_renderer import PanelRenderer
 
 
 class FakeDataset:
@@ -67,13 +68,10 @@ class TestPlotDataset:
             "icenet_mp.visualisations.dataset_plotting.SingleDataset", FakeDataset
         )
 
-        def fake_render_static_singlet(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
+        def fake_static_singlet(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
             return Image.new("RGB", (4, 4))
 
-        monkeypatch.setattr(
-            "icenet_mp.visualisations.dataset_plotting.render_static_singlet",
-            fake_render_static_singlet,
-        )
+        monkeypatch.setattr(PanelRenderer, "static_singlet", fake_static_singlet)
 
         saved = plot_variables_static(
             base_path=tmp_path,
@@ -123,13 +121,10 @@ class TestPlotDatasetVideo:
             "icenet_mp.visualisations.dataset_plotting.SingleDataset", FakeVideoDataset
         )
 
-        def fake_render_video_singlet(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
+        def fake_video_singlet(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
             return io.BytesIO(b"video data")
 
-        monkeypatch.setattr(
-            "icenet_mp.visualisations.dataset_plotting.render_video_singlet",
-            fake_render_video_singlet,
-        )
+        monkeypatch.setattr(PanelRenderer, "video_singlet", fake_video_singlet)
 
         saved = plot_variables_video(
             base_path=tmp_path,

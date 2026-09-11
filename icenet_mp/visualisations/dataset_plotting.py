@@ -6,7 +6,7 @@ from icenet_mp.utils import datetime_from_npdatetime, mask_dir
 
 from .default_plot_spec import DEFAULT_SIC_SPEC
 from .land_mask import LandMask
-from .panel_builder import render_static_singlet, render_video_singlet
+from .panel_renderer import PanelRenderer
 
 
 def plot_variables_static(
@@ -36,16 +36,14 @@ def plot_variables_static(
         for channel, variable_name in enumerate(dataset.variable_names)
     }
     land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
-    land_mask = LandMask(land_mask_path)
+    renderer = PanelRenderer(LandMask(land_mask_path), plot_spec)
 
     dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
     for variable_name, variable_values in variables.items():
-        image = render_static_singlet(
+        image = renderer.static_singlet(
             variable_values,
-            land_mask=land_mask,
-            plot_spec=plot_spec,
             when=when,
             variable_name=variable_name,
         )
@@ -88,17 +86,15 @@ def plot_variables_video(
         for channel, variable_name in enumerate(dataset.variable_names)
     }
     land_mask_path = mask_dir(base_path, dataset_name) / "land_mask.npy"
-    land_mask = LandMask(land_mask_path)
+    renderer = PanelRenderer(LandMask(land_mask_path), plot_spec)
 
     dataset_output_dir = base_path / "data" / "input_plots" / dataset_name
     dataset_output_dir.mkdir(parents=True, exist_ok=True)
     saved = 0
     for variable_name, variable_values in variables.items():
-        video_buffer = render_video_singlet(
+        video_buffer = renderer.video_singlet(
             variable_values,
             dates=dates,
-            land_mask=land_mask,
-            plot_spec=plot_spec,
             variable_name=variable_name,
         )
         video_name = f"{dates[0].strftime(r'%Y-%m-%d')}-{variable_name}"

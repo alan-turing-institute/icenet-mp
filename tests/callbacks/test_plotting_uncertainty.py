@@ -148,7 +148,7 @@ class TestLogStaticOutputsUncertainty:
 
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.panel_builder.render_panels_static", fake_render
+            "icenet_mp.visualisations.panel_renderer.render_panels_static", fake_render
         )
 
         plotter.log_static_outputs(
