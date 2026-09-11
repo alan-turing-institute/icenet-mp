@@ -7,11 +7,11 @@ from unittest.mock import MagicMock, call
 import numpy as np
 import pytest
 import torch
-from omegaconf import DictConfig
 
 from icenet_mp.data import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
+from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.plotter import Plotter
 
 if TYPE_CHECKING:
@@ -111,22 +111,7 @@ class TestLoggingHelpers:
 
 
 class TestMetadataAndHemisphere:
-    def test_get_metadata_delegates_to_build_metadata(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Forward the config and model name to the metadata builder."""
-        expected = Metadata(model="unet")
-        fake_build_metadata = MagicMock(return_value=expected)
-        plotter = Plotter()
-        monkeypatch.setattr(plotter.metadata_builder, "build", fake_build_metadata)
-        config = DictConfig({})
-
-        result = plotter.get_metadata(config, "unet")
-
-        fake_build_metadata.assert_called_once_with(config, "unet")
-        assert result is expected
-
-    def test_set_metadata_updates_plot_spec_subtitle(
+    def test_configure_context_updates_metadata_subtitle(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Format the metadata and store it as the plot spec subtitle."""
@@ -137,16 +122,63 @@ class TestMetadataAndHemisphere:
             MagicMock(return_value="epochs=50"),
         )
 
-        plotter.set_metadata(Metadata(model="unet"))
+        plotter.configure_context(metadata=Metadata(model="unet"))
 
         assert plotter.plot_spec.metadata_subtitle == "epochs=50"
 
-    def test_set_hemisphere_updates_plot_spec(self) -> None:
+    def test_configure_context_updates_hemisphere(self) -> None:
         """Plotter keeps hemisphere state on its PlotSpec."""
         plotter = Plotter()
-        plotter.set_hemisphere("south")
+        plotter.configure_context(hemisphere="south")
 
         assert plotter.plot_spec.hemisphere == "south"
+
+    def test_configure_context_updates_land_mask_and_renderer(self) -> None:
+        """Reassigning land_mask through configure_context keeps the renderer in sync."""
+        plotter = Plotter()
+        new_land_mask = LandMask(None)
+
+        plotter.configure_context(land_mask=new_land_mask)
+
+        assert plotter.land_mask is new_land_mask
+        assert plotter._renderer.land_mask is new_land_mask
+
+    def test_configure_context_ignores_unset_fields(self) -> None:
+        """Omitted arguments leave existing plot_spec/land_mask state untouched."""
+        plotter = Plotter()
+        plotter.configure_context(hemisphere="north")
+        original_land_mask = plotter.land_mask
+
+        plotter.configure_context()
+
+        assert plotter.plot_spec.hemisphere == "north"
+        assert plotter.land_mask is original_land_mask
+
+    def test_configure_context_bumps_current_epoch_on_existing_metadata(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """current_epoch updates the stored metadata and refreshes the subtitle."""
+        plotter = Plotter()
+        monkeypatch.setattr(
+            plotter.metadata_builder,
+            "format_subtitle",
+            MagicMock(side_effect=lambda m: f"epoch={m.current_epoch}"),
+        )
+        plotter.configure_context(metadata=Metadata(model="unet"))
+
+        plotter.configure_context(current_epoch=5)
+
+        assert plotter.plot_spec.metadata_subtitle == "epoch=5"
+
+    def test_configure_context_current_epoch_is_noop_before_metadata_set(
+        self,
+    ) -> None:
+        """current_epoch has no effect until metadata has been set at least once."""
+        plotter = Plotter()
+
+        plotter.configure_context(current_epoch=5)
+
+        assert plotter.plot_spec.metadata_subtitle is None
 
 
 class TestLogStaticInputs:

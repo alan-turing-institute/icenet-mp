@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import numpy as np
 import pytest
@@ -39,8 +39,7 @@ def _stub_plotter(
         "log_static_inputs": MagicMock(),
         "log_video_outputs": MagicMock(),
         "log_video_inputs": MagicMock(),
-        "set_hemisphere": MagicMock(),
-        "set_metadata": MagicMock(),
+        "configure_context": MagicMock(),
     }
     monkeypatch.setattr(
         callback, "load_target_uncertainties", mocks["load_target_uncertainties"]
@@ -50,8 +49,7 @@ def _stub_plotter(
         "log_static_inputs",
         "log_video_outputs",
         "log_video_inputs",
-        "set_hemisphere",
-        "set_metadata",
+        "configure_context",
     ):
         monkeypatch.setattr(callback.plotter, name, mocks[name])
     return mocks
@@ -244,20 +242,22 @@ class TestLoadDataset:
 class TestSetMetadata:
     """Tests for set_metadata."""
 
-    def test_delegates_to_plotter_get_metadata(
+    def test_builds_metadata_and_pushes_to_plotter(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Store the plotter's metadata computed from the given config and model name."""
+        """Build metadata via the plotter's metadata_builder and push it via configure_context."""
         callback = ImageLoggingCallback()
         metadata = MagicMock(spec=Metadata)
-        get_metadata = MagicMock(return_value=metadata)
-        monkeypatch.setattr(callback.plotter, "get_metadata", get_metadata)
+        build = MagicMock(return_value=metadata)
+        monkeypatch.setattr(callback.plotter.metadata_builder, "build", build)
+        configure_context = MagicMock()
+        monkeypatch.setattr(callback.plotter, "configure_context", configure_context)
         config = DictConfig({"train": {}})
 
         callback.set_metadata(config, "my_model")
 
-        get_metadata.assert_called_once_with(config, "my_model")
-        assert callback.plotter_metadata is metadata
+        build.assert_called_once_with(config, "my_model")
+        configure_context.assert_called_once_with(metadata=metadata)
 
 
 class TestMakePlots:
@@ -294,25 +294,24 @@ class TestMakePlots:
 
         assert "skipping plotting" in caplog.text
 
-    def test_sets_plotter_metadata_when_present(
+    def test_pushes_current_epoch_and_hemisphere_to_plotter(
         self,
         make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Push the cached plotter_metadata (with current_epoch) onto the plotter."""
+        """Push the trainer's current_epoch and the module's hemisphere to the plotter."""
         callback = ImageLoggingCallback()
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
         callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
-        callback.plotter_metadata = MagicMock(spec=Metadata)
         trainer, pl_module, dataset = make_plots_args
         trainer.current_epoch = 7
 
         callback.make_plots(trainer, pl_module, dataset, 1)
 
-        assert callback.plotter_metadata.current_epoch == 7
-        stubs["set_metadata"].assert_called_once_with(callback.plotter_metadata)
-        stubs["set_hemisphere"].assert_called_once_with("south")
+        configure_calls = stubs["configure_context"].call_args_list
+        assert call(current_epoch=7) in configure_calls
+        assert any(c.kwargs.get("hemisphere") == "south" for c in configure_calls)
 
     def test_selects_start_date_using_batch_size_and_cached_batch_idx(
         self,
@@ -348,11 +347,35 @@ class TestMakePlots:
         trainer.datamodule = MagicMock(mask_directory=tmp_path)
 
         callback.make_plots(trainer, pl_module, dataset, 1)
-        first_land_mask = callback.plotter.land_mask
+        land_mask_path = tmp_path / "land_mask.npy"
+        first_land_mask = callback._land_mask_cache[land_mask_path]
         callback.make_plots(trainer, pl_module, dataset, 1)
 
-        assert callback.plotter.land_mask is first_land_mask
+        assert callback._land_mask_cache[land_mask_path] is first_land_mask
         assert len(callback._land_mask_cache) == 1
+
+    def test_passes_land_mask_to_configure_context(
+        self,
+        tmp_path: Path,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pass the cached LandMask to the plotter through configure_context."""
+        callback = ImageLoggingCallback()
+        stubs = _stub_plotter(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+        trainer.datamodule = MagicMock(mask_directory=tmp_path)
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        land_mask_path = tmp_path / "land_mask.npy"
+        expected_land_mask = callback._land_mask_cache[land_mask_path]
+        configure_calls = stubs["configure_context"].call_args_list
+        assert any(
+            c.kwargs.get("land_mask") is expected_land_mask for c in configure_calls
+        )
 
     def test_skips_static_and_video_plots_when_disabled(
         self,

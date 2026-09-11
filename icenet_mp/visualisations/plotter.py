@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 from io import BytesIO
 
-from omegaconf import DictConfig
 from PIL.ImageFile import ImageFile
 
 from icenet_mp.data import SingleDataset
@@ -30,9 +29,52 @@ class Plotter:
     def __init__(self, plot_spec: PlotSpec | None = None) -> None:
         """A helper class to create and log plots."""
         self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
-        self.land_mask = LandMask(None)
+        self._land_mask = LandMask(None)
+        self._metadata: Metadata | None = None
         self.metadata_builder = MetadataBuilder()
-        self._renderer = PanelRenderer(self.land_mask, self.plot_spec)
+        self._renderer = PanelRenderer(self._land_mask, self.plot_spec)
+
+    @property
+    def land_mask(self) -> LandMask:
+        """The land mask used by this plotter's renderer."""
+        return self._land_mask
+
+    @land_mask.setter
+    def land_mask(self, value: LandMask) -> None:
+        self._land_mask = value
+        self._renderer.land_mask = value
+
+    def configure_context(
+        self,
+        *,
+        current_epoch: int | None = None,
+        hemisphere: Hemisphere | None = None,
+        land_mask: LandMask | None = None,
+        metadata: Metadata | None = None,
+    ) -> None:
+        """Update the per-epoch rendering context: hemisphere, land mask, metadata.
+
+        Consolidates what used to be scattered mutations (two setter methods,
+        a direct `land_mask` assignment, and the caller manually bumping
+        `Metadata.current_epoch` before re-pushing it) into one entry point, so
+        the renderer and metadata subtitle can't silently fall out of sync with
+        `Plotter` state. Any argument left as `None` keeps its current value;
+        `current_epoch` is a no-op until `metadata` has been set at least once.
+        """
+        if hemisphere is not None:
+            self.plot_spec.hemisphere = hemisphere
+        if land_mask is not None:
+            self.land_mask = land_mask
+        if metadata is not None:
+            self._metadata = metadata
+        if current_epoch is not None and self._metadata is not None:
+            self._metadata.current_epoch = current_epoch
+        if (metadata is not None or current_epoch is not None) and (
+            self._metadata is not None
+        ):
+            self.plot_spec.metadata_subtitle = self.metadata_builder.format_subtitle(
+                self._metadata
+            )
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
@@ -74,10 +116,6 @@ class Plotter:
                     videos=[video_buffer],
                     format=[self.plot_spec.video_format],
                 )
-
-    def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
-        """Get metadata for the plotter based on the model test output."""
-        return self.metadata_builder.build(config, model_name)
 
     def log_static_inputs(
         self,
@@ -230,16 +268,3 @@ class Plotter:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):
             logger.exception("Video plotting failed")
-
-    def set_hemisphere(
-        self,
-        hemisphere: Hemisphere,
-    ) -> None:
-        """Set the hemisphere and update the plot spec accordingly."""
-        self.plot_spec.hemisphere = hemisphere
-
-    def set_metadata(self, metadata: Metadata) -> None:
-        """Set metadata for the plotter, which may be used in titles and subtitles."""
-        self.plot_spec.metadata_subtitle = self.metadata_builder.format_subtitle(
-            metadata
-        )

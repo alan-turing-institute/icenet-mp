@@ -14,7 +14,6 @@ from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
 from icenet_mp.types import (
     ArrayTHW,
-    Metadata,
     ModelStepOutput,
     PlotSpec,
     SupportsImageLogging,
@@ -24,7 +23,7 @@ from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
 from icenet_mp.visualisations import Plotter
 from icenet_mp.visualisations.land_mask import LandMask
 
-if TYPE_CHECKING:  # per rule TC003
+if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -73,7 +72,6 @@ class ImageLoggingCallback(Callback):
 
         # Plotter instance
         self.plotter = Plotter(PlotSpec() + plot_spec)
-        self.plotter_metadata: Metadata | None = None
         self._land_mask_cache: dict[Path | None, LandMask] = {}
         self.prefix: str | None = prefix
 
@@ -203,10 +201,8 @@ class ImageLoggingCallback(Callback):
         dataset: CombinedDataset,
         batch_size: int,
     ) -> None:
-        # Set plotting metadata
-        if self.plotter_metadata:
-            self.plotter_metadata.current_epoch = trainer.current_epoch
-            self.plotter.set_metadata(self.plotter_metadata)
+        # Update the current epoch used by the plotter
+        self.plotter.configure_context(current_epoch=trainer.current_epoch)
 
         # Ensure that outputs is a ModelStepOutput
         if self.cached_outputs_ is None or self.cached_batch_idx_ is None:
@@ -219,12 +215,10 @@ class ImageLoggingCallback(Callback):
             map(datetime_from_npdatetime, dataset.get_forecast_steps(start_date))
         )
 
-        # Set hemisphere for plotting based on dataset
         if not isinstance(pl_module, BaseModel):
             msg = f"Lightning module is of type {type(pl_module)}, skipping plotting."
             logger.warning(msg)
             return
-        self.plotter.set_hemisphere(pl_module.hemisphere)
 
         # Load land mask for plotting based on dataset (built once per path,
         # not rebuilt every validation epoch)
@@ -233,7 +227,12 @@ class ImageLoggingCallback(Callback):
         land_mask_path = mask_directory / "land_mask.npy" if mask_directory else None
         if land_mask_path not in self._land_mask_cache:
             self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
-        self.plotter.land_mask = self._land_mask_cache[land_mask_path]
+
+        # Set hemisphere and land mask for plotting based on dataset
+        self.plotter.configure_context(
+            hemisphere=pl_module.hemisphere,
+            land_mask=self._land_mask_cache[land_mask_path],
+        )
 
         # Get loggers that support image and video logging
         image_loggers: list[SupportsImageLogging] = [
@@ -372,4 +371,5 @@ class ImageLoggingCallback(Callback):
 
     def set_metadata(self, config: DictConfig, model_name: str) -> None:
         """Set metadata for the plotter."""
-        self.plotter_metadata = self.plotter.get_metadata(config, model_name)
+        metadata = self.plotter.metadata_builder.build(config, model_name)
+        self.plotter.configure_context(metadata=metadata)
