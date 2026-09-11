@@ -72,6 +72,7 @@ class ImageLoggingCallback(Callback):
 
         # Plotter instance
         self.plotter = Plotter(PlotSpec() + plot_spec)
+        self._model_name: str | None = None
         self._land_mask_cache: dict[Path | None, LandMask] = {}
         self.prefix: str | None = prefix
 
@@ -201,8 +202,15 @@ class ImageLoggingCallback(Callback):
         dataset: CombinedDataset,
         batch_size: int,
     ) -> None:
-        # Update the current epoch used by the plotter
-        self.plotter.configure_context(current_epoch=trainer.current_epoch)
+        # Rebuild metadata from the dataset's realised state and push the
+        # current epoch; cheap enough to do unconditionally every call.
+        self.plotter.configure_context(
+            metadata=self.plotter.metadata_builder.from_dataset(
+                dataset,
+                current_epoch=trainer.current_epoch,
+                model_name=self._model_name,
+            )
+        )
 
         # Ensure that outputs is a ModelStepOutput
         if self.cached_outputs_ is None or self.cached_batch_idx_ is None:
@@ -369,7 +377,11 @@ class ImageLoggingCallback(Callback):
         # Make the plots
         self.make_plots(trainer, pl_module, *ds_tuple)
 
-    def set_metadata(self, config: DictConfig, model_name: str) -> None:
-        """Set metadata for the plotter."""
-        metadata = self.plotter.metadata_builder.build(config, model_name)
-        self.plotter.configure_context(metadata=metadata)
+    def set_metadata(self, config: DictConfig, model_name: str) -> None:  # noqa: ARG002
+        """Capture the model name for plot subtitles.
+
+        The rest of the plot metadata (training date range, cadence, point
+        count, history window, and per-source variable lists) is derived
+        directly from the dataset in `make_plots`, not from `config`.
+        """
+        self._model_name = model_name

@@ -154,32 +154,6 @@ class TestMetadataAndHemisphere:
         assert plotter.plot_spec.hemisphere == "north"
         assert plotter.land_mask is original_land_mask
 
-    def test_configure_context_bumps_current_epoch_on_existing_metadata(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """current_epoch updates the stored metadata and refreshes the subtitle."""
-        plotter = Plotter()
-        monkeypatch.setattr(
-            plotter.metadata_builder,
-            "format_subtitle",
-            MagicMock(side_effect=lambda m: f"epoch={m.current_epoch}"),
-        )
-        plotter.configure_context(metadata=Metadata(model="unet"))
-
-        plotter.configure_context(current_epoch=5)
-
-        assert plotter.plot_spec.metadata_subtitle == "epoch=5"
-
-    def test_configure_context_current_epoch_is_noop_before_metadata_set(
-        self,
-    ) -> None:
-        """current_epoch has no effect until metadata has been set at least once."""
-        plotter = Plotter()
-
-        plotter.configure_context(current_epoch=5)
-
-        assert plotter.plot_spec.metadata_subtitle is None
-
 
 class TestLogStaticInputs:
     def test_logs_images_for_each_input_dataset(

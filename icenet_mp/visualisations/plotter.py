@@ -30,7 +30,6 @@ class Plotter:
         """A helper class to create and log plots."""
         self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self._land_mask = LandMask(None)
-        self._metadata: Metadata | None = None
         self.metadata_builder = MetadataBuilder()
         self._renderer = PanelRenderer(self._land_mask, self.plot_spec)
 
@@ -47,33 +46,26 @@ class Plotter:
     def configure_context(
         self,
         *,
-        current_epoch: int | None = None,
         hemisphere: Hemisphere | None = None,
         land_mask: LandMask | None = None,
         metadata: Metadata | None = None,
     ) -> None:
         """Update the per-epoch rendering context: hemisphere, land mask, metadata.
 
-        Consolidates what used to be scattered mutations (two setter methods,
-        a direct `land_mask` assignment, and the caller manually bumping
-        `Metadata.current_epoch` before re-pushing it) into one entry point, so
-        the renderer and metadata subtitle can't silently fall out of sync with
-        `Plotter` state. Any argument left as `None` keeps its current value;
-        `current_epoch` is a no-op until `metadata` has been set at least once.
+        Consolidates what used to be two setter methods plus a direct
+        `land_mask` assignment into one entry point, so the renderer can't
+        silently fall out of sync with `Plotter` state. Any argument left as
+        `None` keeps its current value. `metadata` is cheap to rebuild fresh
+        every call (e.g. via `MetadataBuilder.from_dataset`), so unlike
+        `hemisphere`/`land_mask` there's no separate incremental-update path.
         """
         if hemisphere is not None:
             self.plot_spec.hemisphere = hemisphere
         if land_mask is not None:
             self.land_mask = land_mask
         if metadata is not None:
-            self._metadata = metadata
-        if current_epoch is not None and self._metadata is not None:
-            self._metadata.current_epoch = current_epoch
-        if (metadata is not None or current_epoch is not None) and (
-            self._metadata is not None
-        ):
             self.plot_spec.metadata_subtitle = self.metadata_builder.format_subtitle(
-                self._metadata
+                metadata
             )
 
     @staticmethod

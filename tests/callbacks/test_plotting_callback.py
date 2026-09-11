@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
 from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
-from icenet_mp.types import Metadata, ModelStepOutput
+from icenet_mp.types import ModelStepOutput
 
 
 @pytest.fixture
@@ -26,6 +26,11 @@ def make_plots_args(mock_trainer: MagicMock) -> tuple[MagicMock, MagicMock, Magi
     dataset.dates = [np.datetime64("2020-01-01T12:00:00")]
     dataset.get_forecast_steps.return_value = [np.datetime64("2020-01-01T12:00:00")]
     dataset.inputs = []
+    dataset.start_date = np.datetime64("2020-01-01")
+    dataset.end_date = np.datetime64("2020-01-10")
+    dataset.frequency = np.timedelta64(1, "D")
+    dataset.n_history_steps = 1
+    dataset.__len__.return_value = 10
     return mock_trainer, pl_module, dataset
 
 
@@ -242,22 +247,14 @@ class TestLoadDataset:
 class TestSetMetadata:
     """Tests for set_metadata."""
 
-    def test_builds_metadata_and_pushes_to_plotter(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Build metadata via the plotter's metadata_builder and push it via configure_context."""
+    def test_captures_model_name(self) -> None:
+        """Store the model name for use when metadata is built in make_plots."""
         callback = ImageLoggingCallback()
-        metadata = MagicMock(spec=Metadata)
-        build = MagicMock(return_value=metadata)
-        monkeypatch.setattr(callback.plotter.metadata_builder, "build", build)
-        configure_context = MagicMock()
-        monkeypatch.setattr(callback.plotter, "configure_context", configure_context)
         config = DictConfig({"train": {}})
 
         callback.set_metadata(config, "my_model")
 
-        build.assert_called_once_with(config, "my_model")
-        configure_context.assert_called_once_with(metadata=metadata)
+        assert callback._model_name == "my_model"
 
 
 class TestMakePlots:
@@ -299,7 +296,7 @@ class TestMakePlots:
         make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Push the trainer's current_epoch and the module's hemisphere to the plotter."""
+        """Push the trainer's current_epoch (via metadata) and the module's hemisphere."""
         callback = ImageLoggingCallback()
         stubs = _stub_plotter(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
@@ -310,7 +307,11 @@ class TestMakePlots:
         callback.make_plots(trainer, pl_module, dataset, 1)
 
         configure_calls = stubs["configure_context"].call_args_list
-        assert call(current_epoch=7) in configure_calls
+        assert any(
+            c.kwargs.get("metadata") is not None
+            and c.kwargs["metadata"].current_epoch == 7
+            for c in configure_calls
+        )
         assert any(c.kwargs.get("hemisphere") == "south" for c in configure_calls)
 
     def test_selects_start_date_using_batch_size_and_cached_batch_idx(
