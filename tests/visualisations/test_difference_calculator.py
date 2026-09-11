@@ -5,14 +5,11 @@ pair. compute_standardised_difference is tested in tests/visualisations/test_unc
 alongside its sibling plot_static_uncertainty, not here.
 """
 
-from dataclasses import replace
-
 import numpy as np
 import pytest
 from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import PlotSpec
 from icenet_mp.visualisations.difference_calculator import (
     DifferenceCalculator,
 )
@@ -153,150 +150,6 @@ class TestMakeDiffColourmap:
         """An unrecognised mode raises ValueError."""
         with pytest.raises(ValueError, match="Unknown difference mode"):
             DifferenceCalculator().make_diff_colourmap(1.0, mode="bogus")  # type: ignore[arg-type]
-
-
-class TestPrepareDifferenceStream:
-    ground_truth_stream = np.array(
-        [
-            [[0.5, 0.2], [0.1, 0.9]],
-            [[0.4, 0.3], [0.2, 0.6]],
-            [[0.7, 0.1], [0.3, 0.5]],
-        ]
-    )
-    prediction_stream = np.array(
-        [
-            [[0.4, 0.3], [0.2, 0.7]],
-            [[0.5, 0.1], [0.3, 0.5]],
-            [[0.6, 0.3], [0.1, 0.6]],
-        ]
-    )
-
-    def test_include_difference_false_short_circuits(self) -> None:
-        """include_difference=False returns (None, None) regardless of strategy."""
-        difference_stream, colour_scale = (
-            DifferenceCalculator().prepare_difference_stream(
-                include_difference=False,
-                diff_mode="signed",
-                strategy="precompute",
-                ground_truth_stream=self.ground_truth_stream,
-                prediction_stream=self.prediction_stream,
-            )
-        )
-
-        assert difference_stream is None
-        assert colour_scale is None
-
-    def test_precompute_strategy_returns_full_difference_stream(self) -> None:
-        """Precompute returns the full elementwise difference stream and a colour scale."""
-        difference_stream, colour_scale = (
-            DifferenceCalculator().prepare_difference_stream(
-                include_difference=True,
-                diff_mode="signed",
-                strategy="precompute",
-                ground_truth_stream=self.ground_truth_stream,
-                prediction_stream=self.prediction_stream,
-            )
-        )
-
-        assert difference_stream is not None
-        np.testing.assert_allclose(
-            difference_stream, self.ground_truth_stream - self.prediction_stream
-        )
-        assert colour_scale is not None
-        assert colour_scale.cmap == "RdBu_r"
-
-    def test_two_pass_strategy_scans_for_colour_scale_only(self) -> None:
-        """two-pass returns no difference stream but derives the colour scale."""
-        difference_stream, colour_scale = (
-            DifferenceCalculator().prepare_difference_stream(
-                include_difference=True,
-                diff_mode="absolute",
-                strategy="two-pass",
-                ground_truth_stream=self.ground_truth_stream,
-                prediction_stream=self.prediction_stream,
-            )
-        )
-
-        assert difference_stream is None
-        assert colour_scale is not None
-        expected_max = float(
-            np.nanmax(np.abs(self.ground_truth_stream - self.prediction_stream))
-        )
-        assert colour_scale.vmax == pytest.approx(expected_max)
-        assert colour_scale.vmin == pytest.approx(0.0)
-
-    def test_two_pass_strategy_signed_takes_absolute_of_extremes(self) -> None:
-        """two-pass with signed mode uses the largest absolute per-frame extreme."""
-        _, colour_scale = DifferenceCalculator().prepare_difference_stream(
-            include_difference=True,
-            diff_mode="signed",
-            strategy="two-pass",
-            ground_truth_stream=self.ground_truth_stream,
-            prediction_stream=self.prediction_stream,
-        )
-
-        assert colour_scale is not None
-        assert isinstance(colour_scale.norm, TwoSlopeNorm)
-        raw_max = float(
-            np.nanmax(np.abs(self.ground_truth_stream - self.prediction_stream))
-        )
-        # make_diff_colourmap enforces a minimum symmetric span of +/-1.0.
-        expected_max = max(1.0, raw_max)
-        assert colour_scale.norm.vmax == pytest.approx(expected_max)
-        assert colour_scale.norm.vmin == pytest.approx(-expected_max)
-
-    def test_per_frame_strategy_returns_nothing_precomputed(self) -> None:
-        """per-frame defers all computation to per-frame calls, returning (None, None)."""
-        difference_stream, colour_scale = (
-            DifferenceCalculator().prepare_difference_stream(
-                include_difference=True,
-                diff_mode="signed",
-                strategy="per-frame",
-                ground_truth_stream=self.ground_truth_stream,
-                prediction_stream=self.prediction_stream,
-            )
-        )
-
-        assert difference_stream is None
-        assert colour_scale is None
-
-    def test_invalid_strategy_raises(self) -> None:
-        """An unrecognised strategy raises ValueError."""
-        with pytest.raises(ValueError, match="Unknown DiffStrategy"):
-            DifferenceCalculator().prepare_difference_stream(
-                include_difference=True,
-                diff_mode="signed",
-                strategy="bogus",  # type: ignore[arg-type]
-                ground_truth_stream=self.ground_truth_stream,
-                prediction_stream=self.prediction_stream,
-            )
-
-
-class TestComputeDisplayRanges:
-    ground_truth = np.array([[0.1, 0.5], [0.9, 0.3]], dtype=np.float32)
-    prediction = np.array([[0.2, 0.4], [0.6, 0.8]], dtype=np.float32)
-
-    def test_shared_strategy_uses_ground_truth_range_for_both(self) -> None:
-        """'shared' uses the ground-truth range for both ground truth and prediction."""
-        plot_spec = replace(PlotSpec(), colourbar_strategy="shared")
-
-        gt_range, pred_range = DifferenceCalculator().compute_display_ranges(
-            self.ground_truth, self.prediction, plot_spec
-        )
-
-        assert gt_range == (pytest.approx(0.1), pytest.approx(0.9))
-        assert pred_range == (pytest.approx(0.1), pytest.approx(0.9))
-
-    def test_separate_strategy_uses_each_panels_own_range(self) -> None:
-        """'separate' uses each panel's own data range."""
-        plot_spec = replace(PlotSpec(), colourbar_strategy="separate")
-
-        gt_range, pred_range = DifferenceCalculator().compute_display_ranges(
-            self.ground_truth, self.prediction, plot_spec
-        )
-
-        assert gt_range == (pytest.approx(0.1), pytest.approx(0.9))
-        assert pred_range == (pytest.approx(0.2), pytest.approx(0.8))
 
 
 class TestComputeStandardisedDifference:

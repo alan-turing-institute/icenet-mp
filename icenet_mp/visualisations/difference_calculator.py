@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import DiffColourmapSpec, DiffMode, DiffStrategy, PlotSpec
+from icenet_mp.types import DiffColourmapSpec, DiffMode
 
 from .variable_styler import VariableStyler
 
@@ -151,104 +151,3 @@ class DifferenceCalculator:
 
         msg = f"Unknown difference mode: {mode}"
         raise ValueError(msg)
-
-    def prepare_difference_stream(
-        self,
-        *,
-        include_difference: bool,
-        diff_mode: DiffMode,
-        strategy: DiffStrategy,
-        ground_truth_stream: np.ndarray,
-        prediction_stream: np.ndarray,
-    ) -> tuple[np.ndarray | None, DiffColourmapSpec | None]:
-        """General, reusable planner for animations (maps or time-series).
-
-        This function implements three different strategies for handling
-        difference between ground truth and prediction in animations, each with
-        different memory and computational trade-offs. The choice of strategy affects
-        both memory usage and animation performance.
-
-        Args:
-            include_difference: Whether difference visualisation is requested.
-            diff_mode: Type of difference computation (signed/absolute/smape).
-            strategy: Strategy for difference computation:
-                - "precompute": Calculate all differences upfront
-                - "two-pass": Scan data to determine colour scale, then compute per-frame
-                - "per-frame": Compute differences on-demand
-            ground_truth_stream: 3D array of ground truth data over time.
-            prediction_stream: 3D array of prediction data over time.
-
-        Returns:
-            Tuple of (difference_stream, colour_scale):
-            - difference_stream: None unless strategy == 'precompute'
-            - colour_scale: DiffColourmapSpec describing colourmap/norm/range
-
-        """
-        if not include_difference:
-            return None, None
-
-        n_timesteps = ground_truth_stream.shape[0]
-        if strategy == "precompute":
-            difference_stream = self.compute_difference(
-                ground_truth_stream, prediction_stream, diff_mode
-            )
-            colour_scale = self.make_diff_colourmap(difference_stream, mode=diff_mode)
-            return difference_stream, colour_scale
-
-        if strategy == "two-pass":
-            differences = [
-                self.compute_difference(
-                    ground_truth_stream[tt], prediction_stream[tt], diff_mode
-                )
-                for tt in range(n_timesteps)
-            ]
-            max_ = max(
-                float(
-                    np.nanmax(
-                        np.abs(difference) if diff_mode == "signed" else difference
-                    )
-                    or 0.0
-                )
-                for difference in differences
-            )
-            colour_scale = self.make_diff_colourmap(max_, mode=diff_mode)
-            return None, colour_scale
-
-        if strategy == "per-frame":
-            # no precomputation; each frame will call compute_difference and
-            # may choose to infer its own params if desired (less consistent look)
-            return None, None
-
-        msg = f"Unknown DiffStrategy: {strategy}"
-        raise ValueError(msg)
-
-    def compute_display_ranges(
-        self, ground_truth: np.ndarray, prediction: np.ndarray, plot_spec: PlotSpec
-    ) -> tuple[tuple[float, float], tuple[float, float]]:
-        """Compute vmin/vmax for ground truth and prediction based on strategy.
-
-        Args:
-            ground_truth: The ground truth array. [H,W]
-            prediction: The prediction array. [H,W]
-            plot_spec: The plotting specification.
-
-        Returns:
-            The display ranges. (vmin, vmax)
-
-        Raises:
-            InvalidArrayError: If the arrays are not 2D or have different shapes.
-
-        """
-        # Get data ranges for ground_truth and prediction
-        groundtruth_min = float(np.nanmin(ground_truth))
-        groundtruth_max = float(np.nanmax(ground_truth))
-        prediction_min = float(np.nanmin(prediction))
-        prediction_max = float(np.nanmax(prediction))
-
-        # Both panels use the same vmin/vmax (ground truth used as reference)
-        if plot_spec.colourbar_strategy == "shared":
-            shared_range = (groundtruth_min, groundtruth_max)
-            return shared_range, shared_range
-
-        # Each panel uses its own data range ("separate", the only other Literal value)
-        return (groundtruth_min, groundtruth_max), (prediction_min, prediction_max)
