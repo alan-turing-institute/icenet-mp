@@ -2,8 +2,10 @@
 
 from datetime import date, datetime
 from io import BytesIO
+from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 from PIL.ImageFile import ImageFile
 
 from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
@@ -134,6 +136,57 @@ class TestRenderStaticTriplet:
         assert two_panel.width < with_uncertainty.width
         assert two_panel.width < with_difference.width
 
+    def test_ice_edge_contours_ground_truth_and_prediction_only(
+        self,
+        sic_pair_2d: tuple[ArrayHW, ArrayHW, date],
+        no_land_mask: LandMask,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """include_ice_edge contours the GT/prediction panels, not the difference panel."""
+        ground_truth, prediction, raw_when = sic_pair_2d
+        when = datetime.combine(raw_when, datetime.min.time())
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.panel_renderer.render_panels_static",
+            fake_render,
+        )
+        plot_spec = PlotSpec(include_difference=True, include_ice_edge=True)
+        renderer = PanelRenderer(no_land_mask, plot_spec)
+
+        renderer.static_triplet(
+            ground_truth, prediction, when=when, variable_name="ice_conc"
+        )
+
+        contour_arrays = fake_render.call_args.kwargs["contour_arrays"]
+        assert contour_arrays[0] is not None
+        assert contour_arrays[1] is not None
+        assert contour_arrays[2] is None
+        assert (
+            fake_render.call_args.kwargs["contour_level"]
+            == plot_spec.ice_edge_threshold
+        )
+
+    def test_no_contour_when_ice_edge_disabled(
+        self,
+        sic_pair_2d: tuple[ArrayHW, ArrayHW, date],
+        no_land_mask: LandMask,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ground_truth, prediction, raw_when = sic_pair_2d
+        when = datetime.combine(raw_when, datetime.min.time())
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.panel_renderer.render_panels_static",
+            fake_render,
+        )
+        renderer = PanelRenderer(no_land_mask, PlotSpec(include_ice_edge=False))
+
+        renderer.static_triplet(
+            ground_truth, prediction, when=when, variable_name="ice_conc"
+        )
+
+        assert fake_render.call_args.kwargs["contour_arrays"] is None
+
 
 class TestRenderVideoTriplet:
     def test_with_difference_panel(
@@ -152,3 +205,32 @@ class TestRenderVideoTriplet:
 
         assert isinstance(result, BytesIO)
         assert result.getbuffer().nbytes > 0
+
+    def test_ice_edge_contours_ground_truth_and_prediction_only(
+        self,
+        sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """include_ice_edge contours the GT/prediction panels, not the difference panel."""
+        ground_truth, prediction, raw_dates = sic_pair_3d_stream
+        dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.panel_renderer.render_panels_video",
+            fake_render,
+        )
+        plot_spec = PlotSpec(include_difference=True, include_ice_edge=True)
+        renderer = PanelRenderer(LandMask(None), plot_spec)
+
+        renderer.video_triplet(
+            ground_truth, prediction, dates=dates, variable_name="ice_conc"
+        )
+
+        contour_arrays = fake_render.call_args.kwargs["contour_arrays"]
+        assert contour_arrays[0] is not None
+        assert contour_arrays[1] is not None
+        assert contour_arrays[2] is None
+        assert (
+            fake_render.call_args.kwargs["contour_level"]
+            == plot_spec.ice_edge_threshold
+        )

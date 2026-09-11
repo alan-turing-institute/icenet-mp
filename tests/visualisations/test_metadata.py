@@ -316,7 +316,6 @@ def test_build_metadata_returns_dataclass() -> None:
     """Test that build_metadata returns a Metadata dataclass with extracted fields."""
     config = DictConfig(
         {
-            "train": {"trainer": {"max_epochs": 10}},
             "data": {
                 "split": {
                     "train": [
@@ -338,7 +337,6 @@ def test_build_metadata_returns_dataclass() -> None:
 
     assert isinstance(metadata, Metadata)
     assert metadata.model == "test_model"
-    assert metadata.max_epochs == 10
     assert metadata.current_epoch is None
     assert metadata.start == "2000-01-01"
     assert metadata.end == "2010-12-31"
@@ -351,7 +349,6 @@ def test_build_metadata_empty_config() -> None:
 
     assert isinstance(metadata, Metadata)
     assert metadata.model is None
-    assert metadata.max_epochs is None
     assert metadata.current_epoch is None
     assert metadata.start is None
     assert metadata.end is None

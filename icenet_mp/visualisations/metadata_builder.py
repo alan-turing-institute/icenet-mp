@@ -303,12 +303,6 @@ class MetadataBuilder:
             start_str, end_str, cadence_str
         )
 
-        # Get epochs
-        trainer_cfg = config.get("train", {}).get("trainer", {})
-        max_epochs = (
-            trainer_cfg.get("max_epochs") if isinstance(trainer_cfg, dict) else None
-        )
-
         # Get variables grouped by source
         vars_by_source = self.extract_variables_by_source(config)
 
@@ -323,7 +317,6 @@ class MetadataBuilder:
         return Metadata(
             model=model_name if isinstance(model_name, str) and model_name else None,
             current_epoch=None,
-            max_epochs=max_epochs if isinstance(max_epochs, int) else None,
             start=start_str,
             end=end_str,
             cadence=cadence_str,

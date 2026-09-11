@@ -9,6 +9,7 @@ import numpy as np
 from matplotlib import animation
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap, Normalize
+from matplotlib.contour import QuadContourSet
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 from PIL.ImageFile import ImageFile
@@ -20,6 +21,7 @@ from .convert import image_from_figure, video_from_animation
 _COLOURBAR_ASPECT = 25
 _COLOURBAR_LABEL_SIZE = 9
 _PANEL_HEIGHT_IN = 6
+_CONTOUR_LINEWIDTH = 1.2
 
 
 def _add_colourbar(fig: Figure, image: AxesImage, axes: Axes | list[Axes]) -> None:
@@ -40,10 +42,44 @@ def _add_colourbar(fig: Figure, image: AxesImage, axes: Axes | list[Axes]) -> No
     cbar.ax.tick_params(labelsize=_COLOURBAR_LABEL_SIZE)
 
 
+def _draw_contours(
+    axes: Sequence[Axes],
+    contour_arrays: Sequence[np.ndarray | None] | None,
+    *,
+    color: str,
+    level: float | None,
+) -> list[QuadContourSet | None]:
+    """Draw a single-level contour on each panel that has a contour array.
+
+    Returns one `QuadContourSet` (or `None`) per axes, in panel order, so a
+    caller can `.remove()` it before redrawing (e.g. per animation frame).
+    """
+    if contour_arrays is None or level is None:
+        return [None] * len(axes)
+    contour_sets: list[QuadContourSet | None] = []
+    for ax, contour_arr in zip(axes, contour_arrays, strict=True):
+        if contour_arr is None:
+            contour_sets.append(None)
+            continue
+        contour_sets.append(
+            ax.contour(
+                contour_arr,
+                colors=color,
+                levels=[level],
+                linewidths=_CONTOUR_LINEWIDTH,
+                origin="upper",
+            )
+        )
+    return contour_sets
+
+
 def render_panels(  # noqa: PLR0913
     arrays: Sequence[ArrayHW],
     *,
     cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
+    contour_arrays: Sequence[ArrayHW | None] | None = None,
+    contour_color: str = "red",
+    contour_level: float | None = None,
     figure_title: str | None = None,
     footer_text: str | None = None,
     group_axes: tuple[int, int] | None = None,
@@ -57,6 +93,11 @@ def render_panels(  # noqa: PLR0913
     Args:
         arrays: 1 to 3 2D `[H, W]` arrays, one per panel.
         cmap: Optional colourmap(s), either shared by all panels or one per panel.
+        contour_arrays: Optional per-panel array to draw a single-level contour
+            over (e.g. the sea ice edge); `None` entries draw no contour.
+        contour_color: Colour of the contour line(s).
+        contour_level: Value at which to draw the contour; no contours are
+            drawn if `None`.
         figure_title: Optional figure-level title drawn above all panels.
         footer_text: Optional footer text drawn below the colourbars.
         group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
@@ -97,6 +138,8 @@ def render_panels(  # noqa: PLR0913
         ax.set_title(title)
         ax.axis("off")
 
+    _draw_contours(axes, contour_arrays, color=contour_color, level=contour_level)
+
     if group_axes is not None:
         start, end = group_axes
         _add_colourbar(fig, images[start], axes[start : end + 1])
@@ -119,6 +162,9 @@ def render_panels_static(  # noqa: PLR0913
     arrays: Sequence[ArrayHW],
     *,
     cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
+    contour_arrays: Sequence[ArrayHW | None] | None = None,
+    contour_color: str = "red",
+    contour_level: float | None = None,
     dpi: int = 150,
     figure_title: str | None = None,
     footer_text: str | None = None,
@@ -133,6 +179,11 @@ def render_panels_static(  # noqa: PLR0913
     Args:
         arrays: 1 to 3 2D `[H, W]` arrays, one per panel.
         cmap: Optional colourmap(s), either shared by all panels or one per panel.
+        contour_arrays: Optional per-panel array to draw a single-level contour
+            over (e.g. the sea ice edge); `None` entries draw no contour.
+        contour_color: Colour of the contour line(s).
+        contour_level: Value at which to draw the contour; no contours are
+            drawn if `None`.
         dpi: Dots per inch for the rendered image.
         figure_title: Optional figure-level title drawn above all panels.
         footer_text: Optional footer text drawn below the colourbars.
@@ -149,6 +200,9 @@ def render_panels_static(  # noqa: PLR0913
     figure, _ = render_panels(
         arrays,
         cmap=cmap,
+        contour_arrays=contour_arrays,
+        contour_color=contour_color,
+        contour_level=contour_level,
         figure_title=figure_title,
         footer_text=footer_text,
         group_axes=group_axes,
@@ -167,6 +221,9 @@ def render_panels_video(  # noqa: PLR0913
     arrays: Sequence[ArrayTHW],
     *,
     cmap: str | Sequence[str] = "viridis",
+    contour_arrays: Sequence[ArrayTHW | None] | None = None,
+    contour_color: str = "red",
+    contour_level: float | None = None,
     dpi: int = 150,
     figure_title: str | None = None,
     footer_text: str | None = None,
@@ -180,11 +237,17 @@ def render_panels_video(  # noqa: PLR0913
     """Render multiple panels side-by-side, animated over time.
 
     Builds the first frame with `render_panels`, then updates each panel's
-    image data per frame.
+    image data (and any contour) per frame.
 
     Args:
         arrays: 1 to 3 3D `[T, H, W]` arrays, one per panel, animated in lockstep.
         cmap: Optional colourmap(s), either shared by all panels or one per panel.
+        contour_arrays: Optional per-panel `[T, H, W]` array to draw a
+            single-level contour over per frame (e.g. the sea ice edge);
+            `None` entries draw no contour.
+        contour_color: Colour of the contour line(s).
+        contour_level: Value at which to draw the contour; no contours are
+            drawn if `None`.
         dpi: Dots per inch for the rendered video frames.
         figure_title: Optional figure-level title drawn above all panels.
         footer_text: Optional footer text drawn below the colourbars.
@@ -211,9 +274,28 @@ def render_panels_video(  # noqa: PLR0913
     )
     images = [ax.images[0] for ax in axes]
 
+    def _frame_contours(tt: int) -> list[ArrayHW | None]:
+        if contour_arrays is None:
+            return [None] * len(axes)
+        return [None if arr is None else arr[tt] for arr in contour_arrays]
+
+    contour_sets = _draw_contours(
+        axes, _frame_contours(0), color=contour_color, level=contour_level
+    )
+
     def animate(tt: int) -> tuple[()]:
         for image, array in zip(images, arrays, strict=True):
             image.set_data(array[tt])
+        frame_contours = _frame_contours(tt)
+        for i, contour_set in enumerate(contour_sets):
+            if contour_set is not None:
+                contour_set.remove()
+            contour_sets[i] = _draw_contours(
+                [axes[i]],
+                [frame_contours[i]],
+                color=contour_color,
+                level=contour_level,
+            )[0]
         return ()
 
     try:

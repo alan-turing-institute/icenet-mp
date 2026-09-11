@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, NamedTuple, TypedDict
+from typing import NamedTuple, TypedDict
 
 from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
@@ -14,7 +14,6 @@ class AnemoiCleanupArgs:
 
     path: str
     command: str = "unused"
-    delta: list[str] | None = None
 
 
 class AnemoiDatasetStatus(NamedTuple):
@@ -100,7 +99,6 @@ class Metadata:
 
     Attributes:
         model: Model name (if available).
-        max_epochs: Maximum number of training epochs (if available).
         current_epoch: Current training epoch (if available).
         start: Training start date string (if available).
         end: Training end date string (if available).
@@ -112,7 +110,6 @@ class Metadata:
     """
 
     model: str | None = None
-    max_epochs: int | None = None
     current_epoch: int | None = None
     start: str | None = None
     end: str | None = None
@@ -138,19 +135,11 @@ class VariableStyle:
         cmap: Matplotlib colourmap name (e.g., "viridis", "RdBu_r").
         vmin: Minimum value for colour scale.
         vmax: Maximum value for colour scale.
-        two_slope_centre: Centre value for diverging colourmap (TwoSlopeNorm).
         units: Display units for the variable (e.g., "K", "m/s").
-        origin: Imshow origin override ("upper" keeps north-up, "lower" keeps south-up).
-        decimals: Number of decimal places for colourbar tick labels (default: 2).
-        use_scientific_notation: Whether to format colourbar tick labels in scientific notation (default: False).
 
     """
 
     cmap: str | None = None
     vmin: float | None = None
     vmax: float | None = None
-    two_slope_centre: float | None = None
     units: str | None = None
-    origin: Literal["upper", "lower"] | None = None
-    decimals: int | None = None
-    use_scientific_notation: bool | None = None

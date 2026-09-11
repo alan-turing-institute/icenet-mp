@@ -185,11 +185,18 @@ class PanelRenderer:
             vmins.append(diff_vmin)
             vmaxs.append(diff_vmax)
 
+        contour_arrays: list[np.ndarray | None] | None = None
+        if plot_spec.include_ice_edge:
+            contour_arrays = [masked_ground_truth, masked_prediction]
+            contour_arrays += [None] * (len(arrays) - len(contour_arrays))
+
         suptitle = self._annotator.title_for_static(variable_name, plot_spec, when)
         footer_text = self._annotator.footer_for_static(plot_spec)
         return render_panels_static(
             arrays,
             cmap=cmaps,
+            contour_arrays=contour_arrays,
+            contour_level=plot_spec.ice_edge_threshold,
             dpi=plot_spec.dpi,
             figure_title=suptitle,
             footer_text=footer_text or None,
@@ -231,12 +238,19 @@ class PanelRenderer:
             vmins.append(diff_vmin)
             vmaxs.append(diff_vmax)
 
+        contour_arrays: list[np.ndarray | None] | None = None
+        if plot_spec.include_ice_edge:
+            contour_arrays = [masked_ground_truth, masked_prediction]
+            contour_arrays += [None] * (len(arrays) - len(contour_arrays))
+
         title_line = self._annotator.title_for_video(variable_name, plot_spec, dates, 0)
         footer_text = self._annotator.footer_for_video(plot_spec, dates)
 
         return render_panels_video(
             arrays,
             cmap=cmaps,
+            contour_arrays=contour_arrays,
+            contour_level=plot_spec.ice_edge_threshold,
             dpi=plot_spec.dpi,
             figure_title=title_line,
             footer_text=footer_text or None,

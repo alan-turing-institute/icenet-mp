@@ -21,11 +21,10 @@ class TestAnemoiCommandArgs:
     """Tests for the Anemoi CLI command argument dataclasses."""
 
     def test_cleanup_defaults(self) -> None:
-        """Default AnemoiCleanupArgs command and delta when omitted."""
+        """Default AnemoiCleanupArgs command when omitted."""
         args = AnemoiCleanupArgs(path="dataset.zarr")
 
         assert args.command == "unused"
-        assert args.delta is None
 
     def test_finalise_defaults(self) -> None:
         """Default AnemoiFinaliseArgs command while preserving the recipe."""
@@ -109,7 +108,6 @@ class TestMetadata:
         """Accept and preserve training-summary metadata fields."""
         metadata = Metadata(
             model="cnn-vit-cnn",
-            max_epochs=20,
             current_epoch=7,
             start="2017-01-01",
             end="2019-12-31",

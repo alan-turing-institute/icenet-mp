@@ -141,7 +141,7 @@ class TestStyleForVariable:
         style = VariableStyler().style_for_variable("era5:2t", {})
 
         assert style.cmap is None
-        assert style.decimals is None
+        assert style.vmin is None
 
     def test_non_mapping_styles_returns_empty_style(self) -> None:
         """A styles value that is not a Mapping (e.g. a list) is ignored."""
@@ -217,9 +217,7 @@ class TestStyleForVariable:
         style = VariableStyler().style_for_variable("era5:2t", variable_styles)
 
         assert style.cmap == "RdBu_r"
-        assert style.two_slope_centre == 273.15
         assert style.units == "K"
-        assert style.decimals == 1
 
     def test_wildcard_match(
         self,
@@ -229,36 +227,13 @@ class TestStyleForVariable:
         # Add wildcard pattern
         styles_with_wildcard = {
             **variable_styles,
-            "era5:q_*": {"cmap": "viridis", "decimals": 4},
+            "era5:q_*": {"cmap": "viridis", "units": "kg/kg"},
         }
 
         style = VariableStyler().style_for_variable("era5:q_500", styles_with_wildcard)
 
         assert style.cmap == "viridis"
-        assert style.decimals == 4
-
-    def test_scientific_notation(
-        self,
-        variable_styles: dict[str, dict[str, Any]],
-    ) -> None:
-        """Test scientific notation option in styling."""
-        # Add style with scientific notation
-        styles_with_scientific = {
-            **variable_styles,
-            "era5:q_10": {
-                "cmap": "viridis",
-                "decimals": 2,
-                "units": "kg/kg",
-                "use_scientific_notation": True,
-            },
-        }
-
-        style = VariableStyler().style_for_variable("era5:q_10", styles_with_scientific)
-
-        assert style.cmap == "viridis"
-        assert style.decimals == 2
         assert style.units == "kg/kg"
-        assert style.use_scientific_notation is True
 
 
 class TestCreateNormalisation:

@@ -43,29 +43,29 @@ class TestPlotSpec:
 
     def test_accepts_dictconfig_override(self) -> None:
         """Apply PlotSpec overrides supplied as DictConfig."""
-        spec = PlotSpec(variable="sic")
+        spec = PlotSpec(hemisphere="north")
         override = DictConfig(
             {
                 "include_difference": False,
-                "colourbar_location": "vertical",
+                "dpi": 200,
             }
         )
 
         result = spec + override
 
-        assert result.variable == "sic"
+        assert result.hemisphere == "north"
         assert result.include_difference is False
-        assert result.colourbar_location == "vertical"
+        assert result.dpi == 200
 
     def test_add_none_returns_same_spec(self) -> None:
         """Return the same PlotSpec when merging with None."""
-        spec = PlotSpec(variable="sic")
+        spec = PlotSpec(hemisphere="north")
 
         assert spec + None is spec
 
     def test_add_plot_spec_override(self) -> None:
         """Apply overrides supplied as another PlotSpec instance."""
-        spec = PlotSpec(variable="sic", colourmap="viridis")
+        spec = PlotSpec(hemisphere="north", colourmap="viridis")
         override = PlotSpec(colourmap="magma", video_fps=5)
 
         result = spec + override
@@ -84,11 +84,11 @@ class TestPlotSpec:
 
     def test_dict_override_preserves_other_values(self) -> None:
         """Apply dict overrides without changing unspecified PlotSpec values."""
-        spec = PlotSpec(variable="sic", colourmap="viridis", video_fps=2)
+        spec = PlotSpec(hemisphere="north", colourmap="viridis", video_fps=2)
 
         result = spec + {"colourmap": "magma", "video_fps": 5}
 
-        assert result.variable == "sic"
+        assert result.hemisphere == "north"
         assert result.colourmap == "magma"
         assert result.video_fps == 5
         assert result.include_difference is True

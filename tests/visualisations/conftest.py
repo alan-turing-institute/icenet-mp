@@ -153,10 +153,8 @@ def sic_pair_3d_stream() -> tuple[ArrayTHW, ArrayTHW, list[date]]:
 def base_plot_spec() -> PlotSpec:
     """Base plotting specification for raw inputs."""
     return PlotSpec(
-        colourbar_location="vertical",
         colourmap="viridis",
         hemisphere="south",
-        variable="raw_inputs",
     )
 
 
@@ -206,14 +204,9 @@ def era5_temperature_thw(test_dates_short: list[date]) -> ArrayTHW:
 def variable_styles() -> dict[str, dict[str, Any]]:
     """Sample variable styling configuration for raw inputs."""
     return {
-        "era5:2t": {
-            "cmap": "RdBu_r",
-            "two_slope_centre": 273.15,
-            "units": "K",
-            "decimals": 1,
-        },
-        "era5:10u": {"cmap": "RdBu_r", "two_slope_centre": 0.0, "units": "m/s"},
-        "era5:10v": {"cmap": "RdBu_r", "two_slope_centre": 0.0, "units": "m/s"},
-        "era5:q_10": {"cmap": "viridis", "decimals": 4, "units": "kg/kg"},
+        "era5:2t": {"cmap": "RdBu_r", "units": "K"},
+        "era5:10u": {"cmap": "RdBu_r", "units": "m/s"},
+        "era5:10v": {"cmap": "RdBu_r", "units": "m/s"},
+        "era5:q_10": {"cmap": "viridis", "units": "kg/kg"},
         "osisaf-south:ice_conc": {"cmap": "Blues_r"},
     }

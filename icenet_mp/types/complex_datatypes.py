@@ -84,11 +84,9 @@ class PlotSpec:
     """Configure how sea-ice plots are rendered.
 
     Attributes:
-        variable: Variable name shown in plots / used for routing.
         title_groundtruth: Title above the ground-truth panel.
         title_prediction: Title above the prediction panel.
         title_difference: Title above the difference panel.
-        n_contour_levels: Number of contour levels per panel.
         colourmap: colourmap used for GT/prediction panels.
         dpi: Dots per inch for figure rendering (default 300).
         include_difference: Whether to draw a difference panel.
@@ -96,21 +94,15 @@ class PlotSpec:
         selected_timestep: Slice index when a single timestep is needed.
         vmin: Lower bound for GT/prediction colour scale (None = infer).
         vmax: Upper bound for GT/prediction colour scale (None = infer).
-        colourbar_location: "vertical" or "horizontal".
-        outside_warn: Threshold for “values outside display range” warnings.
-        severe_outside: Severe threshold for clipping warnings.
-        include_shared_range_mismatch_check: If True, add magnitude mismatch nudges.
         include_ice_edge: Whether to overlay the sea ice edge contour in red.
         ice_edge_threshold: Concentration value defining the sea ice edge contour.
 
     """
 
-    variable: str = "sea_ice_concentration"
     title_groundtruth: str = "Ground Truth"
     title_prediction: str = "Prediction"
     title_difference: str = "Difference"
 
-    n_contour_levels: int = 51
     colourmap: str = "viridis"
     dpi: int = 300
 
@@ -123,14 +115,6 @@ class PlotSpec:
     vmin: float | None = 0.0
     vmax: float | None = 1.0
 
-    # Colourbar layout
-    colourbar_location: Literal["vertical", "horizontal"] = "horizontal"
-
-    # Range Check/warnings in badge
-    outside_warn: float = 0.05
-    severe_outside: float = 0.20
-    include_shared_range_mismatch_check: bool = True
-
     # Sea ice edge overlay
     include_ice_edge: bool = False
     ice_edge_threshold: float = SEA_ICE_THRESHOLD
@@ -140,9 +124,6 @@ class PlotSpec:
     hemisphere: Literal["north", "south"] | None = None
     # metadata_subtitle: free-form text (e.g., "epochs=50; train=2010-2018")
     metadata_subtitle: str | None = None
-
-    # Footer control
-    include_footer_metadata: bool = True
 
     # Video settings
     video_fps: int = 2

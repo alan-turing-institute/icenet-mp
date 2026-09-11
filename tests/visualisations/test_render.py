@@ -64,6 +64,36 @@ class TestRenderPanels:
 
         assert isinstance(result, ImageFile)
 
+    def test_contour_drawn_on_selected_panel(
+        self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
+    ) -> None:
+        """A contour_arrays entry draws a contour; a None entry draws none."""
+        result = render_panels_static(
+            [era5_temperature_2d, osisaf_ice_conc_2d],
+            contour_arrays=[None, osisaf_ice_conc_2d],
+            contour_level=0.15,
+        )
+
+        assert isinstance(result, ImageFile)
+
+    def test_no_contour_without_level(self, osisaf_ice_conc_2d: ArrayHW) -> None:
+        """contour_arrays without a contour_level draws nothing, not an error."""
+        result = render_panels_static(
+            [osisaf_ice_conc_2d], contour_arrays=[osisaf_ice_conc_2d]
+        )
+
+        assert isinstance(result, ImageFile)
+
+    def test_contour_mismatched_length_raises(
+        self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
+    ) -> None:
+        with pytest.raises(ValueError, match=r"zip\(\)"):
+            render_panels_static(
+                [era5_temperature_2d, osisaf_ice_conc_2d],
+                contour_arrays=[osisaf_ice_conc_2d],
+                contour_level=0.15,
+            )
+
 
 class TestRenderPanelsVideo:
     def test_single_panel(self, era5_temperature_thw: ArrayTHW) -> None:
@@ -88,6 +118,30 @@ class TestRenderPanelsVideo:
 
     def test_fps_is_configurable(self, era5_temperature_thw: ArrayTHW) -> None:
         result = render_panels_video([era5_temperature_thw], fps=4)
+
+        assert isinstance(result, BytesIO)
+        assert result.getbuffer().nbytes > 0
+
+    def test_contour_redrawn_across_frames(
+        self, era5_temperature_thw: ArrayTHW
+    ) -> None:
+        """A per-frame contour array renders without error across all frames."""
+        result = render_panels_video(
+            [era5_temperature_thw],
+            contour_arrays=[era5_temperature_thw],
+            contour_level=273.15,
+        )
+
+        assert isinstance(result, BytesIO)
+        assert result.getbuffer().nbytes > 0
+
+    def test_contour_none_entry_skipped(self, era5_temperature_thw: ArrayTHW) -> None:
+        """A None contour_arrays entry draws no contour on that panel."""
+        result = render_panels_video(
+            [era5_temperature_thw, era5_temperature_thw],
+            contour_arrays=[None, era5_temperature_thw],
+            contour_level=273.15,
+        )
 
         assert isinstance(result, BytesIO)
         assert result.getbuffer().nbytes > 0
