@@ -7,9 +7,9 @@ or `render_panels_video`. `render.py` itself stays domain-agnostic (arrays and
 styles in, image/video out); this module is where land masks, difference modes
 and uncertainty become panels.
 
-Used by both `Plotter` (production logging) and `icenet_mp.synthetic.debug_video`
-(standalone debug videos), so the functions here take `land_mask`/`plot_spec`
-explicitly rather than reading them off `self`.
+Used by both `Plotter` (production logging) and `dataset_plotting.py` (CLI dataset
+preview plots), so the functions here take `land_mask`/`plot_spec` explicitly
+rather than reading them off `self`.
 """
 
 from datetime import datetime

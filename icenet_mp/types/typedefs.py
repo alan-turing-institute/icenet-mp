@@ -23,10 +23,4 @@ TensorNTCHW = Float[Tensor, "batch time channels height width"]
 # - "smape": |pred - target| / ((|pred|+|target|)/2) (≥ 0, sequential scale)
 DiffMode = Literal["signed", "absolute", "smape"]
 
-# DiffStrategy: when you compute (for animations)
-# - "precompute": compute full diff stream once (fast playback, more RAM)
-# - "two-pass": scan once to figure the scale, compute per-frame (balanced)
-# - "per-frame": compute per-frame (low RAM, more CPU)
-DiffStrategy = Literal["precompute", "two-pass", "per-frame"]
-
 Hemisphere = Literal["north", "south"]

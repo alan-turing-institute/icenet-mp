@@ -1,8 +1,7 @@
 """Tests for icenet_mp/visualisations/difference_calculator.py.
 
-Covers the difference and display-range computations for a ground-truth/prediction
-pair. compute_standardised_difference is tested in tests/visualisations/test_uncertainty.py
-alongside its sibling plot_static_uncertainty, not here.
+Covers the difference, colourmap, and standardised-difference computations for a
+ground-truth/prediction pair.
 """
 
 import numpy as np

@@ -1,6 +1,5 @@
 from unittest.mock import MagicMock
 
-import numpy as np
 import torch
 from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
@@ -15,7 +14,6 @@ from icenet_mp.types import (
     DiffColourmapSpec,
     Metadata,
     ProcessorOutput,
-    UncertaintyArrays,
 )
 
 
@@ -158,26 +156,3 @@ class TestProcessorOutput:
         output = ProcessorOutput(prediction=prediction, loss=loss)
 
         assert output.loss is loss
-
-
-class TestUncertaintyArrays:
-    """Tests for UncertaintyArrays."""
-
-    def test_preserve_named_tuple_fields(self) -> None:
-        """Preserve array identities and tuple ordering for uncertainty values."""
-        ground_truth = np.zeros((2, 3), dtype=np.float32)
-        prediction = np.ones((2, 3), dtype=np.float32)
-        uncertainty = np.full((2, 3), 0.1, dtype=np.float32)
-
-        arrays = UncertaintyArrays(
-            ground_truth=ground_truth,
-            prediction=prediction,
-            uncertainty=uncertainty,
-        )
-
-        assert arrays.ground_truth is ground_truth
-        assert arrays.prediction is prediction
-        assert arrays.uncertainty is uncertainty
-        assert arrays[0] is ground_truth
-        assert arrays[1] is prediction
-        assert arrays[2] is uncertainty

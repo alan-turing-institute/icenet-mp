@@ -18,8 +18,6 @@ from .simple_datatypes import (
     DiffColourmapSpec,
     Metadata,
     ProcessorOutput,
-    RangeCheckReport,
-    UncertaintyArrays,
     VariableStyle,
 )
 from .typedefs import (
@@ -30,7 +28,6 @@ from .typedefs import (
     ArrayTCHW,
     ArrayTHW,
     DiffMode,
-    DiffStrategy,
     Hemisphere,
     TensorNCHW,
     TensorNTCHW,
@@ -55,14 +52,12 @@ __all__ = [
     "DataloaderArgs",
     "DiffColourmapSpec",
     "DiffMode",
-    "DiffStrategy",
     "Hemisphere",
     "MaskType",
     "Metadata",
     "ModelStepOutput",
     "PlotSpec",
     "ProcessorOutput",
-    "RangeCheckReport",
     "RangeRestriction",
     "SkipConnectionType",
     "SupportsImageLogging",
@@ -70,6 +65,5 @@ __all__ = [
     "SupportsVideoLogging",
     "TensorNCHW",
     "TensorNTCHW",
-    "UncertaintyArrays",
     "VariableStyle",
 ]

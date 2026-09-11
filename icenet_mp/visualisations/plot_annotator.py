@@ -1,26 +1,10 @@
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import date, datetime
 
 from icenet_mp.types import PlotSpec
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class TitleFooterConfig:
-    """Title and footer spacing, positioning, and styling."""
-
-    title_space: float = 0.07  # Fraction of figure height reserved for title
-    footer_space: float = 0.08  # Fraction of figure height reserved for footer
-    title_fontsize: int = 12  # Font size for title
-    footer_fontsize: int = 11  # Font size for footer and badge
-    title_y: float = 0.98  # Y position for title (near top, in figure coordinates)
-    footer_y: float = 0.03  # Y position for footer (near bottom, in figure coordinates)
-    bbox_pad_title: float = 2.0  # Padding for title bbox
-    bbox_pad_badge: float = 1.5  # Padding for badge bbox
-    zorder_high: int = 1000  # High z-order for text overlays
 
 
 class PlotAnnotator:

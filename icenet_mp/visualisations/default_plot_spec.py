@@ -11,7 +11,6 @@ DEFAULT_SIC_SPEC = PlotSpec(
     vmin=0.0,
     vmax=1.0,
     colourbar_location="horizontal",
-    colourbar_strategy="shared",
     outside_warn=0.05,
     severe_outside=0.20,
     include_shared_range_mismatch_check=True,

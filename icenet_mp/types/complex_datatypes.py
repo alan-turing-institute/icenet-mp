@@ -6,7 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
 from .constants import SEA_ICE_THRESHOLD
-from .typedefs import DiffMode, DiffStrategy, TensorNTCHW
+from .typedefs import DiffMode, TensorNTCHW
 
 
 class DataSpace:
@@ -93,12 +93,10 @@ class PlotSpec:
         dpi: Dots per inch for figure rendering (default 300).
         include_difference: Whether to draw a difference panel.
         diff_mode: Difference definition (e.g. "signed", "absolute", "smape").
-        diff_strategy: Strategy for animations (precompute, two-pass, per-frame).
         selected_timestep: Slice index when a single timestep is needed.
         vmin: Lower bound for GT/prediction colour scale (None = infer).
         vmax: Upper bound for GT/prediction colour scale (None = infer).
         colourbar_location: "vertical" or "horizontal".
-        colourbar_strategy: "shared" or "separate" colourbars.
         outside_warn: Threshold for “values outside display range” warnings.
         severe_outside: Severe threshold for clipping warnings.
         include_shared_range_mismatch_check: If True, add magnitude mismatch nudges.
@@ -119,7 +117,6 @@ class PlotSpec:
     # Difference pane
     include_difference: bool = True
     diff_mode: DiffMode = "signed"
-    diff_strategy: DiffStrategy = "precompute"
     selected_timestep: int = 0
 
     # Colourscale ranges: defaults to [0,1]
@@ -128,7 +125,6 @@ class PlotSpec:
 
     # Colourbar layout
     colourbar_location: Literal["vertical", "horizontal"] = "horizontal"
-    colourbar_strategy: Literal["shared", "separate"] = "shared"
 
     # Range Check/warnings in badge
     outside_warn: float = 0.05
