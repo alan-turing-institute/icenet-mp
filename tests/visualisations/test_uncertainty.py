@@ -48,9 +48,18 @@ class TestComputeStandardisedDifference:
                 np.zeros((3, 3), dtype=np.float32),
             )
 
+    def test_rejects_non_2d_arrays(self) -> None:
+        """Reject 1D (or any non-2D) ground truth/prediction/uncertainty arrays."""
+        with pytest.raises(InvalidArrayError, match="Expected 2D"):
+            compute_standardised_difference(
+                np.zeros(4, dtype=np.float32),
+                np.zeros(4, dtype=np.float32),
+                np.zeros(4, dtype=np.float32),
+            )
+
 
 class TestPlotStaticUncertainty:
-    def test_returns_image(self) -> None:
+    def test_returns_image(self, no_land_mask: LandMask) -> None:
         """Render an uncertainty plot as an image."""
         ground_truth = np.array([[0.2, 0.4], [0.6, 0.8]], dtype=np.float32)
         prediction = np.array([[0.1, 0.5], [0.4, 0.7]], dtype=np.float32)
@@ -61,7 +70,7 @@ class TestPlotStaticUncertainty:
         result = plot_static_uncertainty(
             UncertaintyArrays(ground_truth, prediction, uncertainty),
             date=when,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name="ice_conc",
         )

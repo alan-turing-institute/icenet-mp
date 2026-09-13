@@ -87,10 +87,10 @@ See [Train in stages](../how-to/train-multistage.md) for a full walkthrough.
 
 ### Weights & Biases logging
 
-To disable logging to W&B, set either `loggers.wandb.offline=true` or the `WANDB_MODE=offline` environment variable
+To disable logging to W&B, set either `reporting.loggers.wandb.offline=true` or the `WANDB_MODE=offline` environment variable
 
 ```bash
-uv run imp train loggers.wandb.offline=true
+uv run imp train reporting.loggers.wandb.offline=true
 WANDB_MODE=offline uv run imp train
 ```
 
