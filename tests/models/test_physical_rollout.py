@@ -104,6 +104,9 @@ def _build_model(
         scheduler=DictConfig({}),
         lr_scheduler=DictConfig({}),
         loss=DictConfig({"_target_": "torch.nn.HuberLoss", "delta": 0.5}),
+        # Required since #396: the per-forecast-day metrics BaseModel builds. Two
+        # cheap ones, matching the `cfg_metrics` fixture used by main's own tests.
+        metrics=["accuracy", "mae"],
         # Required since #405: which variable(s) of the target INPUT group are the
         # prediction target. output_space is single-channel throughout these tests,
         # so [0] satisfies the channel-count check; the feedback-channel tests pass
