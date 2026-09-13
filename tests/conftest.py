@@ -231,7 +231,6 @@ def cfg_model_service() -> DictConfig:
             },
             "evaluate": {"callbacks": {}},
             "hemisphere": "north",
-            "loggers": {},
             "loss": {"_target_": "torch.nn.HuberLoss", "delta": 0.5},
             "model": {
                 "_target_": "MockModel",
@@ -241,6 +240,10 @@ def cfg_model_service() -> DictConfig:
                 "target": {"group_name": "mock-dataset-group-1"},
                 "n_forecast_steps": 2,
                 "n_history_steps": 3,
+            },
+            "reporting": {
+                "loggers": {},
+                "metrics": ["accuracy", "mae"],
             },
             "train": {
                 "callbacks": {},
@@ -293,6 +296,24 @@ def cfg_scheduler() -> DictConfig:
 def cfg_lr_scheduler() -> DictConfig:
     """Test configuration for a scheduler's Lightning `lr_scheduler_config` wrapper."""
     return DictConfig({"frequency": 1, "interval": "epoch"})
+
+
+@pytest.fixture
+def cfg_metrics() -> list[str]:
+    """Test configuration for a model's `metrics` list."""
+    return [
+        "accuracy",
+        "mae",
+        "rmse",
+        "sieerror",
+        "iiee",
+        "diiee",
+        "centroid_error",
+        "fss_neighbourhood_size_1",
+        "fss_neighbourhood_size_5",
+        "fss_neighbourhood_size_15",
+        "ssim",
+    ]
 
 
 @pytest.fixture(scope="session")

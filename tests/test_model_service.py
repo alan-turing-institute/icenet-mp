@@ -94,6 +94,7 @@ class TestModelService:
         assert kwargs["output_space"] == DataSpace(1, "output", (10, 10)).to_dict()
         assert kwargs["n_forecast_steps"] == 2
         assert kwargs["n_history_steps"] == 3
+        assert kwargs["metrics"] == cfg_model_service["reporting"]["metrics"]
         assert kwargs["optimizer"] is cfg_model_service["train"]["optimizer"]
         assert kwargs["scheduler"] is cfg_model_service["train"]["scheduler"]
         assert kwargs["lr_scheduler"] is cfg_model_service["train"]["lr_scheduler"]
@@ -145,7 +146,7 @@ class TestModelService:
             service = ModelService.from_checkpoint(
                 DictConfig(
                     {
-                        "loggers": "will_overwrite",
+                        "reporting": {"loggers": "will_overwrite"},
                         "model": {"name": "will_not_overwrite"},
                     }
                 ),
@@ -154,7 +155,7 @@ class TestModelService:
             assert isinstance(service.model, FakeModel)
 
             expected_config = cfg_model_service.copy()
-            expected_config["loggers"] = "will_overwrite"
+            expected_config["reporting"]["loggers"] = "will_overwrite"
             assert service.config == expected_config
             assert service.config["model"]["name"] != "will_not_overwrite"
 
@@ -348,9 +349,11 @@ class TestModelService:
         service.config_ = DictConfig(
             {
                 "model": {"name": "test_model"},
-                "loggers": {
-                    "wandb": {"_target_": "lightning.pytorch.loggers.WandbLogger"},
-                    "csv": {"_target_": "lightning.pytorch.loggers.CSVLogger"},
+                "reporting": {
+                    "loggers": {
+                        "wandb": {"_target_": "lightning.pytorch.loggers.WandbLogger"},
+                        "csv": {"_target_": "lightning.pytorch.loggers.CSVLogger"},
+                    },
                 },
             }
         )
@@ -938,6 +941,8 @@ class TestModelService:
     def test_train_stage_processor_trains_new_processor(self, tmp_path: Path) -> None:
         service = ModelService.__new__(ModelService)
         service.config_ = DictConfig({"model": {"processor": {"foo": "bar"}}})
+        service.data_module_ = MagicMock()
+        service.data_module_.mask_directory = tmp_path
         decoder_model = MagicMock()
         target_encoder = MagicMock()
         processor_model = MagicMock()
@@ -964,6 +969,7 @@ class TestModelService:
             processor=service.config_["model"]["processor"],
             decoder_model=decoder_model,
             target_encoder=target_encoder,
+            mask_dir=str(tmp_path),
         )
         processor_model.load_state_dict.assert_called_once_with("processor_state")
         assert result is processor_model
@@ -973,6 +979,8 @@ class TestModelService:
     ) -> None:
         service = ModelService.__new__(ModelService)
         service.config_ = DictConfig({"model": {"processor": {"foo": "bar"}}})
+        service.data_module_ = MagicMock()
+        service.data_module_.mask_directory = tmp_path
         decoder_model = MagicMock()
         target_encoder = MagicMock()
         checkpoint_path = tmp_path / "processor.epoch=1-step=5.ckpt"
@@ -996,5 +1004,6 @@ class TestModelService:
             processor=service.config_["model"]["processor"],
             decoder_model=decoder_model,
             target_encoder=target_encoder,
+            mask_dir=str(tmp_path),
         )
         assert result is loaded_processor
