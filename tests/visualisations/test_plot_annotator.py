@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any
 
-from icenet_mp.types import PlotSpec
+from icenet_mp.types import Metadata, PlotSpec
 from icenet_mp.visualisations.plot_annotator import PlotAnnotator
 
 
@@ -94,3 +94,55 @@ class TestBuildFooterVideo:
         spec = PlotSpec(metadata_subtitle=None)
 
         assert PlotAnnotator().footer_for_video(spec, []) == ""
+
+
+class TestFormatSubtitle:
+    def test_formats_model_epoch_and_training_data(self) -> None:
+        """Format model, epoch, dates and training data into a multi-line subtitle."""
+        metadata = Metadata(
+            model="test_model",
+            current_epoch=5,
+            start="2020-01-01",
+            end="2020-01-10",
+            cadence="1d",
+            n_points=10,
+            vars_by_source={"era5": ["2t", "sp"]},
+        )
+
+        subtitle = PlotAnnotator().format_subtitle(metadata)
+
+        assert subtitle is not None
+        assert "Model: test_model" in subtitle
+        assert "Epoch: 5" in subtitle
+        assert "Training Data:" in subtitle
+        assert "2020-01-01" in subtitle
+        assert "2020-01-10" in subtitle
+        assert "10 pts" in subtitle
+
+    def test_includes_history_window(self) -> None:
+        """Mention the history window when n_history_steps is set."""
+        metadata = Metadata(
+            start="2020-01-01",
+            end="2020-01-10",
+            cadence="1d",
+            n_history_steps=3,
+        )
+
+        subtitle = PlotAnnotator().format_subtitle(metadata)
+
+        assert subtitle is not None
+        assert "3 step history" in subtitle
+
+    def test_lists_source_with_no_variables(self) -> None:
+        """List a source with an empty variable list without parentheses."""
+        metadata = Metadata(vars_by_source={"era5": []})
+
+        subtitle = PlotAnnotator().format_subtitle(metadata)
+
+        assert subtitle is not None
+        assert "Training Data: era5" in subtitle
+        assert "era5 (" not in subtitle
+
+    def test_minimal_metadata_returns_none(self) -> None:
+        """Return None when no metadata fields are set."""
+        assert PlotAnnotator().format_subtitle(Metadata()) is None

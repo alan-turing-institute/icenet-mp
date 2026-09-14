@@ -4,11 +4,9 @@ import numpy as np
 import pytest
 
 from icenet_mp.data import CombinedDataset, SingleDataset
-from icenet_mp.types import Metadata
 from icenet_mp.visualisations.metadata_builder import MetadataBuilder
 
 builder = MetadataBuilder()
-format_metadata_subtitle = builder.format_subtitle
 
 
 def fake_single_dataset(name: str, variable_names: list[str]) -> SingleDataset:
@@ -120,61 +118,3 @@ class TestBuildFromDataset:
         metadata = builder.from_dataset(dataset)
 
         assert metadata.vars_by_source is None
-
-
-def test_format_metadata_subtitle() -> None:
-    """Test format_metadata_subtitle formats Metadata dataclass correctly."""
-    metadata = Metadata(
-        model="test_model",
-        current_epoch=5,
-        start="2020-01-01",
-        end="2020-01-10",
-        cadence="1d",
-        n_points=10,
-        vars_by_source={"era5": ["2t", "sp"]},
-    )
-
-    subtitle = format_metadata_subtitle(metadata)
-
-    assert subtitle is not None
-    assert "Model: test_model" in subtitle
-    assert "Epoch: 5" in subtitle
-    assert "Training Data:" in subtitle
-    assert "2020-01-01" in subtitle
-    assert "2020-01-10" in subtitle
-    assert "10 pts" in subtitle
-
-
-def test_format_metadata_subtitle_includes_history_window() -> None:
-    """Test the subtitle mentions the history window when n_history_steps is set."""
-    metadata = Metadata(
-        start="2020-01-01",
-        end="2020-01-10",
-        cadence="1d",
-        n_history_steps=3,
-    )
-
-    subtitle = format_metadata_subtitle(metadata)
-
-    assert subtitle is not None
-    assert "3 step history" in subtitle
-
-
-def test_format_metadata_subtitle_lists_source_with_no_variables() -> None:
-    """Test a source with an empty variable list is listed without parentheses."""
-    metadata = Metadata(vars_by_source={"era5": []})
-
-    subtitle = format_metadata_subtitle(metadata)
-
-    assert subtitle is not None
-    assert "Training Data: era5" in subtitle
-    assert "era5 (" not in subtitle
-
-
-def test_format_metadata_subtitle_minimal() -> None:
-    """Test format_metadata_subtitle with minimal metadata."""
-    metadata = Metadata()  # All None
-
-    subtitle = format_metadata_subtitle(metadata)
-
-    assert subtitle is None

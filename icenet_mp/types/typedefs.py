@@ -18,9 +18,9 @@ TensorNCHW = Float[Tensor, "batch channels height width"]
 TensorNTCHW = Float[Tensor, "batch time channels height width"]
 
 # DiffMode: what you compute
-# - "signed": target - prediction (can be ±, so symmetric colour scale around 0)
-# - "absolute": |target - prediction| (≥ 0, sequential scale)
-# - "smape": |pred - target| / ((|pred|+|target|)/2) (≥ 0, sequential scale)
+# - "signed": target - prediction (can be +/-, so symmetric colour scale around 0)
+# - "absolute": |target - prediction| (>= 0, sequential scale)
+# - "smape": |pred - target| / ((|pred|+|target|)/2) >= 0, sequential scale)
 DiffMode = Literal["signed", "absolute", "smape"]
 
 Hemisphere = Literal["north", "south"]

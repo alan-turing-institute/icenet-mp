@@ -122,7 +122,7 @@ class TestMetadataAndHemisphere:
             MagicMock(return_value=Metadata(model="unet")),
         )
         monkeypatch.setattr(
-            media_publisher._metadata_builder,
+            media_publisher._annotator,
             "format_subtitle",
             MagicMock(return_value="epochs=50"),
         )
