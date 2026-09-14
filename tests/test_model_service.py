@@ -906,6 +906,7 @@ class TestModelService:
         service.model_.encoders = [encoder]
         service.model_.processor = MagicMock()
         service.model_.decoder = MagicMock()
+        service.model_.target_encoder = MagicMock()
 
         pretrained_encoder = MagicMock()
         pretrained_encoder.name = "era5"
@@ -914,6 +915,7 @@ class TestModelService:
         processor_model.encoders = [pretrained_encoder]
         processor_model.processor.state_dict.return_value = "processor_state"
         processor_model.decoder.state_dict.return_value = "decoder_state"
+        processor_model.target_encoder.state_dict.return_value = "target_encoder_state"
 
         trainer = MagicMock()
 
@@ -932,6 +934,9 @@ class TestModelService:
             "processor_state"
         )
         service.model_.decoder.load_state_dict.assert_called_once_with("decoder_state")
+        service.model_.target_encoder.load_state_dict.assert_called_once_with(
+            "target_encoder_state"
+        )
         mock_fit.assert_called_once_with(
             config=DictConfig({"lr": 1}), job_stage="finetune"
         )
