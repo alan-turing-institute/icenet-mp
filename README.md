@@ -8,7 +8,7 @@
 | icenet\_mp/callbacks/\_\_init\_\_.py                                 |        6 |        0 |    100% |           |
 | icenet\_mp/callbacks/activation\_saver.py                            |       92 |        0 |    100% |           |
 | icenet\_mp/callbacks/ema\_weight\_averaging\_callback.py             |       21 |        0 |    100% |           |
-| icenet\_mp/callbacks/metric\_summary\_callback.py                    |      105 |        1 |     99% |       166 |
+| icenet\_mp/callbacks/metric\_summary\_callback.py                    |      122 |        1 |     99% |       179 |
 | icenet\_mp/callbacks/plotting\_callback.py                           |      157 |        0 |    100% |           |
 | icenet\_mp/callbacks/unconditional\_checkpoint.py                    |       26 |        0 |    100% |           |
 | icenet\_mp/cli/\_\_init\_\_.py                                       |        2 |        0 |    100% |           |
@@ -26,10 +26,11 @@
 | icenet\_mp/compatibility/torch/patch\_open\_file\_limit.py           |       18 |        2 |     89% |     34-35 |
 | icenet\_mp/compatibility/torch/patch\_parameter\_deepcopy.py         |       12 |        7 |     42% |     16-28 |
 | icenet\_mp/config/\_\_init\_\_.py                                    |        0 |        0 |    100% |           |
-| icenet\_mp/data/\_\_init\_\_.py                                      |        4 |        0 |    100% |           |
-| icenet\_mp/data/combined\_dataset.py                                 |       42 |        1 |     98% |        88 |
-| icenet\_mp/data/common\_data\_module.py                              |      100 |       31 |     69% |98, 106-110, 115, 120, 125, 157, 166-168, 173, 181, 185-188, 194-210, 216-229, 235-251, 257-270 |
-| icenet\_mp/data/single\_dataset.py                                   |      147 |        5 |     97% |191, 196, 220, 295-300 |
+| icenet\_mp/data/\_\_init\_\_.py                                      |        5 |        0 |    100% |           |
+| icenet\_mp/data/calendar\_day.py                                     |       10 |        0 |    100% |           |
+| icenet\_mp/data/combined\_dataset.py                                 |       53 |        0 |    100% |           |
+| icenet\_mp/data/common\_data\_module.py                              |      143 |        9 |     94% |116-117, 128, 133, 176, 294-297 |
+| icenet\_mp/data/single\_dataset.py                                   |      147 |        4 |     97% |191, 196, 295-300 |
 | icenet\_mp/exceptions.py                                             |        3 |        0 |    100% |           |
 | icenet\_mp/geotools/\_\_init\_\_.py                                  |       10 |        0 |    100% |           |
 | icenet\_mp/geotools/geographic\_field.py                             |       37 |        0 |    100% |           |
@@ -80,8 +81,9 @@
 | icenet\_mp/metrics/spatial\_mean\_trace.py                           |        8 |        0 |    100% |           |
 | icenet\_mp/metrics/ssim.py                                           |       43 |        2 |     95% |     59-60 |
 | icenet\_mp/model\_service.py                                         |      268 |        4 |     99% |54-55, 160-161 |
-| icenet\_mp/models/\_\_init\_\_.py                                    |        5 |        0 |    100% |           |
+| icenet\_mp/models/\_\_init\_\_.py                                    |        6 |        0 |    100% |           |
 | icenet\_mp/models/base\_model.py                                     |      103 |        5 |     95% |175, 179, 183, 244-248 |
+| icenet\_mp/models/climatology.py                                     |       15 |        0 |    100% |           |
 | icenet\_mp/models/common/\_\_init\_\_.py                             |       23 |        0 |    100% |           |
 | icenet\_mp/models/common/activations.py                              |        2 |        0 |    100% |           |
 | icenet\_mp/models/common/channel\_adaptor.py                         |       18 |        0 |    100% |           |
@@ -162,12 +164,12 @@
 | icenet\_mp/visualisations/land\_mask.py                              |       23 |        0 |    100% |           |
 | icenet\_mp/visualisations/layout.py                                  |      376 |        1 |     99% |       655 |
 | icenet\_mp/visualisations/metadata.py                                |      192 |        0 |    100% |           |
-| icenet\_mp/visualisations/plotter.py                                 |       94 |        0 |    100% |           |
+| icenet\_mp/visualisations/plotter.py                                 |       95 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_core.py                          |      163 |        0 |    100% |           |
-| icenet\_mp/visualisations/plotting\_static.py                        |       81 |        0 |    100% |           |
+| icenet\_mp/visualisations/plotting\_static.py                        |       93 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |        0 |    100% |           |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |        1 |     99% |       171 |
-| **TOTAL**                                                            | **6482** |  **440** | **93%** |           |
+| **TOTAL**                                                            | **6593** |  **416** | **94%** |           |
 
 
 ## Setup coverage badge
