@@ -245,7 +245,7 @@ class MediaPublisher:
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
-                # Plot output animation via the minimal render_panels core
+                # Plot output animation via the minimal Renderer core
                 video = self._renderer.video_triplet(
                     ground_truth,
                     prediction,

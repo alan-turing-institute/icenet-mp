@@ -9,6 +9,7 @@ import torch
 from icenet_mp.callbacks.media_logging_callback import MediaLoggingCallback
 from icenet_mp.types import ModelStepOutput, PlotSpec
 from icenet_mp.visualisations import MediaPublisher
+from icenet_mp.visualisations.renderer import Renderer
 
 
 @pytest.fixture
@@ -146,9 +147,7 @@ class TestLogStaticOutputsUncertainty:
         uncertainty = np.full((1, 2, 2), 0.1, dtype=np.float32)
 
         fake_render = MagicMock(return_value=MagicMock())
-        monkeypatch.setattr(
-            "icenet_mp.visualisations.panel_renderer.render_panels_static", fake_render
-        )
+        monkeypatch.setattr(Renderer, "panels_static", fake_render)
 
         publisher.log_static_outputs(
             outputs,

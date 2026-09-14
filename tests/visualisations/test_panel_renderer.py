@@ -1,4 +1,4 @@
-"""Tests for the domain-specific panel assembly on top of render_panels."""
+"""Tests for the domain-specific panel assembly on top of Renderer."""
 
 from datetime import date, datetime
 from io import BytesIO
@@ -11,6 +11,7 @@ from PIL.ImageFile import ImageFile
 from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.panel_renderer import PanelRenderer
+from icenet_mp.visualisations.renderer import Renderer
 
 
 class TestRenderStaticSinglet:
@@ -147,7 +148,8 @@ class TestRenderStaticTriplet:
         when = datetime.combine(raw_when, datetime.min.time())
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.panel_renderer.render_panels_static",
+            Renderer,
+            "panels_static",
             fake_render,
         )
         plot_spec = PlotSpec(include_difference=True, include_ice_edge=True)
@@ -176,7 +178,8 @@ class TestRenderStaticTriplet:
         when = datetime.combine(raw_when, datetime.min.time())
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.panel_renderer.render_panels_static",
+            Renderer,
+            "panels_static",
             fake_render,
         )
         renderer = PanelRenderer(no_land_mask, PlotSpec(include_ice_edge=False))
@@ -216,7 +219,8 @@ class TestRenderVideoTriplet:
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            "icenet_mp.visualisations.panel_renderer.render_panels_video",
+            Renderer,
+            "panels_video",
             fake_render,
         )
         plot_spec = PlotSpec(include_difference=True, include_ice_edge=True)

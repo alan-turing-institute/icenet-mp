@@ -13,13 +13,9 @@ from PIL.ImageFile import ImageFile
 
 from icenet_mp.exceptions import VideoRenderError
 from icenet_mp.types import ArrayHW, ArrayTHW
-from icenet_mp.visualisations.render import (
-    _image_from_figure,
-    _suppress_mpl_animation_logs,
-    _video_from_animation,
-    render_panels_static,
-    render_panels_video,
-)
+from icenet_mp.visualisations.renderer import Renderer
+
+renderer = Renderer()
 
 
 def make_figure() -> Figure:
@@ -43,7 +39,7 @@ def make_animation(fig: Figure) -> animation.FuncAnimation:
 
 class TestRenderPanels:
     def test_single_panel(self, era5_temperature_2d: ArrayHW) -> None:
-        result = render_panels_static([era5_temperature_2d])
+        result = renderer.panels_static([era5_temperature_2d])
 
         assert isinstance(result, ImageFile)
         assert result.width > 0
@@ -52,22 +48,22 @@ class TestRenderPanels:
     def test_three_panels_wider_than_one(
         self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
     ) -> None:
-        single = render_panels_static([era5_temperature_2d])
-        triple = render_panels_static(
+        single = renderer.panels_static([era5_temperature_2d])
+        triple = renderer.panels_static(
             [era5_temperature_2d, osisaf_ice_conc_2d, osisaf_ice_conc_2d]
         )
 
         assert triple.width > single.width
 
     def test_titles_applied(self, era5_temperature_2d: ArrayHW) -> None:
-        result = render_panels_static(
+        result = renderer.panels_static(
             [era5_temperature_2d], panel_titles=["Ground Truth"]
         )
 
         assert isinstance(result, ImageFile)
 
     def test_shared_vmin_vmax(self, era5_temperature_2d: ArrayHW) -> None:
-        result = render_panels_static([era5_temperature_2d], vmin=260.0, vmax=290.0)
+        result = renderer.panels_static([era5_temperature_2d], vmin=260.0, vmax=290.0)
 
         assert isinstance(result, ImageFile)
 
@@ -75,12 +71,12 @@ class TestRenderPanels:
         self, era5_temperature_2d: ArrayHW
     ) -> None:
         with pytest.raises(ValueError, match=r"zip\(\)"):
-            render_panels_static([era5_temperature_2d], panel_titles=["a", "b"])
+            renderer.panels_static([era5_temperature_2d], panel_titles=["a", "b"])
 
     def test_per_panel_cmap_and_scale(
         self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
     ) -> None:
-        result = render_panels_static(
+        result = renderer.panels_static(
             [era5_temperature_2d, osisaf_ice_conc_2d],
             cmap=["RdBu_r", "Blues_r"],
             vmin=[260.0, 0.0],
@@ -90,7 +86,7 @@ class TestRenderPanels:
         assert isinstance(result, ImageFile)
 
     def test_suptitle(self, era5_temperature_2d: ArrayHW) -> None:
-        result = render_panels_static(
+        result = renderer.panels_static(
             [era5_temperature_2d], figure_title="Shown: 2020-01-15"
         )
 
@@ -100,7 +96,7 @@ class TestRenderPanels:
         self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
     ) -> None:
         """A contour_arrays entry draws a contour; a None entry draws none."""
-        result = render_panels_static(
+        result = renderer.panels_static(
             [era5_temperature_2d, osisaf_ice_conc_2d],
             contour_arrays=[None, osisaf_ice_conc_2d],
             contour_level=0.15,
@@ -110,7 +106,7 @@ class TestRenderPanels:
 
     def test_no_contour_without_level(self, osisaf_ice_conc_2d: ArrayHW) -> None:
         """contour_arrays without a contour_level draws nothing, not an error."""
-        result = render_panels_static(
+        result = renderer.panels_static(
             [osisaf_ice_conc_2d], contour_arrays=[osisaf_ice_conc_2d]
         )
 
@@ -120,7 +116,7 @@ class TestRenderPanels:
         self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
     ) -> None:
         with pytest.raises(ValueError, match=r"zip\(\)"):
-            render_panels_static(
+            renderer.panels_static(
                 [era5_temperature_2d, osisaf_ice_conc_2d],
                 contour_arrays=[osisaf_ice_conc_2d],
                 contour_level=0.15,
@@ -129,13 +125,13 @@ class TestRenderPanels:
 
 class TestRenderPanelsVideo:
     def test_single_panel(self, era5_temperature_thw: ArrayTHW) -> None:
-        result = render_panels_video([era5_temperature_thw])
+        result = renderer.panels_video([era5_temperature_thw])
 
         assert isinstance(result, BytesIO)
         assert result.getbuffer().nbytes > 0
 
     def test_three_panels(self, era5_temperature_thw: ArrayTHW) -> None:
-        result = render_panels_video(
+        result = renderer.panels_video(
             [era5_temperature_thw, era5_temperature_thw, era5_temperature_thw]
         )
 
@@ -146,10 +142,10 @@ class TestRenderPanelsVideo:
         self, era5_temperature_thw: ArrayTHW
     ) -> None:
         with pytest.raises(ValueError, match=r"zip\(\)"):
-            render_panels_video([era5_temperature_thw], panel_titles=["a", "b"])
+            renderer.panels_video([era5_temperature_thw], panel_titles=["a", "b"])
 
     def test_fps_is_configurable(self, era5_temperature_thw: ArrayTHW) -> None:
-        result = render_panels_video([era5_temperature_thw], fps=4)
+        result = renderer.panels_video([era5_temperature_thw], fps=4)
 
         assert isinstance(result, BytesIO)
         assert result.getbuffer().nbytes > 0
@@ -158,7 +154,7 @@ class TestRenderPanelsVideo:
         self, era5_temperature_thw: ArrayTHW
     ) -> None:
         """A per-frame contour array renders without error across all frames."""
-        result = render_panels_video(
+        result = renderer.panels_video(
             [era5_temperature_thw],
             contour_arrays=[era5_temperature_thw],
             contour_level=273.15,
@@ -169,7 +165,7 @@ class TestRenderPanelsVideo:
 
     def test_contour_none_entry_skipped(self, era5_temperature_thw: ArrayTHW) -> None:
         """A None contour_arrays entry draws no contour on that panel."""
-        result = render_panels_video(
+        result = renderer.panels_video(
             [era5_temperature_thw, era5_temperature_thw],
             contour_arrays=[None, era5_temperature_thw],
             contour_level=273.15,
@@ -184,7 +180,7 @@ class TestImageFromFigure:
         """A real figure converts to a PIL image with a non-trivial size."""
         fig = make_figure()
 
-        image = _image_from_figure(fig, dpi=100)
+        image = renderer._image_from_figure(fig, dpi=100)
 
         assert isinstance(image, ImageFile)
         assert image.width > 0
@@ -197,7 +193,9 @@ class TestVideoFromAnimation:
         fig = make_figure()
         anim = make_animation(fig)
 
-        buffer = _video_from_animation(anim, dpi=100, fps=2, video_format="gif")
+        buffer = renderer._video_from_animation(
+            anim, dpi=100, fps=2, video_format="gif"
+        )
 
         assert isinstance(buffer, BytesIO)
         content = buffer.read()
@@ -209,7 +207,9 @@ class TestVideoFromAnimation:
         fig = make_figure()
         anim = make_animation(fig)
 
-        buffer = _video_from_animation(anim, dpi=100, fps=2, video_format="mp4")
+        buffer = renderer._video_from_animation(
+            anim, dpi=100, fps=2, video_format="mp4"
+        )
 
         assert isinstance(buffer, BytesIO)
         content = buffer.read()
@@ -225,7 +225,7 @@ class TestVideoFromAnimation:
         monkeypatch.setattr(anim, "save", MagicMock(side_effect=OSError("disk full")))
 
         with pytest.raises(VideoRenderError, match="Video encoding failed"):
-            _video_from_animation(anim, dpi=100, fps=2, video_format="gif")
+            renderer._video_from_animation(anim, dpi=100, fps=2, video_format="gif")
 
     def test_save_memory_error_raises_video_render_error(
         self, monkeypatch: pytest.MonkeyPatch
@@ -238,7 +238,7 @@ class TestVideoFromAnimation:
         )
 
         with pytest.raises(VideoRenderError, match="Video encoding failed"):
-            _video_from_animation(anim, dpi=100, fps=2, video_format="mp4")
+            renderer._video_from_animation(anim, dpi=100, fps=2, video_format="mp4")
 
 
 class TestSuppressMplAnimationLogs:
@@ -247,7 +247,7 @@ class TestSuppressMplAnimationLogs:
         mpl_logger = logging.getLogger("matplotlib.animation")
         mpl_logger.setLevel(logging.INFO)
 
-        with _suppress_mpl_animation_logs():
+        with renderer._suppress_mpl_animation_logs():
             assert mpl_logger.level == logging.WARNING
 
         assert mpl_logger.level == logging.INFO

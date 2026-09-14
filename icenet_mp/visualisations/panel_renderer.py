@@ -1,8 +1,8 @@
-"""Domain-specific panel assembly on top of the minimal render_panels core.
+"""Domain-specific panel assembly on top of the minimal Renderer core.
 
 `PanelRenderer` takes raw ground-truth/prediction/input arrays and applies masking
 and (where relevant) difference or standardised-difference panels, rendering the
-result via `render_panels_static` or `render_panels_video`.
+result via `Renderer.panels_static` or `Renderer.panels_video`.
 
 Used by both `MediaPublisher` (logging during runs) and `dataset_plotting.py` (CLI
 dataset preview plots), each of which builds one `PanelRenderer` per land_mask/plot_spec
@@ -21,7 +21,7 @@ from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
 from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .plot_annotator import PlotAnnotator
-from .render import render_panels_static, render_panels_video
+from .renderer import Renderer
 from .variable_styler import VariableStyler
 
 if TYPE_CHECKING:
@@ -43,6 +43,7 @@ class PanelRenderer:
         self._variable_styler = VariableStyler()
         self._annotator = PlotAnnotator()
         self._difference_calculator = DifferenceCalculator()
+        self._renderer = Renderer()
 
     def static_singlet(
         self,
@@ -51,7 +52,7 @@ class PanelRenderer:
         when: datetime,
         variable_name: str,
     ) -> ImageFile:
-        """Render a single static input panel via render_panels_static."""
+        """Render a single panel ImageFile via Renderer.panels_static()."""
         plot_spec = self.plot_spec
         masked_values = self.land_mask.apply_to(values)
         style = self._variable_styler.style_for_variable(
@@ -60,7 +61,7 @@ class PanelRenderer:
         title = self._annotator.format_title(
             variable_name, plot_spec.hemisphere, when, style.units
         )
-        return render_panels_static(
+        return self._renderer.panels_static(
             [masked_values],
             cmap=style.cmap or plot_spec.colourmap,
             dpi=plot_spec.dpi,
@@ -76,7 +77,7 @@ class PanelRenderer:
         dates: list[datetime],
         variable_name: str,
     ) -> BytesIO:
-        """Render a single video input panel via render_panels_video."""
+        """Render a single panel video BytesIO via Renderer.panels_video()."""
         plot_spec = self.plot_spec
         masked_values = self.land_mask.apply_to(values)
         style = self._variable_styler.style_for_variable(
@@ -85,7 +86,7 @@ class PanelRenderer:
         title = self._annotator.format_title(
             variable_name, plot_spec.hemisphere, dates[0], style.units
         )
-        return render_panels_video(
+        return self._renderer.panels_video(
             [masked_values],
             cmap=style.cmap or plot_spec.colourmap,
             dpi=plot_spec.dpi,
@@ -131,12 +132,11 @@ class PanelRenderer:
         variable_name: str,
         uncertainty: ArrayHW | None = None,
     ) -> ImageFile:
-        """Render the ground-truth/prediction(/difference)(/uncertainty) panels via render_panels.
+        """Render a three panel ImageFile via Renderer.panels().
 
-        When `uncertainty` is provided, an extra panel shows the standardised
-        difference `z = (ground_truth - prediction) / uncertainty`. A value of
-        `z=1` means the observation exceeds the prediction by one reported
-        standard uncertainty.
+        When `uncertainty` is provided, an extra panel shows the standardised difference
+        `z = (ground_truth - prediction) / uncertainty`. A value of `z=1` means the
+        observation exceeds the prediction by one reported standard uncertainty.
         """
         plot_spec = self.plot_spec
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
@@ -190,7 +190,7 @@ class PanelRenderer:
 
         suptitle = self._annotator.title_for_static(variable_name, plot_spec, when)
         footer_text = self._annotator.footer_for_static(plot_spec)
-        return render_panels_static(
+        return self._renderer.panels_static(
             arrays,
             cmap=cmaps,
             contour_arrays=contour_arrays,
@@ -215,7 +215,7 @@ class PanelRenderer:
         dates: list[datetime],
         variable_name: str,
     ) -> BytesIO:
-        """Render the ground-truth/prediction(/difference) triptych video via render_panels_video."""
+        """Render a three-panel video BytesIO via Renderer.panels_video()."""
         plot_spec = self.plot_spec
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
@@ -244,7 +244,7 @@ class PanelRenderer:
         title_line = self._annotator.title_for_video(variable_name, plot_spec, dates, 0)
         footer_text = self._annotator.footer_for_video(plot_spec, dates)
 
-        return render_panels_video(
+        return self._renderer.panels_video(
             arrays,
             cmap=cmaps,
             contour_arrays=contour_arrays,
