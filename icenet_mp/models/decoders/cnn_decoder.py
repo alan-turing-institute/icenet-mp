@@ -144,6 +144,9 @@ class CNNDecoder(BaseDecoder):
         # channel convolution appended above, so zeroing it zeroes the whole output.
         if zero_init_output:
             final = self.model[-1]
+            if not isinstance(final, nn.Conv2d):
+                msg = "zero_init_output expects the final layer to be a Conv2d."
+                raise TypeError(msg)
             with torch.no_grad():
                 final.weight.zero_()
                 if final.bias is not None:

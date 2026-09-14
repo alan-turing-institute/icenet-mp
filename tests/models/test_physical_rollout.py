@@ -371,12 +371,14 @@ class TestPhysicalRolloutAdvancesTheState:
         )
         window = _inputs(model)[TARGET_GROUP]
         field = torch.full_like(window[:, -1, [0, 2]], 0.5)
-        advanced = model._advance(window, field)  # noqa: SLF001 - the helper under test
+        advanced = model._advance(window, field)
         assert advanced.shape == window.shape
         assert torch.equal(advanced[:, :-1], window[:, 1:])  # oldest frame dropped
         assert torch.equal(advanced[:, -1, [0, 2]], field)  # target channels written
-        assert torch.equal(advanced[:, -1, 1], window[:, -1, 1])  # the other one untouched
-        assert torch.equal(model._anchor(advanced), field)  # noqa: SLF001
+        assert torch.equal(
+            advanced[:, -1, 1], window[:, -1, 1]
+        )  # the other one untouched
+        assert torch.equal(model._anchor(advanced), field)
 
 
 class TestNoFutureLeak:
@@ -404,9 +406,11 @@ class TestConfigValidation:
             _build_model(rollout_space="latent", predict_residual=True)
 
     def test_residual_accepts_a_bounded_decoder(self) -> None:
-        """restrict_range is a free choice for residual models: with an additive
-        skip connection BaseDecoder bounds SIGNED values symmetrically, so the
-        tendency is never squashed into [0, 1] (review: PR #410, C1/C2)."""
+        """A bounded decoder is accepted for residual models.
+
+        With an additive skip connection BaseDecoder bounds SIGNED values
+        symmetrically, so the tendency is never squashed into [0, 1].
+        """
         model = _build_model(
             rollout_space="physical",
             predict_residual=True,
