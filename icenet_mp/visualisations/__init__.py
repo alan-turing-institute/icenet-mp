@@ -1,8 +1,7 @@
 from imageio_ffmpeg import get_ffmpeg_exe
 from matplotlib import rcParams
 
-from .dataset_plotting import plot_variables_static, plot_variables_video
-from .difference_calculator import DifferenceCalculator
+from .dataset_media_writer import DatasetMediaWriter
 from .media_publisher import MediaPublisher
 
 
@@ -12,8 +11,7 @@ def register_animation_backends() -> None:
 
 
 __all__ = [
-    "DifferenceCalculator",
+    "DatasetMediaWriter",
     "MediaPublisher",
-    "plot_variables_static",
-    "plot_variables_video",
+    "register_animation_backends",
 ]

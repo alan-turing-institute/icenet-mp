@@ -4,14 +4,14 @@
 and (where relevant) difference or standardised-difference panels, rendering the
 result via `Renderer.panels_static` or `Renderer.panels_video`.
 
-Used by both `MediaPublisher` (logging during runs) and `dataset_plotting.py` (CLI
+Used by both `MediaPublisher` (logging during runs) and `DatasetMediaWriter` (CLI
 dataset preview plots), each of which builds one `PanelRenderer` per land_mask/plot_spec
 pairing.
 """
 
 from datetime import datetime
 from io import BytesIO
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from PIL.ImageFile import ImageFile
@@ -44,6 +44,10 @@ class PanelRenderer:
         self._annotator = PlotAnnotator()
         self._difference_calculator = DifferenceCalculator()
         self._renderer = Renderer()
+
+    @property
+    def video_format(self) -> Literal["mp4", "gif"]:
+        return self.plot_spec.video_format
 
     def static_singlet(
         self,
@@ -78,23 +82,22 @@ class PanelRenderer:
         variable_name: str,
     ) -> BytesIO:
         """Render a single panel video BytesIO via Renderer.panels_video()."""
-        plot_spec = self.plot_spec
         masked_values = self.land_mask.apply_to(values)
         style = self._variable_styler.style_for_variable(
-            variable_name, plot_spec.per_variable_styles
+            variable_name, self.plot_spec.per_variable_styles
         )
         title = self._annotator.format_title(
-            variable_name, plot_spec.hemisphere, dates[0], style.units
+            variable_name, self.plot_spec.hemisphere, dates[0], style.units
         )
         return self._renderer.panels_video(
             [masked_values],
-            cmap=style.cmap or plot_spec.colourmap,
-            dpi=plot_spec.dpi,
+            cmap=style.cmap or self.plot_spec.colourmap,
+            dpi=self.plot_spec.dpi,
             figure_title=title,
-            fps=plot_spec.video_fps,
+            fps=self.plot_spec.video_fps,
             vmax=style.vmax,
             vmin=style.vmin,
-            video_format=plot_spec.video_format,
+            video_format=self.video_format,
         )
 
     def _difference_panel(
@@ -105,14 +108,13 @@ class PanelRenderer:
         Shared by `static_triplet` and `video_triplet`, which otherwise each
         rebuilt this identically for their (single) difference panel.
         """
-        plot_spec = self.plot_spec
         difference = self.land_mask.apply_to(
             self._difference_calculator.compute_difference(
-                masked_ground_truth, masked_prediction, plot_spec.diff_mode
+                masked_ground_truth, masked_prediction, self.plot_spec.diff_mode
             )
         )
         diff_colour_scale = self._difference_calculator.make_diff_colourmap(
-            difference, mode=plot_spec.diff_mode
+            difference, mode=self.plot_spec.diff_mode
         )
         if diff_colour_scale.norm is not None:
             diff_vmin = diff_colour_scale.norm.vmin
@@ -120,7 +122,7 @@ class PanelRenderer:
         else:
             diff_vmin = diff_colour_scale.vmin
             diff_vmax = diff_colour_scale.vmax
-        title = f"{plot_spec.title_difference} ({plot_spec.diff_mode})"
+        title = f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
         return difference, title, diff_colour_scale.cmap, diff_vmin, diff_vmax
 
     def static_triplet(
@@ -138,16 +140,18 @@ class PanelRenderer:
         `z = (ground_truth - prediction) / uncertainty`. A value of `z=1` means the
         observation exceeds the prediction by one reported standard uncertainty.
         """
-        plot_spec = self.plot_spec
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
 
         arrays = [masked_ground_truth, masked_prediction]
-        titles = [plot_spec.title_groundtruth, plot_spec.title_prediction]
-        cmaps: list[str | Colormap] = [plot_spec.colourmap, plot_spec.colourmap]
+        titles = [self.plot_spec.title_groundtruth, self.plot_spec.title_prediction]
+        cmaps: list[str | Colormap] = [
+            self.plot_spec.colourmap,
+            self.plot_spec.colourmap,
+        ]
         norms: list[Normalize | None] = [None, None]
-        vmins: list[float | None] = [plot_spec.vmin, plot_spec.vmin]
-        vmaxs: list[float | None] = [plot_spec.vmax, plot_spec.vmax]
+        vmins: list[float | None] = [self.plot_spec.vmin, self.plot_spec.vmin]
+        vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
         # If we have uncertainty data then use z-score as the third panel
         if uncertainty is not None:
@@ -172,7 +176,7 @@ class PanelRenderer:
             vmaxs.append(None)
 
         # Otherwise, use the difference panel if requested
-        elif plot_spec.include_difference:
+        elif self.plot_spec.include_difference:
             difference, title, cmap, diff_vmin, diff_vmax = self._difference_panel(
                 masked_ground_truth, masked_prediction
             )
@@ -184,22 +188,22 @@ class PanelRenderer:
             vmaxs.append(diff_vmax)
 
         contour_arrays: list[np.ndarray | None] | None = None
-        if plot_spec.include_ice_edge:
+        if self.plot_spec.include_ice_edge:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        suptitle = self._annotator.title_for_static(variable_name, plot_spec, when)
-        footer_text = self._annotator.footer_for_static(plot_spec)
+        suptitle = self._annotator.title_for_static(variable_name, self.plot_spec, when)
+        footer_text = self._annotator.footer_for_static(self.plot_spec)
         return self._renderer.panels_static(
             arrays,
             cmap=cmaps,
             contour_arrays=contour_arrays,
-            contour_level=plot_spec.ice_edge_threshold,
-            dpi=plot_spec.dpi,
+            contour_level=self.plot_spec.ice_edge_threshold,
+            dpi=self.plot_spec.dpi,
             figure_title=suptitle,
             footer_text=footer_text or None,
             group_axes=(0, 1)
-            if plot_spec.include_difference or uncertainty is not None
+            if self.plot_spec.include_difference or uncertainty is not None
             else None,
             norm=norms,
             panel_titles=titles,
@@ -216,17 +220,16 @@ class PanelRenderer:
         variable_name: str,
     ) -> BytesIO:
         """Render a three-panel video BytesIO via Renderer.panels_video()."""
-        plot_spec = self.plot_spec
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
 
         arrays = [masked_ground_truth, masked_prediction]
-        titles = [plot_spec.title_groundtruth, plot_spec.title_prediction]
-        cmaps: list[str] = [plot_spec.colourmap, plot_spec.colourmap]
-        vmins: list[float | None] = [plot_spec.vmin, plot_spec.vmin]
-        vmaxs: list[float | None] = [plot_spec.vmax, plot_spec.vmax]
+        titles = [self.plot_spec.title_groundtruth, self.plot_spec.title_prediction]
+        cmaps: list[str] = [self.plot_spec.colourmap, self.plot_spec.colourmap]
+        vmins: list[float | None] = [self.plot_spec.vmin, self.plot_spec.vmin]
+        vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
-        if plot_spec.include_difference:
+        if self.plot_spec.include_difference:
             difference, title, cmap, diff_vmin, diff_vmax = self._difference_panel(
                 masked_ground_truth, masked_prediction
             )
@@ -237,25 +240,27 @@ class PanelRenderer:
             vmaxs.append(diff_vmax)
 
         contour_arrays: list[np.ndarray | None] | None = None
-        if plot_spec.include_ice_edge:
+        if self.plot_spec.include_ice_edge:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        title_line = self._annotator.title_for_video(variable_name, plot_spec, dates, 0)
-        footer_text = self._annotator.footer_for_video(plot_spec, dates)
+        title_line = self._annotator.title_for_video(
+            variable_name, self.plot_spec, dates, 0
+        )
+        footer_text = self._annotator.footer_for_video(self.plot_spec, dates)
 
         return self._renderer.panels_video(
             arrays,
             cmap=cmaps,
             contour_arrays=contour_arrays,
-            contour_level=plot_spec.ice_edge_threshold,
-            dpi=plot_spec.dpi,
+            contour_level=self.plot_spec.ice_edge_threshold,
+            dpi=self.plot_spec.dpi,
             figure_title=title_line,
             footer_text=footer_text or None,
-            fps=plot_spec.video_fps,
-            group_axes=(0, 1) if plot_spec.include_difference else None,
+            fps=self.plot_spec.video_fps,
+            group_axes=(0, 1) if self.plot_spec.include_difference else None,
             panel_titles=titles,
             vmax=vmaxs,
             vmin=vmins,
-            video_format=plot_spec.video_format,
+            video_format=self.plot_spec.video_format,
         )
