@@ -61,6 +61,40 @@ def npdatetime_from_datetime(dt: datetime) -> np.datetime64:
     return np.datetime64(dt.replace(tzinfo=None))
 
 
+def safe_nanmin(arr: np.ndarray, default: float = 0.0) -> float:
+    """Safely compute nanmin with fallback for empty or all-NaN arrays.
+
+    Args:
+        arr: Array to compute minimum from.
+        default: Default value if array is empty or all NaN.
+
+    Returns:
+        Minimum value or default.
+
+    """
+    if np.isfinite(arr).any():
+        result = np.nanmin(arr)
+        return float(result) if np.isfinite(result) else default
+    return default
+
+
+def safe_nanmax(arr: np.ndarray, default: float = 1.0) -> float:
+    """Safely compute nanmax with fallback for empty or all-NaN arrays.
+
+    Args:
+        arr: Array to compute maximum from.
+        default: Default value if array is empty or all NaN.
+
+    Returns:
+        Maximum value or default.
+
+    """
+    if np.isfinite(arr).any():
+        result = np.nanmax(arr)
+        return float(result) if np.isfinite(result) else default
+    return default
+
+
 def to_list(value: str | Sequence[str]) -> list[str]:
     """Convert a value or sequence of values to a list of values."""
     if isinstance(value, str):

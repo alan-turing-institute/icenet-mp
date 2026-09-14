@@ -70,64 +70,6 @@ class TestColourmapWithBad:
         assert calls["n"] == 2
 
 
-class TestSafeNanmin:
-    def test_normal_array(self) -> None:
-        """Return the true minimum for a fully finite array."""
-        result = VariableStyler().safe_nanmin(np.array([3.0, 1.0, 2.0]))
-
-        assert result == pytest.approx(1.0)
-
-    def test_ignores_nan(self) -> None:
-        """NaN entries are ignored when a finite value is present."""
-        result = VariableStyler().safe_nanmin(np.array([np.nan, 5.0, 2.0]))
-
-        assert result == pytest.approx(2.0)
-
-    def test_all_nan_returns_default(self) -> None:
-        """An all-NaN array falls back to the default value."""
-        result = VariableStyler().safe_nanmin(np.array([np.nan, np.nan]), default=-9.0)
-
-        assert result == pytest.approx(-9.0)
-
-    def test_empty_array_returns_default(self) -> None:
-        """An empty array falls back to the default value."""
-        result = VariableStyler().safe_nanmin(np.array([]), default=7.0)
-
-        assert result == pytest.approx(7.0)
-
-    def test_all_infinite_returns_default(self) -> None:
-        """An array of only +/-inf falls back to the default value."""
-        result = VariableStyler().safe_nanmin(np.array([np.inf, -np.inf]), default=3.0)
-
-        assert result == pytest.approx(3.0)
-
-
-class TestSafeNanmax:
-    def test_normal_array(self) -> None:
-        """Return the true maximum for a fully finite array."""
-        result = VariableStyler().safe_nanmax(np.array([3.0, 1.0, 2.0]))
-
-        assert result == pytest.approx(3.0)
-
-    def test_ignores_nan(self) -> None:
-        """NaN entries are ignored when a finite value is present."""
-        result = VariableStyler().safe_nanmax(np.array([np.nan, 5.0, 2.0]))
-
-        assert result == pytest.approx(5.0)
-
-    def test_all_nan_returns_default(self) -> None:
-        """An all-NaN array falls back to the default value."""
-        result = VariableStyler().safe_nanmax(np.array([np.nan, np.nan]), default=42.0)
-
-        assert result == pytest.approx(42.0)
-
-    def test_empty_array_returns_default(self) -> None:
-        """An empty array falls back to the default value."""
-        result = VariableStyler().safe_nanmax(np.array([]), default=8.0)
-
-        assert result == pytest.approx(8.0)
-
-
 class TestStyleForVariable:
     def test_none_styles_returns_empty_style(self) -> None:
         """A None styles mapping returns an empty VariableStyle."""

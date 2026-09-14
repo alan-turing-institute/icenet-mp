@@ -18,6 +18,8 @@ from icenet_mp.utils import (
     get_wandb_run,
     mask_dir,
     npdatetime_from_datetime,
+    safe_nanmax,
+    safe_nanmin,
     to_list,
 )
 
@@ -168,3 +170,61 @@ class TestToList:
         values = ["ice_conc", "2t"]
 
         assert to_list(values) is values
+
+
+class TestSafeNanmin:
+    def test_normal_array(self) -> None:
+        """Return the true minimum for a fully finite array."""
+        result = safe_nanmin(np.array([3.0, 1.0, 2.0]))
+
+        assert result == pytest.approx(1.0)
+
+    def test_ignores_nan(self) -> None:
+        """NaN entries are ignored when a finite value is present."""
+        result = safe_nanmin(np.array([np.nan, 5.0, 2.0]))
+
+        assert result == pytest.approx(2.0)
+
+    def test_all_nan_returns_default(self) -> None:
+        """An all-NaN array falls back to the default value."""
+        result = safe_nanmin(np.array([np.nan, np.nan]), default=-9.0)
+
+        assert result == pytest.approx(-9.0)
+
+    def test_empty_array_returns_default(self) -> None:
+        """An empty array falls back to the default value."""
+        result = safe_nanmin(np.array([]), default=7.0)
+
+        assert result == pytest.approx(7.0)
+
+    def test_all_infinite_returns_default(self) -> None:
+        """An array of only +/-inf falls back to the default value."""
+        result = safe_nanmin(np.array([np.inf, -np.inf]), default=3.0)
+
+        assert result == pytest.approx(3.0)
+
+
+class TestSafeNanmax:
+    def test_normal_array(self) -> None:
+        """Return the true maximum for a fully finite array."""
+        result = safe_nanmax(np.array([3.0, 1.0, 2.0]))
+
+        assert result == pytest.approx(3.0)
+
+    def test_ignores_nan(self) -> None:
+        """NaN entries are ignored when a finite value is present."""
+        result = safe_nanmax(np.array([np.nan, 5.0, 2.0]))
+
+        assert result == pytest.approx(5.0)
+
+    def test_all_nan_returns_default(self) -> None:
+        """An all-NaN array falls back to the default value."""
+        result = safe_nanmax(np.array([np.nan, np.nan]), default=42.0)
+
+        assert result == pytest.approx(42.0)
+
+    def test_empty_array_returns_default(self) -> None:
+        """An empty array falls back to the default value."""
+        result = safe_nanmax(np.array([]), default=8.0)
+
+        assert result == pytest.approx(8.0)

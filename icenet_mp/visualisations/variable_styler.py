@@ -7,6 +7,7 @@ import numpy as np
 from matplotlib.colors import Colormap, Normalize, TwoSlopeNorm
 
 from icenet_mp.types import VariableStyle
+from icenet_mp.utils import safe_nanmax, safe_nanmin
 
 logger = logging.getLogger(__name__)
 
@@ -44,38 +45,6 @@ class VariableStyler:
 
         cmap.set_bad(bad_color)
         return cmap
-
-    def safe_nanmin(self, arr: np.ndarray, default: float = 0.0) -> float:
-        """Safely compute nanmin with fallback for empty or all-NaN arrays.
-
-        Args:
-            arr: Array to compute minimum from.
-            default: Default value if array is empty or all NaN.
-
-        Returns:
-            Minimum value or default.
-
-        """
-        if np.isfinite(arr).any():
-            result = np.nanmin(arr)
-            return float(result) if np.isfinite(result) else default
-        return default
-
-    def safe_nanmax(self, arr: np.ndarray, default: float = 1.0) -> float:
-        """Safely compute nanmax with fallback for empty or all-NaN arrays.
-
-        Args:
-            arr: Array to compute maximum from.
-            default: Default value if array is empty or all NaN.
-
-        Returns:
-            Maximum value or default.
-
-        """
-        if np.isfinite(arr).any():
-            result = np.nanmax(arr)
-            return float(result) if np.isfinite(result) else default
-        return default
 
     def style_for_variable(  # noqa: C901, PLR0911
         self, var_name: str, styles: dict[str, dict[str, Any]] | None
@@ -185,8 +154,8 @@ class VariableStyler:
 
         """
         # Compute data range with robust handling of NaN/inf
-        data_min = float(np.nanmin(data)) if np.isfinite(data).any() else 0.0
-        data_max = float(np.nanmax(data)) if np.isfinite(data).any() else 1.0
+        data_min = safe_nanmin(data)
+        data_max = safe_nanmax(data)
 
         if centre is not None:
             # Diverging colourmap centred at specified value

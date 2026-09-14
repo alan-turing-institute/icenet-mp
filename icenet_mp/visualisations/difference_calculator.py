@@ -3,18 +3,13 @@ from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import DiffColourmapSpec, DiffMode
-
-from .variable_styler import VariableStyler
+from icenet_mp.utils import safe_nanmax, safe_nanmin
 
 _SPATIAL_NDIM = 2
 
 
 class DifferenceCalculator:
     """Computes differences and display/colour ranges for GT/prediction pairs."""
-
-    def __init__(self) -> None:
-        """Initialize a DifferenceCalculator."""
-        self._variable_styler = VariableStyler()
 
     def compute_difference(
         self, ground_truth: np.ndarray, prediction: np.ndarray, diff_mode: DiffMode
@@ -122,8 +117,8 @@ class DifferenceCalculator:
                 vmin, vmax = -max_abs, max_abs
             else:
                 # Find the min and max values of the sample array using safe helpers
-                vmin_data = self._variable_styler.safe_nanmin(sample, default=-1.0)
-                vmax_data = self._variable_styler.safe_nanmax(sample, default=1.0)
+                vmin_data = safe_nanmin(sample, default=-1.0)
+                vmax_data = safe_nanmax(sample, default=1.0)
                 # Find the maximum absolute value of the sample array
                 max_abs = max(1.0, abs(vmin_data), abs(vmax_data))
                 vmin, vmax = -max_abs, max_abs
@@ -140,7 +135,7 @@ class DifferenceCalculator:
             if isinstance(sample, (float, int)):
                 vmax = max(1e-6, float(sample))
             else:
-                vmax = max(1e-6, self._variable_styler.safe_nanmax(sample, default=0.0))
+                vmax = max(1e-6, safe_nanmax(sample, default=0.0))
 
             return DiffColourmapSpec(
                 norm=None,
