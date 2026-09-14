@@ -12,8 +12,6 @@
 #   zero_init_output: true    (decoder) the final decoder convolution starts at
 #                             zero, so an untrained model reproduces (masked)
 #                             persistence bit-exactly at every lead
-#   feedback_channel: 1       sic-ssmis carries 6 channels; the prediction
-#                             overwrites ice_conc (index 1) when fed back
 #   restrict_range: none      no bounding of the raw increment; the decoder's
 #                             finalise() clamps the SUM after the skip connection.
 #                             (With an additive skip the decoder bounds signed
@@ -25,7 +23,6 @@ name: cnn-vit-cnn-residual
 
 rollout_space: physical
 predict_residual: true
-feedback_channel: 1
 
 encoders:
   latent_space: [216, 216]

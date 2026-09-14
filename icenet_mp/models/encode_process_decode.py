@@ -31,52 +31,15 @@ class EncodeProcessDecode(BaseModel):
         mask_dir: str | None = None,
         rollout_space: str = "latent",
         predict_residual: bool = False,
-        feedback_channel: int | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model.
 
-        Args:
-            encoders: config for the per-input-group encoders (plus ``latent_space``).
-            processor: config for the latent-space processor.
-            decoder: config for the decoder producing the output space.
-            target_variable_indices: indices, within the target INPUT group, of the
-                variable(s) being predicted. Must select exactly as many channels as
-                ``output_space`` has; used to pull the newest observed target frame
-                out of the input window as the skip connection's anchor.
-            mask_dir: directory holding the mask ``.npy`` files, if masking is used.
-            rollout_space: which space the autoregressive forecast loop closes in.
-
-                ``"latent"`` (default): the processor rolls forward in latent space,
-                appending each predicted latent to its own input window without
-                re-encoding (``BaseProcessor.rollout``). All input groups' latent
-                channels are carried forward, so non-target groups are implicitly
-                forecast in latent space as well.
-
-                ``"physical"``: each forecast step encodes the current window of
-                physical frames, takes one processor step, decodes to a physical
-                field and rolls that field back into the window, which is re-encoded
-                on the next step (``_forward_physical``). The fed-back state is
-                always a physical field. Non-target groups (e.g. ERA5/Argo) hold
-                their newest observed frame for every step of the rollout, i.e.
-                their latents are replaced with persistence at each step.
-
-            predict_residual: if True the decoder output is a signed TENDENCY and the
-                prediction is ``previous + delta``, applied by the decoder's additive
-                skip connection, so a zero tendency reproduces the previous field
-                exactly. Requires ``rollout_space="physical"`` (the residual is added
-                to the previous physical field) and a decoder configured with
-                ``skip_connection.method: additive``. The anchor is the previous
-                forecast step's field, updated every step — unlike the latent path's
-                skip connection, which anchors every lead on the newest observation.
-            feedback_channel: index of the channel within the target input group that
-                the prediction overwrites when it is rolled back into the window
-                under the physical rollout. Only needed when the target group has
-                more channels than the model outputs (e.g. a 6-channel sic-ssmis
-                input with a 1-channel output); when the counts match, all channels
-                are replaced.
-            **kwargs: forwarded to ``BaseModel`` (spaces, steps, optimiser, loss, ...).
-
+        ``rollout_space`` selects where the forecast loop closes: ``"latent"`` feeds the
+        processor's own output back (the default); ``"physical"`` decodes every step to a
+        field, rolls that field into the target window and re-encodes. ``predict_residual``
+        makes the decoder emit a change that is added to the previous field; it requires
+        ``rollout_space="physical"`` and a decoder with an additive skip connection.
         """
         super().__init__(mask_dir=mask_dir, **kwargs)
 
@@ -94,7 +57,6 @@ class EncodeProcessDecode(BaseModel):
         self._validate_rollout_options(rollout_space, predict_residual, decoder)
         self.rollout_space = rollout_space
         self.predict_residual = bool(predict_residual)
-        self.feedback_channel = feedback_channel
 
         # Add one encoder per dataset
         # We store this as a list to ensure consistent ordering
@@ -138,8 +100,8 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg) from exc
 
-        # We have to explicitly register each encoder as list[Module] will not be
-        # automatically picked up by PyTorch
+        # Explicitly register each encoder (list[Module] not
+        # automatically readable by PyTorch)
         for input_space, module in zip(self.input_spaces, self.encoders, strict=True):
             module_name = f"encoder_{input_space.name}".lower().replace("-", "_")
             self.add_module(module_name, module)
@@ -323,16 +285,7 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
-        n_out = self.output_space.channels
         target_window = inputs[target_name].clone()  # (B, nh, C_t, H, W)
-        n_target_channels = target_window.shape[2]
-        if self.feedback_channel is None and n_target_channels != n_out:
-            msg = (
-                f"The target group '{target_name}' has {n_target_channels} channels but "
-                f"the model outputs {n_out}; set model.feedback_channel to the index of "
-                f"the channel the prediction should overwrite when it is fed back."
-            )
-            raise ValueError(msg)
 
         # Non-target groups: hold the newest observed frame for the whole rollout.
         frozen: dict[str, TensorNTCHW] = {
@@ -363,7 +316,7 @@ class EncodeProcessDecode(BaseModel):
             if self.predict_residual:
                 # Compared to the latent path the difference here is
                 # the anchor: here we use the state produced by the previous forecast step.
-                anchor = self._anchor(target_window, n_out)
+                anchor = self._anchor(target_window)
                 field = self.decoder.finalise(raw, anchor)
             else:
                 # The non-residual physical path has no
@@ -376,22 +329,14 @@ class EncodeProcessDecode(BaseModel):
 
         return torch.stack(outputs, dim=1)
 
-    def _anchor(self, target_window: TensorNTCHW, n_out: int) -> TensorNCHW:
-        """Return the current physical state that a residual is added to."""
-        newest = target_window[:, -1]  # (B, C_t, H, W)
-        if self.feedback_channel is None:
-            return newest
-        idx = int(self.feedback_channel)
-        return newest[:, idx : idx + n_out]
+    def _anchor(self, target_window: TensorNTCHW) -> TensorNCHW:
+        """Return the target variables of the newest frame in the window."""
+        return target_window[:, -1, self.target_variable_indices]  # (B, C_out, H, W)
 
     def _advance(self, target_window: TensorNTCHW, field: TensorNCHW) -> TensorNTCHW:
-        """Drop the oldest target frame and append the newly predicted one."""
+        """Drop the oldest frame; append the newest with its target variables replaced."""
         newest = target_window[:, -1].clone()
-        if self.feedback_channel is None:
-            newest = field
-        else:
-            idx = int(self.feedback_channel)
-            newest[:, idx : idx + field.shape[1]] = field
+        newest[:, self.target_variable_indices] = field
         return torch.cat([target_window[:, 1:], newest.unsqueeze(1)], dim=1)
 
     def find_target_channel_offset(self) -> int | None:

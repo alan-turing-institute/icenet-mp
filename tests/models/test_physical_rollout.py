@@ -41,7 +41,6 @@ def _build_model(
     *,
     rollout_space: str = "latent",
     predict_residual: bool = False,
-    feedback_channel: int | None = None,
     decoder_extra: dict[str, Any] | None = None,
     processor: dict[str, Any] | None = None,
     grid: int = 32,
@@ -49,6 +48,7 @@ def _build_model(
     n_forecast_steps: int = 4,
     n_history_steps: int = 3,
     input_channels: int = 1,
+    output_channels: int = 1,
     extra_inputs: list[DictConfig] | None = None,
     target_variable_indices: list[int] | None = None,
     seed: int = SEED,
@@ -92,13 +92,12 @@ def _build_model(
         decoder=decoder,
         rollout_space=rollout_space,
         predict_residual=predict_residual,
-        feedback_channel=feedback_channel,
         hemisphere="north",
         input_spaces=input_spaces,
         n_forecast_steps=n_forecast_steps,
         n_history_steps=n_history_steps,
         output_space=DictConfig(
-            {"channels": 1, "name": TARGET_GROUP, "shape": (grid, grid)}
+            {"channels": output_channels, "name": TARGET_GROUP, "shape": (grid, grid)}
         ),
         optimizer=DictConfig({}),
         scheduler=DictConfig({}),
@@ -157,7 +156,7 @@ class TestDefaultsOff:
         model = _build_model()
         assert model.rollout_space == "latent"
         assert model.predict_residual is False
-        assert model.feedback_channel is None
+        assert model.target_variable_indices == [0]
 
     def test_off_is_identical_to_absent(self) -> None:
         absent = _build_model()
@@ -341,33 +340,43 @@ class TestPhysicalRolloutAdvancesTheState:
         with torch.no_grad():
             assert torch.equal(model(inputs), model(baseline))
 
-    def test_feedback_channel_required_when_channel_counts_differ(self) -> None:
+    def test_feedback_writes_only_the_target_variable(self) -> None:
+        """A multi-channel target group: the prediction is fed back into channel 1 only."""
         model = _build_model(
             rollout_space="physical",
             predict_residual=True,
             decoder_extra={"restrict_range": "none"},
             input_channels=3,
-        )
-        with pytest.raises(ValueError, match=r"set model\.feedback_channel"):
-            model(_inputs(model))
-
-    def test_feedback_channel_overwrites_only_that_channel(self) -> None:
-        model = _build_model(
-            rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
-            input_channels=3,
-            feedback_channel=1,
+            target_variable_indices=[1],
         )
         _zero_decoder_output(model)
         inputs = _inputs(model)
         model.eval()
         with torch.no_grad():
             prediction = model(inputs)
-        # zero tendency anchored on channel 1 => persistence of channel 1
+        # zero tendency anchored on channel 1 => persistence of channel 1 at every lead
         expected = inputs[TARGET_GROUP][:, -1, 1:2]
         for lead in range(model.n_forecast_steps):
             assert torch.equal(prediction[:, lead], expected)
+
+    def test_feedback_supports_non_contiguous_target_variables(self) -> None:
+        """Target variables need not be neighbours: channels 0 and 2 of a 3-channel group."""
+        model = _build_model(
+            rollout_space="physical",
+            predict_residual=True,
+            decoder_extra={"restrict_range": "none"},
+            input_channels=3,
+            output_channels=2,
+            target_variable_indices=[0, 2],
+        )
+        window = _inputs(model)[TARGET_GROUP]
+        field = torch.full_like(window[:, -1, [0, 2]], 0.5)
+        advanced = model._advance(window, field)  # noqa: SLF001 - the helper under test
+        assert advanced.shape == window.shape
+        assert torch.equal(advanced[:, :-1], window[:, 1:])  # oldest frame dropped
+        assert torch.equal(advanced[:, -1, [0, 2]], field)  # target channels written
+        assert torch.equal(advanced[:, -1, 1], window[:, -1, 1])  # the other one untouched
+        assert torch.equal(model._anchor(advanced), field)  # noqa: SLF001
 
 
 class TestNoFutureLeak:
