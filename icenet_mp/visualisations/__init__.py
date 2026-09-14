@@ -3,7 +3,7 @@ from matplotlib import rcParams
 
 from .dataset_plotting import plot_variables_static, plot_variables_video
 from .difference_calculator import DifferenceCalculator
-from .plotter import Plotter
+from .media_publisher import MediaPublisher
 
 
 def register_animation_backends() -> None:
@@ -13,7 +13,7 @@ def register_animation_backends() -> None:
 
 __all__ = [
     "DifferenceCalculator",
-    "Plotter",
+    "MediaPublisher",
     "plot_variables_static",
     "plot_variables_video",
 ]

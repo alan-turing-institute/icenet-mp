@@ -19,16 +19,16 @@ from icenet_mp.types import (
     SupportsVideoLogging,
 )
 from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
-from icenet_mp.visualisations import Plotter
+from icenet_mp.visualisations import MediaPublisher
 from icenet_mp.visualisations.land_mask import LandMask
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
-class ImageLoggingCallback(Callback):
+class MediaLoggingCallback(Callback):
     """A callback to create and log images during evaluation."""
 
     def __init__(  # noqa: PLR0913
@@ -71,8 +71,7 @@ class ImageLoggingCallback(Callback):
         # Uncertainty plots
         self.uncertainty_variables = {"ice_conc": "total_standard_uncertainty"}
 
-        # Plotter instance
-        self.plotter = Plotter(PlotSpec() + plot_spec)
+        self.publisher = MediaPublisher(PlotSpec() + plot_spec)
         self._model_name: str | None = model_name
         self._land_mask_cache: dict[Path | None, LandMask] = {}
         self.prefix: str | None = prefix
@@ -122,10 +121,10 @@ class ImageLoggingCallback(Callback):
         dataset = dataloader.dataset
         batch_size = dataloader.batch_size
         if not isinstance(dataset, CombinedDataset):
-            logger.warning("Dataset is of type %s not CombinedDataset", type(dataset))
+            log.warning("Dataset is of type %s not CombinedDataset", type(dataset))
             return None
         if batch_size is None:
-            logger.warning("Dataloader does not have a batch size.")
+            log.warning("Dataloader does not have a batch size.")
             return None
         return (dataset, batch_size)
 
@@ -174,7 +173,7 @@ class ImageLoggingCallback(Callback):
                 target_max = float(dataset.target.statistics["maximum"][target_idx])
                 target_range = target_max - target_min
                 if not np.isfinite(target_range) or target_range <= 0:
-                    logger.warning(
+                    log.warning(
                         "Could not scale target uncertainty because target range is %s.",
                         target_range,
                     )
@@ -191,7 +190,7 @@ class ImageLoggingCallback(Callback):
             MemoryError,
             OSError,
         ) as exc:
-            logger.warning("Could not load target uncertainty: %s", exc)
+            log.warning("Could not load target uncertainty: %s", exc)
             return {}
         else:
             return uncertainties
@@ -203,44 +202,38 @@ class ImageLoggingCallback(Callback):
         dataset: CombinedDataset,
         batch_size: int,
     ) -> None:
-        # Rebuild metadata from the dataset's realised state and push the
-        # current epoch; cheap enough to do unconditionally every call.
-        self.plotter.configure_context(
-            metadata=self.plotter.metadata_builder.from_dataset(
-                dataset,
-                current_epoch=trainer.current_epoch,
-                model_name=self._model_name,
-            )
-        )
+        # Ensure the module is a BaseModel
+        if not isinstance(pl_module, BaseModel):
+            msg = f"Lightning module is of type {type(pl_module)}, skipping plotting."
+            log.warning(msg)
+            return
 
         # Ensure that outputs is a ModelStepOutput
         if self.cached_outputs_ is None or self.cached_batch_idx_ is None:
-            logger.warning("Could not load outputs, skipping plotting.")
+            log.warning("Could not load outputs, skipping plotting.")
             return
 
-        # Load dates from the dataset
-        start_date = dataset.dates[batch_size * self.cached_batch_idx_]
-        dates = list(
-            map(datetime_from_npdatetime, dataset.get_forecast_steps(start_date))
-        )
-
-        if not isinstance(pl_module, BaseModel):
-            msg = f"Lightning module is of type {type(pl_module)}, skipping plotting."
-            logger.warning(msg)
-            return
-
-        # Load land mask for plotting based on dataset (built once per path,
-        # not rebuilt every validation epoch)
+        # Load land mask for plotting based on dataset
         datamodule = getattr(trainer, "datamodule", None)
         mask_directory = getattr(datamodule, "mask_directory", None)
         land_mask_path = mask_directory / "land_mask.npy" if mask_directory else None
         if land_mask_path not in self._land_mask_cache:
             self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
 
-        # Set hemisphere and land mask for plotting based on dataset
-        self.plotter.configure_context(
+        # Rebuild metadata from the dataset's realised state and push the
+        # current epoch; cheap enough to do unconditionally every call.
+        self.publisher.configure_context(
             hemisphere=pl_module.hemisphere,
             land_mask=self._land_mask_cache[land_mask_path],
+            dataset=dataset,
+            current_epoch=trainer.current_epoch,
+            model_name=self._model_name,
+        )
+
+        # Load dates from the dataset
+        start_date = dataset.dates[batch_size * self.cached_batch_idx_]
+        dates = list(
+            map(datetime_from_npdatetime, dataset.get_forecast_steps(start_date))
         )
 
         # Get loggers that support image and video logging
@@ -256,7 +249,7 @@ class ImageLoggingCallback(Callback):
 
         if self.make_static_plots:
             uncertainties = self.load_target_uncertainties(dataset, dates)
-            self.plotter.log_static_outputs(
+            self.publisher.log_static_outputs(
                 self.cached_outputs_,
                 dates,
                 image_loggers,
@@ -265,12 +258,12 @@ class ImageLoggingCallback(Callback):
                 uncertainties=uncertainties,
             )
             if self.make_input_plots:
-                self.plotter.log_static_inputs(
+                self.publisher.log_static_inputs(
                     dataset.inputs, dates, image_loggers, prefix=self.prefix
                 )
 
         if self.make_video_plots:
-            self.plotter.log_video_outputs(
+            self.publisher.log_video_outputs(
                 self.cached_outputs_,
                 dates,
                 video_loggers,
@@ -278,7 +271,7 @@ class ImageLoggingCallback(Callback):
                 prefix=self.prefix,
             )
             if self.make_input_plots:
-                self.plotter.log_video_inputs(
+                self.publisher.log_video_inputs(
                     dataset.inputs, dates, video_loggers, prefix=self.prefix
                 )
 
@@ -307,7 +300,7 @@ class ImageLoggingCallback(Callback):
         if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
-                logger.warning("Could not load dataset, skipping plotting.")
+                log.warning("Could not load dataset, skipping plotting.")
                 return
 
             # Make the plots
@@ -321,7 +314,7 @@ class ImageLoggingCallback(Callback):
 
         # Load the dataset
         if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
-            logger.warning("Could not load dataset, skipping plotting.")
+            log.warning("Could not load dataset, skipping plotting.")
             return
 
         # Make the plots
@@ -356,7 +349,7 @@ class ImageLoggingCallback(Callback):
         if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
-                logger.warning("Could not load dataset, skipping plotting.")
+                log.warning("Could not load dataset, skipping plotting.")
                 return
 
             # Make the plots
@@ -372,7 +365,7 @@ class ImageLoggingCallback(Callback):
 
         # Load the dataset
         if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
-            logger.warning("Could not load dataset, skipping plotting.")
+            log.warning("Could not load dataset, skipping plotting.")
             return
 
         # Make the plots

@@ -1,7 +1,7 @@
 defaults:
   - callbacks:
     - activation_saver
-    - image_logging
+    - media_logging
     - metric_summary
   - _self_
 

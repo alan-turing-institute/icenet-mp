@@ -13,7 +13,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
-from icenet_mp.callbacks import ImageLoggingCallback, UnconditionalCheckpoint
+from icenet_mp.callbacks import MediaLoggingCallback, UnconditionalCheckpoint
 from icenet_mp.compatibility.torch import (
     patch_interpolate_antialias,
     patch_open_file_limit,
@@ -173,7 +173,7 @@ class ModelService:
         Args:
             model: Model to train. Defaults to ``self.model`` if not provided.
             config: Job-specific config section (e.g. ``self.config["train"]``).
-            job_stage: Label passed to ``ImageLoggingCallback.prefix`` and used in log messages.
+            job_stage: Label passed to ``MediaLoggingCallback.prefix`` and used in log messages.
             ckpt_path: Optional checkpoint to load training state from.
 
         Returns:
@@ -297,7 +297,7 @@ class ModelService:
         Args:
             config: Job-specific config section (e.g. ``self.config["train"]``).
             project: W&B project name (one of "train" or "evaluate").
-            job_stage: Optional label passed to ``ImageLoggingCallback.prefix`` and used
+            job_stage: Optional label passed to ``MediaLoggingCallback.prefix`` and used
                 in log messages. Also sets the W&B ``job_type`` to ``"multistage"``
                 when provided, or ``"single-stage"`` otherwise.
 
@@ -392,7 +392,7 @@ class ModelService:
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
             log.debug("Configuring callback %s.", callback.__class__.__name__)
             # Set image logging prefix
-            if isinstance(callback, ImageLoggingCallback):
+            if isinstance(callback, MediaLoggingCallback):
                 log.debug(
                     "Setting image logging prefix for %s to %s.",
                     callback.__class__.__name__,

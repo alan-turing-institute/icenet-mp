@@ -9,13 +9,13 @@ DEFAULT_CALLBACK_TARGETS = {
     "ema_weight_averaging": "icenet_mp.callbacks.EMAWeightAveragingCallback",
     "learning_rate": "lightning.pytorch.callbacks.LearningRateMonitor",
     "metric_summary": "icenet_mp.callbacks.MetricSummaryCallback",
-    "plotting": "icenet_mp.callbacks.ImageLoggingCallback",
+    "plotting": "icenet_mp.callbacks.MediaLoggingCallback",
 }
 
 PERSISTENCE_CALLBACK_TARGETS = {
     "learning_rate": "lightning.pytorch.callbacks.LearningRateMonitor",
     "metric_summary": "icenet_mp.callbacks.MetricSummaryCallback",
-    "plotting": "icenet_mp.callbacks.ImageLoggingCallback",
+    "plotting": "icenet_mp.callbacks.MediaLoggingCallback",
     "unconditional_checkpoint": "icenet_mp.callbacks.UnconditionalCheckpoint",
 }
 

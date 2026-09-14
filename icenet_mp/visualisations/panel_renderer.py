@@ -2,13 +2,11 @@
 
 `PanelRenderer` takes raw ground-truth/prediction/input arrays and applies masking
 and (where relevant) difference or standardised-difference panels, rendering the
-result via `render_panels_static` or `render_panels_video`. `render.py` itself stays
-domain-agnostic (arrays and styles in, image/video out); this module is where land
-masks, difference modes and uncertainty become panels.
+result via `render_panels_static` or `render_panels_video`.
 
-Used by both `Plotter` (production logging) and `dataset_plotting.py` (CLI dataset
-preview plots), each of which builds one `PanelRenderer` per land_mask/plot_spec
-pairing rather than threading those two through every call.
+Used by both `MediaPublisher` (logging during runs) and `dataset_plotting.py` (CLI
+dataset preview plots), each of which builds one `PanelRenderer` per land_mask/plot_spec
+pairing.
 """
 
 from datetime import datetime

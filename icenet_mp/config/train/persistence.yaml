@@ -1,8 +1,8 @@
 defaults:
   - default
   - override callbacks:
-    - image_logging
     - learning_rate
+    - media_logging
     - metric_summary
     - unconditional_checkpoint
   - _self_

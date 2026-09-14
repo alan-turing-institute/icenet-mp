@@ -1,5 +1,5 @@
 plotting:
-  _target_: icenet_mp.callbacks.ImageLoggingCallback
+  _target_: icenet_mp.callbacks.MediaLoggingCallback
   frequency:
     number: 3 # plot exactly 3 batches equally spaced across the epoch
   make_input_plots: false

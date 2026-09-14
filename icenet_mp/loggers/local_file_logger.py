@@ -1,6 +1,6 @@
 """A Lightning logger that writes images, videos, and metrics to local files.
 
-Implements the subset of the `WandbLogger` interface used by `ImageLoggingCallback`
+Implements the subset of the `WandbLogger` interface used by `MediaLoggingCallback`
 (`log_image`/`log_video`) and Lightning's own metric logging (`log_metrics`), so a
 training/evaluation job can produce local, human-inspectable artefacts (loss curves,
 prediction plots) without network access or a W&B account -- e.g. in CI. Enable it
@@ -78,9 +78,9 @@ class LocalFileLogger(Logger):
         """Save each image in `images` as a PNG under `save_dir/images`.
 
         Every call gets its own, uniquely-numbered file (like W&B's step-indexed media
-        timeline) rather than overwriting by `key` alone -- `Plotter` reuses the same
-        `key` (date + variable) on every validation epoch, since the underlying dates
-        don't change, so keying on `key` alone would silently keep only the last epoch.
+        timeline) rather than overwriting by `key` alone. `MediaPublisher` reuses the
+        same `key` (date + variable) on every validation epoch, since the underlying
+        dates don't change, so using `key` alone silently keeps only the last epoch.
         """
         call_idx = step if step is not None else self._image_call_count
         self._image_call_count += 1

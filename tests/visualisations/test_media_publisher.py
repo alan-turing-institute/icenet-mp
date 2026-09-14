@@ -12,7 +12,7 @@ from icenet_mp.data import SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import Metadata, ModelStepOutput, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
-from icenet_mp.visualisations.plotter import Plotter
+from icenet_mp.visualisations.media_publisher import MediaPublisher
 
 if TYPE_CHECKING:
     from PIL.ImageFile import ImageFile
@@ -26,10 +26,10 @@ TEST_DATES = [datetime(2020, 1, 1), datetime(2020, 1, 2)]
 
 
 def fake_single_dataset() -> SingleDataset:
-    """Return a duck-typed SingleDataset stand-in, cast to satisfy Plotter's typing."""
+    """Return a duck-typed SingleDataset stand-in, cast to satisfy MediaPublisher's typing."""
 
     class FakeSingleDataset:
-        """Minimal SingleDataset stand-in exposing the attributes Plotter reads."""
+        """Minimal SingleDataset stand-in exposing the attributes MediaPublisher reads."""
 
         name = "example"
         variable_names: ClassVar[list[str]] = ["ice_conc", "temperature"]
@@ -58,13 +58,13 @@ def make_model_step_output(channels: int = N_CHANNELS) -> ModelStepOutput:
 class TestLoggingHelpers:
     def test_log_path_handles_optional_prefix(self) -> None:
         """Build the same namespaces for prefixed and unprefixed logging."""
-        assert Plotter._log_path(None, "output_static") == "output_static"
-        assert Plotter._log_path("test", "output_static") == "test/output_static"
+        assert MediaPublisher._log_path(None, "output_static") == "output_static"
+        assert MediaPublisher._log_path("test", "output_static") == "test/output_static"
 
     def test_channel_name_uses_stable_fallback(self) -> None:
         """Use configured names when available and indexed fallbacks otherwise."""
-        assert Plotter._channel_name(["sic"], 0) == "sic"
-        assert Plotter._channel_name(["sic"], 2) == "channel_2"
+        assert MediaPublisher._channel_name(["sic"], 0) == "sic"
+        assert MediaPublisher._channel_name(["sic"], 2) == "channel_2"
 
     def test_log_images_fans_out_to_all_loggers(self) -> None:
         """Send every image group to each configured logger."""
@@ -75,7 +75,7 @@ class TestLoggingHelpers:
             {"comparison": [object()], "error": [object()]},
         )
 
-        Plotter._log_images(images, [first, second], "validation/output_static")
+        MediaPublisher._log_images(images, [first, second], "validation/output_static")
 
         expected = [
             {
@@ -89,13 +89,13 @@ class TestLoggingHelpers:
 
     def test_log_videos_rewinds_for_each_logger_and_preserves_format(self) -> None:
         """Rewind shared buffers before every logger handoff."""
-        plotter = Plotter(PlotSpec(video_format="mp4"))
+        media_publisher = MediaPublisher(PlotSpec(video_format="mp4"))
         first = MagicMock()
         second = MagicMock()
         buffer = BytesIO(b"video")
         buffer.seek(3)
 
-        plotter._log_videos(
+        media_publisher._log_videos(
             {"forecast": buffer},
             [first, second],
             "test/output_video",
@@ -114,45 +114,52 @@ class TestMetadataAndHemisphere:
     def test_configure_context_updates_metadata_subtitle(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Format the metadata and store it as the plot spec subtitle."""
-        plotter = Plotter()
+        """Build metadata from the dataset and store its formatted subtitle."""
+        media_publisher = MediaPublisher()
         monkeypatch.setattr(
-            plotter.metadata_builder,
+            media_publisher._metadata_builder,
+            "from_dataset",
+            MagicMock(return_value=Metadata(model="unet")),
+        )
+        monkeypatch.setattr(
+            media_publisher._metadata_builder,
             "format_subtitle",
             MagicMock(return_value="epochs=50"),
         )
 
-        plotter.configure_context(metadata=Metadata(model="unet"))
+        media_publisher.configure_context(
+            dataset=MagicMock(), current_epoch=50, model_name="unet"
+        )
 
-        assert plotter.plot_spec.metadata_subtitle == "epochs=50"
+        assert media_publisher.plot_spec.metadata_subtitle == "epochs=50"
 
     def test_configure_context_updates_hemisphere(self) -> None:
-        """Plotter keeps hemisphere state on its PlotSpec."""
-        plotter = Plotter()
-        plotter.configure_context(hemisphere="south")
+        """MediaPublisher keeps hemisphere state on its PlotSpec."""
+        media_publisher = MediaPublisher()
+        media_publisher.configure_context(hemisphere="south")
 
-        assert plotter.plot_spec.hemisphere == "south"
+        assert media_publisher.plot_spec.hemisphere == "south"
 
     def test_configure_context_updates_land_mask_and_renderer(self) -> None:
         """Reassigning land_mask through configure_context keeps the renderer in sync."""
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         new_land_mask = LandMask(None)
 
-        plotter.configure_context(land_mask=new_land_mask)
+        media_publisher.configure_context(land_mask=new_land_mask)
 
-        assert plotter.land_mask is new_land_mask
-        assert plotter._renderer.land_mask is new_land_mask
+        assert media_publisher.land_mask is new_land_mask
+        assert media_publisher._renderer.land_mask is new_land_mask
 
     def test_configure_context_ignores_unset_fields(self) -> None:
         """Omitted arguments leave existing plot_spec/land_mask state untouched."""
-        plotter = Plotter()
-        plotter.configure_context(hemisphere="north")
-        original_land_mask = plotter.land_mask
+        media_publisher = MediaPublisher()
+        media_publisher.configure_context(hemisphere="north")
+        original_land_mask = media_publisher.land_mask
 
-        plotter.configure_context()
+        media_publisher.configure_context()
 
-        assert plotter.plot_spec.hemisphere == "north"
-        assert plotter.land_mask is original_land_mask
+        assert media_publisher.plot_spec.hemisphere == "north"
+        assert media_publisher.land_mask is original_land_mask
 
 
 class TestLogStaticInputs:
@@ -167,8 +174,8 @@ class TestLogStaticInputs:
         )
         image_logger = MagicMock()
 
-        plotter = Plotter()
-        plotter.log_static_inputs(
+        media_publisher = MediaPublisher()
+        media_publisher.log_static_inputs(
             [fake_single_dataset()], TEST_DATES, [image_logger], prefix="validation"
         )
 
@@ -193,9 +200,9 @@ class TestLogStaticInputs:
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_static_inputs(
+            media_publisher.log_static_inputs(
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
@@ -212,9 +219,9 @@ class TestLogStaticInputs:
             MagicMock(side_effect=ValueError("bad shape")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_static_inputs(
+            media_publisher.log_static_inputs(
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
@@ -230,8 +237,8 @@ class TestLogStaticOutputs:
         )
         image_logger = MagicMock()
 
-        plotter = Plotter()
-        plotter.log_static_outputs(
+        media_publisher = MediaPublisher()
+        media_publisher.log_static_outputs(
             make_model_step_output(),
             TEST_DATES,
             [image_logger],
@@ -258,8 +265,8 @@ class TestLogStaticOutputs:
         image_logger = MagicMock()
         uncertainties = {0: torch.zeros((N_TIMESTEPS, HEIGHT, WIDTH)).numpy()}
 
-        plotter = Plotter()
-        plotter.log_static_outputs(
+        media_publisher = MediaPublisher()
+        media_publisher.log_static_outputs(
             make_model_step_output(),
             TEST_DATES,
             [image_logger],
@@ -297,9 +304,9 @@ class TestLogStaticOutputs:
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_static_outputs(
+            media_publisher.log_static_outputs(
                 make_model_step_output(),
                 TEST_DATES,
                 [MagicMock()],
@@ -319,9 +326,9 @@ class TestLogStaticOutputs:
             MagicMock(side_effect=MemoryError),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_static_outputs(
+            media_publisher.log_static_outputs(
                 make_model_step_output(),
                 TEST_DATES,
                 [MagicMock()],
@@ -340,9 +347,9 @@ class TestLogStaticOutputs:
             MagicMock(return_value=image),
         )
         image_logger = MagicMock()
-        plotter = Plotter(PlotSpec(selected_timestep=1))
+        media_publisher = MediaPublisher(PlotSpec(selected_timestep=1))
 
-        plotter.log_static_outputs(
+        media_publisher.log_static_outputs(
             make_model_step_output(),
             TEST_DATES,
             [image_logger],
@@ -371,7 +378,7 @@ class TestLogStaticOutputs:
         )
         image_logger = MagicMock()
 
-        Plotter(PlotSpec()).log_static_outputs(
+        MediaPublisher(PlotSpec()).log_static_outputs(
             make_model_step_output(channels=1),
             TEST_DATES,
             [image_logger],
@@ -396,8 +403,8 @@ class TestLogVideoInputs:
         )
         video_logger = MagicMock()
 
-        plotter = Plotter()
-        plotter.log_video_inputs(
+        media_publisher = MediaPublisher()
+        media_publisher.log_video_inputs(
             [fake_single_dataset()], TEST_DATES, [video_logger], prefix="validation"
         )
 
@@ -406,12 +413,12 @@ class TestLogVideoInputs:
             call(
                 key="validation/input_video/2020-01-01-example:ice_conc",
                 videos=[buffer],
-                format=[plotter.plot_spec.video_format],
+                format=[media_publisher.plot_spec.video_format],
             ),
             call(
                 key="validation/input_video/2020-01-01-example:temperature",
                 videos=[buffer],
-                format=[plotter.plot_spec.video_format],
+                format=[media_publisher.plot_spec.video_format],
             ),
         ]
 
@@ -426,9 +433,11 @@ class TestLogVideoInputs:
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_video_inputs([fake_single_dataset()], TEST_DATES, [MagicMock()])
+            media_publisher.log_video_inputs(
+                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+            )
 
         assert "Video plotting skipped" in caplog.text
 
@@ -443,9 +452,11 @@ class TestLogVideoInputs:
             MagicMock(side_effect=VideoRenderError("encoding failed")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_video_inputs([fake_single_dataset()], TEST_DATES, [MagicMock()])
+            media_publisher.log_video_inputs(
+                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+            )
 
         assert "Video plotting skipped" in caplog.text
 
@@ -460,9 +471,11 @@ class TestLogVideoInputs:
             MagicMock(side_effect=ValueError("bad shape")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.ERROR):
-            plotter.log_video_inputs([fake_single_dataset()], TEST_DATES, [MagicMock()])
+            media_publisher.log_video_inputs(
+                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+            )
 
         assert "Video plotting failed" in caplog.text
         assert caplog.records[-1].levelno == logging.ERROR
@@ -477,8 +490,8 @@ class TestLogVideoOutputs:
         )
         video_logger = MagicMock()
 
-        plotter = Plotter()
-        plotter.log_video_outputs(
+        media_publisher = MediaPublisher()
+        media_publisher.log_video_outputs(
             make_model_step_output(),
             TEST_DATES,
             [video_logger],
@@ -505,9 +518,9 @@ class TestLogVideoOutputs:
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_video_outputs(
+            media_publisher.log_video_outputs(
                 make_model_step_output(),
                 TEST_DATES,
                 [MagicMock()],
@@ -527,9 +540,9 @@ class TestLogVideoOutputs:
             MagicMock(side_effect=VideoRenderError("encoding failed")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.WARNING):
-            plotter.log_video_outputs(
+            media_publisher.log_video_outputs(
                 make_model_step_output(),
                 TEST_DATES,
                 [MagicMock()],
@@ -549,9 +562,9 @@ class TestLogVideoOutputs:
             MagicMock(side_effect=ValueError("bad shape")),
         )
 
-        plotter = Plotter()
+        media_publisher = MediaPublisher()
         with caplog.at_level(logging.ERROR):
-            plotter.log_video_outputs(
+            media_publisher.log_video_outputs(
                 make_model_step_output(),
                 TEST_DATES,
                 [MagicMock()],
@@ -573,9 +586,9 @@ class TestLogVideoOutputs:
             lambda *args, **kwargs: buffer,  # noqa: ARG005
         )
         video_logger = MagicMock()
-        plotter = Plotter(PlotSpec(video_format="gif"))
+        media_publisher = MediaPublisher(PlotSpec(video_format="gif"))
 
-        plotter.log_video_outputs(
+        media_publisher.log_video_outputs(
             make_model_step_output(channels=1),
             TEST_DATES,
             [video_logger],

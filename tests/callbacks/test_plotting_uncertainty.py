@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 import torch
 
-from icenet_mp.callbacks.image_logging_callback import ImageLoggingCallback
+from icenet_mp.callbacks.media_logging_callback import MediaLoggingCallback
 from icenet_mp.types import ModelStepOutput, PlotSpec
-from icenet_mp.visualisations import Plotter
+from icenet_mp.visualisations import MediaPublisher
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ class TestLoadTargetUncertainties:
         """Scale source uncertainty to target space and mask invalid values."""
         dataset, _ = dataset_with_uncertainty
 
-        result = ImageLoggingCallback().load_target_uncertainties(
+        result = MediaLoggingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -61,7 +61,7 @@ class TestLoadTargetUncertainties:
         dataset, _ = dataset_with_uncertainty
         dataset.inputs[0].name = "other"
 
-        result = ImageLoggingCallback().load_target_uncertainties(
+        result = MediaLoggingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -75,7 +75,7 @@ class TestLoadTargetUncertainties:
         dataset, _ = dataset_with_uncertainty
         dataset.target.variable_names = ["other_variable"]
 
-        result = ImageLoggingCallback().load_target_uncertainties(
+        result = MediaLoggingCallback().load_target_uncertainties(
             dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
         )
 
@@ -92,7 +92,7 @@ class TestLoadTargetUncertainties:
         uncertainty_ds.get_tchw.side_effect = ValueError("missing uncertainty")
 
         with caplog.at_level(logging.WARNING):
-            result = ImageLoggingCallback().load_target_uncertainties(
+            result = MediaLoggingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
@@ -109,7 +109,7 @@ class TestLoadTargetUncertainties:
         dataset.target.statistics = {}
 
         with caplog.at_level(logging.WARNING):
-            result = ImageLoggingCallback().load_target_uncertainties(
+            result = MediaLoggingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
@@ -126,7 +126,7 @@ class TestLoadTargetUncertainties:
         dataset.target.statistics = {"minimum": [1.0], "maximum": [1.0]}
 
         with caplog.at_level(logging.WARNING):
-            result = ImageLoggingCallback().load_target_uncertainties(
+            result = MediaLoggingCallback().load_target_uncertainties(
                 dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
             )
 
@@ -136,7 +136,7 @@ class TestLoadTargetUncertainties:
 
 class TestLogStaticOutputsUncertainty:
     def test_includes_uncertainty_image(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        plotter = Plotter(PlotSpec(selected_timestep=0))
+        publisher = MediaPublisher(PlotSpec(selected_timestep=0))
         image_logger = MagicMock()
         outputs = ModelStepOutput(
             prediction=torch.zeros(1, 1, 1, 2, 2),
@@ -150,7 +150,7 @@ class TestLogStaticOutputsUncertainty:
             "icenet_mp.visualisations.panel_renderer.render_panels_static", fake_render
         )
 
-        plotter.log_static_outputs(
+        publisher.log_static_outputs(
             outputs,
             [datetime(2026, 8, 21, tzinfo=UTC)],
             [image_logger],

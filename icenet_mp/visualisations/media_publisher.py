@@ -4,13 +4,12 @@ from io import BytesIO
 
 from PIL.ImageFile import ImageFile
 
-from icenet_mp.data import SingleDataset
+from icenet_mp.data import CombinedDataset, SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import (
     ArrayHW,
     ArrayTHW,
     Hemisphere,
-    Metadata,
     ModelStepOutput,
     PlotSpec,
     SupportsImageLogging,
@@ -25,48 +24,23 @@ from .panel_renderer import PanelRenderer
 logger = logging.getLogger(__name__)
 
 
-class Plotter:
+class MediaPublisher:
     def __init__(self, plot_spec: PlotSpec | None = None) -> None:
-        """A helper class to create and log plots."""
+        """A helper class to create and log media."""
         self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self._land_mask = LandMask(None)
-        self.metadata_builder = MetadataBuilder()
+        self._metadata_builder = MetadataBuilder()
         self._renderer = PanelRenderer(self._land_mask, self.plot_spec)
 
     @property
     def land_mask(self) -> LandMask:
-        """The land mask used by this plotter's renderer."""
+        """The land mask used by the renderer."""
         return self._land_mask
 
     @land_mask.setter
     def land_mask(self, value: LandMask) -> None:
         self._land_mask = value
         self._renderer.land_mask = value
-
-    def configure_context(
-        self,
-        *,
-        hemisphere: Hemisphere | None = None,
-        land_mask: LandMask | None = None,
-        metadata: Metadata | None = None,
-    ) -> None:
-        """Update the per-epoch rendering context: hemisphere, land mask, metadata.
-
-        Consolidates what used to be two setter methods plus a direct
-        `land_mask` assignment into one entry point, so the renderer can't
-        silently fall out of sync with `Plotter` state. Any argument left as
-        `None` keeps its current value. `metadata` is cheap to rebuild fresh
-        every call (e.g. via `MetadataBuilder.from_dataset`), so unlike
-        `hemisphere`/`land_mask` there's no separate incremental-update path.
-        """
-        if hemisphere is not None:
-            self.plot_spec.hemisphere = hemisphere
-        if land_mask is not None:
-            self.land_mask = land_mask
-        if metadata is not None:
-            self.plot_spec.metadata_subtitle = self.metadata_builder.format_subtitle(
-                metadata
-            )
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
@@ -108,6 +82,32 @@ class Plotter:
                     videos=[video_buffer],
                     format=[self.plot_spec.video_format],
                 )
+
+    def configure_context(
+        self,
+        *,
+        hemisphere: Hemisphere | None = None,
+        land_mask: LandMask | None = None,
+        dataset: CombinedDataset | None = None,
+        current_epoch: int | None = None,
+        model_name: str | None = None,
+    ) -> None:
+        """Update the per-epoch rendering context: hemisphere, land mask, metadata.
+
+        `dataset`/`current_epoch`/`model_name` describe the metadata subtitle;
+        pass `dataset` to (re)build it, or leave all three unset to keep it.
+        """
+        if hemisphere is not None:
+            self.plot_spec.hemisphere = hemisphere
+        if land_mask is not None:
+            self.land_mask = land_mask
+        if dataset is not None:
+            metadata = self._metadata_builder.from_dataset(
+                dataset, current_epoch=current_epoch, model_name=model_name
+            )
+            self.plot_spec.metadata_subtitle = self._metadata_builder.format_subtitle(
+                metadata
+            )
 
     def log_static_inputs(
         self,

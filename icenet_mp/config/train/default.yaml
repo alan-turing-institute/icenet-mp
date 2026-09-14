@@ -3,7 +3,7 @@ defaults:
     - best_checkpoint
     - early_stopping
     - ema_weight_averaging
-    - image_logging
+    - media_logging
     - learning_rate
     - metric_summary
   - lr_scheduler: default
