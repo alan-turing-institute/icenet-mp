@@ -40,11 +40,14 @@ class MediaPublisher:
         `dataset`/`current_epoch`/`model_name` describe the metadata subtitle
         shown in every rendered footer. Hemisphere is set on `plot_spec` itself.
         """
-        self.plot_spec = plot_spec
-        self.metadata = MetadataBuilder().from_dataset(
-            dataset, current_epoch=current_epoch, model_name=model_name
+        self._plot_spec = plot_spec
+        self._renderer = PanelRenderer(
+            land_mask,
+            MetadataBuilder().from_dataset(
+                dataset, current_epoch=current_epoch, model_name=model_name
+            ),
+            plot_spec,
         )
-        self._renderer = PanelRenderer(land_mask, self.metadata, self.plot_spec)
 
     @property
     def land_mask(self) -> LandMask:
@@ -89,7 +92,7 @@ class MediaPublisher:
                 video_logger.log_video(
                     key=f"{log_path}/{video_name}",
                     videos=[video_buffer],
-                    format=[self.plot_spec.video_format],
+                    format=[self._plot_spec.video_format],
                 )
 
     def log_static_inputs(
@@ -101,7 +104,7 @@ class MediaPublisher:
     ) -> None:
         """Extract and log static raw input plots."""
         try:
-            idx_date = self.plot_spec.selected_timestep
+            idx_date = self._plot_spec.selected_timestep
             when = dates[idx_date]
             log_path = self._log_path(prefix, "input_static")
             for input_ds in inputs:
@@ -138,7 +141,7 @@ class MediaPublisher:
         given, a calendar-day-mean (climatology) map for the plotted date and channel.
         """
         try:
-            idx_date = self.plot_spec.selected_timestep
+            idx_date = self._plot_spec.selected_timestep
             log_path = self._log_path(prefix, "output_static")
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):

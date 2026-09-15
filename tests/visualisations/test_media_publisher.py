@@ -157,7 +157,7 @@ class TestMetadataAndHemisphere:
             plot_spec=PlotSpec(hemisphere="south"),
         )
 
-        assert media_publisher.plot_spec.hemisphere == "south"
+        assert media_publisher._plot_spec.hemisphere == "south"
 
     def test_land_mask_kwarg_is_used_by_the_renderer(self) -> None:
         """The given land_mask is passed straight through to the renderer."""
@@ -475,12 +475,12 @@ class TestLogVideoInputs:
             call(
                 key="validation/input_video/2020-01-01-example:ice_conc",
                 videos=[buffer],
-                format=[media_publisher.plot_spec.video_format],
+                format=[media_publisher._plot_spec.video_format],
             ),
             call(
                 key="validation/input_video/2020-01-01-example:temperature",
                 videos=[buffer],
-                format=[media_publisher.plot_spec.video_format],
+                format=[media_publisher._plot_spec.video_format],
             ),
         ]
 

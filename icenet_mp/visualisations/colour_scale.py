@@ -23,6 +23,21 @@ class ColourScale:
         """Initialise a ColourScale with a difference mode."""
         self._diff_mode = diff_mode
 
+    def bounds(
+        self, diff_colour_scale: DiffColourmap
+    ) -> tuple[float | None, float | None]:
+        """Resolve the effective (vmin, vmax) from a `DiffColourmap`.
+
+        A diverging scale (mode "signed") carries its bounds on `norm`;
+        a sequential scale (mode "absolute"/"smape") carries them directly
+        as `vmin`/`vmax`. Callers that only need plain bounds (e.g. to hand
+        to `Renderer`) shouldn't need to know which encoding `diff_colourmap()`
+        chose.
+        """
+        if diff_colour_scale.norm is not None:
+            return diff_colour_scale.norm.vmin, diff_colour_scale.norm.vmax
+        return diff_colour_scale.vmin, diff_colour_scale.vmax
+
     def colourmap(
         self, cmap_name: str = "viridis", *, bad_color: str = "#dcdcdc"
     ) -> Colormap:
@@ -107,21 +122,6 @@ class ColourScale:
 
         msg = f"Unknown difference mode: {self._diff_mode}"
         raise ValueError(msg)
-
-    def bounds(
-        self, diff_colour_scale: DiffColourmap
-    ) -> tuple[float | None, float | None]:
-        """Resolve the effective (vmin, vmax) from a `DiffColourmap`.
-
-        A diverging scale (mode "signed") carries its bounds on `norm`;
-        a sequential scale (mode "absolute"/"smape") carries them directly
-        as `vmin`/`vmax`. Callers that only need plain bounds (e.g. to hand
-        to `Renderer`) shouldn't need to know which encoding `diff_colourmap()`
-        chose.
-        """
-        if diff_colour_scale.norm is not None:
-            return diff_colour_scale.norm.vmin, diff_colour_scale.norm.vmax
-        return diff_colour_scale.vmin, diff_colour_scale.vmax
 
     def normalisation(
         self,
