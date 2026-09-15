@@ -15,16 +15,11 @@ class PlotAnnotator:
         self.plot_spec = plot_spec
         self.metadata = metadata
 
-    @property
-    def _metadata_subtitle(self) -> str | None:
-        """The metadata subtitle line used by every footer."""
-        return self.format_subtitle(self.metadata)
-
     def footer_for_static(self) -> str:
         """Build footer text for static plots using metadata that used to be in title."""
         lines: list[str] = []
-        if self._metadata_subtitle:
-            lines.append(self._metadata_subtitle)
+        if subtitle := self.format_subtitle():
+            lines.append(subtitle)
         return "\n".join(lines)
 
     def footer_for_video(self, dates: Sequence[date | datetime]) -> str:
@@ -34,8 +29,8 @@ class PlotAnnotator:
             start_s = self.format_date_for_title(dates[0])
             end_s = self.format_date_for_title(dates[-1])
             lines.append(f"Animating from {start_s} to {end_s}")
-        if self._metadata_subtitle:
-            lines.append(self._metadata_subtitle)
+        if subtitle := self.format_subtitle():
+            lines.append(subtitle)
         return "\n".join(lines)
 
     def format_date_for_title(self, dt: date | datetime) -> str:
@@ -63,7 +58,7 @@ class PlotAnnotator:
             return dt.date().isoformat()
         return dt.isoformat()
 
-    def format_subtitle(self, metadata: Metadata) -> str | None:  # noqa: C901, PLR0912
+    def format_subtitle(self) -> str | None:  # noqa: C901, PLR0912
         """Format metadata dataclass as a compact multi-line subtitle for plot titles.
 
         Lines:
@@ -81,38 +76,36 @@ class PlotAnnotator:
 
         # Line 1: Model/Epoch/Dates
         info_parts: list[str] = []
-        if metadata.model:
-            info_parts.append(f"Model: {metadata.model}")
-        if metadata.current_epoch is not None:
-            info_parts.append(f"Epoch: {metadata.current_epoch}")
+        if self.metadata.model:
+            info_parts.append(f"Model: {self.metadata.model}")
+        if self.metadata.current_epoch is not None:
+            info_parts.append(f"Epoch: {self.metadata.current_epoch}")
 
-        if metadata.start or metadata.end:
-            dates_part = (
-                f"Training Dates: {metadata.start or '?'} — {metadata.end or '?'}"
-            )
-            if metadata.cadence:
+        if self.metadata.start or self.metadata.end:
+            dates_part = f"Training Dates: {self.metadata.start or '?'} — {self.metadata.end or '?'}"
+            if self.metadata.cadence:
                 if (
-                    metadata.n_history_steps is not None
-                    and metadata.n_history_steps > 0
+                    self.metadata.n_history_steps is not None
+                    and self.metadata.n_history_steps > 0
                 ):
                     dates_part += (
-                        f" ({metadata.cadence}, "
-                        f"{metadata.n_history_steps} step history)"
+                        f" ({self.metadata.cadence}, "
+                        f"{self.metadata.n_history_steps} step history)"
                     )
                 else:
-                    dates_part += f" ({metadata.cadence})"
-            if metadata.n_points is not None:
-                dates_part += f" {metadata.n_points} pts"
+                    dates_part += f" ({self.metadata.cadence})"
+            if self.metadata.n_points is not None:
+                dates_part += f" {self.metadata.n_points} pts"
             info_parts.append(dates_part)
 
         if info_parts:
             lines.append("  ".join(info_parts))
 
         # Line 2: Training data sources and variables
-        if metadata.vars_by_source:
+        if self.metadata.vars_by_source:
             source_parts = []
-            for source in sorted(metadata.vars_by_source.keys()):
-                vars_list = metadata.vars_by_source[source]
+            for source in sorted(self.metadata.vars_by_source.keys()):
+                vars_list = self.metadata.vars_by_source[source]
                 if vars_list:
                     vars_str = ",".join(vars_list)
                     source_parts.append(f"{source} ({vars_str})")
@@ -157,7 +150,7 @@ class PlotAnnotator:
         return pretty.title() if pretty else ""
 
     def title_for_static(self, variable_name: str, when: date | datetime) -> str:
-        """Compose a simple suptitle for static plots.
+        """Compose a simple title for static plots.
 
         Lines:
           1) "<Variable> (<Hemisphere>)  Shown: YYYY-MM-DD"
@@ -174,7 +167,7 @@ class PlotAnnotator:
         dates: Sequence[date | datetime],
         current_index: int,
     ) -> str:
-        """Compose a simple suptitle for video plots (date changes per frame).
+        """Compose a simple title for video plots (date changes per frame).
 
         Lines:
           1) "<Variable> (<Hemisphere>)  Frame: YYYY-MM-DD"
