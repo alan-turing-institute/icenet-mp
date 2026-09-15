@@ -253,6 +253,30 @@ class TestInputVariableSelection:
             "temperature",
         }
 
+    def test_target_variable_indices_use_data_order_not_config_order(
+        self, mock_dataset: Path
+    ) -> None:
+        """target_variable_indices must index into the underlying data's variable order.
+
+        `mock_dataset` stores variables as (ice_conc, ice_thickness, temperature), and
+        that storage order survives variable selection regardless of the order
+        variables are requested in `variables.input`. Here `temperature` is requested
+        before `ice_conc`, but still ends up second in `datasets[...].variable_names`.
+        Indexing against the config-requested order instead of the actual data order
+        would silently point at `ice_conc` (index 0) rather than `temperature`.
+        """
+        cfg = _single_group_config(
+            mock_dataset,
+            input_variables=["temperature", "ice_conc"],
+            target_variables=["temperature"],
+        )
+        dm = CommonDataModule(cfg)
+
+        actual_order = dm.datasets["group1"].variable_names
+        assert actual_order == ["ice_conc", "temperature"]
+        assert dm.target_variable_indices == [1]
+        assert actual_order[dm.target_variable_indices[0]] == "temperature"
+
     def test_group_with_no_requested_variables_is_excluded_from_datasets(
         self, mock_dataset: Path
     ) -> None:

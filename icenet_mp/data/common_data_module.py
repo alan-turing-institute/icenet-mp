@@ -207,17 +207,24 @@ class CommonDataModule(LightningDataModule):
 
     @cached_property
     def target_variable_indices(self) -> list[int]:
-        """Return the indices of the target variables within their dataset group."""
+        """Return the indices of the target variables within their dataset group.
+
+        These indices are used to select target channels from the target
+        `SingleDataset`, so they must be resolved against the actual variable order in
+        that dataset. This is determined by the underlying data's storage order rather
+        than the arbitrary order the variables are listed in `variables.input`.
+        """
+        available_variables = self.datasets[self.target_group_name].variable_names
         try:
             return [
-                self.variable_names[self.target_group_name].index(variable)
+                available_variables.index(variable)
                 for variable in self.target_variables
             ]
         except ValueError as exc:
             msg = (
                 f"Not all target variable {self.target_variables} were found in the "
                 f"dataset group {self.target_group_name!r}. Available variables: "
-                f"{self.variable_names[self.target_group_name]!r}."
+                f"{available_variables!r}."
             )
             raise ValueError(msg) from exc
 
