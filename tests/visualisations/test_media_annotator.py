@@ -1,14 +1,14 @@
 from datetime import date, datetime
 from typing import Any
 
-from icenet_mp.types import Metadata, PlotSpec
+from icenet_mp.types import Hemisphere, Metadata, PlotSpec
 from icenet_mp.visualisations.media_annotator import MediaAnnotator
 
 
 class TestFormatTitle:
     def test_with_hemisphere_and_units(self) -> None:
         """Include hemisphere and units when both are given."""
-        annotator = MediaAnnotator(Metadata(), PlotSpec(hemisphere="north"))
+        annotator = MediaAnnotator(Metadata(), PlotSpec(hemisphere=Hemisphere.NORTH))
 
         result = annotator.title_for_variable("2t", date(2020, 1, 1), "K")
 

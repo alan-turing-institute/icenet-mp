@@ -2,7 +2,7 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from icenet_mp.types.complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
+from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, PlotSpec
 
 
 class TestDataSpace:
@@ -43,7 +43,7 @@ class TestPlotSpec:
 
     def test_accepts_dictconfig_override(self) -> None:
         """Apply PlotSpec overrides supplied as DictConfig."""
-        spec = PlotSpec(hemisphere="north")
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH)
         override = DictConfig(
             {
                 "include_difference": False,
@@ -59,13 +59,13 @@ class TestPlotSpec:
 
     def test_add_none_returns_same_spec(self) -> None:
         """Return the same PlotSpec when merging with None."""
-        spec = PlotSpec(hemisphere="north")
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH)
 
         assert spec + None is spec
 
     def test_add_plot_spec_override(self) -> None:
         """Apply overrides supplied as another PlotSpec instance."""
-        spec = PlotSpec(hemisphere="north", colourmap="viridis")
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH, colourmap="viridis")
         override = PlotSpec(colourmap="magma", video_fps=5)
 
         result = spec + override
@@ -105,7 +105,7 @@ class TestPlotSpec:
 
     def test_dict_override_preserves_other_values(self) -> None:
         """Apply dict overrides without changing unspecified PlotSpec values."""
-        spec = PlotSpec(hemisphere="north", colourmap="viridis", video_fps=2)
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH, colourmap="viridis", video_fps=2)
 
         result = spec + {"colourmap": "magma", "video_fps": 5}
 

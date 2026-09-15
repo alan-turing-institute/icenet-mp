@@ -10,7 +10,7 @@ import torch
 
 from icenet_mp.data import CombinedDataset, SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
-from icenet_mp.types import ModelStepOutput, PlotSpec
+from icenet_mp.types import Hemisphere, ModelStepOutput, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.matplotlib_renderer import MatplotlibRenderer
 from icenet_mp.visualisations.media_publisher import MediaPublisher
@@ -258,7 +258,7 @@ class TestMetadataAndHemisphere:
         media_publisher = MediaPublisher(
             dataset=fake_combined_dataset(),
             land_mask=LandMask(None),
-            plot_spec=PlotSpec(hemisphere="south"),
+            plot_spec=PlotSpec(hemisphere=Hemisphere.SOUTH),
         )
 
         assert media_publisher._plot_spec.hemisphere == "south"

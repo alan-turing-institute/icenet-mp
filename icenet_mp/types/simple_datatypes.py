@@ -5,7 +5,7 @@ from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
 from torch import Tensor
 
-from .typedefs import TensorNTCHW
+from .annotations import TensorNTCHW
 
 
 @dataclass

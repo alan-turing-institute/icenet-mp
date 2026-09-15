@@ -40,9 +40,9 @@ class SingleDataset(Dataset):
         super().__init__()
         self._date_ranges = self.normalise_date_ranges(date_ranges)
         self.hemisphere: Hemisphere = (
-            "north"
+            Hemisphere.NORTH
             if any("north" in str(input_file).lower() for input_file in input_files)
-            else "south"
+            else Hemisphere.SOUTH
         )
         self._input_files = tuple(sorted(input_files))
         self._name = name

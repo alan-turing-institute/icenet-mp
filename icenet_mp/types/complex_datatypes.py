@@ -5,8 +5,9 @@ from typing import Any, Literal, Self, cast
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
+from .annotations import TensorNTCHW
 from .constants import SEA_ICE_THRESHOLD
-from .typedefs import DiffMode, TensorNTCHW
+from .enums import DiffMode, Hemisphere
 
 
 class DataSpace:
@@ -110,7 +111,7 @@ class PlotSpec:
 
     # Difference pane
     include_difference: bool = True
-    diff_mode: DiffMode = "signed"
+    diff_mode: DiffMode = DiffMode.SIGNED
     selected_timestep: int = 0
 
     # Colourscale ranges: defaults to [0,1]
@@ -122,8 +123,7 @@ class PlotSpec:
     ice_edge_threshold: float = SEA_ICE_THRESHOLD
 
     # Optional metadata for titling
-    # hemisphere: "north" | "south" when known (used in titles)
-    hemisphere: Literal["north", "south"] | None = None
+    hemisphere: Hemisphere | None = None
 
     # Video settings
     video_fps: int = 2

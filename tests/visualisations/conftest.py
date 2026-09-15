@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
+from icenet_mp.types import ArrayHW, ArrayTHW, Hemisphere, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
 
 # Suppress Matplotlib animation warning during tests; we intentionally do not keep
@@ -154,7 +154,7 @@ def base_plot_spec() -> PlotSpec:
     """Base plotting specification for raw inputs."""
     return PlotSpec(
         colourmap="viridis",
-        hemisphere="south",
+        hemisphere=Hemisphere.SOUTH,
     )
 
 

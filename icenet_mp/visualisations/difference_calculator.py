@@ -40,11 +40,11 @@ class DifferenceCalculator:
 
         """
         mode = diff_mode if diff_mode is not None else self._diff_mode
-        if mode == "signed":
+        if mode == DiffMode.SIGNED:
             return ground_truth - prediction
-        if mode == "absolute":
+        if mode == DiffMode.ABSOLUTE:
             return np.abs(ground_truth - prediction)
-        if mode == "smape":
+        if mode == DiffMode.SMAPE:
             denom = np.clip(
                 (np.abs(ground_truth) + np.abs(prediction)) / 2.0, 1e-6, None
             )
@@ -91,7 +91,7 @@ class DifferenceCalculator:
         result = np.full(ground_truth.shape, np.nan, dtype=float)
         valid = np.isfinite(uncertainty) & (uncertainty > 0)
         np.divide(
-            self.difference(ground_truth, prediction, "signed"),
+            self.difference(ground_truth, prediction, DiffMode.SIGNED),
             uncertainty,
             out=result,
             where=valid,

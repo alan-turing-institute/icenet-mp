@@ -1,7 +1,19 @@
+from .annotations import (
+    ArrayCHW,
+    ArrayHW,
+    ArrayHWV,
+    ArrayIndices2D,
+    ArrayTCHW,
+    ArrayTHW,
+    TensorNCHW,
+    TensorNTCHW,
+)
 from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
 from .constants import SEA_ICE_THRESHOLD
 from .enums import (
     BetaSchedule,
+    DiffMode,
+    Hemisphere,
     MaskType,
     RangeRestriction,
     SkipConnectionType,
@@ -19,18 +31,6 @@ from .simple_datatypes import (
     Metadata,
     ProcessorOutput,
     VariableStyle,
-)
-from .typedefs import (
-    ArrayCHW,
-    ArrayHW,
-    ArrayHWV,
-    ArrayIndices2D,
-    ArrayTCHW,
-    ArrayTHW,
-    DiffMode,
-    Hemisphere,
-    TensorNCHW,
-    TensorNTCHW,
 )
 
 __all__ = [

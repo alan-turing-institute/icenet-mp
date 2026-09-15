@@ -80,7 +80,7 @@ class ColourScale:
             DiffRenderParams: Normalisation, colour limits, and colourmap.
 
         """
-        if self._diff_mode == "signed":
+        if self._diff_mode == DiffMode.SIGNED:
             # Force symmetric limits around zero so 0 is the literal midpoint
             if isinstance(sample, (float, int)):
                 max_abs = max(1.0, float(abs(sample)))
@@ -100,7 +100,7 @@ class ColourScale:
                 cmap="RdBu_r",
             )
 
-        if self._diff_mode in ("absolute", "smape"):
+        if self._diff_mode in (DiffMode.ABSOLUTE, DiffMode.SMAPE):
             # Positive-only scale
             if isinstance(sample, (float, int)):
                 vmax = max(1e-6, float(sample))
