@@ -9,7 +9,7 @@ from .panel_renderer import PanelRenderer
 
 
 class DatasetMediaWriter:
-    """A class for writing static and video plots of downloaded datasets."""
+    """Write static and video media for the variables in downloaded datasets."""
 
     def __init__(self, base_path: Path) -> None:
         """Initialise the media writer with the base path for downloaded datasets."""

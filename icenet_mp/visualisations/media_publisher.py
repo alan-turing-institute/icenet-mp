@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class MediaPublisher:
+    """Publish static and video plots for a dataset/plot_spec/land_mask context."""
+
     def __init__(
         self,
         *,

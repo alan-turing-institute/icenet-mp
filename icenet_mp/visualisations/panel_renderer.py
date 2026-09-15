@@ -30,12 +30,7 @@ if TYPE_CHECKING:
 
 
 class PanelRenderer:
-    """Renders styled, land-masked panels for one land_mask/plot_spec pairing.
-
-    Owns the plot_spec-driven collaborators (`VariableStyleResolver`,
-    `ColourScale`, `PlotAnnotator`, `DifferenceCalculator`) so callers don't
-    need to construct or coordinate them directly.
-    """
+    """Renders styled, land-masked panels for one land_mask/plot_spec pairing."""
 
     def __init__(
         self, land_mask: LandMask, metadata: Metadata, plot_spec: PlotSpec

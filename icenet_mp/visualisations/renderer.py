@@ -30,7 +30,7 @@ _CONTOUR_LINEWIDTH = 1.2
 
 
 class Renderer:
-    """Renders panel figures/videos from raw arrays; no plot-spec/domain state."""
+    """Render matplotlib figures and videos from raw arrays."""
 
     @contextlib.contextmanager
     def _suppress_mpl_animation_logs(self) -> Generator[None]:

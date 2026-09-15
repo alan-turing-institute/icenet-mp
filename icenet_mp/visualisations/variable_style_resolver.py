@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class VariableStyleResolver:
-    """Resolves a variable's declared display style from config."""
+    """Resolve variable style from a config."""
 
     def __init__(
         self, styles: dict[str, dict[str, Any]] | None, default_cmap: str
@@ -16,23 +16,6 @@ class VariableStyleResolver:
         """Bind the styles dict and the colourmap to fall back to when unstyled."""
         self._styles = styles
         self._default_cmap = default_cmap
-
-    def style_for_variable(self, var_name: str) -> VariableStyle:
-        """Return the resolved style for a variable, with cmap always set.
-
-        Delegates matching to `_match`, which returns the raw matched config
-        (or None); this is the single place that turns that into a
-        `VariableStyle`, so callers never need their own `style.cmap or
-        default` fallback -- an unmatched or unset cmap falls back to the
-        colourmap bound at construction.
-        """
-        spec = self._match(var_name) or {}
-        return VariableStyle(
-            cmap=spec.get("cmap") or self._default_cmap,
-            vmin=spec.get("vmin"),
-            vmax=spec.get("vmax"),
-            units=spec.get("units"),
-        )
 
     def _match(  # noqa: C901, PLR0911
         self, var_name: str
@@ -104,3 +87,20 @@ class VariableStyleResolver:
             return spec
 
         return None
+
+    def style_for_variable(self, var_name: str) -> VariableStyle:
+        """Return the resolved style for a variable, with cmap always set.
+
+        Delegates matching to `_match`, which returns the raw matched config
+        (or None); this is the single place that turns that into a
+        `VariableStyle`, so callers never need their own `style.cmap or
+        default` fallback -- an unmatched or unset cmap falls back to the
+        colourmap bound at construction.
+        """
+        spec = self._match(var_name) or {}
+        return VariableStyle(
+            cmap=spec.get("cmap") or self._default_cmap,
+            vmin=spec.get("vmin"),
+            vmax=spec.get("vmax"),
+            units=spec.get("units"),
+        )

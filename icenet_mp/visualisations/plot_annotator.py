@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlotAnnotator:
-    """Composes and draws titles, footers and warning badges for sea-ice plots."""
+    """Compose and draw titles, footers and warning badges for use in media."""
 
     def __init__(self, metadata: Metadata, plot_spec: PlotSpec) -> None:
         """Bind the metadata and plot spec shared by every title/footer."""

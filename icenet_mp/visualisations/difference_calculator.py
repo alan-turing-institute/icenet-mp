@@ -7,7 +7,7 @@ _SPATIAL_NDIM = 2
 
 
 class DifferenceCalculator:
-    """Computes ground-truth/prediction error fields."""
+    """Compute a difference field from ground-truth/prediction base fields."""
 
     def __init__(self, diff_mode: DiffMode) -> None:
         """Bind the default difference mode (e.g. `plot_spec.diff_mode`).

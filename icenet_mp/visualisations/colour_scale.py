@@ -11,13 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class ColourScale:
-    """Builds matplotlib colour-mapping (norm, cmap, vmin/vmax) for a panel's array.
-
-    Covers every case a rendered panel needs a colour scale for: a raw
-    variable field (optionally centred, e.g. for a z-score panel), a
-    ground-truth/prediction difference field, and NaN-safe colourmap
-    lookup.
-    """
+    """Build matplotlib colour-mapping (norm, cmap, vmin/vmax) for a set of arrays."""
 
     def __init__(self, diff_mode: DiffMode) -> None:
         """Initialise a ColourScale with a difference mode."""
