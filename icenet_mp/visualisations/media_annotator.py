@@ -7,7 +7,7 @@ from icenet_mp.types import Metadata, PlotSpec
 logger = logging.getLogger(__name__)
 
 
-class PlotAnnotator:
+class MediaAnnotator:
     """Compose and draw titles, footers and warning badges for use in media."""
 
     def __init__(self, metadata: Metadata, plot_spec: PlotSpec) -> None:
@@ -21,7 +21,12 @@ class PlotAnnotator:
             return dt.date().isoformat()
         return dt.isoformat()
 
-    def _format_dates_part(self) -> str | None:
+    def _format_variable_name(self, variable: str) -> str:
+        """Return a human-friendly variable name for titles."""
+        pretty = variable.replace("_", " ").strip()
+        return pretty.title() if pretty else ""
+
+    def _subtitle_dates(self) -> str | None:
         """Format the 'Training Dates: <start> — <end> (<cadence>[, N step history]) N pts' segment."""
         metadata = self.metadata
         if not (metadata.start or metadata.end):
@@ -38,28 +43,23 @@ class PlotAnnotator:
             dates_part += f" {metadata.n_points} pts"
         return dates_part
 
-    def _format_sources_part(self) -> str | None:
-        """Format the 'Training Data: <source> (<vars>) <source> (<vars>)' line."""
+    def _subtitle_sources(self) -> str | None:
+        """Format the 'Training Data: <source> (<n_vars> variables) ...' line."""
         vars_by_source = self.metadata.vars_by_source
         if not vars_by_source:
             return None
         source_parts = [
-            f"{source} ({','.join(vars_by_source[source])})"
+            f"{source} ({len(vars_by_source[source])} variables)"
             if vars_by_source[source]
             else source
             for source in sorted(vars_by_source)
         ]
         return f"Training Data: {' '.join(source_parts)}" if source_parts else None
 
-    def _format_variable_name(self, variable: str) -> str:
-        """Return a human-friendly variable name for titles."""
-        pretty = variable.replace("_", " ").strip()
-        return pretty.title() if pretty else ""
-
     def footer_for_static(self) -> str:
         """Build footer text for static plots using metadata that used to be in title."""
         lines: list[str] = []
-        if subtitle := self.format_subtitle():
+        if subtitle := self.subtitle():
             lines.append(subtitle)
         return "\n".join(lines)
 
@@ -70,11 +70,11 @@ class PlotAnnotator:
             start_s = self._format_date_for_title(dates[0])
             end_s = self._format_date_for_title(dates[-1])
             lines.append(f"Animating from {start_s} to {end_s}")
-        if subtitle := self.format_subtitle():
+        if subtitle := self.subtitle():
             lines.append(subtitle)
         return "\n".join(lines)
 
-    def format_subtitle(self) -> str | None:
+    def subtitle(self) -> str | None:
         """Format the bound metadata as a compact multi-line subtitle for plot titles.
 
         Lines:
@@ -90,16 +90,33 @@ class PlotAnnotator:
             info_parts.append(f"Model: {self.metadata.model}")
         if self.metadata.current_epoch is not None:
             info_parts.append(f"Epoch: {self.metadata.current_epoch}")
-        if (dates_part := self._format_dates_part()) is not None:
+        if (dates_part := self._subtitle_dates()) is not None:
             info_parts.append(dates_part)
 
         lines: list[str] = []
         if info_parts:
             lines.append("  ".join(info_parts))
-        if (sources_part := self._format_sources_part()) is not None:
+        if (sources_part := self._subtitle_sources()) is not None:
             lines.append(sources_part)
 
         return "\n".join(lines) if lines else None
+
+    def title_for_static(self, variable_name: str, when: date | datetime) -> str:
+        """Compose a simple title for static plots.
+
+        Args:
+            variable_name: Variable name.
+            when: Date or datetime of the data.
+
+        Lines:
+          1) "<Variable> (<Hemisphere>)  Shown: YYYY-MM-DD"
+             (Footer contains any metadata such as model/epoch/training data if present)
+
+        """
+        metric = self._format_variable_name(variable_name)
+        hemisphere = self.plot_spec.hemisphere
+        hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
+        return f"{metric}{hemi} Prediction   Shown: {self._format_date_for_title(when)}"
 
     def title_for_variable(
         self,
@@ -107,7 +124,7 @@ class PlotAnnotator:
         when: date | datetime,
         units: str | None,
     ) -> str:
-        """Format a title string for a raw input variable plot.
+        """Format a title string for a standalone variable plot.
 
         Args:
             variable: Variable name.
@@ -126,18 +143,6 @@ class PlotAnnotator:
         )
         return f"{variable}{units_s}{hemi}   Shown: {shown}"
 
-    def title_for_static(self, variable_name: str, when: date | datetime) -> str:
-        """Compose a simple title for static plots.
-
-        Lines:
-          1) "<Variable> (<Hemisphere>)  Shown: YYYY-MM-DD"
-             (Footer contains any metadata such as model/epoch/training data if present)
-        """
-        metric = self._format_variable_name(variable_name)
-        hemisphere = self.plot_spec.hemisphere
-        hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
-        return f"{metric}{hemi} Prediction   Shown: {self._format_date_for_title(when)}"
-
     def title_for_video(
         self,
         variable_name: str,
@@ -146,11 +151,17 @@ class PlotAnnotator:
     ) -> str:
         """Compose a simple title for video plots (date changes per frame).
 
+        Args:
+            variable_name: Variable name.
+            dates: List of dates for the video frames.
+            current_index: Index of the current frame in the list of dates.
+
         Lines:
           1) "<Variable> (<Hemisphere>)  Frame: YYYY-MM-DD"
           2) Footer: "Animating from <start> to <end>"
           3) Footer: "Model: <model>  Epoch: <num>  Training Dates: <start> — <end> (<cadence>) <num> pts" (optional)
           4) Footer: "Training Data: <source> (<vars>) <source> (<vars>)" (optional)
+
         """
         metric = self._format_variable_name(variable_name)
         hemisphere = self.plot_spec.hemisphere

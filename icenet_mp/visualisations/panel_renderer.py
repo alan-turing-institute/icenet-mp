@@ -11,7 +11,7 @@ from .colour_scale import ColourScale
 from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .matplotlib_renderer import MatplotlibRenderer
-from .plot_annotator import PlotAnnotator
+from .media_annotator import MediaAnnotator
 from .style_resolver import StyleResolver
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class PanelRenderer:
             plot_spec.per_variable_styles, plot_spec.colourmap
         )
         self._colour_scale = ColourScale(plot_spec.diff_mode)
-        self._annotator = PlotAnnotator(metadata, plot_spec)
+        self._annotator = MediaAnnotator(metadata, plot_spec)
         self._difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
         self._renderer = MatplotlibRenderer()
 
