@@ -19,7 +19,7 @@ class TestComputeDifference:
 
     def test_signed(self) -> None:
         """Signed difference is ground_truth - prediction."""
-        result = DifferenceCalculator().difference(
+        result = DifferenceCalculator("signed").difference(
             self.ground_truth, self.prediction, "signed"
         )
 
@@ -27,7 +27,7 @@ class TestComputeDifference:
 
     def test_absolute(self) -> None:
         """Absolute difference is |ground_truth - prediction|."""
-        result = DifferenceCalculator().difference(
+        result = DifferenceCalculator("signed").difference(
             self.ground_truth, self.prediction, "absolute"
         )
 
@@ -35,7 +35,7 @@ class TestComputeDifference:
 
     def test_smape(self) -> None:
         """SMAPE difference normalises the absolute error by the mean magnitude."""
-        result = DifferenceCalculator().difference(
+        result = DifferenceCalculator("signed").difference(
             self.ground_truth, self.prediction, "smape"
         )
 
@@ -52,18 +52,36 @@ class TestComputeDifference:
         ground_truth = np.array([0.0])
         prediction = np.array([0.0])
 
-        result = DifferenceCalculator().difference(ground_truth, prediction, "smape")
+        result = DifferenceCalculator("signed").difference(
+            ground_truth, prediction, "smape"
+        )
 
         assert np.isfinite(result).all()
 
     def test_invalid_mode_raises(self) -> None:
         """An unrecognised difference mode raises ValueError."""
         with pytest.raises(ValueError, match="Invalid difference mode"):
-            DifferenceCalculator().difference(
+            DifferenceCalculator("signed").difference(
                 self.ground_truth,
                 self.prediction,
                 "bogus",  # type: ignore[arg-type]
             )
+
+    def test_uses_mode_bound_at_construction_when_not_overridden(self) -> None:
+        """A diff_mode bound at construction is used when no per-call mode is given."""
+        result = DifferenceCalculator("signed").difference(
+            self.ground_truth, self.prediction
+        )
+
+        np.testing.assert_allclose(result, [[0.5, -0.5], [1.0, -1.0]])
+
+    def test_per_call_mode_overrides_construction_default(self) -> None:
+        """An explicit per-call diff_mode takes precedence over the bound default."""
+        result = DifferenceCalculator("signed").difference(
+            self.ground_truth, self.prediction, "absolute"
+        )
+
+        np.testing.assert_allclose(result, [[0.5, 0.5], [1.0, 1.0]])
 
 
 class TestComputeStandardisedDifference:
@@ -73,7 +91,7 @@ class TestComputeStandardisedDifference:
         prediction = np.array([[0.4, 0.6], [0.3, 0.5]], dtype=np.float32)
         uncertainty = np.array([[0.1, 0.2], [0.05, 0.1]], dtype=np.float32)
 
-        result = DifferenceCalculator().standardised_difference(
+        result = DifferenceCalculator("signed").standardised_difference(
             ground_truth, prediction, uncertainty
         )
 
@@ -85,7 +103,7 @@ class TestComputeStandardisedDifference:
         prediction = np.zeros((2, 2), dtype=np.float32)
         uncertainty = np.array([[0.5, 0.0], [-1.0, np.nan]], dtype=np.float32)
 
-        result = DifferenceCalculator().standardised_difference(
+        result = DifferenceCalculator("signed").standardised_difference(
             ground_truth, prediction, uncertainty
         )
 
@@ -97,7 +115,7 @@ class TestComputeStandardisedDifference:
     def test_rejects_shape_mismatch(self) -> None:
         """Reject input arrays with mismatched shapes."""
         with pytest.raises(InvalidArrayError, match="matching shapes"):
-            DifferenceCalculator().standardised_difference(
+            DifferenceCalculator("signed").standardised_difference(
                 np.zeros((2, 2), dtype=np.float32),
                 np.zeros((2, 2), dtype=np.float32),
                 np.zeros((3, 3), dtype=np.float32),
@@ -106,7 +124,7 @@ class TestComputeStandardisedDifference:
     def test_rejects_non_2d_arrays(self) -> None:
         """Reject 1D (or any non-2D) ground truth/prediction/uncertainty arrays."""
         with pytest.raises(InvalidArrayError, match="Expected 2D"):
-            DifferenceCalculator().standardised_difference(
+            DifferenceCalculator("signed").standardised_difference(
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),

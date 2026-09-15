@@ -19,6 +19,10 @@ class ColourScale:
     lookup.
     """
 
+    def __init__(self, diff_mode: DiffMode) -> None:
+        """Initialise a ColourScale with a difference mode."""
+        self._diff_mode = diff_mode
+
     def colourmap(
         self, cmap_name: str = "viridis", *, bad_color: str = "#dcdcdc"
     ) -> Colormap:
@@ -49,8 +53,6 @@ class ColourScale:
     def diff_colourmap(
         self,
         sample: np.ndarray | float,
-        *,
-        mode: DiffMode,
     ) -> DiffColourmap:
         """Construct colour mapping settings for a difference panel.
 
@@ -64,13 +66,12 @@ class ColourScale:
         Args:
             sample: Either a full array of differences (for precompute mode)
                     or a scalar maximum difference (for two-pass mode).
-            mode: Difference mode ("signed", "absolute", or "smape").
 
         Returns:
             DiffRenderParams: Normalisation, colour limits, and colourmap.
 
         """
-        if mode == "signed":
+        if self._diff_mode == "signed":
             # Force symmetric limits around zero so 0 is the literal midpoint
             if isinstance(sample, (float, int)):
                 max_abs = max(1.0, float(abs(sample)))
@@ -90,7 +91,7 @@ class ColourScale:
                 cmap="RdBu_r",
             )
 
-        if mode in ("absolute", "smape"):
+        if self._diff_mode in ("absolute", "smape"):
             # Positive-only scale
             if isinstance(sample, (float, int)):
                 vmax = max(1e-6, float(sample))
@@ -104,7 +105,7 @@ class ColourScale:
                 cmap="magma",
             )
 
-        msg = f"Unknown difference mode: {mode}"
+        msg = f"Unknown difference mode: {self._diff_mode}"
         raise ValueError(msg)
 
     def normalisation(

@@ -115,24 +115,19 @@ class TestMetadataAndHemisphere:
     def test_configure_context_updates_metadata_subtitle(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Build metadata from the dataset and store its formatted subtitle."""
+        """Build metadata from the dataset and push its formatted subtitle into the annotator."""
         media_publisher = MediaPublisher()
         monkeypatch.setattr(
             media_publisher._metadata_builder,
             "from_dataset",
             MagicMock(return_value=Metadata(model="unet")),
         )
-        monkeypatch.setattr(
-            media_publisher._annotator,
-            "format_subtitle",
-            MagicMock(return_value="epochs=50"),
-        )
 
         media_publisher.configure_context(
             dataset=MagicMock(), current_epoch=50, model_name="unet"
         )
 
-        assert media_publisher.plot_spec.metadata_subtitle == "epochs=50"
+        assert media_publisher._renderer.annotator.footer_for_static() == "Model: unet"
 
     def test_configure_context_updates_hemisphere(self) -> None:
         """MediaPublisher keeps hemisphere state on its PlotSpec."""

@@ -11,26 +11,26 @@ from icenet_mp.visualisations.colour_scale import ColourScale
 class TestColourmapWithBad:
     def test_none_defaults_to_viridis(self) -> None:
         """Omitting cmap_name falls back to the viridis colourmap."""
-        cmap = ColourScale().colourmap()
+        cmap = ColourScale("signed").colourmap()
 
         assert isinstance(cmap, Colormap)
         assert cmap.name == "viridis"
 
     def test_named_cmap_is_used(self) -> None:
         """A named colourmap is looked up and returned by that name."""
-        cmap = ColourScale().colourmap("magma")
+        cmap = ColourScale("signed").colourmap("magma")
 
         assert cmap.name == "magma"
 
     def test_bad_color_is_configured(self) -> None:
         """The bad (NaN) colour is set to the requested colour."""
-        cmap = ColourScale().colourmap("viridis", bad_color="#ff00ff")
+        cmap = ColourScale("signed").colourmap("viridis", bad_color="#ff00ff")
 
         np.testing.assert_allclose(cmap.get_bad(), to_rgba("#ff00ff"))
 
     def test_default_bad_color(self) -> None:
         """With no bad_color argument, the light grey default is used."""
-        cmap = ColourScale().colourmap("viridis")
+        cmap = ColourScale("signed").colourmap("viridis")
 
         np.testing.assert_allclose(cmap.get_bad(), to_rgba("#dcdcdc"))
 
@@ -62,7 +62,7 @@ class TestColourmapWithBad:
 
         monkeypatch.setattr(mpl.colormaps, "get_cmap", fake_get_cmap)
 
-        cmap = ColourScale().colourmap("viridis")
+        cmap = ColourScale("signed").colourmap("viridis")
 
         assert isinstance(cmap, Colormap)
         assert calls["n"] == 2
@@ -73,7 +73,7 @@ class TestCreateNormalisation:
         """With no vmin/vmax/centre, the normalisation range comes from the data."""
         data = np.array([[-1.0, 0.5], [2.0, 0.1]])
 
-        norm = ColourScale().normalisation(data)
+        norm = ColourScale("signed").normalisation(data)
 
         assert type(norm) is Normalize
         assert norm.vmin == pytest.approx(-1.0)
@@ -83,7 +83,7 @@ class TestCreateNormalisation:
         """Explicit vmin/vmax override the inferred data range."""
         data = np.array([[-1.0, 0.5], [2.0, 0.1]])
 
-        norm = ColourScale().normalisation(data, vmin=0.0, vmax=1.0)
+        norm = ColourScale("signed").normalisation(data, vmin=0.0, vmax=1.0)
 
         assert type(norm) is Normalize
         assert norm.vmin == pytest.approx(0.0)
@@ -93,7 +93,7 @@ class TestCreateNormalisation:
         """An all-NaN array with no explicit bounds falls back to [0, 1]."""
         data = np.full((2, 2), np.nan)
 
-        norm = ColourScale().normalisation(data)
+        norm = ColourScale("signed").normalisation(data)
 
         assert norm.vmin == pytest.approx(0.0)
         assert norm.vmax == pytest.approx(1.0)
@@ -102,7 +102,7 @@ class TestCreateNormalisation:
         """A centred normalisation is symmetric around the centre value."""
         data = np.array([[0.0, 10.0]])
 
-        norm = ColourScale().normalisation(data, centre=5.0)
+        norm = ColourScale("signed").normalisation(data, centre=5.0)
 
         assert isinstance(norm, TwoSlopeNorm)
         assert norm.vcenter == pytest.approx(5.0)
@@ -113,7 +113,7 @@ class TestCreateNormalisation:
         """An asymmetric data range around the centre still yields a symmetric norm."""
         data = np.array([[-2.0, 10.0]])
 
-        norm = ColourScale().normalisation(data, centre=0.0)
+        norm = ColourScale("signed").normalisation(data, centre=0.0)
 
         assert isinstance(norm, TwoSlopeNorm)
         assert norm.vmin == pytest.approx(-10.0)
@@ -123,7 +123,9 @@ class TestCreateNormalisation:
         """Explicit vmin/vmax combine with centre instead of the data range."""
         data = np.array([[100.0, -100.0]])
 
-        norm = ColourScale().normalisation(data, vmin=-1.0, vmax=1.0, centre=0.0)
+        norm = ColourScale("signed").normalisation(
+            data, vmin=-1.0, vmax=1.0, centre=0.0
+        )
 
         assert isinstance(norm, TwoSlopeNorm)
         assert norm.vmin == pytest.approx(-1.0)
@@ -133,7 +135,7 @@ class TestCreateNormalisation:
 class TestMakeDiffColourmap:
     def test_signed_scalar(self) -> None:
         """A scalar sample yields a symmetric TwoSlopeNorm around zero."""
-        spec = ColourScale().diff_colourmap(2.5, mode="signed")
+        spec = ColourScale("signed").diff_colourmap(2.5)
 
         assert isinstance(spec.norm, TwoSlopeNorm)
         assert spec.norm.vcenter == pytest.approx(0.0)
@@ -145,7 +147,7 @@ class TestMakeDiffColourmap:
 
     def test_signed_scalar_below_one_still_uses_unit_floor(self) -> None:
         """A small scalar sample still gets at least a +/-1 symmetric range."""
-        spec = ColourScale().diff_colourmap(0.1, mode="signed")
+        spec = ColourScale("signed").diff_colourmap(0.1)
 
         assert isinstance(spec.norm, TwoSlopeNorm)
         assert spec.norm.vmin == pytest.approx(-1.0)
@@ -155,7 +157,7 @@ class TestMakeDiffColourmap:
         """An array sample uses the largest absolute extreme for a symmetric range."""
         sample = np.array([-2.0, 3.0, 0.5])
 
-        spec = ColourScale().diff_colourmap(sample, mode="signed")
+        spec = ColourScale("signed").diff_colourmap(sample)
 
         assert isinstance(spec.norm, TwoSlopeNorm)
         assert spec.norm.vmin == pytest.approx(-3.0)
@@ -164,7 +166,7 @@ class TestMakeDiffColourmap:
 
     def test_absolute_scalar(self) -> None:
         """A scalar sample for absolute mode sets vmax directly."""
-        spec = ColourScale().diff_colourmap(0.75, mode="absolute")
+        spec = ColourScale("absolute").diff_colourmap(0.75)
 
         assert spec.norm is None
         assert spec.vmin == pytest.approx(0.0)
@@ -175,7 +177,7 @@ class TestMakeDiffColourmap:
         """An array sample for absolute mode sets vmax from the array's max."""
         sample = np.array([0.1, 0.9, 0.4])
 
-        spec = ColourScale().diff_colourmap(sample, mode="absolute")
+        spec = ColourScale("absolute").diff_colourmap(sample)
 
         assert spec.norm is None
         assert spec.vmin == pytest.approx(0.0)
@@ -184,7 +186,7 @@ class TestMakeDiffColourmap:
 
     def test_smape_scalar(self) -> None:
         """SMAPE mode behaves like absolute mode for a scalar sample."""
-        spec = ColourScale().diff_colourmap(1.5, mode="smape")
+        spec = ColourScale("smape").diff_colourmap(1.5)
 
         assert spec.norm is None
         assert spec.vmin == pytest.approx(0.0)
@@ -195,18 +197,18 @@ class TestMakeDiffColourmap:
         """SMAPE mode behaves like absolute mode for an array sample."""
         sample = np.array([0.2, 0.6])
 
-        spec = ColourScale().diff_colourmap(sample, mode="smape")
+        spec = ColourScale("smape").diff_colourmap(sample)
 
         assert spec.vmax == pytest.approx(0.6)
         assert spec.cmap == "magma"
 
     def test_vmax_floor_avoids_zero_width_range(self) -> None:
         """A zero (or negative) sample still yields a strictly positive vmax."""
-        spec = ColourScale().diff_colourmap(0.0, mode="absolute")
+        spec = ColourScale("absolute").diff_colourmap(0.0)
 
         assert spec.vmax == pytest.approx(1e-6)
 
     def test_invalid_mode_raises(self) -> None:
         """An unrecognised mode raises ValueError."""
         with pytest.raises(ValueError, match="Unknown difference mode"):
-            ColourScale().diff_colourmap(1.0, mode="bogus")  # type: ignore[arg-type]
+            ColourScale("bogus").diff_colourmap(1.0)  # type: ignore[arg-type]

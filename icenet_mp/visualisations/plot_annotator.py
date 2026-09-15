@@ -10,24 +10,31 @@ logger = logging.getLogger(__name__)
 class PlotAnnotator:
     """Composes and draws titles, footers and warning badges for sea-ice plots."""
 
-    def footer_for_static(self, plot_spec: PlotSpec) -> str:
+    def __init__(self, plot_spec: PlotSpec) -> None:
+        """Bind the plot spec (hemisphere, etc.) shared by every title/footer."""
+        self.plot_spec = plot_spec
+        self._metadata_subtitle: str | None = None
+
+    def set_metadata(self, metadata: Metadata) -> None:
+        """Format `metadata` and cache it for every subsequent footer."""
+        self._metadata_subtitle = self.format_subtitle(metadata)
+
+    def footer_for_static(self) -> str:
         """Build footer text for static plots using metadata that used to be in title."""
         lines: list[str] = []
-        if plot_spec.metadata_subtitle:
-            lines.append(plot_spec.metadata_subtitle)
+        if self._metadata_subtitle:
+            lines.append(self._metadata_subtitle)
         return "\n".join(lines)
 
-    def footer_for_video(
-        self, plot_spec: PlotSpec, dates: Sequence[date | datetime]
-    ) -> str:
+    def footer_for_video(self, dates: Sequence[date | datetime]) -> str:
         """Build footer text for video plots: animation range and metadata."""
         lines: list[str] = []
         if dates:
             start_s = self.format_date_for_title(dates[0])
             end_s = self.format_date_for_title(dates[-1])
             lines.append(f"Animating from {start_s} to {end_s}")
-        if plot_spec.metadata_subtitle:
-            lines.append(plot_spec.metadata_subtitle)
+        if self._metadata_subtitle:
+            lines.append(self._metadata_subtitle)
         return "\n".join(lines)
 
     def format_date_for_title(self, dt: date | datetime) -> str:
@@ -42,9 +49,12 @@ class PlotAnnotator:
 
         Example:
             >>> from datetime import date, datetime
-            >>> PlotAnnotator().format_date_for_title(date(2023, 12, 25))
+            >>> from icenet_mp.types import PlotSpec
+            >>> PlotAnnotator(PlotSpec()).format_date_for_title(date(2023, 12, 25))
             '2023-12-25'
-            >>> PlotAnnotator().format_date_for_title(datetime(2023, 12, 25, 14, 30))
+            >>> PlotAnnotator(PlotSpec()).format_date_for_title(
+            ...     datetime(2023, 12, 25, 14, 30)
+            ... )
             '2023-12-25'
 
         """
@@ -115,7 +125,6 @@ class PlotAnnotator:
     def format_title(
         self,
         variable: str,
-        hemisphere: str | None,
         when: date | datetime,
         units: str | None,
     ) -> str:
@@ -123,7 +132,6 @@ class PlotAnnotator:
 
         Args:
             variable: Variable name.
-            hemisphere: Hemisphere ("north" or "south"), if applicable.
             when: Date or datetime of the data.
             units: Display units for the variable.
 
@@ -131,6 +139,7 @@ class PlotAnnotator:
             Formatted title string.
 
         """
+        hemisphere = self.plot_spec.hemisphere
         hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
         units_s = f" [{units}]" if units else ""
         shown = (
@@ -146,9 +155,7 @@ class PlotAnnotator:
         pretty = variable.replace("_", " ").strip()
         return pretty.title() if pretty else ""
 
-    def title_for_static(
-        self, variable_name: str, plot_spec: PlotSpec, when: date | datetime
-    ) -> str:
+    def title_for_static(self, variable_name: str, when: date | datetime) -> str:
         """Compose a simple suptitle for static plots.
 
         Lines:
@@ -156,13 +163,13 @@ class PlotAnnotator:
              (Footer contains any metadata such as model/epoch/training data if present)
         """
         metric = self.formatted_variable_name(variable_name)
-        hemi = f" ({plot_spec.hemisphere.capitalize()})" if plot_spec.hemisphere else ""
+        hemisphere = self.plot_spec.hemisphere
+        hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
         return f"{metric}{hemi} Prediction   Shown: {self.format_date_for_title(when)}"
 
     def title_for_video(
         self,
         variable_name: str,
-        plot_spec: PlotSpec,
         dates: Sequence[date | datetime],
         current_index: int,
     ) -> str:
@@ -175,7 +182,8 @@ class PlotAnnotator:
           4) Footer: "Training Data: <source> (<vars>) <source> (<vars>)" (optional)
         """
         metric = self.formatted_variable_name(variable_name)
-        hemi = f" ({plot_spec.hemisphere.capitalize()})" if plot_spec.hemisphere else ""
+        hemisphere = self.plot_spec.hemisphere
+        hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
         if dates:
             shown = self.format_date_for_title(dates[current_index])
             return f"{metric}{hemi} Prediction   Frame: {shown}"

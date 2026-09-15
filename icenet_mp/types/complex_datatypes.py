@@ -122,8 +122,6 @@ class PlotSpec:
     # Optional metadata for titling
     # hemisphere: "north" | "south" when known (used in titles)
     hemisphere: Literal["north", "south"] | None = None
-    # metadata_subtitle: free-form text (e.g., "epochs=50; train=2010-2018")
-    metadata_subtitle: str | None = None
 
     # Video settings
     video_fps: int = 2

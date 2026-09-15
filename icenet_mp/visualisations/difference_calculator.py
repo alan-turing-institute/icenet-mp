@@ -9,15 +9,28 @@ _SPATIAL_NDIM = 2
 class DifferenceCalculator:
     """Computes ground-truth/prediction error fields."""
 
+    def __init__(self, diff_mode: DiffMode) -> None:
+        """Bind the default difference mode (e.g. `plot_spec.diff_mode`).
+
+        `difference()` can still override it per call -- used internally by
+        `standardised_difference()`, which always needs "signed" regardless
+        of the bound default.
+        """
+        self._diff_mode = diff_mode
+
     def difference(
-        self, ground_truth: np.ndarray, prediction: np.ndarray, diff_mode: DiffMode
+        self,
+        ground_truth: np.ndarray,
+        prediction: np.ndarray,
+        diff_mode: DiffMode | None = None,
     ) -> np.ndarray:
         """Compute the difference between the ground truth and prediction.
 
         Args:
             ground_truth: The ground truth array. [T,H,W]
             prediction: The prediction array. [T,H,W]
-            diff_mode: Method to compute the difference.
+            diff_mode: Method to compute the difference. Defaults to the mode
+                bound at construction.
 
         Returns:
             Difference array. [T,H,W]
@@ -26,16 +39,17 @@ class DifferenceCalculator:
             ValueError: If the difference mode is invalid.
 
         """
-        if diff_mode == "signed":
+        mode = diff_mode if diff_mode is not None else self._diff_mode
+        if mode == "signed":
             return ground_truth - prediction
-        if diff_mode == "absolute":
+        if mode == "absolute":
             return np.abs(ground_truth - prediction)
-        if diff_mode == "smape":
+        if mode == "smape":
             denom = np.clip(
                 (np.abs(ground_truth) + np.abs(prediction)) / 2.0, 1e-6, None
             )
             return np.abs(prediction - ground_truth) / denom
-        msg = f"Invalid difference mode: {diff_mode}"
+        msg = f"Invalid difference mode: {mode}"
         raise ValueError(msg)
 
     def standardised_difference(

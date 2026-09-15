@@ -10,10 +10,14 @@ logger = logging.getLogger(__name__)
 class VariableStyleResolver:
     """Resolves a variable's declared display style from config."""
 
+    def __init__(self, styles: dict[str, dict[str, Any]] | None) -> None:
+        """Initialise a VariableStyleResolver with a dictionary of styles."""
+        self._styles = styles
+
     def style_for_variable(  # noqa: C901, PLR0911
-        self, var_name: str, styles: dict[str, dict[str, Any]] | None
+        self, var_name: str
     ) -> VariableStyle:
-        """Return best matching style for a variable from config styles dict.
+        """Return best matching style for a variable from the bound styles dict.
 
         Matching priority:
           1) exact key
@@ -34,16 +38,16 @@ class VariableStyleResolver:
             # Keep single underscores (they are meaningful in some variable names)
             return name
 
-        if not styles:
+        if not self._styles:
             return VariableStyle()
 
         # Accept Mapping-like configs (Dict, DictConfig, etc.)
-        if not isinstance(styles, Mapping):
+        if not isinstance(self._styles, Mapping):
             logger.info("style_for_variable: styles is not a Mapping; ignoring styles")
             return VariableStyle()
 
         # Quick exact match first (try raw var_name)
-        spec = styles.get(var_name)
+        spec = self._styles.get(var_name)
         if isinstance(spec, Mapping):
             return VariableStyle(
                 **{k: spec.get(k) for k in VariableStyle.__annotations__}
@@ -52,7 +56,7 @@ class VariableStyleResolver:
         # Try normalised exact match
         norm_var = _normalise_name(var_name)
         if norm_var != var_name:
-            spec = styles.get(norm_var)
+            spec = self._styles.get(norm_var)
             if isinstance(spec, Mapping):
                 return VariableStyle(
                     **{k: spec.get(k) for k in VariableStyle.__annotations__}
@@ -60,7 +64,7 @@ class VariableStyleResolver:
 
         # Wildcard prefix match: scan keys ending with '*' (normalise the key before comparing)
         # We iterate keys so keep original order (OmegaConf preserves insertion order).
-        for key in styles:
+        for key in self._styles:
             if isinstance(key, str) and key.endswith("*"):
                 prefix = key[:-1]
                 prefix_norm = _normalise_name(prefix)
@@ -69,7 +73,7 @@ class VariableStyleResolver:
                     continue
                 # Compare against both raw and normalised var names
                 if var_name.startswith(prefix) or norm_var.startswith(prefix_norm):
-                    spec = styles.get(key)
+                    spec = self._styles.get(key)
                     if isinstance(spec, Mapping):
                         return VariableStyle(
                             **{k: spec.get(k) for k in VariableStyle.__annotations__}
@@ -81,7 +85,7 @@ class VariableStyleResolver:
                     )
 
         # Fallback to _default
-        spec = styles.get("_default")
+        spec = self._styles.get("_default")
         if isinstance(spec, Mapping):
             return VariableStyle(
                 **{k: spec.get(k) for k in VariableStyle.__annotations__}

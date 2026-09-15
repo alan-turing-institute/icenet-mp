@@ -22,7 +22,6 @@ from icenet_mp.utils import npdatetime_from_datetime
 from .land_mask import LandMask
 from .metadata_builder import MetadataBuilder
 from .panel_renderer import PanelRenderer
-from .plot_annotator import PlotAnnotator
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,6 @@ class MediaPublisher:
         self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
         self._land_mask = LandMask(None)
         self._metadata_builder = MetadataBuilder()
-        self._annotator = PlotAnnotator()
         self._renderer = PanelRenderer(self._land_mask, self.plot_spec)
 
     @property
@@ -109,7 +107,7 @@ class MediaPublisher:
             metadata = self._metadata_builder.from_dataset(
                 dataset, current_epoch=current_epoch, model_name=model_name
             )
-            self.plot_spec.metadata_subtitle = self._annotator.format_subtitle(metadata)
+            self._renderer.annotator.set_metadata(metadata)
 
     def log_static_inputs(
         self,

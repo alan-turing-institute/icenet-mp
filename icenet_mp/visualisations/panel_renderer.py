@@ -41,15 +41,20 @@ class PanelRenderer:
         """Build a renderer bound to one land mask and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
-        self._style_resolver = VariableStyleResolver()
-        self._colour_scale = ColourScale()
-        self._annotator = PlotAnnotator()
-        self._difference_calculator = DifferenceCalculator()
+        self._style_resolver = VariableStyleResolver(plot_spec.per_variable_styles)
+        self._colour_scale = ColourScale(plot_spec.diff_mode)
+        self._annotator = PlotAnnotator(plot_spec)
+        self._difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
         self._renderer = Renderer()
 
     @property
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
+
+    @property
+    def annotator(self) -> PlotAnnotator:
+        """The bound PlotAnnotator, so callers can push new metadata into its footers."""
+        return self._annotator
 
     def static_singlet(
         self,
@@ -61,12 +66,8 @@ class PanelRenderer:
         """Render a single panel ImageFile via Renderer.panels_static()."""
         plot_spec = self.plot_spec
         masked_values = self.land_mask.apply_to(values)
-        style = self._style_resolver.style_for_variable(
-            variable_name, plot_spec.per_variable_styles
-        )
-        title = self._annotator.format_title(
-            variable_name, plot_spec.hemisphere, when, style.units
-        )
+        style = self._style_resolver.style_for_variable(variable_name)
+        title = self._annotator.format_title(variable_name, when, style.units)
         return self._renderer.panels_static(
             [masked_values],
             cmap=style.cmap or plot_spec.colourmap,
@@ -85,12 +86,8 @@ class PanelRenderer:
     ) -> BytesIO:
         """Render a single panel video BytesIO via Renderer.panels_video()."""
         masked_values = self.land_mask.apply_to(values)
-        style = self._style_resolver.style_for_variable(
-            variable_name, self.plot_spec.per_variable_styles
-        )
-        title = self._annotator.format_title(
-            variable_name, self.plot_spec.hemisphere, dates[0], style.units
-        )
+        style = self._style_resolver.style_for_variable(variable_name)
+        title = self._annotator.format_title(variable_name, dates[0], style.units)
         return self._renderer.panels_video(
             [masked_values],
             cmap=style.cmap or self.plot_spec.colourmap,
@@ -112,12 +109,10 @@ class PanelRenderer:
         """
         difference = self.land_mask.apply_to(
             self._difference_calculator.difference(
-                masked_ground_truth, masked_prediction, self.plot_spec.diff_mode
+                masked_ground_truth, masked_prediction
             )
         )
-        diff_colour_scale = self._colour_scale.diff_colourmap(
-            difference, mode=self.plot_spec.diff_mode
-        )
+        diff_colour_scale = self._colour_scale.diff_colourmap(difference)
         if diff_colour_scale.norm is not None:
             diff_vmin = diff_colour_scale.norm.vmin
             diff_vmax = diff_colour_scale.norm.vmax
@@ -197,8 +192,8 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        suptitle = self._annotator.title_for_static(variable_name, self.plot_spec, when)
-        footer_text = self._annotator.footer_for_static(self.plot_spec)
+        suptitle = self._annotator.title_for_static(variable_name, when)
+        footer_text = self._annotator.footer_for_static()
         return self._renderer.panels_static(
             arrays,
             cmap=cmaps,
@@ -249,10 +244,8 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        title_line = self._annotator.title_for_video(
-            variable_name, self.plot_spec, dates, 0
-        )
-        footer_text = self._annotator.footer_for_video(self.plot_spec, dates)
+        title_line = self._annotator.title_for_video(variable_name, dates, 0)
+        footer_text = self._annotator.footer_for_video(dates)
 
         return self._renderer.panels_video(
             arrays,
