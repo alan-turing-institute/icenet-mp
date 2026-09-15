@@ -212,6 +212,47 @@ class TestRenderPanelsVideo:
         assert isinstance(result, BytesIO)
         assert result.getbuffer().nbytes > 0
 
+    def test_callable_figure_title_updates_suptitle_per_frame(
+        self, era5_temperature_thw: ArrayTHW, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A callable figure_title is re-invoked per frame and redraws the suptitle.
+
+        Regression test: the animation callback used to update only the image
+        and contour artists, while the figure title stayed a plain string
+        computed once from frame 0 -- so a video's on-screen title never
+        changed even as the panels animated over later dates.
+        """
+        captured: dict[str, object] = {}
+
+        def fake_video_from_animation(
+            _self: MatplotlibRenderer,
+            anim: animation.FuncAnimation,
+            **_kwargs: object,
+        ) -> BytesIO:
+            # FuncAnimation only exposes the figure and per-frame callback it was
+            # built with via its private attributes.
+            captured["figure"] = getattr(anim, "_fig")  # noqa: B009
+            captured["func"] = getattr(anim, "_func")  # noqa: B009
+            return BytesIO(b"fake")
+
+        monkeypatch.setattr(
+            MatplotlibRenderer, "_video_from_animation", fake_video_from_animation
+        )
+
+        renderer.panels_video(
+            [era5_temperature_thw], figure_title=lambda tt: f"Frame: {tt}"
+        )
+
+        figure = captured["figure"]
+        func = captured["func"]
+        assert isinstance(figure, Figure)
+        assert callable(func)
+        assert figure.get_suptitle() == "Frame: 0"
+
+        func(1)
+
+        assert figure.get_suptitle() == "Frame: 1"
+
 
 class TestImageFromFigure:
     def test_returns_image_with_positive_dimensions(self) -> None:

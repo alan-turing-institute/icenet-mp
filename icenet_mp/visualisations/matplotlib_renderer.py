@@ -2,7 +2,7 @@ import contextlib
 import gc
 import logging
 import tempfile
-from collections.abc import Generator, Sequence
+from collections.abc import Callable, Generator, Sequence
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -308,7 +308,7 @@ class MatplotlibRenderer:
         contour_color: str = "red",
         contour_level: float | None = None,
         dpi: int = 150,
-        figure_title: str | None = None,
+        figure_title: str | Callable[[int], str] | None = None,
         footer_text: str | None = None,
         fps: int = 2,
         group_axes: tuple[int, int] | None = None,
@@ -332,7 +332,9 @@ class MatplotlibRenderer:
             contour_level: Value at which to draw the contour; no contours are
                 drawn if `None`.
             dpi: Dots per inch for the rendered video frames.
-            figure_title: Optional figure-level title drawn above all panels.
+            figure_title: Optional figure-level title drawn above all panels. Either a
+                fixed string, or a callable that maps the frame index to the title of
+                that frame (e.g. to show a per-frame date).
             footer_text: Optional footer text drawn below the colourbars.
             fps: Frames per second for the rendered video.
             group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
@@ -345,10 +347,17 @@ class MatplotlibRenderer:
             A BytesIO buffer containing the encoded video.
 
         """
+        if callable(figure_title):
+            title_for_frame: Callable[[int], str] | None = figure_title
+            first_title: str | None = figure_title(0)
+        else:
+            title_for_frame = None
+            first_title = figure_title
+
         figure, axes = self.panels(
             [array[0] for array in arrays],
             cmap=cmap,
-            figure_title=figure_title,
+            figure_title=first_title,
             footer_text=footer_text,
             group_axes=group_axes,
             panel_titles=panel_titles,
@@ -369,6 +378,8 @@ class MatplotlibRenderer:
         def animate(tt: int) -> tuple[()]:
             for image, array in zip(images, arrays, strict=True):
                 image.set_data(array[tt])
+            if title_for_frame:
+                figure.suptitle(title_for_frame(tt))
             frame_contours = _frame_contours(tt)
             for i, contour_set in enumerate(contour_sets):
                 if contour_set is not None:

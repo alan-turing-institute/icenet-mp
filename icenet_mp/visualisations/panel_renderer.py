@@ -203,12 +203,17 @@ class PanelRenderer:
         """
         masked_values = self.land_mask.apply_to(values)
         style = self._resolver.style_for_variable(variable_name)
-        title = self._annotator.title_for_variable(variable_name, dates[0], style.units)
+
+        def title_for_frame(tt: int) -> str:
+            return self._annotator.title_for_variable(
+                variable_name, dates[tt], style.units
+            )
+
         return self._renderer.panels_video(
             [masked_values],
             cmap=style.cmap,
             dpi=self.plot_spec.dpi,
-            figure_title=title,
+            figure_title=title_for_frame,
             fps=self.plot_spec.video_fps,
             vmax=style.vmax,
             vmin=style.vmin,
@@ -260,7 +265,9 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        title = self._annotator.title_for_video(variable_name, dates, 0)
+        def title_for_frame(tt: int) -> str:
+            return self._annotator.title_for_video(variable_name, dates, tt)
+
         footer = self._annotator.footer_for_video(dates)
 
         return self._renderer.panels_video(
@@ -269,7 +276,7 @@ class PanelRenderer:
             contour_arrays=contour_arrays,
             contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
-            figure_title=title,
+            figure_title=title_for_frame,
             footer_text=footer or None,
             fps=self.plot_spec.video_fps,
             group_axes=(0, 1) if self.plot_spec.include_difference else None,

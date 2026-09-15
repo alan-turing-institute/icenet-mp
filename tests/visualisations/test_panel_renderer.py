@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from io import BytesIO
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -12,6 +13,9 @@ from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.matplotlib_renderer import MatplotlibRenderer
 from icenet_mp.visualisations.panel_renderer import PanelRenderer
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class TestMetadata:
@@ -63,6 +67,34 @@ class TestRenderVideoSinglet:
 
         assert isinstance(result, BytesIO)
         assert result.getbuffer().nbytes > 0
+
+    def test_figure_title_changes_per_frame(
+        self,
+        era5_temperature_thw: ArrayTHW,
+        test_dates_short: list[date],
+        no_land_mask: LandMask,
+        base_plot_spec: PlotSpec,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The figure_title passed to panels_video reflects each frame's own date."""
+        dates = [datetime.combine(d, datetime.min.time()) for d in test_dates_short]
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        renderer = PanelRenderer(no_land_mask, Metadata(), base_plot_spec)
+
+        renderer.video_singlet(
+            era5_temperature_thw,
+            dates=dates,
+            variable_name="era5:2t",
+        )
+
+        title_for_frame: Callable[[int], str] = fake_render.call_args.kwargs[
+            "figure_title"
+        ]
+        assert callable(title_for_frame)
+        titles = [title_for_frame(i) for i in range(len(dates))]
+        assert len(set(titles)) == len(dates)
+        assert all(dates[i].date().isoformat() in titles[i] for i in range(len(dates)))
 
 
 class TestRenderStaticTriplet:
@@ -226,6 +258,35 @@ class TestRenderVideoTriplet:
 
         assert isinstance(result, BytesIO)
         assert result.getbuffer().nbytes > 0
+
+    def test_figure_title_changes_per_frame(
+        self,
+        sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The figure_title passed to panels_video reflects each frame's own date.
+
+        Regression test: the animation used to be built with a single title
+        string computed from the first frame's date, so every frame of the
+        rendered video showed the first date even as the panels animated.
+        """
+        ground_truth, prediction, raw_dates = sic_pair_3d_stream
+        dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
+
+        renderer.video_triplet(
+            ground_truth, prediction, dates=dates, variable_name="ice_conc"
+        )
+
+        title_for_frame: Callable[[int], str] = fake_render.call_args.kwargs[
+            "figure_title"
+        ]
+        assert callable(title_for_frame)
+        titles = [title_for_frame(i) for i in range(len(dates))]
+        assert len(set(titles)) == len(dates)
+        assert all(dates[i].date().isoformat() in titles[i] for i in range(len(dates)))
 
     def test_ice_edge_contours_ground_truth_and_prediction_only(
         self,
