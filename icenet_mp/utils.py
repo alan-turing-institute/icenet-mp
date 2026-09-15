@@ -72,10 +72,8 @@ def safe_nanmin(arr: np.ndarray, default: float = 0.0) -> float:
         Minimum value or default.
 
     """
-    if np.isfinite(arr).any():
-        result = np.nanmin(arr)
-        return float(result) if np.isfinite(result) else default
-    return default
+    finite = arr[np.isfinite(arr)]
+    return float(np.min(finite)) if finite.size else default
 
 
 def safe_nanmax(arr: np.ndarray, default: float = 1.0) -> float:
@@ -89,10 +87,8 @@ def safe_nanmax(arr: np.ndarray, default: float = 1.0) -> float:
         Maximum value or default.
 
     """
-    if np.isfinite(arr).any():
-        result = np.nanmax(arr)
-        return float(result) if np.isfinite(result) else default
-    return default
+    finite = arr[np.isfinite(arr)]
+    return float(np.max(finite)) if finite.size else default
 
 
 def to_list(value: str | Sequence[str]) -> list[str]:

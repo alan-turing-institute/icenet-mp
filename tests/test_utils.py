@@ -203,6 +203,18 @@ class TestSafeNanmin:
 
         assert result == pytest.approx(3.0)
 
+    def test_mixed_negative_infinity_and_finite_ignores_the_infinity(self) -> None:
+        """-inf entries must not suppress the true finite minimum."""
+        result = safe_nanmin(np.array([-np.inf, 10.0]), default=0.0)
+
+        assert result == pytest.approx(10.0)
+
+    def test_mixed_negative_infinity_nan_and_finite_ignores_both(self) -> None:
+        """-inf and NaN entries together must still yield the true finite minimum."""
+        result = safe_nanmin(np.array([-np.inf, np.nan, 4.0]), default=0.0)
+
+        assert result == pytest.approx(4.0)
+
 
 class TestSafeNanmax:
     def test_normal_array(self) -> None:
@@ -228,3 +240,21 @@ class TestSafeNanmax:
         result = safe_nanmax(np.array([]), default=8.0)
 
         assert result == pytest.approx(8.0)
+
+    def test_all_infinite_returns_default(self) -> None:
+        """An array of only +/-inf falls back to the default value."""
+        result = safe_nanmax(np.array([np.inf, -np.inf]), default=6.0)
+
+        assert result == pytest.approx(6.0)
+
+    def test_mixed_positive_infinity_and_finite_ignores_the_infinity(self) -> None:
+        """+inf entries must not suppress the true finite maximum."""
+        result = safe_nanmax(np.array([np.inf, 10.0]), default=1.0)
+
+        assert result == pytest.approx(10.0)
+
+    def test_mixed_positive_infinity_nan_and_finite_ignores_both(self) -> None:
+        """+inf and NaN entries together must still yield the true finite maximum."""
+        result = safe_nanmax(np.array([np.inf, np.nan, 4.0]), default=1.0)
+
+        assert result == pytest.approx(4.0)
