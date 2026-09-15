@@ -249,8 +249,8 @@ class TestLogStaticOutputs:
         # Second channel has no configured name, so it falls back to channel_1.
         logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
         assert logged_keys == [
-            "output_static/2020-01-01-sic-difference",
-            "output_static/2020-01-01-channel_1-difference",
+            "output_static/2020-01-01-sic-truth-difference",
+            "output_static/2020-01-01-channel_1-truth-difference",
         ]
 
     def test_includes_uncertainty_when_provided(
@@ -276,9 +276,9 @@ class TestLogStaticOutputs:
         assert fake_render.call_count == N_CHANNELS + 1
         logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
         assert logged_keys == [
-            "output_static/2020-01-01-sic-difference",
+            "output_static/2020-01-01-sic-truth-difference",
             "output_static/2020-01-01-sic-z-score",
-            "output_static/2020-01-01-temperature-difference",
+            "output_static/2020-01-01-temperature-truth-difference",
         ]
 
         # The z-score render is the one with a norm set for its extra panel.
@@ -359,11 +359,11 @@ class TestLogStaticOutputs:
 
         assert [c.kwargs for c in image_logger.log_image.call_args_list] == [
             {
-                "key": "evaluate/output_static/2020-01-02-ice_conc-difference",
+                "key": "evaluate/output_static/2020-01-02-ice_conc-truth-difference",
                 "images": [image],
             },
             {
-                "key": "evaluate/output_static/2020-01-02-channel_1-difference",
+                "key": "evaluate/output_static/2020-01-02-channel_1-truth-difference",
                 "images": [image],
             },
         ]
@@ -388,7 +388,7 @@ class TestLogStaticOutputs:
 
         assert (
             image_logger.log_image.call_args.kwargs["key"]
-            == "output_static/2020-01-01-ice_conc-difference"
+            == "output_static/2020-01-01-ice_conc-truth-difference"
         )
 
 

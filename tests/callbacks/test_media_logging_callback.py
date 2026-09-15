@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -57,6 +58,129 @@ def _stub_media_publisher(
     ):
         monkeypatch.setattr(callback.publisher, name, mocks[name])
     return mocks
+
+
+@pytest.fixture
+def dataset_with_uncertainty() -> tuple[MagicMock, MagicMock]:
+    """A dataset double with one target/uncertainty variable pair (ice_conc)."""
+    dataset = MagicMock()
+    target = MagicMock()
+    target.name = "target"
+    target.variable_names = ["ice_conc"]
+    target.statistics = {"minimum": [0.0], "maximum": [2.0]}
+    dataset.target = target
+
+    source = MagicMock()
+    source.name = "target"
+    source.variable_names = ["ice_conc", "total_standard_uncertainty"]
+    uncertainty_ds = MagicMock()
+    uncertainty_ds.get_tchw.return_value = np.array(
+        [[[[0.1, 0.2], [0.3, 1.1]]]], dtype=np.float32
+    )
+    source.subset.return_value = uncertainty_ds
+    dataset.inputs = [source]
+    return dataset, uncertainty_ds
+
+
+class TestLoadTargetUncertainties:
+    def test_scales_and_masks(
+        self, dataset_with_uncertainty: tuple[MagicMock, MagicMock]
+    ) -> None:
+        """Scale source uncertainty to target space and mask invalid values."""
+        dataset, _ = dataset_with_uncertainty
+
+        result = MediaLoggingCallback().load_target_uncertainties(
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+        )
+
+        assert set(result) == {0}
+        np.testing.assert_allclose(
+            result[0],
+            np.array([[[0.05, 0.1], [0.15, np.nan]]]),
+            equal_nan=True,
+        )
+        dataset.inputs[0].subset.assert_called_once_with(
+            variables=["total_standard_uncertainty"], normalise=False
+        )
+
+    def test_skips_missing_source(
+        self, dataset_with_uncertainty: tuple[MagicMock, MagicMock]
+    ) -> None:
+        """Return no uncertainty when the matching target input is unavailable."""
+        dataset, _ = dataset_with_uncertainty
+        dataset.inputs[0].name = "other"
+
+        result = MediaLoggingCallback().load_target_uncertainties(
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+        )
+
+        assert result == {}
+        dataset.inputs[0].subset.assert_not_called()
+
+    def test_skips_when_target_variable_not_present(
+        self, dataset_with_uncertainty: tuple[MagicMock, MagicMock]
+    ) -> None:
+        """Skip uncertainty loading when the target variable itself isn't in the dataset."""
+        dataset, _ = dataset_with_uncertainty
+        dataset.target.variable_names = ["other_variable"]
+
+        result = MediaLoggingCallback().load_target_uncertainties(
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+        )
+
+        assert result == {}
+        dataset.inputs[0].subset.assert_not_called()
+
+    def test_handles_data_error(
+        self,
+        dataset_with_uncertainty: tuple[MagicMock, MagicMock],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Skip uncertainty plotting when the source read fails."""
+        dataset, uncertainty_ds = dataset_with_uncertainty
+        uncertainty_ds.get_tchw.side_effect = ValueError("missing uncertainty")
+
+        with caplog.at_level(logging.WARNING):
+            result = MediaLoggingCallback().load_target_uncertainties(
+                dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+            )
+
+        assert result == {}
+        assert "Could not load target uncertainty" in caplog.text
+
+    def test_handles_missing_statistics(
+        self,
+        dataset_with_uncertainty: tuple[MagicMock, MagicMock],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Skip uncertainty plotting when target statistics are missing a key."""
+        dataset, _ = dataset_with_uncertainty
+        dataset.target.statistics = {}
+
+        with caplog.at_level(logging.WARNING):
+            result = MediaLoggingCallback().load_target_uncertainties(
+                dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+            )
+
+        assert result == {}
+        assert "Could not load target uncertainty" in caplog.text
+
+    def test_rejects_invalid_target_range(
+        self,
+        dataset_with_uncertainty: tuple[MagicMock, MagicMock],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Skip scaling when the target normalisation range is invalid."""
+        dataset, _ = dataset_with_uncertainty
+        dataset.target.statistics = {"minimum": [1.0], "maximum": [1.0]}
+
+        with caplog.at_level(logging.WARNING):
+            result = MediaLoggingCallback().load_target_uncertainties(
+                dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+            )
+
+        assert result == {}
+        assert "Could not scale target uncertainty" in caplog.text
 
 
 class TestInit:

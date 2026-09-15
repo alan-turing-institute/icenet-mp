@@ -136,9 +136,18 @@ class PanelRenderer:
     ) -> ImageFile:
         """Render a three panel ImageFile via Renderer.panels().
 
-        When `uncertainty` is provided, an extra panel shows the standardised difference
-        `z = (ground_truth - prediction) / uncertainty`. A value of `z=1` means the
-        observation exceeds the prediction by one reported standard uncertainty.
+        Args:
+            ground_truth: 2D array of the ground truth field.
+            prediction: 2D array of the predicted field.
+            when: Datetime of the plotted timestep.
+            variable_name: Name of the variable being plotted, used for styling and
+                title generation.
+            uncertainty: Optional 2D array of the reported standard uncertainty of the
+                prediction field. When given, an additional panel shows the standardised
+                difference `z = (ground_truth - prediction) / uncertainty`. A value of
+                `z=1` means the observation exceeds the prediction by one reported standard
+                uncertainty.
+
         """
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)

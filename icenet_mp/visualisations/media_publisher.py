@@ -1,4 +1,5 @@
 import logging
+from contextlib import suppress
 from datetime import datetime
 from io import BytesIO
 
@@ -8,6 +9,7 @@ from icenet_mp.data import CombinedDataset, SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import (
     ArrayHW,
+    ArrayTCHW,
     ArrayTHW,
     Hemisphere,
     ModelStepOutput,
@@ -139,7 +141,7 @@ class MediaPublisher:
         except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Static plotting failed: %s", exc)
 
-    def log_static_outputs(
+    def log_static_outputs(  # noqa: PLR0913, PLR0917
         self,
         outputs: ModelStepOutput,
         dates: list[datetime],
@@ -147,8 +149,13 @@ class MediaPublisher:
         channel_names: list[str],
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
+        climatology: ArrayTCHW | None = None,
     ) -> None:
-        """Create and log static output plots, including uncertainty when available."""
+        """Create and log static output plots, including climatology when available.
+
+        Also logs a standardised uncertainty plot and, when a climatology table is
+        given, a calendar-day-mean (climatology) map for the plotted date and channel.
+        """
         try:
             idx_date = self.plot_spec.selected_timestep
             log_path = self._log_path(prefix, "output_static")
@@ -164,7 +171,7 @@ class MediaPublisher:
                 date_key = dates[idx_date].strftime(r"%Y-%m-%d")
                 images: dict[str, list[ImageFile]] = {}
                 # Plot static truth/prediction/difference image
-                images[f"{date_key}-{variable_name}-difference"] = [
+                images[f"{date_key}-{variable_name}-truth-difference"] = [
                     self._renderer.static_triplet(
                         ground_truth,
                         prediction,
@@ -172,6 +179,18 @@ class MediaPublisher:
                         variable_name=variable_name,
                     )
                 ]
+                # Plot static climatology/prediction/difference image
+                if climatology is not None:
+                    with suppress(IndexError, TypeError):
+                        climatology_field = climatology[idx_date, idx_channel]
+                        images[f"{date_key}-{variable_name}-climatology-difference"] = [
+                            self._renderer.static_triplet(
+                                ground_truth,
+                                climatology_field,
+                                when=dates[idx_date],
+                                variable_name=variable_name,
+                            )
+                        ]
                 # Plot static truth/prediction/z-score image
                 if (
                     uncertainty := (
