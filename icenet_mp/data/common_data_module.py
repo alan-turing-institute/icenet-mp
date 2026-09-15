@@ -282,8 +282,13 @@ class CommonDataModule(LightningDataModule):
         except StopIteration as exc:
             msg = f"Dataset group {self.target_group_name} has no available variables."
             raise ValueError(msg) from exc
-        # Verify that the requested variable names exist in the dataset group
+        # Verify that at least one target variable was requested since giving an empty
+        # variable list to `SingleDataset.subset()` includes all variables.
         requested_variables = self._requested_target_variables[self.target_group_name]
+        if not requested_variables:
+            msg = f"No variables were requested for group {self.target_group_name}."
+            raise ValueError(msg)
+        # Verify that the requested variable names exist in the dataset group
         for requested_variable in requested_variables:
             if requested_variable not in on_disk_variables:
                 available_ = ", ".join(sorted(on_disk_variables)) or "<none>"
