@@ -72,9 +72,6 @@ class MediaLoggingCallback(Callback):
         self.make_static_plots = make_static_plots
         self.make_video_plots = make_video_plots
 
-        # Variable lookup for uncertainty plots
-        self.uncertainty_variables = {"ice_conc": "total_standard_uncertainty"}
-
         # Plotting specification
         self._land_mask_cache: dict[Path | None, LandMask] = {}
         self._model_name: str | None = model_name
@@ -136,13 +133,13 @@ class MediaLoggingCallback(Callback):
     def load_target_uncertainties(
         self, dataset: CombinedDataset, dates: list
     ) -> dict[int, ArrayTHW]:
-        """Load SIC uncertainty in the same normalised scale as the target."""
+        """Load uncertainty at the same normalised scale as the target."""
         try:
             uncertainties: dict[int, ArrayTHW] = {}
             for (
                 target_variable,
                 uncertainty_variable,
-            ) in self.uncertainty_variables.items():
+            ) in self._plot_spec.uncertainty_variables.items():
                 # Attempt to load target index from the dataset
                 if target_variable not in dataset.target.variable_names:
                     continue

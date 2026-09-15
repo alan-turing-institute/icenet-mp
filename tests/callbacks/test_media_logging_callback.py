@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from icenet_mp.callbacks.media_logging_callback import MediaLoggingCallback
 from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
-from icenet_mp.types import ModelStepOutput
+from icenet_mp.types import ModelStepOutput, PlotSpec
 
 
 @pytest.fixture
@@ -185,6 +185,19 @@ class TestLoadTargetUncertainties:
 
         assert result == {}
         assert "Could not scale target uncertainty" in caplog.text
+
+    def test_uses_uncertainty_variables_from_plot_spec(
+        self, dataset_with_uncertainty: tuple[MagicMock, MagicMock]
+    ) -> None:
+        """The target/uncertainty variable mapping comes from plot_spec, not a hardcoded default."""
+        dataset, _ = dataset_with_uncertainty
+        callback = MediaLoggingCallback(plot_spec=PlotSpec(uncertainty_variables={}))
+
+        result = callback.load_target_uncertainties(
+            dataset, [datetime(2026, 8, 21, tzinfo=UTC)]
+        )
+
+        assert result == {}
 
 
 class TestInit:

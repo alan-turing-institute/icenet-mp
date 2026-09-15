@@ -82,6 +82,27 @@ class TestPlotSpec:
 
         assert second.per_variable_styles["sic-ssmis:ice_conc"]["cmap"] == "Blues_r"
 
+    def test_default_uncertainty_variables(self) -> None:
+        """Default uncertainty_variables maps ice_conc to its reported uncertainty."""
+        spec = PlotSpec()
+
+        assert spec.uncertainty_variables == {"ice_conc": "total_standard_uncertainty"}
+
+    def test_default_uncertainty_variables_are_not_shared(self) -> None:
+        """Keep default uncertainty_variables dictionaries independent across instances."""
+        first = PlotSpec()
+        second = PlotSpec()
+
+        first.uncertainty_variables["ice_conc"] = "other_uncertainty"
+
+        assert second.uncertainty_variables["ice_conc"] == "total_standard_uncertainty"
+
+    def test_uncertainty_variables_is_overridable(self) -> None:
+        """Allow callers to configure a different uncertainty-variable mapping."""
+        spec = PlotSpec(uncertainty_variables={"sic": "sic_uncertainty"})
+
+        assert spec.uncertainty_variables == {"sic": "sic_uncertainty"}
+
     def test_dict_override_preserves_other_values(self) -> None:
         """Apply dict overrides without changing unspecified PlotSpec values."""
         spec = PlotSpec(hemisphere="north", colourmap="viridis", video_fps=2)

@@ -27,7 +27,7 @@ class PanelRenderer:
         """Build a PanelRenderer for a given land mask, metadata, and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
-        self._style_resolver = StyleResolver(
+        self._resolver = StyleResolver(
             plot_spec.per_variable_styles, plot_spec.colourmap
         )
         self._colour_scale = ColourScale(plot_spec.diff_mode)
@@ -77,7 +77,7 @@ class PanelRenderer:
 
         """
         masked_values = self.land_mask.apply_to(values)
-        style = self._style_resolver.style_for_variable(variable_name)
+        style = self._resolver.style_for_variable(variable_name)
         title = self._annotator.title_for_variable(variable_name, when, style.units)
         return self._renderer.panels_static(
             [masked_values],
@@ -200,7 +200,7 @@ class PanelRenderer:
 
         """
         masked_values = self.land_mask.apply_to(values)
-        style = self._style_resolver.style_for_variable(variable_name)
+        style = self._resolver.style_for_variable(variable_name)
         title = self._annotator.title_for_variable(variable_name, dates[0], style.units)
         return self._renderer.panels_video(
             [masked_values],

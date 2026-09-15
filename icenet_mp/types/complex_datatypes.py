@@ -96,6 +96,8 @@ class PlotSpec:
         vmax: Upper bound for GT/prediction colour scale (None = infer).
         include_ice_edge: Whether to overlay the sea ice edge contour in red.
         ice_edge_threshold: Concentration value defining the sea ice edge contour.
+        uncertainty_variables: Maps each target variable to the input variable
+            holding its reported standard uncertainty (used for the z-score panel).
 
     """
 
@@ -134,6 +136,11 @@ class PlotSpec:
             "sic-osisaf:ice_conc": {"cmap": "Blues_r"},
             "sic-ssmis:ice_conc": {"cmap": "Blues_r"},
         }
+    )
+
+    # Uncertainty variable lookup, for the z-score panel
+    uncertainty_variables: dict[str, str] = field(
+        default_factory=lambda: {"ice_conc": "total_standard_uncertainty"}
     )
 
     def __add__(
