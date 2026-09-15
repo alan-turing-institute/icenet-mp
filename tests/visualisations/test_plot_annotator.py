@@ -10,7 +10,7 @@ class TestFormatTitle:
         """Include hemisphere and units when both are given."""
         annotator = PlotAnnotator(Metadata(), PlotSpec(hemisphere="north"))
 
-        result = annotator.format_title("2t", date(2020, 1, 1), "K")
+        result = annotator.title_for_variable("2t", date(2020, 1, 1), "K")
 
         assert result == "2t [K] (North)   Shown: 2020-01-01"
 
@@ -18,7 +18,7 @@ class TestFormatTitle:
         """Omit hemisphere and units segments when neither is given."""
         annotator = PlotAnnotator(Metadata(), PlotSpec(hemisphere=None))
 
-        result = annotator.format_title("2t", date(2020, 1, 1), None)
+        result = annotator.title_for_variable("2t", date(2020, 1, 1), None)
 
         assert result == "2t   Shown: 2020-01-01"
 
@@ -26,7 +26,7 @@ class TestFormatTitle:
         """Accept a datetime and format only its date portion."""
         annotator = PlotAnnotator(Metadata(), PlotSpec(hemisphere=None))
 
-        result = annotator.format_title("2t", datetime(2020, 1, 1, 12, 30), None)
+        result = annotator.title_for_variable("2t", datetime(2020, 1, 1, 12, 30), None)
 
         assert result == "2t   Shown: 2020-01-01"
 
@@ -34,7 +34,7 @@ class TestFormatTitle:
 class TestFormattedVariableName:
     def test_replaces_underscores_and_title_cases(self) -> None:
         """Turn a snake_case variable name into a human-friendly title."""
-        result = PlotAnnotator(Metadata(), PlotSpec()).formatted_variable_name(
+        result = PlotAnnotator(Metadata(), PlotSpec())._format_variable_name(
             "sea_ice_concentration"
         )
 
@@ -42,13 +42,13 @@ class TestFormattedVariableName:
 
     def test_empty_string_stays_empty(self) -> None:
         """Return an empty string unchanged."""
-        assert PlotAnnotator(Metadata(), PlotSpec()).formatted_variable_name("") == ""
+        assert PlotAnnotator(Metadata(), PlotSpec())._format_variable_name("") == ""
 
 
 class TestFormatDateForTitle:
     def test_date_object(self) -> None:
         """Format a plain date object as an ISO date string."""
-        result = PlotAnnotator(Metadata(), PlotSpec()).format_date_for_title(
+        result = PlotAnnotator(Metadata(), PlotSpec())._format_date_for_title(
             date(2023, 12, 25)
         )
 
@@ -56,7 +56,7 @@ class TestFormatDateForTitle:
 
     def test_datetime_object_drops_time(self) -> None:
         """Format a datetime object, stripping the time component."""
-        result = PlotAnnotator(Metadata(), PlotSpec()).format_date_for_title(
+        result = PlotAnnotator(Metadata(), PlotSpec())._format_date_for_title(
             datetime(2023, 12, 25, 14, 30)
         )
 

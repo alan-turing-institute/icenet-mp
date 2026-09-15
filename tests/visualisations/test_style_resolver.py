@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from icenet_mp.visualisations.variable_style_resolver import VariableStyleResolver
+from icenet_mp.visualisations.style_resolver import StyleResolver
 
 DEFAULT_CMAP = "viridis"
 
@@ -10,21 +10,21 @@ DEFAULT_CMAP = "viridis"
 class TestStyleForVariable:
     def test_none_styles_falls_back_to_default_cmap(self) -> None:
         """A None styles mapping resolves cmap to the bound default."""
-        style = VariableStyleResolver(None, DEFAULT_CMAP).style_for_variable("era5:2t")
+        style = StyleResolver(None, DEFAULT_CMAP).style_for_variable("era5:2t")
 
         assert style.cmap == DEFAULT_CMAP
         assert style.units is None
 
     def test_empty_styles_falls_back_to_default_cmap(self) -> None:
         """An empty styles mapping resolves cmap to the bound default."""
-        style = VariableStyleResolver({}, DEFAULT_CMAP).style_for_variable("era5:2t")
+        style = StyleResolver({}, DEFAULT_CMAP).style_for_variable("era5:2t")
 
         assert style.cmap == DEFAULT_CMAP
         assert style.vmin is None
 
     def test_non_mapping_styles_falls_back_to_default_cmap(self) -> None:
         """A styles value that is not a Mapping (e.g. a list) is ignored."""
-        style = VariableStyleResolver(
+        style = StyleResolver(
             ["not", "a", "mapping"],  # type: ignore[arg-type]
             DEFAULT_CMAP,
         ).style_for_variable("era5:2t")
@@ -35,9 +35,7 @@ class TestStyleForVariable:
         """'era5__2t' normalises to 'era5:2t' and matches that style key."""
         styles = {"era5:2t": {"cmap": "RdBu_r", "units": "K"}}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
-            "era5__2t"
-        )
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable("era5__2t")
 
         assert style.cmap == "RdBu_r"
         assert style.units == "K"
@@ -46,9 +44,7 @@ class TestStyleForVariable:
         """'era5-2t' normalises to 'era5:2t' and matches that style key."""
         styles = {"era5:2t": {"cmap": "RdBu_r", "units": "K"}}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
-            "era5-2t"
-        )
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable("era5-2t")
 
         assert style.cmap == "RdBu_r"
 
@@ -56,9 +52,7 @@ class TestStyleForVariable:
         """A variable name normalising to repeated ':' collapses to a single ':'."""
         styles = {"era5:2t": {"cmap": "RdBu_r"}}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
-            "era5__-2t"
-        )
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable("era5__-2t")
 
         assert style.cmap == "RdBu_r"
 
@@ -66,7 +60,7 @@ class TestStyleForVariable:
         """An unmatched variable name falls back to the '_default' style."""
         styles = {"_default": {"cmap": "grey"}}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable(
             "totally:unmatched"
         )
 
@@ -76,7 +70,7 @@ class TestStyleForVariable:
         """No exact/wildcard/_default match resolves cmap to the bound default."""
         styles = {"era5:2t": {"cmap": "RdBu_r"}}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable(
             "osisaf:ice_conc"
         )
 
@@ -86,7 +80,7 @@ class TestStyleForVariable:
         """A wildcard key of just '*' (empty prefix) is skipped, not treated as catch-all."""
         styles = {"*": {"cmap": "ignored"}, "_default": {"cmap": "fallback"}}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable(
             "anything:at_all"
         )
 
@@ -96,9 +90,7 @@ class TestStyleForVariable:
         """A matching wildcard key whose value isn't a Mapping is logged and skipped."""
         styles: dict[str, Any] = {"era5:*": "not-a-mapping"}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
-            "era5:2t"
-        )
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable("era5:2t")
 
         assert style.cmap == DEFAULT_CMAP
 
@@ -107,7 +99,7 @@ class TestStyleForVariable:
         variable_styles: dict[str, dict[str, Any]],
     ) -> None:
         """Test exact variable name matching in styling."""
-        style = VariableStyleResolver(variable_styles, DEFAULT_CMAP).style_for_variable(
+        style = StyleResolver(variable_styles, DEFAULT_CMAP).style_for_variable(
             "era5:2t"
         )
 
@@ -125,9 +117,9 @@ class TestStyleForVariable:
             "era5:q_*": {"cmap": "viridis", "units": "kg/kg"},
         }
 
-        style = VariableStyleResolver(
-            styles_with_wildcard, DEFAULT_CMAP
-        ).style_for_variable("era5:q_500")
+        style = StyleResolver(styles_with_wildcard, DEFAULT_CMAP).style_for_variable(
+            "era5:q_500"
+        )
 
         assert style.cmap == "viridis"
         assert style.units == "kg/kg"
@@ -138,9 +130,7 @@ class TestDefaultCmapFallback:
         """A matched style that omits cmap still resolves to the bound default."""
         styles = {"era5:2t": {"units": "K"}}
 
-        style = VariableStyleResolver(styles, DEFAULT_CMAP).style_for_variable(
-            "era5:2t"
-        )
+        style = StyleResolver(styles, DEFAULT_CMAP).style_for_variable("era5:2t")
 
         assert style.cmap == DEFAULT_CMAP
         assert style.units == "K"

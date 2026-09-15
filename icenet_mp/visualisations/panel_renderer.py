@@ -12,7 +12,7 @@ from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .matplotlib_renderer import MatplotlibRenderer
 from .plot_annotator import PlotAnnotator
-from .variable_style_resolver import VariableStyleResolver
+from .style_resolver import StyleResolver
 
 if TYPE_CHECKING:
     from matplotlib.colors import Colormap, Normalize
@@ -27,7 +27,7 @@ class PanelRenderer:
         """Build a PanelRenderer for a given land mask, metadata, and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
-        self._style_resolver = VariableStyleResolver(
+        self._style_resolver = StyleResolver(
             plot_spec.per_variable_styles, plot_spec.colourmap
         )
         self._colour_scale = ColourScale(plot_spec.diff_mode)
@@ -78,7 +78,7 @@ class PanelRenderer:
         """
         masked_values = self.land_mask.apply_to(values)
         style = self._style_resolver.style_for_variable(variable_name)
-        title = self._annotator.format_title(variable_name, when, style.units)
+        title = self._annotator.title_for_variable(variable_name, when, style.units)
         return self._renderer.panels_static(
             [masked_values],
             cmap=style.cmap,
@@ -161,16 +161,16 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        suptitle = self._annotator.title_for_static(variable_name, when)
-        footer_text = self._annotator.footer_for_static()
+        title = self._annotator.title_for_static(variable_name, when)
+        footer = self._annotator.footer_for_static()
         return self._renderer.panels_static(
             arrays,
             cmap=cmaps,
             contour_arrays=contour_arrays,
             contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
-            figure_title=suptitle,
-            footer_text=footer_text or None,
+            figure_title=title,
+            footer_text=footer or None,
             group_axes=(0, 1)
             if self.plot_spec.include_difference or uncertainty is not None
             else None,
@@ -201,7 +201,7 @@ class PanelRenderer:
         """
         masked_values = self.land_mask.apply_to(values)
         style = self._style_resolver.style_for_variable(variable_name)
-        title = self._annotator.format_title(variable_name, dates[0], style.units)
+        title = self._annotator.title_for_variable(variable_name, dates[0], style.units)
         return self._renderer.panels_video(
             [masked_values],
             cmap=style.cmap,
@@ -258,8 +258,8 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        title_line = self._annotator.title_for_video(variable_name, dates, 0)
-        footer_text = self._annotator.footer_for_video(dates)
+        title = self._annotator.title_for_video(variable_name, dates, 0)
+        footer = self._annotator.footer_for_video(dates)
 
         return self._renderer.panels_video(
             arrays,
@@ -267,8 +267,8 @@ class PanelRenderer:
             contour_arrays=contour_arrays,
             contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
-            figure_title=title_line,
-            footer_text=footer_text or None,
+            figure_title=title,
+            footer_text=footer or None,
             fps=self.plot_spec.video_fps,
             group_axes=(0, 1) if self.plot_spec.include_difference else None,
             panel_titles=titles,
