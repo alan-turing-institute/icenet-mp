@@ -59,6 +59,14 @@ class TestComputeDifference:
 
         assert np.isfinite(result).all()
 
+    def test_rejects_shape_mismatch(self) -> None:
+        """Reject ground truth/prediction arrays with mismatched shapes."""
+        with pytest.raises(InvalidArrayError, match="matching shapes"):
+            DifferenceCalculator(DiffMode.SIGNED).difference(
+                self.ground_truth,
+                np.zeros((3, 3)),
+            )
+
     def test_invalid_mode_raises(self) -> None:
         """An unrecognised difference mode raises ValueError."""
         with pytest.raises(ValueError, match="Invalid difference mode"):

@@ -39,6 +39,12 @@ class DifferenceCalculator:
             ValueError: If the difference mode is invalid.
 
         """
+        if ground_truth.shape != prediction.shape:
+            msg = (
+                "Ground truth and prediction must have matching shapes; "
+                f"got {ground_truth.shape} and {prediction.shape}."
+            )
+            raise InvalidArrayError(msg)
         mode = diff_mode if diff_mode is not None else self._diff_mode
         if mode == DiffMode.SIGNED:
             return ground_truth - prediction
