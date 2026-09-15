@@ -32,7 +32,7 @@ encoders:
   float-argo:
     _target_: icenet_mp.models.encoders.CNNEncoder
     n_layers: 1
-  sic-icenet:
+  sic-osisaf:
     _target_: icenet_mp.models.encoders.CNNEncoder
     n_layers: 1
   sic-ssmis:
