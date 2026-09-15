@@ -76,7 +76,7 @@ class DataloaderArgs(TypedDict):
     worker_init_fn: None
 
 
-class DiffColourmapSpec(NamedTuple):
+class DiffColourmap(NamedTuple):
     """Specify the colour scale used for a difference panel.
 
     Attributes:

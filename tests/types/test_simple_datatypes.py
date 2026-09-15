@@ -11,7 +11,7 @@ from icenet_mp.types import (
     AnemoiInitArgs,
     AnemoiInspectArgs,
     AnemoiLoadArgs,
-    DiffColourmapSpec,
+    DiffColourmap,
     Metadata,
     ProcessorOutput,
 )
@@ -86,14 +86,14 @@ class TestAnemoiDatasetStatus:
         assert status.download_complete is True
 
 
-class TestDiffColourmapSpec:
-    """Tests for DiffColourmapSpec."""
+class TestDiffColourmap:
+    """Tests for DiffColourmap."""
 
     def test_preserves_normalisation_and_bounds(self) -> None:
         """Preserve normalisation, bounds and colourmap configuration."""
         norm = Normalize(vmin=-1.0, vmax=1.0)
 
-        spec = DiffColourmapSpec(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
+        spec = DiffColourmap(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
 
         assert spec.norm is norm
         assert spec.vmin is None

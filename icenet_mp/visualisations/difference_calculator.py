@@ -1,17 +1,15 @@
 import numpy as np
-from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import DiffColourmapSpec, DiffMode
-from icenet_mp.utils import safe_nanmax, safe_nanmin
+from icenet_mp.types import DiffMode
 
 _SPATIAL_NDIM = 2
 
 
 class DifferenceCalculator:
-    """Computes differences and display/colour ranges for GT/prediction pairs."""
+    """Computes ground-truth/prediction error fields."""
 
-    def compute_difference(
+    def difference(
         self, ground_truth: np.ndarray, prediction: np.ndarray, diff_mode: DiffMode
     ) -> np.ndarray:
         """Compute the difference between the ground truth and prediction.
@@ -40,7 +38,7 @@ class DifferenceCalculator:
         msg = f"Invalid difference mode: {diff_mode}"
         raise ValueError(msg)
 
-    def compute_standardised_difference(
+    def standardised_difference(
         self,
         ground_truth: np.ndarray,
         prediction: np.ndarray,
@@ -79,70 +77,9 @@ class DifferenceCalculator:
         result = np.full(ground_truth.shape, np.nan, dtype=float)
         valid = np.isfinite(uncertainty) & (uncertainty > 0)
         np.divide(
-            self.compute_difference(ground_truth, prediction, "signed"),
+            self.difference(ground_truth, prediction, "signed"),
             uncertainty,
             out=result,
             where=valid,
         )
         return result
-
-    def make_diff_colourmap(
-        self,
-        sample: np.ndarray | float,
-        *,
-        mode: DiffMode,
-    ) -> DiffColourmapSpec:
-        """Construct colour mapping settings for a difference panel.
-
-        Behaviour depends on the difference mode:
-
-        - "signed": symmetric diverging scale centred on 0,
-          useful for showing positive vs negative bias.
-        - "absolute" / "smape": sequential scale from 0 to max,
-          useful for showing error magnitude.
-
-        Args:
-            sample: Either a full array of differences (for precompute mode)
-                    or a scalar maximum difference (for two-pass mode).
-            mode: Difference mode ("signed", "absolute", or "smape").
-
-        Returns:
-            DiffRenderParams: Normalisation, colour limits, and colourmap.
-
-        """
-        if mode == "signed":
-            # Force symmetric limits around zero so 0 is the literal midpoint
-            if isinstance(sample, (float, int)):
-                max_abs = max(1.0, float(abs(sample)))
-                vmin, vmax = -max_abs, max_abs
-            else:
-                # Find the min and max values of the sample array using safe helpers
-                vmin_data = safe_nanmin(sample, default=-1.0)
-                vmax_data = safe_nanmax(sample, default=1.0)
-                # Find the maximum absolute value of the sample array
-                max_abs = max(1.0, abs(vmin_data), abs(vmax_data))
-                vmin, vmax = -max_abs, max_abs
-
-            return DiffColourmapSpec(
-                norm=TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax),
-                vmin=None,
-                vmax=None,
-                cmap="RdBu_r",
-            )
-
-        if mode in ("absolute", "smape"):
-            # Positive-only scale
-            if isinstance(sample, (float, int)):
-                vmax = max(1e-6, float(sample))
-            else:
-                vmax = max(1e-6, safe_nanmax(sample, default=0.0))
-
-            return DiffColourmapSpec(
-                norm=None,
-                vmin=0.0,
-                vmax=vmax,
-                cmap="magma",
-            )
-
-        msg = f"Unknown difference mode: {mode}"
-        raise ValueError(msg)

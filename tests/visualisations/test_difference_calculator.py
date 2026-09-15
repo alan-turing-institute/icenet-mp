@@ -1,12 +1,11 @@
 """Tests for icenet_mp/visualisations/difference_calculator.py.
 
-Covers the difference, colourmap, and standardised-difference computations for a
+Covers the difference and standardised-difference computations for a
 ground-truth/prediction pair.
 """
 
 import numpy as np
 import pytest
-from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.visualisations.difference_calculator import (
@@ -20,7 +19,7 @@ class TestComputeDifference:
 
     def test_signed(self) -> None:
         """Signed difference is ground_truth - prediction."""
-        result = DifferenceCalculator().compute_difference(
+        result = DifferenceCalculator().difference(
             self.ground_truth, self.prediction, "signed"
         )
 
@@ -28,7 +27,7 @@ class TestComputeDifference:
 
     def test_absolute(self) -> None:
         """Absolute difference is |ground_truth - prediction|."""
-        result = DifferenceCalculator().compute_difference(
+        result = DifferenceCalculator().difference(
             self.ground_truth, self.prediction, "absolute"
         )
 
@@ -36,7 +35,7 @@ class TestComputeDifference:
 
     def test_smape(self) -> None:
         """SMAPE difference normalises the absolute error by the mean magnitude."""
-        result = DifferenceCalculator().compute_difference(
+        result = DifferenceCalculator().difference(
             self.ground_truth, self.prediction, "smape"
         )
 
@@ -53,102 +52,18 @@ class TestComputeDifference:
         ground_truth = np.array([0.0])
         prediction = np.array([0.0])
 
-        result = DifferenceCalculator().compute_difference(
-            ground_truth, prediction, "smape"
-        )
+        result = DifferenceCalculator().difference(ground_truth, prediction, "smape")
 
         assert np.isfinite(result).all()
 
     def test_invalid_mode_raises(self) -> None:
         """An unrecognised difference mode raises ValueError."""
         with pytest.raises(ValueError, match="Invalid difference mode"):
-            DifferenceCalculator().compute_difference(
+            DifferenceCalculator().difference(
                 self.ground_truth,
                 self.prediction,
                 "bogus",  # type: ignore[arg-type]
             )
-
-
-class TestMakeDiffColourmap:
-    def test_signed_scalar(self) -> None:
-        """A scalar sample yields a symmetric TwoSlopeNorm around zero."""
-        spec = DifferenceCalculator().make_diff_colourmap(2.5, mode="signed")
-
-        assert isinstance(spec.norm, TwoSlopeNorm)
-        assert spec.norm.vcenter == pytest.approx(0.0)
-        assert spec.norm.vmin == pytest.approx(-2.5)
-        assert spec.norm.vmax == pytest.approx(2.5)
-        assert spec.vmin is None
-        assert spec.vmax is None
-        assert spec.cmap == "RdBu_r"
-
-    def test_signed_scalar_below_one_still_uses_unit_floor(self) -> None:
-        """A small scalar sample still gets at least a +/-1 symmetric range."""
-        spec = DifferenceCalculator().make_diff_colourmap(0.1, mode="signed")
-
-        assert isinstance(spec.norm, TwoSlopeNorm)
-        assert spec.norm.vmin == pytest.approx(-1.0)
-        assert spec.norm.vmax == pytest.approx(1.0)
-
-    def test_signed_array(self) -> None:
-        """An array sample uses the largest absolute extreme for a symmetric range."""
-        sample = np.array([-2.0, 3.0, 0.5])
-
-        spec = DifferenceCalculator().make_diff_colourmap(sample, mode="signed")
-
-        assert isinstance(spec.norm, TwoSlopeNorm)
-        assert spec.norm.vmin == pytest.approx(-3.0)
-        assert spec.norm.vmax == pytest.approx(3.0)
-        assert spec.cmap == "RdBu_r"
-
-    def test_absolute_scalar(self) -> None:
-        """A scalar sample for absolute mode sets vmax directly."""
-        spec = DifferenceCalculator().make_diff_colourmap(0.75, mode="absolute")
-
-        assert spec.norm is None
-        assert spec.vmin == pytest.approx(0.0)
-        assert spec.vmax == pytest.approx(0.75)
-        assert spec.cmap == "magma"
-
-    def test_absolute_array(self) -> None:
-        """An array sample for absolute mode sets vmax from the array's max."""
-        sample = np.array([0.1, 0.9, 0.4])
-
-        spec = DifferenceCalculator().make_diff_colourmap(sample, mode="absolute")
-
-        assert spec.norm is None
-        assert spec.vmin == pytest.approx(0.0)
-        assert spec.vmax == pytest.approx(0.9)
-        assert spec.cmap == "magma"
-
-    def test_smape_scalar(self) -> None:
-        """SMAPE mode behaves like absolute mode for a scalar sample."""
-        spec = DifferenceCalculator().make_diff_colourmap(1.5, mode="smape")
-
-        assert spec.norm is None
-        assert spec.vmin == pytest.approx(0.0)
-        assert spec.vmax == pytest.approx(1.5)
-        assert spec.cmap == "magma"
-
-    def test_smape_array(self) -> None:
-        """SMAPE mode behaves like absolute mode for an array sample."""
-        sample = np.array([0.2, 0.6])
-
-        spec = DifferenceCalculator().make_diff_colourmap(sample, mode="smape")
-
-        assert spec.vmax == pytest.approx(0.6)
-        assert spec.cmap == "magma"
-
-    def test_vmax_floor_avoids_zero_width_range(self) -> None:
-        """A zero (or negative) sample still yields a strictly positive vmax."""
-        spec = DifferenceCalculator().make_diff_colourmap(0.0, mode="absolute")
-
-        assert spec.vmax == pytest.approx(1e-6)
-
-    def test_invalid_mode_raises(self) -> None:
-        """An unrecognised mode raises ValueError."""
-        with pytest.raises(ValueError, match="Unknown difference mode"):
-            DifferenceCalculator().make_diff_colourmap(1.0, mode="bogus")  # type: ignore[arg-type]
 
 
 class TestComputeStandardisedDifference:
@@ -158,7 +73,7 @@ class TestComputeStandardisedDifference:
         prediction = np.array([[0.4, 0.6], [0.3, 0.5]], dtype=np.float32)
         uncertainty = np.array([[0.1, 0.2], [0.05, 0.1]], dtype=np.float32)
 
-        result = DifferenceCalculator().compute_standardised_difference(
+        result = DifferenceCalculator().standardised_difference(
             ground_truth, prediction, uncertainty
         )
 
@@ -170,7 +85,7 @@ class TestComputeStandardisedDifference:
         prediction = np.zeros((2, 2), dtype=np.float32)
         uncertainty = np.array([[0.5, 0.0], [-1.0, np.nan]], dtype=np.float32)
 
-        result = DifferenceCalculator().compute_standardised_difference(
+        result = DifferenceCalculator().standardised_difference(
             ground_truth, prediction, uncertainty
         )
 
@@ -182,7 +97,7 @@ class TestComputeStandardisedDifference:
     def test_rejects_shape_mismatch(self) -> None:
         """Reject input arrays with mismatched shapes."""
         with pytest.raises(InvalidArrayError, match="matching shapes"):
-            DifferenceCalculator().compute_standardised_difference(
+            DifferenceCalculator().standardised_difference(
                 np.zeros((2, 2), dtype=np.float32),
                 np.zeros((2, 2), dtype=np.float32),
                 np.zeros((3, 3), dtype=np.float32),
@@ -191,7 +106,7 @@ class TestComputeStandardisedDifference:
     def test_rejects_non_2d_arrays(self) -> None:
         """Reject 1D (or any non-2D) ground truth/prediction/uncertainty arrays."""
         with pytest.raises(InvalidArrayError, match="Expected 2D"):
-            DifferenceCalculator().compute_standardised_difference(
+            DifferenceCalculator().standardised_difference(
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),

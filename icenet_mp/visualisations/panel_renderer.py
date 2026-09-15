@@ -18,11 +18,12 @@ from PIL.ImageFile import ImageFile
 
 from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
 
+from .colour_scale import ColourScale
 from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .plot_annotator import PlotAnnotator
 from .renderer import Renderer
-from .variable_styler import VariableStyler
+from .variable_style_resolver import VariableStyleResolver
 
 if TYPE_CHECKING:
     from matplotlib.colors import Colormap, Normalize
@@ -31,16 +32,17 @@ if TYPE_CHECKING:
 class PanelRenderer:
     """Renders styled, land-masked panels for one land_mask/plot_spec pairing.
 
-    Owns the plot_spec-driven collaborators (`VariableStyler`, `PlotAnnotator`,
-    `DifferenceCalculator`) so callers don't need to construct or coordinate
-    them directly.
+    Owns the plot_spec-driven collaborators (`VariableStyleResolver`,
+    `ColourScale`, `PlotAnnotator`, `DifferenceCalculator`) so callers don't
+    need to construct or coordinate them directly.
     """
 
     def __init__(self, land_mask: LandMask, plot_spec: PlotSpec) -> None:
         """Build a renderer bound to one land mask and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
-        self._variable_styler = VariableStyler()
+        self._style_resolver = VariableStyleResolver()
+        self._colour_scale = ColourScale()
         self._annotator = PlotAnnotator()
         self._difference_calculator = DifferenceCalculator()
         self._renderer = Renderer()
@@ -59,7 +61,7 @@ class PanelRenderer:
         """Render a single panel ImageFile via Renderer.panels_static()."""
         plot_spec = self.plot_spec
         masked_values = self.land_mask.apply_to(values)
-        style = self._variable_styler.style_for_variable(
+        style = self._style_resolver.style_for_variable(
             variable_name, plot_spec.per_variable_styles
         )
         title = self._annotator.format_title(
@@ -83,7 +85,7 @@ class PanelRenderer:
     ) -> BytesIO:
         """Render a single panel video BytesIO via Renderer.panels_video()."""
         masked_values = self.land_mask.apply_to(values)
-        style = self._variable_styler.style_for_variable(
+        style = self._style_resolver.style_for_variable(
             variable_name, self.plot_spec.per_variable_styles
         )
         title = self._annotator.format_title(
@@ -109,11 +111,11 @@ class PanelRenderer:
         rebuilt this identically for their (single) difference panel.
         """
         difference = self.land_mask.apply_to(
-            self._difference_calculator.compute_difference(
+            self._difference_calculator.difference(
                 masked_ground_truth, masked_prediction, self.plot_spec.diff_mode
             )
         )
-        diff_colour_scale = self._difference_calculator.make_diff_colourmap(
+        diff_colour_scale = self._colour_scale.diff_colourmap(
             difference, mode=self.plot_spec.diff_mode
         )
         if diff_colour_scale.norm is not None:
@@ -165,21 +167,15 @@ class PanelRenderer:
         # If we have uncertainty data then use z-score as the third panel
         if uncertainty is not None:
             z_difference = self.land_mask.apply_to(
-                self._difference_calculator.compute_standardised_difference(
+                self._difference_calculator.standardised_difference(
                     ground_truth, prediction, uncertainty
                 )
             )
-            z_norm, _, _ = self._variable_styler.create_normalisation(
-                z_difference, centre=0.0
-            )
+            z_norm = self._colour_scale.normalisation(z_difference, centre=0.0)
 
             arrays.append(z_difference)
             titles.append("Standardised Difference (z)")
-            cmaps.append(
-                self._variable_styler.colourmap_with_bad(
-                    "RdBu_r", bad_color="lightgrey"
-                )
-            )
+            cmaps.append(self._colour_scale.colourmap("RdBu_r", bad_color="lightgrey"))
             norms.append(z_norm)
             vmins.append(None)
             vmaxs.append(None)
