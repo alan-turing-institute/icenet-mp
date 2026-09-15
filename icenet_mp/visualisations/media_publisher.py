@@ -3,6 +3,7 @@ from contextlib import suppress
 from datetime import datetime
 from io import BytesIO
 
+import numpy as np
 from PIL.ImageFile import ImageFile
 
 from icenet_mp.data import CombinedDataset, SingleDataset
@@ -11,6 +12,7 @@ from icenet_mp.types import (
     ArrayHW,
     ArrayTCHW,
     ArrayTHW,
+    Metadata,
     ModelStepOutput,
     PlotSpec,
     SupportsImageLogging,
@@ -19,7 +21,6 @@ from icenet_mp.types import (
 from icenet_mp.utils import npdatetime_from_datetime
 
 from .land_mask import LandMask
-from .metadata_builder import MetadataBuilder
 from .panel_renderer import PanelRenderer
 
 logger = logging.getLogger(__name__)
@@ -45,16 +46,37 @@ class MediaPublisher:
         self._plot_spec = plot_spec
         self._panel_renderer = PanelRenderer(
             land_mask,
-            MetadataBuilder().from_dataset(
-                dataset, current_epoch=current_epoch, model_name=model_name
-            ),
+            self.build_metadata(dataset, current_epoch, model_name),
             plot_spec,
         )
 
-    @property
-    def land_mask(self) -> LandMask:
-        """The land mask used by the renderer."""
-        return self._panel_renderer.land_mask
+    @staticmethod
+    def build_metadata(
+        dataset: CombinedDataset,
+        current_epoch: int | None = None,
+        model_name: str | None = None,
+    ) -> Metadata:
+        """Build structured metadata from a CombinedDataset."""
+        # Format the dataset's frequency as a short, human-readable cadence label.
+        hours = float(dataset.frequency / np.timedelta64(1, "h"))
+        if hours % 24 == 0:
+            days = int(hours // 24)
+            cadence = "daily" if days == 1 else f"{days}d"
+        else:
+            cadence = "hourly" if hours == 1 else f"{hours:g}h"
+
+        vars_by_source = {ds.name: sorted(ds.variable_names) for ds in dataset.inputs}
+
+        return Metadata(
+            model=model_name,
+            current_epoch=current_epoch,
+            start=str(dataset.start_date.astype("datetime64[D]")),
+            end=str(dataset.end_date.astype("datetime64[D]")),
+            cadence=cadence,
+            n_points=len(dataset),
+            n_history_steps=dataset.n_history_steps,
+            vars_by_source=vars_by_source or None,
+        )
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
