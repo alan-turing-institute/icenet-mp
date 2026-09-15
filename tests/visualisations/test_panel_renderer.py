@@ -14,12 +14,12 @@ from icenet_mp.visualisations.panel_renderer import PanelRenderer
 from icenet_mp.visualisations.renderer import Renderer
 
 
-class TestSetMetadata:
-    def test_forwards_to_the_bound_annotator(self, no_land_mask: LandMask) -> None:
-        """set_metadata updates the footer text produced by the renderer's own annotator."""
-        renderer = PanelRenderer(no_land_mask, PlotSpec())
-
-        renderer.set_metadata(Metadata(model="unet"))
+class TestMetadata:
+    def test_metadata_bound_at_construction_appears_in_footers(
+        self, no_land_mask: LandMask
+    ) -> None:
+        """Metadata passed at construction is used by the renderer's own annotator."""
+        renderer = PanelRenderer(no_land_mask, Metadata(model="unet"), PlotSpec())
 
         assert renderer._annotator.footer_for_static() == "Model: unet"
 
@@ -31,7 +31,7 @@ class TestRenderStaticSinglet:
         no_land_mask: LandMask,
         base_plot_spec: PlotSpec,
     ) -> None:
-        renderer = PanelRenderer(no_land_mask, base_plot_spec)
+        renderer = PanelRenderer(no_land_mask, Metadata(), base_plot_spec)
 
         result = renderer.static_singlet(
             era5_temperature_2d,
@@ -53,7 +53,7 @@ class TestRenderVideoSinglet:
         base_plot_spec: PlotSpec,
     ) -> None:
         dates = [datetime.combine(d, datetime.min.time()) for d in test_dates_short]
-        renderer = PanelRenderer(no_land_mask, base_plot_spec)
+        renderer = PanelRenderer(no_land_mask, Metadata(), base_plot_spec)
 
         result = renderer.video_singlet(
             era5_temperature_thw,
@@ -71,7 +71,9 @@ class TestRenderStaticTriplet:
     ) -> None:
         ground_truth, prediction, raw_when = sic_pair_2d
         when = datetime.combine(raw_when, datetime.min.time())
-        renderer = PanelRenderer(no_land_mask, PlotSpec(include_difference=True))
+        renderer = PanelRenderer(
+            no_land_mask, Metadata(), PlotSpec(include_difference=True)
+        )
 
         result = renderer.static_triplet(
             ground_truth,
@@ -89,7 +91,7 @@ class TestRenderStaticTriplet:
         when = datetime.combine(raw_when, datetime.min.time())
 
         two_panel_renderer = PanelRenderer(
-            no_land_mask, PlotSpec(include_difference=False)
+            no_land_mask, Metadata(), PlotSpec(include_difference=False)
         )
         two_panel = two_panel_renderer.static_triplet(
             ground_truth,
@@ -98,7 +100,7 @@ class TestRenderStaticTriplet:
             variable_name="ice_conc",
         )
         three_panel_renderer = PanelRenderer(
-            no_land_mask, PlotSpec(include_difference=True)
+            no_land_mask, Metadata(), PlotSpec(include_difference=True)
         )
         three_panel = three_panel_renderer.static_triplet(
             ground_truth,
@@ -117,7 +119,9 @@ class TestRenderStaticTriplet:
         when = datetime.combine(raw_when, datetime.min.time())
         uncertainty = np.full_like(ground_truth, 0.1)
 
-        renderer = PanelRenderer(no_land_mask, PlotSpec(include_difference=True))
+        renderer = PanelRenderer(
+            no_land_mask, Metadata(), PlotSpec(include_difference=True)
+        )
         with_difference = renderer.static_triplet(
             ground_truth,
             prediction,
@@ -132,7 +136,7 @@ class TestRenderStaticTriplet:
             uncertainty=uncertainty,
         )
         two_panel_renderer = PanelRenderer(
-            no_land_mask, PlotSpec(include_difference=False)
+            no_land_mask, Metadata(), PlotSpec(include_difference=False)
         )
         two_panel = two_panel_renderer.static_triplet(
             ground_truth,
@@ -163,7 +167,7 @@ class TestRenderStaticTriplet:
             fake_render,
         )
         plot_spec = PlotSpec(include_difference=True, include_ice_edge=True)
-        renderer = PanelRenderer(no_land_mask, plot_spec)
+        renderer = PanelRenderer(no_land_mask, Metadata(), plot_spec)
 
         renderer.static_triplet(
             ground_truth, prediction, when=when, variable_name="ice_conc"
@@ -192,7 +196,9 @@ class TestRenderStaticTriplet:
             "panels_static",
             fake_render,
         )
-        renderer = PanelRenderer(no_land_mask, PlotSpec(include_ice_edge=False))
+        renderer = PanelRenderer(
+            no_land_mask, Metadata(), PlotSpec(include_ice_edge=False)
+        )
 
         renderer.static_triplet(
             ground_truth, prediction, when=when, variable_name="ice_conc"
@@ -207,7 +213,9 @@ class TestRenderVideoTriplet:
     ) -> None:
         ground_truth, prediction, raw_dates = sic_pair_3d_stream
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
-        renderer = PanelRenderer(LandMask(None), PlotSpec(include_difference=True))
+        renderer = PanelRenderer(
+            LandMask(None), Metadata(), PlotSpec(include_difference=True)
+        )
 
         result = renderer.video_triplet(
             ground_truth,
@@ -234,7 +242,7 @@ class TestRenderVideoTriplet:
             fake_render,
         )
         plot_spec = PlotSpec(include_difference=True, include_ice_edge=True)
-        renderer = PanelRenderer(LandMask(None), plot_spec)
+        renderer = PanelRenderer(LandMask(None), Metadata(), plot_spec)
 
         renderer.video_triplet(
             ground_truth, prediction, dates=dates, variable_name="ice_conc"

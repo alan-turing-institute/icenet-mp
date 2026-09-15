@@ -11,7 +11,6 @@ from icenet_mp.types import (
     ArrayHW,
     ArrayTCHW,
     ArrayTHW,
-    Hemisphere,
     ModelStepOutput,
     PlotSpec,
     SupportsImageLogging,
@@ -27,22 +26,31 @@ logger = logging.getLogger(__name__)
 
 
 class MediaPublisher:
-    def __init__(self, plot_spec: PlotSpec | None = None) -> None:
-        """A helper class to create and log media."""
-        self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
-        self._land_mask = LandMask(None)
-        self._metadata_builder = MetadataBuilder()
-        self._renderer = PanelRenderer(self._land_mask, self.plot_spec)
+    def __init__(
+        self,
+        *,
+        dataset: CombinedDataset,
+        plot_spec: PlotSpec,
+        land_mask: LandMask | None = None,
+        current_epoch: int | None = None,
+        model_name: str | None = None,
+    ) -> None:
+        """Build a publisher bound to one dataset/plot_spec/land_mask context.
+
+        `dataset`/`current_epoch`/`model_name` describe the metadata subtitle
+        shown in every rendered footer. Hemisphere is set on `plot_spec` itself.
+        """
+        self.plot_spec = plot_spec
+        land_mask = land_mask if land_mask is not None else LandMask(None)
+        self.metadata = MetadataBuilder().from_dataset(
+            dataset, current_epoch=current_epoch, model_name=model_name
+        )
+        self._renderer = PanelRenderer(land_mask, self.metadata, self.plot_spec)
 
     @property
     def land_mask(self) -> LandMask:
         """The land mask used by the renderer."""
-        return self._land_mask
-
-    @land_mask.setter
-    def land_mask(self, value: LandMask) -> None:
-        self._land_mask = value
-        self._renderer.land_mask = value
+        return self._renderer.land_mask
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
@@ -84,30 +92,6 @@ class MediaPublisher:
                     videos=[video_buffer],
                     format=[self.plot_spec.video_format],
                 )
-
-    def configure_context(
-        self,
-        *,
-        hemisphere: Hemisphere | None = None,
-        land_mask: LandMask | None = None,
-        dataset: CombinedDataset | None = None,
-        current_epoch: int | None = None,
-        model_name: str | None = None,
-    ) -> None:
-        """Update the per-epoch rendering context: hemisphere, land mask, metadata.
-
-        `dataset`/`current_epoch`/`model_name` describe the metadata subtitle;
-        pass `dataset` to (re)build it, or leave all three unset to keep it.
-        """
-        if hemisphere is not None:
-            self.plot_spec.hemisphere = hemisphere
-        if land_mask is not None:
-            self.land_mask = land_mask
-        if dataset is not None:
-            metadata = self._metadata_builder.from_dataset(
-                dataset, current_epoch=current_epoch, model_name=model_name
-            )
-            self._renderer.set_metadata(metadata)
 
     def log_static_inputs(
         self,

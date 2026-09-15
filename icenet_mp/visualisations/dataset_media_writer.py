@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from icenet_mp.data import SingleDataset
-from icenet_mp.types import PlotSpec
+from icenet_mp.types import Metadata, PlotSpec
 from icenet_mp.utils import datetime_from_npdatetime, mask_dir
 
 from .land_mask import LandMask
@@ -19,7 +19,7 @@ class DatasetMediaWriter:
         """Build the renderer and output directory shared by `static` and `video`."""
         plot_spec = PlotSpec(hemisphere=dataset.hemisphere)
         land_mask = LandMask(mask_dir(self.base_path, dataset.name) / "land_mask.npy")
-        renderer = PanelRenderer(land_mask, plot_spec)
+        renderer = PanelRenderer(land_mask, Metadata(), plot_spec)
         output_dir = self.base_path / "data" / "input_plots" / dataset.name
         output_dir.mkdir(parents=True, exist_ok=True)
         return renderer, output_dir

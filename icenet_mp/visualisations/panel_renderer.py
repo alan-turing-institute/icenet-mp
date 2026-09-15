@@ -37,23 +37,21 @@ class PanelRenderer:
     need to construct or coordinate them directly.
     """
 
-    def __init__(self, land_mask: LandMask, plot_spec: PlotSpec) -> None:
+    def __init__(
+        self, land_mask: LandMask, metadata: Metadata, plot_spec: PlotSpec
+    ) -> None:
         """Build a renderer bound to one land mask and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
         self._style_resolver = VariableStyleResolver(plot_spec.per_variable_styles)
         self._colour_scale = ColourScale(plot_spec.diff_mode)
-        self._annotator = PlotAnnotator(plot_spec)
+        self._annotator = PlotAnnotator(metadata, plot_spec)
         self._difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
         self._renderer = Renderer()
 
     @property
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
-
-    def set_metadata(self, metadata: Metadata) -> None:
-        """Update the metadata subtitle shown in every subsequent footer."""
-        self._annotator.set_metadata(metadata)
 
     def static_singlet(
         self,

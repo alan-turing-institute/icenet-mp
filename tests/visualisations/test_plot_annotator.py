@@ -8,7 +8,7 @@ from icenet_mp.visualisations.plot_annotator import PlotAnnotator
 class TestFormatTitle:
     def test_with_hemisphere_and_units(self) -> None:
         """Include hemisphere and units when both are given."""
-        annotator = PlotAnnotator(PlotSpec(hemisphere="north"))
+        annotator = PlotAnnotator(Metadata(), PlotSpec(hemisphere="north"))
 
         result = annotator.format_title("2t", date(2020, 1, 1), "K")
 
@@ -16,7 +16,7 @@ class TestFormatTitle:
 
     def test_without_hemisphere_or_units(self) -> None:
         """Omit hemisphere and units segments when neither is given."""
-        annotator = PlotAnnotator(PlotSpec(hemisphere=None))
+        annotator = PlotAnnotator(Metadata(), PlotSpec(hemisphere=None))
 
         result = annotator.format_title("2t", date(2020, 1, 1), None)
 
@@ -24,7 +24,7 @@ class TestFormatTitle:
 
     def test_accepts_datetime(self) -> None:
         """Accept a datetime and format only its date portion."""
-        annotator = PlotAnnotator(PlotSpec(hemisphere=None))
+        annotator = PlotAnnotator(Metadata(), PlotSpec(hemisphere=None))
 
         result = annotator.format_title("2t", datetime(2020, 1, 1, 12, 30), None)
 
@@ -34,7 +34,7 @@ class TestFormatTitle:
 class TestFormattedVariableName:
     def test_replaces_underscores_and_title_cases(self) -> None:
         """Turn a snake_case variable name into a human-friendly title."""
-        result = PlotAnnotator(PlotSpec()).formatted_variable_name(
+        result = PlotAnnotator(Metadata(), PlotSpec()).formatted_variable_name(
             "sea_ice_concentration"
         )
 
@@ -42,19 +42,21 @@ class TestFormattedVariableName:
 
     def test_empty_string_stays_empty(self) -> None:
         """Return an empty string unchanged."""
-        assert PlotAnnotator(PlotSpec()).formatted_variable_name("") == ""
+        assert PlotAnnotator(Metadata(), PlotSpec()).formatted_variable_name("") == ""
 
 
 class TestFormatDateForTitle:
     def test_date_object(self) -> None:
         """Format a plain date object as an ISO date string."""
-        result = PlotAnnotator(PlotSpec()).format_date_for_title(date(2023, 12, 25))
+        result = PlotAnnotator(Metadata(), PlotSpec()).format_date_for_title(
+            date(2023, 12, 25)
+        )
 
         assert result == "2023-12-25"
 
     def test_datetime_object_drops_time(self) -> None:
         """Format a datetime object, stripping the time component."""
-        result = PlotAnnotator(PlotSpec()).format_date_for_title(
+        result = PlotAnnotator(Metadata(), PlotSpec()).format_date_for_title(
             datetime(2023, 12, 25, 14, 30)
         )
 
@@ -64,7 +66,7 @@ class TestFormatDateForTitle:
 class TestBuildTitleVideo:
     def test_empty_dates_omits_frame_segment(self) -> None:
         """Omit the 'Frame:' segment entirely when no dates are given."""
-        result = PlotAnnotator(PlotSpec()).title_for_video(
+        result = PlotAnnotator(Metadata(), PlotSpec()).title_for_video(
             "sea_ice_concentration", [], 0
         )
 
@@ -74,20 +76,14 @@ class TestBuildTitleVideo:
 
 class TestBuildFooterStatic:
     def test_includes_metadata_subtitle_when_set(self) -> None:
-        """Include the metadata subtitle line once metadata has been set."""
-        annotator = PlotAnnotator(PlotSpec())
-        annotator.set_metadata(Metadata(model="unet"))
+        """Include the metadata subtitle line for metadata bound at construction."""
+        annotator = PlotAnnotator(Metadata(model="unet"), PlotSpec())
 
         assert annotator.footer_for_static() == "Model: unet"
 
-    def test_empty_when_metadata_never_set(self) -> None:
-        """Return an empty string when no metadata has been set."""
-        assert PlotAnnotator(PlotSpec()).footer_for_static() == ""
-
     def test_empty_when_metadata_has_no_facts(self) -> None:
-        """Return an empty string when the set metadata formats to nothing."""
-        annotator = PlotAnnotator(PlotSpec())
-        annotator.set_metadata(Metadata())
+        """Return an empty string when the bound metadata formats to nothing."""
+        annotator = PlotAnnotator(Metadata(), PlotSpec())
 
         assert annotator.footer_for_static() == ""
 
@@ -95,8 +91,7 @@ class TestBuildFooterStatic:
 class TestBuildFooterVideo:
     def test_includes_metadata_subtitle_alongside_animation_range(self) -> None:
         """Include both the animation range and the metadata subtitle."""
-        annotator = PlotAnnotator(PlotSpec())
-        annotator.set_metadata(Metadata(model="unet"))
+        annotator = PlotAnnotator(Metadata(model="unet"), PlotSpec())
         dates: list[Any] = [date(2020, 1, 1), date(2020, 1, 5)]
 
         result = annotator.footer_for_video(dates)
@@ -106,7 +101,7 @@ class TestBuildFooterVideo:
 
     def test_empty_dates_omits_animation_range(self) -> None:
         """Omit the animation-range line when no dates are given."""
-        assert PlotAnnotator(PlotSpec()).footer_for_video([]) == ""
+        assert PlotAnnotator(Metadata(), PlotSpec()).footer_for_video([]) == ""
 
 
 class TestFormatSubtitle:
@@ -122,7 +117,7 @@ class TestFormatSubtitle:
             vars_by_source={"era5": ["2t", "sp"]},
         )
 
-        subtitle = PlotAnnotator(PlotSpec()).format_subtitle(metadata)
+        subtitle = PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(metadata)
 
         assert subtitle is not None
         assert "Model: test_model" in subtitle
@@ -141,7 +136,7 @@ class TestFormatSubtitle:
             n_history_steps=3,
         )
 
-        subtitle = PlotAnnotator(PlotSpec()).format_subtitle(metadata)
+        subtitle = PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(metadata)
 
         assert subtitle is not None
         assert "3 step history" in subtitle
@@ -150,7 +145,7 @@ class TestFormatSubtitle:
         """List a source with an empty variable list without parentheses."""
         metadata = Metadata(vars_by_source={"era5": []})
 
-        subtitle = PlotAnnotator(PlotSpec()).format_subtitle(metadata)
+        subtitle = PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(metadata)
 
         assert subtitle is not None
         assert "Training Data: era5" in subtitle
@@ -158,4 +153,4 @@ class TestFormatSubtitle:
 
     def test_minimal_metadata_returns_none(self) -> None:
         """Return None when no metadata fields are set."""
-        assert PlotAnnotator(PlotSpec()).format_subtitle(Metadata()) is None
+        assert PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(Metadata()) is None

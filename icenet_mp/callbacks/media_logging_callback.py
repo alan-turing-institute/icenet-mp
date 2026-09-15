@@ -61,19 +61,23 @@ class MediaLoggingCallback(Callback):
 
         """
         super().__init__()
+        # When to make plots
         self.frequency_batch = int((frequency or {}).get("batch", -1))
         self.frequency_epoch = int((frequency or {}).get("epoch", -1))
         self.frequency_number = int((frequency or {}).get("number", -1))
+
+        # Which plots to make
         self.make_input_plots = make_input_plots
         self.make_static_plots = make_static_plots
         self.make_video_plots = make_video_plots
 
-        # Uncertainty plots
+        # Variable lookup for uncertainty plots
         self.uncertainty_variables = {"ice_conc": "total_standard_uncertainty"}
 
-        self.publisher = MediaPublisher(PlotSpec() + plot_spec)
-        self._model_name: str | None = model_name
+        # Plotting specification
         self._land_mask_cache: dict[Path | None, LandMask] = {}
+        self._model_name: str | None = model_name
+        self._plot_spec = PlotSpec() + plot_spec
         self.prefix: str | None = prefix
 
         # Cache the most recent batch
@@ -222,12 +226,13 @@ class MediaLoggingCallback(Callback):
 
         # Rebuild metadata from the dataset's realised state and push the
         # current epoch; cheap enough to do unconditionally every call.
-        self.publisher.configure_context(
-            hemisphere=pl_module.hemisphere,
-            land_mask=self._land_mask_cache[land_mask_path],
-            dataset=dataset,
+        self._plot_spec.hemisphere = pl_module.hemisphere
+        publisher = MediaPublisher(
             current_epoch=trainer.current_epoch,
+            dataset=dataset,
+            land_mask=self._land_mask_cache[land_mask_path],
             model_name=self._model_name,
+            plot_spec=self._plot_spec,
         )
 
         # Load dates from the dataset
@@ -249,7 +254,7 @@ class MediaLoggingCallback(Callback):
 
         if self.make_static_plots:
             uncertainties = self.load_target_uncertainties(dataset, dates)
-            self.publisher.log_static_outputs(
+            publisher.log_static_outputs(
                 self.cached_outputs_,
                 dates,
                 image_loggers,
@@ -259,12 +264,12 @@ class MediaLoggingCallback(Callback):
                 climatology=dataset.climatology_for(start_date),
             )
             if self.make_input_plots:
-                self.publisher.log_static_inputs(
+                publisher.log_static_inputs(
                     dataset.inputs, dates, image_loggers, prefix=self.prefix
                 )
 
         if self.make_video_plots:
-            self.publisher.log_video_outputs(
+            publisher.log_video_outputs(
                 self.cached_outputs_,
                 dates,
                 video_loggers,
@@ -272,7 +277,7 @@ class MediaLoggingCallback(Callback):
                 prefix=self.prefix,
             )
             if self.make_input_plots:
-                self.publisher.log_video_inputs(
+                publisher.log_video_inputs(
                     dataset.inputs, dates, video_loggers, prefix=self.prefix
                 )
 

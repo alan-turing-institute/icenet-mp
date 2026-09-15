@@ -10,14 +10,15 @@ logger = logging.getLogger(__name__)
 class PlotAnnotator:
     """Composes and draws titles, footers and warning badges for sea-ice plots."""
 
-    def __init__(self, plot_spec: PlotSpec) -> None:
-        """Bind the plot spec (hemisphere, etc.) shared by every title/footer."""
+    def __init__(self, metadata: Metadata, plot_spec: PlotSpec) -> None:
+        """Bind the metadata and plot spec shared by every title/footer."""
         self.plot_spec = plot_spec
-        self._metadata_subtitle: str | None = None
+        self.metadata = metadata
 
-    def set_metadata(self, metadata: Metadata) -> None:
-        """Format `metadata` and cache it for every subsequent footer."""
-        self._metadata_subtitle = self.format_subtitle(metadata)
+    @property
+    def _metadata_subtitle(self) -> str | None:
+        """The metadata subtitle line used by every footer."""
+        return self.format_subtitle(self.metadata)
 
     def footer_for_static(self) -> str:
         """Build footer text for static plots using metadata that used to be in title."""

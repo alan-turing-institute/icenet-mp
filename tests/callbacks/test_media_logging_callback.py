@@ -37,26 +37,30 @@ def make_plots_args(mock_trainer: MagicMock) -> tuple[MagicMock, MagicMock, Magi
 def _stub_media_publisher(
     callback: MediaLoggingCallback, monkeypatch: pytest.MonkeyPatch
 ) -> dict[str, MagicMock]:
-    """Replace load_target_uncertainties and all MediaPublisher output methods with spies."""
+    """Replace load_target_uncertainties and MediaPublisher (as make_plots constructs it) with spies.
+
+    `make_plots` now builds a fresh `MediaPublisher(...)` locally on every call rather than
+    holding one on the callback, so the class itself is replaced with a MagicMock: its
+    `call_args_list` records each construction's kwargs (dataset/hemisphere/land_mask/
+    current_epoch/model_name), and `.return_value` is the stub instance whose log_*
+    methods `make_plots` calls.
+    """
+    publisher_class = MagicMock()
+    publisher = publisher_class.return_value
+    monkeypatch.setattr(
+        "icenet_mp.callbacks.media_logging_callback.MediaPublisher", publisher_class
+    )
     mocks = {
         "load_target_uncertainties": MagicMock(return_value={}),
-        "log_static_outputs": MagicMock(),
-        "log_static_inputs": MagicMock(),
-        "log_video_outputs": MagicMock(),
-        "log_video_inputs": MagicMock(),
-        "configure_context": MagicMock(),
+        "log_static_outputs": publisher.log_static_outputs,
+        "log_static_inputs": publisher.log_static_inputs,
+        "log_video_outputs": publisher.log_video_outputs,
+        "log_video_inputs": publisher.log_video_inputs,
+        "media_publisher_class": publisher_class,
     }
     monkeypatch.setattr(
         callback, "load_target_uncertainties", mocks["load_target_uncertainties"]
     )
-    for name in (
-        "log_static_outputs",
-        "log_static_inputs",
-        "log_video_outputs",
-        "log_video_inputs",
-        "configure_context",
-    ):
-        monkeypatch.setattr(callback.publisher, name, mocks[name])
     return mocks
 
 
@@ -415,9 +419,13 @@ class TestMakePlots:
 
         callback.make_plots(trainer, pl_module, dataset, 1)
 
-        configure_calls = stubs["configure_context"].call_args_list
-        assert any(c.kwargs.get("current_epoch") == 7 for c in configure_calls)
-        assert any(c.kwargs.get("hemisphere") == "south" for c in configure_calls)
+        construction_calls = stubs["media_publisher_class"].call_args_list
+        assert any(c.kwargs.get("current_epoch") == 7 for c in construction_calls)
+        assert any(
+            c.kwargs.get("plot_spec") is not None
+            and c.kwargs["plot_spec"].hemisphere == "south"
+            for c in construction_calls
+        )
 
     def test_selects_start_date_using_batch_size_and_cached_batch_idx(
         self,
@@ -460,13 +468,13 @@ class TestMakePlots:
         assert callback._land_mask_cache[land_mask_path] is first_land_mask
         assert len(callback._land_mask_cache) == 1
 
-    def test_passes_land_mask_to_configure_context(
+    def test_passes_land_mask_to_media_publisher(
         self,
         tmp_path: Path,
         make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Pass the cached LandMask to the image logger through configure_context."""
+        """Pass the cached LandMask to MediaPublisher at construction."""
         callback = MediaLoggingCallback()
         stubs = _stub_media_publisher(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
@@ -478,9 +486,9 @@ class TestMakePlots:
 
         land_mask_path = tmp_path / "land_mask.npy"
         expected_land_mask = callback._land_mask_cache[land_mask_path]
-        configure_calls = stubs["configure_context"].call_args_list
+        construction_calls = stubs["media_publisher_class"].call_args_list
         assert any(
-            c.kwargs.get("land_mask") is expected_land_mask for c in configure_calls
+            c.kwargs.get("land_mask") is expected_land_mask for c in construction_calls
         )
 
     def test_skips_static_and_video_plots_when_disabled(
