@@ -1,12 +1,11 @@
 # @package _global_
 defaults:
   - /base
-  - override /loss: huber
-  - override /model: unet
+  - override /model: dc_gsta_dc
   - _self_
 
 # Custom learning rate and weight decay
 train:
   optimizer:
-    lr: 1e-3
-    weight_decay: 0.05
+    lr: 4e-04
+    weight_decay: 1e-05
