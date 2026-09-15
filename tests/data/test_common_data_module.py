@@ -330,7 +330,6 @@ class TestInputVariableSelection:
         )
         dm = CommonDataModule(cfg)
 
-        assert dm._requested_variable_names["group2"] == []
         assert set(dm.datasets) == {"group1"}
         assert "group2" not in dm.datasets
         assert "group2" in dm.datasets_unfiltered

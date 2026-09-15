@@ -21,6 +21,7 @@ from .calendar_day import (
 )
 from .combined_dataset import CombinedDataset
 from .single_dataset import SingleDataset
+from .variable_selection import VariableSelection
 
 log = logging.getLogger(__name__)
 
@@ -51,17 +52,12 @@ class CommonDataModule(LightningDataModule):
             for path in paths:
                 log.info("%s - %s", " " * (len(str(idx)) + 1), path)
 
-        # Requested input variables
-        self._requested_input_variables: dict[str, list[str]] = {
-            str(group_name): [str(v) for v in variable_names]
-            for group_name, variable_names in config["variables"]["input"].items()
-        }
-
-        # Requested target variables
-        self._requested_target_variables: dict[str, list[str]] = {
-            str(group_name): [str(v) for v in variable_names]
-            for group_name, variable_names in config["variables"]["target"].items()
-        }
+        # Resolve and validate the requested input/target variable selection
+        self._variable_selection = VariableSelection(
+            dataset_group_names=self.dataset_groups.keys(),
+            input_variables=config["variables"]["input"],
+            target_variables=config["variables"]["target"],
+        )
 
         # Set periods for prediction, testing, training and validation
         self.batch_size = int(config["window"]["batch_size"])
@@ -175,9 +171,12 @@ class CommonDataModule(LightningDataModule):
         Only include requested variables for each dataset group. If no variables are
         requested for a dataset group, ignore it.
         """
+        requested_variables = self._variable_selection.filter_requested(
+            {name: ds.variable_names for name, ds in self.datasets_unfiltered.items()}
+        )
         return {
             ds_name: self.datasets_unfiltered[ds_name].subset(variables=variable_names)
-            for ds_name, variable_names in self._requested_variable_names.items()
+            for ds_name, variable_names in requested_variables.items()
             if variable_names
         }
 
@@ -252,23 +251,7 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def target_group_name(self) -> str:
         """Return the name of the target variable group."""
-        # Verify that exactly one target variable group is requested
-        target_variable_groups = list(self._requested_target_variables.keys())
-        if len(target_variable_groups) != 1:
-            msg = (
-                f"Expected exactly one target variable group, but found "
-                f"{len(target_variable_groups)}: {target_variable_groups}."
-            )
-            raise ValueError(msg)
-        # Verify that the requested group is a configured dataset group
-        if target_variable_groups[0] not in self.dataset_groups:
-            available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
-            msg = (
-                f"Target dataset group {target_variable_groups[0]!r} is not a "
-                f"configured dataset group. Available groups: {available_ds_groups}."
-            )
-            raise ValueError(msg)
-        return target_variable_groups[0]
+        return self._variable_selection.target_group_name
 
     @cached_property
     def target_variables(self) -> list[str]:
@@ -282,23 +265,7 @@ class CommonDataModule(LightningDataModule):
         except StopIteration as exc:
             msg = f"Dataset group {self.target_group_name} has no available variables."
             raise ValueError(msg) from exc
-        # Verify that at least one target variable was requested since giving an empty
-        # variable list to `SingleDataset.subset()` includes all variables.
-        requested_variables = self._requested_target_variables[self.target_group_name]
-        if not requested_variables:
-            msg = f"No variables were requested for group {self.target_group_name}."
-            raise ValueError(msg)
-        # Verify that the requested variable names exist in the dataset group
-        for requested_variable in requested_variables:
-            if requested_variable not in on_disk_variables:
-                available_ = ", ".join(sorted(on_disk_variables)) or "<none>"
-                msg = (
-                    f"Target variable {requested_variable!r} was not found in dataset "
-                    f"group {self.target_group_name!r}. Available variables: "
-                    f"{available_}."
-                )
-                raise ValueError(msg)
-        return [v for v in on_disk_variables if v in requested_variables]
+        return self._variable_selection.target_variables(on_disk_variables)
 
     @cached_property
     def target_variable_indices(self) -> list[int]:
@@ -322,42 +289,6 @@ class CommonDataModule(LightningDataModule):
                 f"{available_variables!r}."
             )
             raise ValueError(msg) from exc
-
-    @cached_property
-    def _requested_variable_names(self) -> dict[str, list[str]]:
-        """Return the requested variable names for each input dataset group.
-
-        These lists are in the order variables were requested in `variables.input`,
-        which is used to filter (but not order) `datasets`. For the  on-disk-ordered
-        channels, use `datasets[group].variable_names` instead.
-        """
-        if not self._requested_input_variables:
-            return {
-                ds.name: ds.variable_names for ds in self.datasets_unfiltered.values()
-            }
-        verified: dict[str, list[str]] = {}
-        for group_name, variable_names in self._requested_input_variables.items():
-            # Verify that the requested group is a configured dataset group
-            if group_name not in self.dataset_groups:
-                available_ds_groups = ", ".join(sorted(self.dataset_groups)) or "<none>"
-                msg = (
-                    f"Input dataset group {group_name!r} is not a configured dataset "
-                    f"group. Available groups: {available_ds_groups}."
-                )
-                raise ValueError(msg)
-            verified[group_name] = []
-            # Verify that the requested variable names exist in the dataset group
-            available_variables = self.datasets_unfiltered[group_name].variable_names
-            for variable in variable_names:
-                if variable not in available_variables:
-                    available_ = ", ".join(sorted(available_variables)) or "<none>"
-                    msg = (
-                        f"Input variable {variable!r} was not found in dataset group "
-                        f"{group_name!r}. Available variables: {available_}."
-                    )
-                    raise ValueError(msg)
-                verified[group_name].append(variable)
-        return verified
 
     def _build_dataset(
         self,
