@@ -79,7 +79,7 @@ class ModelStepOutput(Mapping[str, Tensor]):
         return dict(self)
 
 
-@dataclass
+@dataclass(frozen=True)
 class PlotSpec:
     """Configure how sea-ice plots are rendered.
 

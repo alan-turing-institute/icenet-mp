@@ -1,6 +1,7 @@
 import logging
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -224,15 +225,13 @@ class MediaLoggingCallback(Callback):
         if land_mask_path not in self._land_mask_cache:
             self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
 
-        # Rebuild metadata from the dataset's realised state and push the
-        # current epoch; cheap enough to do unconditionally every call.
-        self._plot_spec.hemisphere = pl_module.hemisphere
+        # Construct a publisher to handle the actual plotting and logging of media.
         publisher = MediaPublisher(
             current_epoch=trainer.current_epoch,
             dataset=dataset,
             land_mask=self._land_mask_cache[land_mask_path],
             model_name=self._model_name,
-            plot_spec=self._plot_spec,
+            plot_spec=replace(self._plot_spec, hemisphere=pl_module.hemisphere),
         )
 
         # Load dates from the dataset
