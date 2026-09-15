@@ -2,4 +2,5 @@ defaults:
   - base
   - override /data: demo
   - override /variables: sic-osisaf
+  - override /window: forecast-3-history-2
   - _self_

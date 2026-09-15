@@ -2,7 +2,8 @@ defaults:
   - base
   - override /data: synthetic
   - override /evaluate: synthetic
-  - override /loggers: local_files
+  - override /reporting/loggers: local_files
   - override /train: synthetic
   - override /variables: synthetic
+  - override /window: forecast-3-history-2
   - _self_
