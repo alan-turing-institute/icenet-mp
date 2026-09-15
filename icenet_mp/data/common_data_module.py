@@ -86,8 +86,9 @@ class CommonDataModule(LightningDataModule):
         requested for a dataset group, ignore it.
         """
         return {
-            name: self.datasets_unfiltered[name].subset(variables=variables)
-            for name, variables in self.variable_names.items()
+            ds_name: self.datasets_unfiltered[ds_name].subset(variables=variable_names)
+            for ds_name, variable_names in self.variable_names.items()
+            if variable_names
         }
 
     @cached_property
@@ -182,11 +183,15 @@ class CommonDataModule(LightningDataModule):
     @cached_property
     def target_variables(self) -> list[str]:
         """Return the names of the variables to predict."""
-        available_variables = next(
-            ds.variable_names
-            for ds in self.datasets.values()
-            if ds.name == self.target_group_name
-        )
+        try:
+            available_variables = next(
+                ds.variable_names
+                for ds in self.datasets.values()
+                if ds.name == self.target_group_name and ds.variable_names
+            )
+        except StopIteration as exc:
+            msg = f"Dataset group {self.target_group_name} has no available variables."
+            raise ValueError(msg) from exc
         # Verify that the requested variable names exist in the dataset group
         requested_variables = self._requested_target_variables[self.target_group_name]
         for requested_variable in requested_variables:

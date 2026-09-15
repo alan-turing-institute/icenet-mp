@@ -141,8 +141,8 @@ class TestTargetGroupValidation:
         message = str(exc_info.value)
         assert "ice_conc" in message
 
-    def test_omitted_input_selection_causes_a_crash(self, mock_dataset: Path) -> None:
-        """Omitting the target's own group from `variables.input` crashes."""
+    def test_omitted_input_selection_raises(self, mock_dataset: Path) -> None:
+        """Omitting the target's own group from `variables.input` raises a clear error."""
         cfg = _build_config(
             str(mock_dataset.parent.parent.parent),
             {
@@ -154,7 +154,31 @@ class TestTargetGroupValidation:
         )
         dm = CommonDataModule(cfg)
 
-        with pytest.raises(StopIteration):
+        with pytest.raises(ValueError, match=r"group1.*no available variables"):
+            _ = dm.target_variables
+
+    def test_empty_input_selection_for_target_group_raises(
+        self, mock_dataset: Path
+    ) -> None:
+        """Requesting zero input variables for the target's own group also raises.
+
+        Unlike omitting the key entirely, `group1` is present in `variables.input`
+        but maps to an empty list, so it is filtered out of `datasets` the same way
+        as an omitted group, hitting the same "no available variables" check in
+        `target_variables`.
+        """
+        cfg = _build_config(
+            str(mock_dataset.parent.parent.parent),
+            {
+                "ds1": {"name": mock_dataset.stem, "group_as": "group1"},
+                "ds2": {"name": mock_dataset.stem, "group_as": "group2"},
+            },
+            input_variables={"group1": [], "group2": ["ice_conc"]},
+            target_variables={"group1": ["ice_conc"]},
+        )
+        dm = CommonDataModule(cfg)
+
+        with pytest.raises(ValueError, match=r"group1.*no available variables"):
             _ = dm.target_variables
 
 
@@ -228,6 +252,26 @@ class TestInputVariableSelection:
             "ice_thickness",
             "temperature",
         }
+
+    def test_group_with_no_requested_variables_is_excluded_from_datasets(
+        self, mock_dataset: Path
+    ) -> None:
+        """A dataset group requesting an empty variable list is dropped from `datasets`."""
+        cfg = _build_config(
+            str(mock_dataset.parent.parent.parent),
+            {
+                "ds1": {"name": mock_dataset.stem, "group_as": "group1"},
+                "ds2": {"name": mock_dataset.stem, "group_as": "group2"},
+            },
+            input_variables={"group1": ["ice_conc"], "group2": []},
+            target_variables={"group1": ["ice_conc"]},
+        )
+        dm = CommonDataModule(cfg)
+
+        assert dm.variable_names["group2"] == []
+        assert set(dm.datasets) == {"group1"}
+        assert "group2" not in dm.datasets
+        assert "group2" in dm.datasets_unfiltered
 
 
 class TestDerivedProperties:
