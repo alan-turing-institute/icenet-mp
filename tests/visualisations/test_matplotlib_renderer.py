@@ -4,10 +4,12 @@ import logging
 from io import BytesIO
 from unittest.mock import MagicMock
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from matplotlib import animation
+from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from PIL.ImageFile import ImageFile
 
@@ -121,6 +123,42 @@ class TestRenderPanels:
                 contour_arrays=[osisaf_ice_conc_2d],
                 contour_level=0.15,
             )
+
+
+class TestCmapBadColourConfigured:
+    def test_string_cmap_gets_opaque_bad_colour(
+        self, era5_temperature_2d: ArrayHW
+    ) -> None:
+        """A string cmap name is copied and given a non-transparent bad colour.
+
+        LandMask.apply_to represents masked land as NaN; imshow's default bad
+        colour is transparent, which would let the axes background show
+        through instead of a consistent land colour.
+        """
+        _, axes = renderer.panels([era5_temperature_2d], cmap="viridis")
+
+        bad_colour = axes[0].images[0].get_cmap().get_bad()
+        assert bad_colour[3] == pytest.approx(1.0)
+
+    def test_named_cmap_unaffected_by_shared_default_instance(
+        self, era5_temperature_2d: ArrayHW
+    ) -> None:
+        """Configuring the bad colour copies the colourmap, not the registered one."""
+        renderer.panels([era5_temperature_2d], cmap="viridis")
+
+        assert mpl.colormaps.get_cmap("viridis").get_bad()[3] == pytest.approx(0.0)
+
+    def test_colormap_instance_keeps_its_own_bad_colour(
+        self, era5_temperature_2d: ArrayHW
+    ) -> None:
+        """A pre-configured Colormap instance keeps its own bad colour, not the default."""
+        custom = mpl.colormaps.get_cmap("viridis").copy()
+        custom.set_bad("red")
+
+        _, axes = renderer.panels([era5_temperature_2d], cmap=custom)
+
+        assert axes[0].images[0].get_cmap().get_bad() == pytest.approx(to_rgba("red"))
+        assert custom.get_bad() == pytest.approx(to_rgba("red"))
 
 
 class TestRenderPanelsVideo:

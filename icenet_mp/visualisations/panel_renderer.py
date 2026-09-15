@@ -139,7 +139,9 @@ class PanelRenderer:
 
             arrays.append(z_difference)
             titles.append("Standardised Difference (z)")
-            cmaps.append(self._colour_scale.colourmap("RdBu_r", bad_color="lightgrey"))
+            cmaps.append(
+                self._colour_scale.cmap_with_bad("RdBu_r", bad_colour="lightgrey")
+            )
             norms.append(z_norm)
             vmins.append(None)
             vmaxs.append(None)

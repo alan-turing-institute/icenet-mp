@@ -32,31 +32,39 @@ class ColourScale:
             return diff_colour_scale.norm.vmin, diff_colour_scale.norm.vmax
         return diff_colour_scale.vmin, diff_colour_scale.vmax
 
-    def colourmap(
-        self, cmap_name: str = "viridis", *, bad_color: str = "#dcdcdc"
+    @staticmethod
+    def cmap_with_bad(
+        cmap: str | Colormap = "viridis", *, bad_colour: str = "#dcdcdc"
     ) -> Colormap:
-        """Create a colourmap copy with a specified color for bad (NaN) values.
+        """Create a Colormap copy with a specified color for bad (NaN) values.
 
-        This function copies the specified colourmap and sets the 'bad' color to handle
-        NaN values consistently, preventing white artifacts in visualisations.
+        This function copies the specified Colormap and, if it doesn't already have one
+        configured, sets the 'bad' color to handle NaN values consistently, preventing
+        transparent/white artifacts in visualisations.
 
         Args:
-            cmap_name: Name of the matplotlib colourmap (e.g., "viridis", "RdBu_r").
-                       Defaults to "viridis".
-            bad_color: Color to use for NaN/bad values. Default is light grey (#dcdcdc).
+            cmap: Colormap name or instance (e.g., "RdBu_r"). Default is "viridis".
+            bad_colour: Color to use for NaN/bad values, if none is already
+                configured. Default is light grey (#dcdcdc).
 
         Returns:
-            A copy of the colourmap with set_bad() configured.
+            A copy of the Colormap, with set_bad() configured if it wasn't already.
 
         """
-        cmap = mpl.colormaps.get_cmap(cmap_name)
+        # If we are given a string, load the corresponding matplotlib colormap
+        if isinstance(cmap, str):
+            cmap = mpl.colormaps.get_cmap(cmap)
+
+        # Copy to avoid mutating a Colormap instance that may be used elsewhere
         try:
             cmap = cmap.copy()
         except (AttributeError, TypeError):
-            # Some matplotlib versions return non-copyable colourmap; create new
+            # Some matplotlib versions return non-copyable Colormap; create new
             cmap = mpl.colormaps.get_cmap(cmap.name)
 
-        cmap.set_bad(bad_color)
+        # Apply the default bad colour if the current one is transparent (alpha=0).
+        if cmap.get_bad()[-1] == 0:
+            cmap.set_bad(bad_colour)
         return cmap
 
     def diff_colourmap(

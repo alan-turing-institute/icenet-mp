@@ -21,6 +21,8 @@ from PIL.ImageFile import ImageFile
 from icenet_mp.exceptions import VideoRenderError
 from icenet_mp.types import ArrayHW, ArrayTHW
 
+from .colour_scale import ColourScale
+
 _COLOURBAR_ASPECT = 25
 _COLOURBAR_LABEL_SIZE = 9
 _PANEL_HEIGHT_IN = 6
@@ -188,9 +190,12 @@ class MatplotlibRenderer:
 
         """
         n = len(arrays)
-        cmaps: list[str | Colormap] = (
-            [cmap] * n if isinstance(cmap, str | Colormap) else (list(cmap) * n)[:n]
-        )
+        cmaps = [
+            ColourScale.cmap_with_bad(name_or_map)
+            for name_or_map in (
+                [cmap] * n if isinstance(cmap, str | Colormap) else (list(cmap) * n)[:n]
+            )
+        ]
         vmins = list(vmin) if isinstance(vmin, Sequence) else [vmin] * n
         vmaxs = list(vmax) if isinstance(vmax, Sequence) else [vmax] * n
         norms: list[Normalize | None] = list(norm) if norm is not None else [None] * n
