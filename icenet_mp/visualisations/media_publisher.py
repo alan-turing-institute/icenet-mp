@@ -31,7 +31,7 @@ class MediaPublisher:
         *,
         dataset: CombinedDataset,
         plot_spec: PlotSpec,
-        land_mask: LandMask | None = None,
+        land_mask: LandMask,
         current_epoch: int | None = None,
         model_name: str | None = None,
     ) -> None:
@@ -41,7 +41,6 @@ class MediaPublisher:
         shown in every rendered footer. Hemisphere is set on `plot_spec` itself.
         """
         self.plot_spec = plot_spec
-        land_mask = land_mask if land_mask is not None else LandMask(None)
         self.metadata = MetadataBuilder().from_dataset(
             dataset, current_epoch=current_epoch, model_name=model_name
         )

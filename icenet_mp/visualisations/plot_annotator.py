@@ -45,12 +45,11 @@ class PlotAnnotator:
 
         Example:
             >>> from datetime import date, datetime
-            >>> from icenet_mp.types import PlotSpec
-            >>> PlotAnnotator(PlotSpec()).format_date_for_title(date(2023, 12, 25))
+            >>> from icenet_mp.types import Metadata, PlotSpec
+            >>> annotator = PlotAnnotator(Metadata(), PlotSpec())
+            >>> annotator.format_date_for_title(date(2023, 12, 25))
             '2023-12-25'
-            >>> PlotAnnotator(PlotSpec()).format_date_for_title(
-            ...     datetime(2023, 12, 25, 14, 30)
-            ... )
+            >>> annotator.format_date_for_title(datetime(2023, 12, 25, 14, 30))
             '2023-12-25'
 
         """
@@ -59,14 +58,11 @@ class PlotAnnotator:
         return dt.isoformat()
 
     def format_subtitle(self) -> str | None:  # noqa: C901, PLR0912
-        """Format metadata dataclass as a compact multi-line subtitle for plot titles.
+        """Format the bound metadata as a compact multi-line subtitle for plot titles.
 
         Lines:
           1) Model: <model>  Epoch: <num>  Training Dates: <start> — <end> (<cadence>) <num>pts
           2) Training Data: <source> (<vars>) <source> (<vars>)
-
-        Args:
-            metadata: Metadata dataclass instance to format.
 
         Returns:
             Formatted metadata string with newlines, or None if no metadata available.

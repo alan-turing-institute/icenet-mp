@@ -117,7 +117,7 @@ class TestFormatSubtitle:
             vars_by_source={"era5": ["2t", "sp"]},
         )
 
-        subtitle = PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(metadata)
+        subtitle = PlotAnnotator(metadata, PlotSpec()).format_subtitle()
 
         assert subtitle is not None
         assert "Model: test_model" in subtitle
@@ -136,7 +136,7 @@ class TestFormatSubtitle:
             n_history_steps=3,
         )
 
-        subtitle = PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(metadata)
+        subtitle = PlotAnnotator(metadata, PlotSpec()).format_subtitle()
 
         assert subtitle is not None
         assert "3 step history" in subtitle
@@ -145,7 +145,7 @@ class TestFormatSubtitle:
         """List a source with an empty variable list without parentheses."""
         metadata = Metadata(vars_by_source={"era5": []})
 
-        subtitle = PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(metadata)
+        subtitle = PlotAnnotator(metadata, PlotSpec()).format_subtitle()
 
         assert subtitle is not None
         assert "Training Data: era5" in subtitle
@@ -153,4 +153,4 @@ class TestFormatSubtitle:
 
     def test_minimal_metadata_returns_none(self) -> None:
         """Return None when no metadata fields are set."""
-        assert PlotAnnotator(Metadata(), PlotSpec()).format_subtitle(Metadata()) is None
+        assert PlotAnnotator(Metadata(), PlotSpec()).format_subtitle() is None

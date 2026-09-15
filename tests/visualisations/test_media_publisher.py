@@ -109,7 +109,9 @@ class TestLoggingHelpers:
     def test_log_videos_rewinds_for_each_logger_and_preserves_format(self) -> None:
         """Rewind shared buffers before every logger handoff."""
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec(video_format="mp4")
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(video_format="mp4"),
         )
         first = MagicMock()
         second = MagicMock()
@@ -136,6 +138,7 @@ class TestMetadataAndHemisphere:
         """Metadata built from the constructor's dataset/epoch/model appears in the footer."""
         media_publisher = MediaPublisher(
             dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
             plot_spec=PlotSpec(),
             current_epoch=50,
             model_name="unet",
@@ -149,13 +152,15 @@ class TestMetadataAndHemisphere:
     def test_plot_spec_hemisphere_is_used_as_given(self) -> None:
         """Hemisphere is read straight from the given plot_spec, not set separately."""
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec(hemisphere="south")
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(hemisphere="south"),
         )
 
         assert media_publisher.plot_spec.hemisphere == "south"
 
     def test_land_mask_kwarg_is_used_by_the_renderer(self) -> None:
-        """A provided land_mask is passed straight through to the renderer."""
+        """The given land_mask is passed straight through to the renderer."""
         new_land_mask = LandMask(None)
 
         media_publisher = MediaPublisher(
@@ -167,14 +172,18 @@ class TestMetadataAndHemisphere:
         assert media_publisher.land_mask is new_land_mask
         assert media_publisher._renderer.land_mask is new_land_mask
 
-    def test_defaults_when_optional_kwargs_omitted(self) -> None:
-        """Omitted optional kwargs fall back to sensible defaults."""
+    def test_current_epoch_and_model_name_are_optional(self) -> None:
+        """Omitting current_epoch/model_name leaves the footer without those lines."""
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
 
-        assert media_publisher.plot_spec.hemisphere is None
-        assert isinstance(media_publisher.land_mask, LandMask)
+        footer = media_publisher._renderer._annotator.footer_for_static()
+
+        assert "Model:" not in footer
+        assert "Epoch:" not in footer
 
 
 class TestLogStaticInputs:
@@ -188,7 +197,9 @@ class TestLogStaticInputs:
         image_logger = MagicMock()
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         media_publisher.log_static_inputs(
             [fake_single_dataset()], TEST_DATES, [image_logger], prefix="validation"
@@ -217,7 +228,9 @@ class TestLogStaticInputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_inputs(
@@ -239,7 +252,9 @@ class TestLogStaticInputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_inputs(
@@ -257,7 +272,9 @@ class TestLogStaticOutputs:
         image_logger = MagicMock()
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         media_publisher.log_static_outputs(
             make_model_step_output(),
@@ -285,7 +302,9 @@ class TestLogStaticOutputs:
         uncertainties = {0: torch.zeros((N_TIMESTEPS, HEIGHT, WIDTH)).numpy()}
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         media_publisher.log_static_outputs(
             make_model_step_output(),
@@ -327,7 +346,9 @@ class TestLogStaticOutputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_outputs(
@@ -352,7 +373,9 @@ class TestLogStaticOutputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_outputs(
@@ -376,7 +399,9 @@ class TestLogStaticOutputs:
         )
         image_logger = MagicMock()
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec(selected_timestep=1)
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(selected_timestep=1),
         )
 
         media_publisher.log_static_outputs(
@@ -410,7 +435,9 @@ class TestLogStaticOutputs:
         image_logger = MagicMock()
 
         MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         ).log_static_outputs(
             make_model_step_output(channels=1),
             TEST_DATES,
@@ -435,7 +462,9 @@ class TestLogVideoInputs:
         video_logger = MagicMock()
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         media_publisher.log_video_inputs(
             [fake_single_dataset()], TEST_DATES, [video_logger], prefix="validation"
@@ -468,7 +497,9 @@ class TestLogVideoInputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_inputs(
@@ -490,7 +521,9 @@ class TestLogVideoInputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_inputs(
@@ -512,7 +545,9 @@ class TestLogVideoInputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.ERROR):
             media_publisher.log_video_inputs(
@@ -531,7 +566,9 @@ class TestLogVideoOutputs:
         video_logger = MagicMock()
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         media_publisher.log_video_outputs(
             make_model_step_output(),
@@ -562,7 +599,9 @@ class TestLogVideoOutputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_outputs(
@@ -587,7 +626,9 @@ class TestLogVideoOutputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_outputs(
@@ -612,7 +653,9 @@ class TestLogVideoOutputs:
         )
 
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec()
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
         )
         with caplog.at_level(logging.ERROR):
             media_publisher.log_video_outputs(
@@ -639,7 +682,9 @@ class TestLogVideoOutputs:
         )
         video_logger = MagicMock()
         media_publisher = MediaPublisher(
-            dataset=fake_combined_dataset(), plot_spec=PlotSpec(video_format="gif")
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(video_format="gif"),
         )
 
         media_publisher.log_video_outputs(
