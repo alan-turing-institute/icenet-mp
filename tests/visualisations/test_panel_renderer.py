@@ -1,4 +1,4 @@
-"""Tests for the domain-specific panel assembly on top of Renderer."""
+"""Tests for the domain-specific panel assembly on top of MatplotlibRenderer."""
 
 from datetime import date, datetime
 from io import BytesIO
@@ -10,8 +10,8 @@ from PIL.ImageFile import ImageFile
 
 from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
+from icenet_mp.visualisations.matplotlib_renderer import MatplotlibRenderer
 from icenet_mp.visualisations.panel_renderer import PanelRenderer
-from icenet_mp.visualisations.renderer import Renderer
 
 
 class TestMetadata:
@@ -162,7 +162,7 @@ class TestRenderStaticTriplet:
         when = datetime.combine(raw_when, datetime.min.time())
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             fake_render,
         )
@@ -192,7 +192,7 @@ class TestRenderStaticTriplet:
         when = datetime.combine(raw_when, datetime.min.time())
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             fake_render,
         )
@@ -237,7 +237,7 @@ class TestRenderVideoTriplet:
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             fake_render,
         )

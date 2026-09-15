@@ -43,7 +43,7 @@ class MediaPublisher:
         shown in every rendered footer. Hemisphere is set on `plot_spec` itself.
         """
         self._plot_spec = plot_spec
-        self._renderer = PanelRenderer(
+        self._panel_renderer = PanelRenderer(
             land_mask,
             MetadataBuilder().from_dataset(
                 dataset, current_epoch=current_epoch, model_name=model_name
@@ -54,7 +54,7 @@ class MediaPublisher:
     @property
     def land_mask(self) -> LandMask:
         """The land mask used by the renderer."""
-        return self._renderer.land_mask
+        return self._panel_renderer.land_mask
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
@@ -113,7 +113,7 @@ class MediaPublisher:
                 # Get data for all variables at the selected timestep
                 for channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    image = self._renderer.static_singlet(
+                    image = self._panel_renderer.static_singlet(
                         input_ds[idx_date][channel, :],
                         when=when,
                         variable_name=variable_name,
@@ -158,7 +158,7 @@ class MediaPublisher:
                 images: dict[str, list[ImageFile]] = {}
                 # Plot static truth/prediction/difference image
                 images[f"{date_key}-{variable_name}-truth-difference"] = [
-                    self._renderer.static_triplet(
+                    self._panel_renderer.static_triplet(
                         ground_truth,
                         prediction,
                         when=dates[idx_date],
@@ -170,7 +170,7 @@ class MediaPublisher:
                     with suppress(IndexError, TypeError):
                         climatology_field = climatology[idx_date, idx_channel]
                         images[f"{date_key}-{variable_name}-climatology-difference"] = [
-                            self._renderer.static_triplet(
+                            self._panel_renderer.static_triplet(
                                 ground_truth,
                                 climatology_field,
                                 when=dates[idx_date],
@@ -186,7 +186,7 @@ class MediaPublisher:
                     )
                 ) is not None:
                     images[f"{date_key}-{variable_name}-z-score"] = [
-                        self._renderer.static_triplet(
+                        self._panel_renderer.static_triplet(
                             ground_truth,
                             prediction,
                             when=dates[idx_date],
@@ -217,7 +217,7 @@ class MediaPublisher:
                 # Get data for all variables over the full date range
                 for channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    video = self._renderer.video_singlet(
+                    video = self._panel_renderer.video_singlet(
                         input_ds.get_tchw(np_dates)[:, channel, :],
                         dates=dates,
                         variable_name=variable_name,
@@ -250,8 +250,8 @@ class MediaPublisher:
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
-                # Plot output animation via the minimal Renderer core
-                video = self._renderer.video_triplet(
+                # Plot output animation via the minimal MatplotlibRenderer core
+                video = self._panel_renderer.video_triplet(
                     ground_truth,
                     prediction,
                     dates=dates,

@@ -1,5 +1,3 @@
-"""Metadata extraction from a dataset's realised state."""
-
 import numpy as np
 
 from icenet_mp.data import CombinedDataset

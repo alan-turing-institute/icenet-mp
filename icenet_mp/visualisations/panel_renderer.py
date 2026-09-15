@@ -1,14 +1,3 @@
-"""Domain-specific panel assembly on top of the minimal Renderer core.
-
-`PanelRenderer` takes raw ground-truth/prediction/input arrays and applies masking
-and (where relevant) difference or standardised-difference panels, rendering the
-result via `Renderer.panels_static` or `Renderer.panels_video`.
-
-Used by both `MediaPublisher` (logging during runs) and `DatasetMediaWriter` (CLI
-dataset preview plots), each of which builds one `PanelRenderer` per land_mask/plot_spec
-pairing.
-"""
-
 from datetime import datetime
 from io import BytesIO
 from typing import TYPE_CHECKING, Literal
@@ -21,8 +10,8 @@ from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 from .colour_scale import ColourScale
 from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
+from .matplotlib_renderer import MatplotlibRenderer
 from .plot_annotator import PlotAnnotator
-from .renderer import Renderer
 from .variable_style_resolver import VariableStyleResolver
 
 if TYPE_CHECKING:
@@ -35,7 +24,7 @@ class PanelRenderer:
     def __init__(
         self, land_mask: LandMask, metadata: Metadata, plot_spec: PlotSpec
     ) -> None:
-        """Build a renderer bound to one land mask and plot spec."""
+        """Build a PanelRenderer for a given land mask, metadata, and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
         self._style_resolver = VariableStyleResolver(
@@ -44,54 +33,11 @@ class PanelRenderer:
         self._colour_scale = ColourScale(plot_spec.diff_mode)
         self._annotator = PlotAnnotator(metadata, plot_spec)
         self._difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
-        self._renderer = Renderer()
+        self._renderer = MatplotlibRenderer()
 
     @property
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
-
-    def static_singlet(
-        self,
-        values: ArrayHW,
-        *,
-        when: datetime,
-        variable_name: str,
-    ) -> ImageFile:
-        """Render a single panel ImageFile via Renderer.panels_static()."""
-        plot_spec = self.plot_spec
-        masked_values = self.land_mask.apply_to(values)
-        style = self._style_resolver.style_for_variable(variable_name)
-        title = self._annotator.format_title(variable_name, when, style.units)
-        return self._renderer.panels_static(
-            [masked_values],
-            cmap=style.cmap,
-            dpi=plot_spec.dpi,
-            figure_title=title,
-            vmax=style.vmax,
-            vmin=style.vmin,
-        )
-
-    def video_singlet(
-        self,
-        values: ArrayTHW,
-        *,
-        dates: list[datetime],
-        variable_name: str,
-    ) -> BytesIO:
-        """Render a single panel video BytesIO via Renderer.panels_video()."""
-        masked_values = self.land_mask.apply_to(values)
-        style = self._style_resolver.style_for_variable(variable_name)
-        title = self._annotator.format_title(variable_name, dates[0], style.units)
-        return self._renderer.panels_video(
-            [masked_values],
-            cmap=style.cmap,
-            dpi=self.plot_spec.dpi,
-            figure_title=title,
-            fps=self.plot_spec.video_fps,
-            vmax=style.vmax,
-            vmin=style.vmin,
-            video_format=self.video_format,
-        )
 
     def _difference_panel(
         self, masked_ground_truth: np.ndarray, masked_prediction: np.ndarray
@@ -111,6 +57,37 @@ class PanelRenderer:
         title = f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
         return difference, title, diff_colour_scale.cmap, diff_vmin, diff_vmax
 
+    def static_singlet(
+        self,
+        values: ArrayHW,
+        *,
+        when: datetime,
+        variable_name: str,
+    ) -> ImageFile:
+        """Render a single panel ImageFile via MatplotlibRenderer.panels_static().
+
+        Args:
+            values: 2D array of the variable field to render.
+            when: Datetime of the plotted timestep.
+            variable_name: Name of the variable being plotted, used for styling and
+                title generation.
+
+        Returns:
+            An ImageFile containing the rendered panel.
+
+        """
+        masked_values = self.land_mask.apply_to(values)
+        style = self._style_resolver.style_for_variable(variable_name)
+        title = self._annotator.format_title(variable_name, when, style.units)
+        return self._renderer.panels_static(
+            [masked_values],
+            cmap=style.cmap,
+            dpi=self.plot_spec.dpi,
+            figure_title=title,
+            vmax=style.vmax,
+            vmin=style.vmin,
+        )
+
     def static_triplet(
         self,
         ground_truth: ArrayHW,
@@ -120,7 +97,7 @@ class PanelRenderer:
         variable_name: str,
         uncertainty: ArrayHW | None = None,
     ) -> ImageFile:
-        """Render a three panel ImageFile via Renderer.panels().
+        """Render a three panel ImageFile via MatplotlibRenderer.panels().
 
         Args:
             ground_truth: 2D array of the ground truth field.
@@ -133,6 +110,9 @@ class PanelRenderer:
                 difference `z = (ground_truth - prediction) / uncertainty`. A value of
                 `z=1` means the observation exceeds the prediction by one reported standard
                 uncertainty.
+
+        Returns:
+            An ImageFile containing the rendered panels.
 
         """
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
@@ -200,6 +180,39 @@ class PanelRenderer:
             vmin=vmins,
         )
 
+    def video_singlet(
+        self,
+        values: ArrayTHW,
+        *,
+        dates: list[datetime],
+        variable_name: str,
+    ) -> BytesIO:
+        """Render a single panel video BytesIO via MatplotlibRenderer.panels_video().\
+
+        Args:
+            values: 3D array of the variable field to render, with shape (time, height, width).
+            dates: List of datetimes corresponding to each timestep in `values`.
+            variable_name: Name of the variable being plotted, used for styling and
+                title generation.
+
+        Returns:
+            A BytesIO object containing the rendered video.
+
+        """
+        masked_values = self.land_mask.apply_to(values)
+        style = self._style_resolver.style_for_variable(variable_name)
+        title = self._annotator.format_title(variable_name, dates[0], style.units)
+        return self._renderer.panels_video(
+            [masked_values],
+            cmap=style.cmap,
+            dpi=self.plot_spec.dpi,
+            figure_title=title,
+            fps=self.plot_spec.video_fps,
+            vmax=style.vmax,
+            vmin=style.vmin,
+            video_format=self.video_format,
+        )
+
     def video_triplet(
         self,
         ground_truth: ArrayTHW,
@@ -208,7 +221,19 @@ class PanelRenderer:
         dates: list[datetime],
         variable_name: str,
     ) -> BytesIO:
-        """Render a three-panel video BytesIO via Renderer.panels_video()."""
+        """Render a three-panel video BytesIO via MatplotlibRenderer.panels_video().
+
+        Args:
+            ground_truth: 3D array of the ground truth field, with shape (time, height, width).
+            prediction: 3D array of the predicted field, with shape (time, height, width).
+            dates: List of datetimes corresponding to each timestep in `ground_truth` and `prediction`.
+            variable_name: Name of the variable being plotted, used for styling and
+                title generation.
+
+        Returns:
+            A BytesIO object containing the rendered video.
+
+        """
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
 

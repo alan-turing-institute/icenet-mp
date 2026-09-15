@@ -1,5 +1,3 @@
-"""Minimal panel-plot and panel-video rendering core."""
-
 import contextlib
 import gc
 import logging
@@ -29,8 +27,8 @@ _PANEL_HEIGHT_IN = 6
 _CONTOUR_LINEWIDTH = 1.2
 
 
-class Renderer:
-    """Render matplotlib figures and videos from raw arrays."""
+class MatplotlibRenderer:
+    """Minimal matplotlib rendering of figures and videos from raw arrays."""
 
     @contextlib.contextmanager
     def _suppress_mpl_animation_logs(self) -> Generator[None]:

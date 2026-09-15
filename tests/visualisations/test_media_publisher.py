@@ -12,8 +12,8 @@ from icenet_mp.data import CombinedDataset, SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import ModelStepOutput, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
+from icenet_mp.visualisations.matplotlib_renderer import MatplotlibRenderer
 from icenet_mp.visualisations.media_publisher import MediaPublisher
-from icenet_mp.visualisations.renderer import Renderer
 
 if TYPE_CHECKING:
     from PIL.ImageFile import ImageFile
@@ -144,7 +144,7 @@ class TestMetadataAndHemisphere:
             model_name="unet",
         )
 
-        footer = media_publisher._renderer._annotator.footer_for_static()
+        footer = media_publisher._panel_renderer._annotator.footer_for_static()
 
         assert "Model: unet" in footer
         assert "Epoch: 50" in footer
@@ -160,7 +160,7 @@ class TestMetadataAndHemisphere:
         assert media_publisher._plot_spec.hemisphere == "south"
 
     def test_land_mask_kwarg_is_used_by_the_renderer(self) -> None:
-        """The given land_mask is passed straight through to the renderer."""
+        """The given land_mask is passed straight through to the panel renderer."""
         new_land_mask = LandMask(None)
 
         media_publisher = MediaPublisher(
@@ -170,7 +170,7 @@ class TestMetadataAndHemisphere:
         )
 
         assert media_publisher.land_mask is new_land_mask
-        assert media_publisher._renderer.land_mask is new_land_mask
+        assert media_publisher._panel_renderer.land_mask is new_land_mask
 
     def test_current_epoch_and_model_name_are_optional(self) -> None:
         """Omitting current_epoch/model_name leaves the footer without those lines."""
@@ -180,7 +180,7 @@ class TestMetadataAndHemisphere:
             plot_spec=PlotSpec(),
         )
 
-        footer = media_publisher._renderer._annotator.footer_for_static()
+        footer = media_publisher._panel_renderer._annotator.footer_for_static()
 
         assert "Model:" not in footer
         assert "Epoch:" not in footer
@@ -193,7 +193,7 @@ class TestLogStaticInputs:
         """Render and log one image per variable, under the input_static prefix."""
         image = object()
         fake_render = MagicMock(return_value=image)
-        monkeypatch.setattr(Renderer, "panels_static", fake_render)
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
         image_logger = MagicMock()
 
         media_publisher = MediaPublisher(
@@ -222,7 +222,7 @@ class TestLogStaticInputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
@@ -246,7 +246,7 @@ class TestLogStaticInputs:
     ) -> None:
         """Swallow ValueError from the plotting layer and log a warning."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             MagicMock(side_effect=ValueError("bad shape")),
         )
@@ -268,7 +268,7 @@ class TestLogStaticOutputs:
     def test_logs_images_per_channel(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Render and log one image per output channel, keyed by date and variable name."""
         fake_render = MagicMock(return_value=object())
-        monkeypatch.setattr(Renderer, "panels_static", fake_render)
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
         image_logger = MagicMock()
 
         media_publisher = MediaPublisher(
@@ -297,7 +297,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Log an extra standardised-difference image for channels with uncertainty data."""
         fake_render = MagicMock(return_value=object())
-        monkeypatch.setattr(Renderer, "panels_static", fake_render)
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
         image_logger = MagicMock()
         uncertainties = {0: torch.zeros((N_TIMESTEPS, HEIGHT, WIDTH)).numpy()}
 
@@ -340,7 +340,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
@@ -367,7 +367,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Swallow MemoryError from the plotting layer and log a warning."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             MagicMock(side_effect=MemoryError),
         )
@@ -393,7 +393,7 @@ class TestLogStaticOutputs:
         """Static routing keeps prefixes and fallback channel names stable."""
         image = object()
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             MagicMock(return_value=image),
         )
@@ -428,7 +428,7 @@ class TestLogStaticOutputs:
     ) -> None:
         """Static routing keeps the established default logging namespace."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_static",
             MagicMock(return_value=object()),
         )
@@ -458,7 +458,7 @@ class TestLogVideoInputs:
         """Plot and log one video per variable, under the input_video prefix."""
         buffer = MagicMock()
         fake_render = MagicMock(return_value=buffer)
-        monkeypatch.setattr(Renderer, "panels_video", fake_render)
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
         video_logger = MagicMock()
 
         media_publisher = MediaPublisher(
@@ -491,7 +491,7 @@ class TestLogVideoInputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
@@ -515,7 +515,7 @@ class TestLogVideoInputs:
     ) -> None:
         """Swallow VideoRenderError and log a warning."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             MagicMock(side_effect=VideoRenderError("encoding failed")),
         )
@@ -539,7 +539,7 @@ class TestLogVideoInputs:
     ) -> None:
         """Swallow a generic rendering error but log it at ERROR level with a traceback."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             MagicMock(side_effect=ValueError("bad shape")),
         )
@@ -562,7 +562,7 @@ class TestLogVideoOutputs:
     def test_logs_videos_per_channel(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Render and log one video per output channel, keyed by date and variable name."""
         fake_render = MagicMock(return_value=MagicMock())
-        monkeypatch.setattr(Renderer, "panels_video", fake_render)
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
         video_logger = MagicMock()
 
         media_publisher = MediaPublisher(
@@ -593,7 +593,7 @@ class TestLogVideoOutputs:
     ) -> None:
         """Swallow InvalidArrayError and log a warning instead of raising."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             MagicMock(side_effect=InvalidArrayError("bad array")),
         )
@@ -620,7 +620,7 @@ class TestLogVideoOutputs:
     ) -> None:
         """Swallow VideoRenderError and log a warning."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             MagicMock(side_effect=VideoRenderError("encoding failed")),
         )
@@ -647,7 +647,7 @@ class TestLogVideoOutputs:
     ) -> None:
         """Swallow a generic rendering error but log it at ERROR level with a traceback."""
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             MagicMock(side_effect=ValueError("bad shape")),
         )
@@ -676,7 +676,7 @@ class TestLogVideoOutputs:
         buffer.seek(5)
 
         monkeypatch.setattr(
-            Renderer,
+            MatplotlibRenderer,
             "panels_video",
             lambda *args, **kwargs: buffer,  # noqa: ARG005
         )

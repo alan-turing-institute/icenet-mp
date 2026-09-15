@@ -13,9 +13,9 @@ from PIL.ImageFile import ImageFile
 
 from icenet_mp.exceptions import VideoRenderError
 from icenet_mp.types import ArrayHW, ArrayTHW
-from icenet_mp.visualisations.renderer import Renderer
+from icenet_mp.visualisations.matplotlib_renderer import MatplotlibRenderer
 
-renderer = Renderer()
+renderer = MatplotlibRenderer()
 
 
 def make_figure() -> Figure:
