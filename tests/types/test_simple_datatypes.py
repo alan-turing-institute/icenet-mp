@@ -124,13 +124,12 @@ class TestMetadata:
 
     def test_defaults_are_independent_and_optional(self) -> None:
         """Keep Metadata defaults optional and independent across instances."""
-        first = Metadata()
+        first = Metadata(vars_by_source={"era5": ["2t"]})
         second = Metadata()
-
-        first.vars_by_source = {"era5": ["2t"]}
 
         assert first.model is None
         assert first.n_points is None
+        assert first.vars_by_source == {"era5": ["2t"]}
         assert second.vars_by_source is None
 
 

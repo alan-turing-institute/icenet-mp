@@ -93,7 +93,7 @@ class DiffColourmap(NamedTuple):
     cmap: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Metadata:
     """Structured metadata extracted from training configuration.
 
@@ -119,7 +119,7 @@ class Metadata:
     vars_by_source: dict[str, list[str]] | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class ProcessorOutput:
     """Output of a processor rollout step."""
 
@@ -127,7 +127,7 @@ class ProcessorOutput:
     loss: Tensor | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class VariableStyle:
     """Styling configuration for individual variables.
 

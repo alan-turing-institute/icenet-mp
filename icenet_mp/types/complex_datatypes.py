@@ -45,7 +45,7 @@ class DataSpace:
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModelStepOutput(Mapping[str, Tensor]):
     """Output of a model step: prediction, target, and loss."""
 
