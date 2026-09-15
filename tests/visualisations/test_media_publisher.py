@@ -127,7 +127,7 @@ class TestMetadataAndHemisphere:
             dataset=MagicMock(), current_epoch=50, model_name="unet"
         )
 
-        assert media_publisher._renderer.annotator.footer_for_static() == "Model: unet"
+        assert media_publisher._renderer._annotator.footer_for_static() == "Model: unet"
 
     def test_configure_context_updates_hemisphere(self) -> None:
         """MediaPublisher keeps hemisphere state on its PlotSpec."""

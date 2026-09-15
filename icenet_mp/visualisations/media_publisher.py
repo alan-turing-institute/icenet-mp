@@ -107,7 +107,7 @@ class MediaPublisher:
             metadata = self._metadata_builder.from_dataset(
                 dataset, current_epoch=current_epoch, model_name=model_name
             )
-            self._renderer.annotator.set_metadata(metadata)
+            self._renderer.set_metadata(metadata)
 
     def log_static_inputs(
         self,

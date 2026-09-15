@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from PIL.ImageFile import ImageFile
 
-from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
+from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 
 from .colour_scale import ColourScale
 from .difference_calculator import DifferenceCalculator
@@ -51,10 +51,9 @@ class PanelRenderer:
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
 
-    @property
-    def annotator(self) -> PlotAnnotator:
-        """The bound PlotAnnotator, so callers can push new metadata into its footers."""
-        return self._annotator
+    def set_metadata(self, metadata: Metadata) -> None:
+        """Update the metadata subtitle shown in every subsequent footer."""
+        self._annotator.set_metadata(metadata)
 
     def static_singlet(
         self,
@@ -113,12 +112,7 @@ class PanelRenderer:
             )
         )
         diff_colour_scale = self._colour_scale.diff_colourmap(difference)
-        if diff_colour_scale.norm is not None:
-            diff_vmin = diff_colour_scale.norm.vmin
-            diff_vmax = diff_colour_scale.norm.vmax
-        else:
-            diff_vmin = diff_colour_scale.vmin
-            diff_vmax = diff_colour_scale.vmax
+        diff_vmin, diff_vmax = self._colour_scale.bounds(diff_colour_scale)
         title = f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
         return difference, title, diff_colour_scale.cmap, diff_vmin, diff_vmax
 

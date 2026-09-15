@@ -8,10 +8,20 @@ import numpy as np
 import pytest
 from PIL.ImageFile import ImageFile
 
-from icenet_mp.types import ArrayHW, ArrayTHW, PlotSpec
+from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.panel_renderer import PanelRenderer
 from icenet_mp.visualisations.renderer import Renderer
+
+
+class TestSetMetadata:
+    def test_forwards_to_the_bound_annotator(self, no_land_mask: LandMask) -> None:
+        """set_metadata updates the footer text produced by the renderer's own annotator."""
+        renderer = PanelRenderer(no_land_mask, PlotSpec())
+
+        renderer.set_metadata(Metadata(model="unet"))
+
+        assert renderer._annotator.footer_for_static() == "Model: unet"
 
 
 class TestRenderStaticSinglet:
