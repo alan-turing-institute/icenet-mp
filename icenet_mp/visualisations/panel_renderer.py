@@ -43,7 +43,9 @@ class PanelRenderer:
         """Build a renderer bound to one land mask and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
-        self._style_resolver = VariableStyleResolver(plot_spec.per_variable_styles)
+        self._style_resolver = VariableStyleResolver(
+            plot_spec.per_variable_styles, plot_spec.colourmap
+        )
         self._colour_scale = ColourScale(plot_spec.diff_mode)
         self._annotator = PlotAnnotator(metadata, plot_spec)
         self._difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
@@ -67,7 +69,7 @@ class PanelRenderer:
         title = self._annotator.format_title(variable_name, when, style.units)
         return self._renderer.panels_static(
             [masked_values],
-            cmap=style.cmap or plot_spec.colourmap,
+            cmap=style.cmap,
             dpi=plot_spec.dpi,
             figure_title=title,
             vmax=style.vmax,
@@ -87,7 +89,7 @@ class PanelRenderer:
         title = self._annotator.format_title(variable_name, dates[0], style.units)
         return self._renderer.panels_video(
             [masked_values],
-            cmap=style.cmap or self.plot_spec.colourmap,
+            cmap=style.cmap,
             dpi=self.plot_spec.dpi,
             figure_title=title,
             fps=self.plot_spec.video_fps,

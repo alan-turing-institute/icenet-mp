@@ -139,7 +139,7 @@ class VariableStyle:
 
     """
 
-    cmap: str | None = None
+    cmap: str
     vmin: float | None = None
     vmax: float | None = None
     units: str | None = None

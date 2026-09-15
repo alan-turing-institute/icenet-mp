@@ -10,20 +10,40 @@ logger = logging.getLogger(__name__)
 class VariableStyleResolver:
     """Resolves a variable's declared display style from config."""
 
-    def __init__(self, styles: dict[str, dict[str, Any]] | None) -> None:
-        """Initialise a VariableStyleResolver with a dictionary of styles."""
+    def __init__(
+        self, styles: dict[str, dict[str, Any]] | None, default_cmap: str
+    ) -> None:
+        """Bind the styles dict and the colourmap to fall back to when unstyled."""
         self._styles = styles
+        self._default_cmap = default_cmap
 
-    def style_for_variable(  # noqa: C901, PLR0911
+    def style_for_variable(self, var_name: str) -> VariableStyle:
+        """Return the resolved style for a variable, with cmap always set.
+
+        Delegates matching to `_match`, which returns the raw matched config
+        (or None); this is the single place that turns that into a
+        `VariableStyle`, so callers never need their own `style.cmap or
+        default` fallback -- an unmatched or unset cmap falls back to the
+        colourmap bound at construction.
+        """
+        spec = self._match(var_name) or {}
+        return VariableStyle(
+            cmap=spec.get("cmap") or self._default_cmap,
+            vmin=spec.get("vmin"),
+            vmax=spec.get("vmax"),
+            units=spec.get("units"),
+        )
+
+    def _match(  # noqa: C901, PLR0911
         self, var_name: str
-    ) -> VariableStyle:
-        """Return best matching style for a variable from the bound styles dict.
+    ) -> Mapping[str, Any] | None:
+        """Return the best matching style config for a variable from the bound styles dict.
 
         Matching priority:
           1) exact key
           2) wildcard prefix key ending with '*'
           3) _default
-          4) empty style
+          4) no match (None)
         Accepts any Mapping (so OmegaConf DictConfig works).
         """
 
@@ -39,28 +59,24 @@ class VariableStyleResolver:
             return name
 
         if not self._styles:
-            return VariableStyle()
+            return None
 
         # Accept Mapping-like configs (Dict, DictConfig, etc.)
         if not isinstance(self._styles, Mapping):
             logger.info("style_for_variable: styles is not a Mapping; ignoring styles")
-            return VariableStyle()
+            return None
 
         # Quick exact match first (try raw var_name)
         spec = self._styles.get(var_name)
         if isinstance(spec, Mapping):
-            return VariableStyle(
-                **{k: spec.get(k) for k in VariableStyle.__annotations__}
-            )
+            return spec
 
         # Try normalised exact match
         norm_var = _normalise_name(var_name)
         if norm_var != var_name:
             spec = self._styles.get(norm_var)
             if isinstance(spec, Mapping):
-                return VariableStyle(
-                    **{k: spec.get(k) for k in VariableStyle.__annotations__}
-                )
+                return spec
 
         # Wildcard prefix match: scan keys ending with '*' (normalise the key before comparing)
         # We iterate keys so keep original order (OmegaConf preserves insertion order).
@@ -75,9 +91,7 @@ class VariableStyleResolver:
                 if var_name.startswith(prefix) or norm_var.startswith(prefix_norm):
                     spec = self._styles.get(key)
                     if isinstance(spec, Mapping):
-                        return VariableStyle(
-                            **{k: spec.get(k) for k in VariableStyle.__annotations__}
-                        )
+                        return spec
                     logger.info(
                         "style_for_variable: wildcard candidate %r not a dict (type=%s)",
                         key,
@@ -87,8 +101,6 @@ class VariableStyleResolver:
         # Fallback to _default
         spec = self._styles.get("_default")
         if isinstance(spec, Mapping):
-            return VariableStyle(
-                **{k: spec.get(k) for k in VariableStyle.__annotations__}
-            )
+            return spec
 
-        return VariableStyle()
+        return None
