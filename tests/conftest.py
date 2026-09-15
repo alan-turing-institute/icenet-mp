@@ -149,7 +149,6 @@ def cfg_common_data_module() -> DictConfig:
             "data": {
                 "datasets": {"ds1": {"name": "mock", "group_as": "group1"}},
                 "split": {
-                    "batch_size": 2,
                     "predict": [{"start": None, "end": None}],
                     "test": [{"start": "2020-01-01", "end": "2020-12-31"}],
                     "train": [
@@ -159,8 +158,12 @@ def cfg_common_data_module() -> DictConfig:
                     "validate": [{"start": "2020-01-01", "end": "2020-03-31"}],
                 },
             },
-            "predict": {
-                "target": {"group_name": "group1"},
+            "variables": {
+                "input": {"group1": ["mock_var"]},
+                "target": {"group1": ["mock_var"]},
+            },
+            "window": {
+                "batch_size": 2,
                 "n_forecast_steps": 1,
                 "n_history_steps": 1,
             },
@@ -219,7 +222,6 @@ def cfg_model_service() -> DictConfig:
                     },
                 },
                 "split": {
-                    "batch_size": 2,
                     "predict": [{"start": None, "end": None}],
                     "test": [{"start": "2019-01-01", "end": "2019-01-31"}],
                     "train": [
@@ -236,11 +238,6 @@ def cfg_model_service() -> DictConfig:
                 "_target_": "MockModel",
                 "name": "mock-model",
             },
-            "predict": {
-                "target": {"group_name": "mock-dataset-group-1"},
-                "n_forecast_steps": 2,
-                "n_history_steps": 3,
-            },
             "reporting": {
                 "loggers": {},
                 "metrics": ["accuracy", "mae"],
@@ -251,6 +248,15 @@ def cfg_model_service() -> DictConfig:
                 "scheduler": {},
                 "lr_scheduler": {},
                 "trainer": {},
+            },
+            "variables": {
+                "input": {"mock-dataset-group-1": ["mock_var"]},
+                "target": {"mock-dataset-group-1": ["mock_var"]},
+            },
+            "window": {
+                "batch_size": 2,
+                "n_forecast_steps": 2,
+                "n_history_steps": 3,
             },
         }
     )

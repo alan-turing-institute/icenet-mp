@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from functools import cached_property, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -54,14 +54,15 @@ class BaseModel(LightningModule, ABC):
     def __init__(  # noqa: PLR0913
         self,
         *,
+        channel_names: Sequence[str] | None = None,
         hemisphere: Hemisphere,
-        input_spaces: list[DictConfig],
+        input_spaces: Sequence[DictConfig],
         latitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         longitudes_fn: Callable[[], dict[str, list[float]]] | None = None,
         loss: DictConfig,
         mask_dir: str | Path | None = None,
         lr_scheduler: DictConfig,
-        metrics: list[str],
+        metrics: Sequence[str],
         n_forecast_steps: int,
         n_history_steps: int,
         name: str,
@@ -87,11 +88,12 @@ class BaseModel(LightningModule, ABC):
         """
         super().__init__()
 
-        # Save model name, hemisphere and lat/lon information
+        # Save model name, hemisphere, lat/lon information and channel names
         self.name = name
         self.hemisphere: Hemisphere = hemisphere
         self.latitudes_fn = latitudes_fn
         self.longitudes_fn = longitudes_fn
+        self.channel_names = list(channel_names) if channel_names else []
 
         # Save history and forecast steps
         if n_forecast_steps <= 0:
@@ -112,7 +114,6 @@ class BaseModel(LightningModule, ABC):
         self.scheduler_cfg = scheduler
         self.lr_scheduler_cfg = lr_scheduler
         self.loss_cfg = loss
-        self.metrics = list(metrics)
 
         # Land mask for ice-edge metrics (excludes land/ice boundaries from FSS/DIIEE).
         try:
@@ -125,6 +126,7 @@ class BaseModel(LightningModule, ABC):
             land_mask = None
 
         # Metrics
+        self.metrics = list(metrics)
         fss_metric_classes: dict[str, Callable[[], Metric]] = {
             f"fss_neighbourhood_size_{neighbourhood_size}": partial(
                 FractionalSkillScorePerForecastDay,
@@ -133,7 +135,7 @@ class BaseModel(LightningModule, ABC):
             )
             for neighbourhood_size in (
                 int(metric.removeprefix("fss_neighbourhood_size_"))
-                for metric in metrics
+                for metric in self.metrics
                 if metric.startswith("fss_neighbourhood_size_")
             )
         }
@@ -157,13 +159,13 @@ class BaseModel(LightningModule, ABC):
             "ssim": partial(SSIMPerForecastDay, land_mask=land_mask),
         }
         self.test_metrics = MetricCollection(
-            {name: _metric_classes[name]() for name in metrics}
+            {name: _metric_classes[name]() for name in self.metrics}
         )
         self.train_metrics = MetricCollection(
-            {name: _metric_classes[name]() for name in metrics}
+            {name: _metric_classes[name]() for name in self.metrics}
         )
         self.validation_metrics = MetricCollection(
-            {name: _metric_classes[name]() for name in metrics}
+            {name: _metric_classes[name]() for name in self.metrics}
         )
 
         # All arguments to the ultimate child class will be logged as hyperparameters,
