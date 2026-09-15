@@ -197,7 +197,7 @@ def cfg_model_service() -> DictConfig:
             },
             "variables": {
                 "input": {"mock-dataset-group-1": ["mock_var"]},
-                "output": {"mock-dataset-group-1": ["mock_var"]},
+                "target": {"mock-dataset-group-1": ["mock_var"]},
             },
             "window": {
                 "batch_size": 2,
