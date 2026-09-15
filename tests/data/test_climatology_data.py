@@ -158,6 +158,7 @@ class TestCommonDataModuleClimatology:
         dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
 
         table = dm.climatology
+        assert table is not None
         assert table.shape == (366, 2, 2, 2)
         assert table.dtype == np.float32
 
@@ -173,6 +174,7 @@ class TestCommonDataModuleClimatology:
         dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
 
         table = dm.climatology
+        assert table is not None
         variable = CLIMATOLOGY_VARIABLES[0]
         channel = CLIMATOLOGY_VARIABLES.index(variable)
         july_15 = calendar_day_index(np.datetime64("2000-07-15"))
@@ -207,6 +209,7 @@ class TestCommonDataModuleClimatology:
         dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
 
         table = dm.climatology
+        assert table is not None
         # 15 March includes the missing 2017-03-15; a mean over *all* years' 15 March
         # (using the missing day's zero-filled row) would differ from the table.
         variable = CLIMATOLOGY_VARIABLES[0]
@@ -228,14 +231,18 @@ class TestCommonDataModuleClimatology:
                 table[march_15, channel], wrong.mean(axis=0), atol=1e-6
             )
 
-    def test_missing_calendar_day_raises(self, climatology_zarr: Path) -> None:
-        """A calendar day with no available dates in the period raises ValueError."""
+    def test_missing_calendar_day_returns_none_and_warns(
+        self, climatology_zarr: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A calendar day with no available dates in the period disables climatology."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(
             _cfg(base_path, [{"start": "2017-01-01", "end": "2017-01-31"}])
         )
-        with pytest.raises(ValueError, match="calendar day 02-01"):
-            _ = dm.climatology
+        with caplog.at_level("WARNING"):
+            table = dm.climatology
+        assert table is None
+        assert "calendar day 02-01" in caplog.text
 
     def test_missing_29_february_falls_back_to_28_february(
         self, climatology_zarr: Path
@@ -245,20 +252,23 @@ class TestCommonDataModuleClimatology:
         dm = CommonDataModule(_cfg(base_path, TRAIN_PERIODS))
 
         table = dm.climatology
+        assert table is not None
         np.testing.assert_array_equal(
             table[FEBRUARY_29_INDEX], table[FEBRUARY_28_INDEX]
         )
 
-    def test_raises_when_no_dates_in_train_periods(
-        self, climatology_zarr: Path
+    def test_no_dates_in_train_periods_returns_none_and_warns(
+        self, climatology_zarr: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """If no available dates fall in the training periods, climatology raises."""
+        """If no available dates fall in the training periods, climatology is disabled."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(
             _cfg(base_path, [{"start": "2030-01-01", "end": "2030-12-31"}])
         )
-        with pytest.raises(ValueError, match="none of the configured training periods"):
-            _ = dm.climatology
+        with caplog.at_level("WARNING"):
+            table = dm.climatology
+        assert table is None
+        assert "none of the configured training periods" in caplog.text
 
     def test_time_component_bounds_match_day_precision(
         self, climatology_zarr: Path
@@ -276,6 +286,7 @@ class TestCommonDataModuleClimatology:
         dm = CommonDataModule(_cfg(base_path, timed_periods))
 
         table = dm.climatology
+        assert table is not None
         expected = _expected_daily_means(climatology_zarr, _period_dates(TRAIN_PERIODS))
         for channel, variable in enumerate(dm.target_variables):
             np.testing.assert_allclose(
@@ -290,20 +301,13 @@ class TestCommonDataModuleClimatology:
             loader = getattr(dm, f"{name}_dataloader")()
             batch = next(iter(loader))
             assert "climatology" in batch
-            # shape: batch x n_forecast_steps x C_target x H x W
+            # shape should be [batch, n_forecast_steps, C_target, H, W]
             assert batch["climatology"].shape == (2, 1, 2, 2, 2)
 
     def test_dataloaders_degrade_gracefully_when_climatology_unavailable(
         self, climatology_zarr: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A train window missing a calendar day must not break other models' loaders.
-
-        ``CommonDataModule.climatology`` itself still raises (see
-        ``test_missing_calendar_day_raises``), but building a dataloader is a shared
-        code path used by every model, not just the Climatology baseline, so it must
-        fall back to omitting the ``climatology`` batch key with a warning instead of
-        crashing.
-        """
+        """A train window missing a calendar day must not break other loaders."""
         base_path = climatology_zarr.parents[2]
         dm = CommonDataModule(
             _cfg(base_path, [{"start": "2017-01-01", "end": "2017-01-31"}])
