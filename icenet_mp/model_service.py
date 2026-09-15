@@ -105,15 +105,15 @@ class ModelService:
             raise FileNotFoundError(msg)
 
         # Build a combined model configuration where the command line config takes
-        # precedence except for the "model", "train" and "window" keys which are
-        # related to training the model.
+        # precedence except for the "model", "train", "variables" and "window" keys
+        # which are related to training the model.
         config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
         try:
             # Load the model configuration from the checkpoint directory
             ckpt_config = DictConfig(OmegaConf.load(config_path))
             log.debug("Loaded checkpoint configuration from %s.", config_path)
             combined_cfg = DictConfig(OmegaConf.merge(ckpt_config, config))
-            for key in ("model", "train", "window"):
+            for key in ("model", "train", "variables", "window"):
                 combined_cfg[key] = OmegaConf.merge(
                     combined_cfg.get(key, {}), ckpt_config.get(key, {})
                 )
