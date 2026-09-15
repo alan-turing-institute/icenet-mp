@@ -106,7 +106,7 @@ target:
 ```
 
 !!! note
-    We current enforce that the target variables must also be input variables.
+    We currently enforce that the target variables must also be input variables.
     This requirement may be relaxed in future.
 
 ### Generating Argo float missing dates
