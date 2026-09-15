@@ -104,6 +104,26 @@ class TestTargetGroupValidation:
         message = str(exc_info.value)
         assert str(available_group) in message
 
+    def test_target_variables_returned_in_on_disk_order(
+        self, mock_dataset: Path
+    ) -> None:
+        """target_variables must reflect on-disk order, not the order in `variables.target`.
+
+        `mock_dataset` stores variables as (ice_conc, ice_thickness, temperature).
+        Both target variables are requested here in the opposite order, but the
+        target tensor built from them is on-disk ordered (see
+        `test_target_variable_indices_use_data_order_not_config_order`), so
+        `target_variables` - used as channel labels for that tensor - must match.
+        """
+        cfg = _single_group_config(
+            mock_dataset,
+            input_variables=["ice_conc", "ice_thickness", "temperature"],
+            target_variables=["temperature", "ice_conc"],
+        )
+        dm = CommonDataModule(cfg)
+
+        assert dm.target_variables == ["ice_conc", "temperature"]
+
     def test_multiple_target_groups_raises(self, mock_dataset: Path) -> None:
         """Only one target dataset group is supported; more than one must raise."""
         cfg = _build_config(
@@ -196,7 +216,7 @@ class TestInputVariableSelection:
         dm = CommonDataModule(cfg)
 
         with pytest.raises(ValueError, match="not-a-group") as exc_info:
-            _ = dm.variable_names
+            _ = dm.datasets
 
         assert "group1" in str(exc_info.value)
 
@@ -210,7 +230,7 @@ class TestInputVariableSelection:
         dm = CommonDataModule(cfg)
 
         with pytest.raises(ValueError, match="not-a-variable") as exc_info:
-            _ = dm.variable_names
+            _ = dm.datasets
 
         message = str(exc_info.value)
         assert "ice_conc" in message
@@ -292,7 +312,7 @@ class TestInputVariableSelection:
         )
         dm = CommonDataModule(cfg)
 
-        assert dm.variable_names["group2"] == []
+        assert dm._requested_variable_names["group2"] == []
         assert set(dm.datasets) == {"group1"}
         assert "group2" not in dm.datasets
         assert "group2" in dm.datasets_unfiltered

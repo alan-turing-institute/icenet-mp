@@ -849,7 +849,9 @@ class TestModelService:
         service.data_module_ = MagicMock()
         service.data_module_.target_group_name = "target"
         service.data_module_.target_variables = ["sic"]
-        service.data_module_.variable_names = {"era5": ["t2m"]}
+        service.data_module_.datasets = {
+            "era5": SimpleNamespace(variable_names=["t2m"])
+        }
         service.data_module_.latitudes = {"input": [0.0]}
         service.data_module_.longitudes = {"input": [0.0]}
 

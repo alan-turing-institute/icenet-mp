@@ -267,6 +267,24 @@ class TestSingleDataset:
         data_array = subset_dataset[0]
         assert data_array.shape == (1, 2, 2)
 
+    def test_subset_variable_order_follows_storage_not_request_order(
+        self, mock_dataset: Path
+    ) -> None:
+        """`subset` selects the requested variables while keeping on-disk order.
+
+        `mock_dataset` stores variables as (ice_conc, ice_thickness, temperature).
+        Variables are requested here in the opposite order, but the subset's
+        `variable_names` still comes back in storage order: `variables` is turned
+        into a `set` internally so anemoi does not reorder the underlying data, so
+        any caller that needs a specific channel by index must read it back from
+        `variable_names` rather than assuming it matches the requested order.
+        """
+        original_dataset = SingleDataset(
+            name="mock_dataset", input_files=[mock_dataset]
+        )
+        subset_dataset = original_dataset.subset(variables=["temperature", "ice_conc"])
+        assert subset_dataset.variable_names == ["ice_conc", "temperature"]
+
     def test_subset_preserves_date_ranges(
         self,
         mock_dataset: Path,

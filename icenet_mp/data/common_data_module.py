@@ -87,7 +87,7 @@ class CommonDataModule(LightningDataModule):
         """
         return {
             ds_name: self.datasets_unfiltered[ds_name].subset(variables=variable_names)
-            for ds_name, variable_names in self.variable_names.items()
+            for ds_name, variable_names in self._requested_variable_names.items()
             if variable_names
         }
 
@@ -182,9 +182,9 @@ class CommonDataModule(LightningDataModule):
 
     @cached_property
     def target_variables(self) -> list[str]:
-        """Return the names of the variables to predict."""
+        """Return the names of the variables to predict, in on-disk order."""
         try:
-            available_variables = next(
+            on_disk_variables = next(
                 ds.variable_names
                 for ds in self.datasets.values()
                 if ds.name == self.target_group_name and ds.variable_names
@@ -195,15 +195,15 @@ class CommonDataModule(LightningDataModule):
         # Verify that the requested variable names exist in the dataset group
         requested_variables = self._requested_target_variables[self.target_group_name]
         for requested_variable in requested_variables:
-            if requested_variable not in available_variables:
-                available_ = ", ".join(sorted(available_variables)) or "<none>"
+            if requested_variable not in on_disk_variables:
+                available_ = ", ".join(sorted(on_disk_variables)) or "<none>"
                 msg = (
                     f"Target variable {requested_variable!r} was not found in dataset "
                     f"group {self.target_group_name!r}. Available variables: "
                     f"{available_}."
                 )
                 raise ValueError(msg)
-        return requested_variables
+        return [v for v in on_disk_variables if v in requested_variables]
 
     @cached_property
     def target_variable_indices(self) -> list[int]:
@@ -229,8 +229,13 @@ class CommonDataModule(LightningDataModule):
             raise ValueError(msg) from exc
 
     @cached_property
-    def variable_names(self) -> dict[str, list[str]]:
-        """Return the variable names for each input dataset group."""
+    def _requested_variable_names(self) -> dict[str, list[str]]:
+        """Return the requested variable names for each input dataset group.
+
+        These lists are in the order variables were requested in `variables.input`,
+        which is used to filter (but not order) `datasets`. For the  on-disk-ordered
+        channels, use `datasets[group].variable_names` instead.
+        """
         if not self._requested_input_variables:
             return {
                 ds.name: ds.variable_names for ds in self.datasets_unfiltered.values()
