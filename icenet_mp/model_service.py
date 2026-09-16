@@ -3,7 +3,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import hydra
 import torch
@@ -146,7 +146,7 @@ class ModelService:
         # what was saved with the checkpoint. Without this, Lightning restores
         # the saved hyper_parameters and any config override is silently
         # ignored (see #525).
-        model_overrides: dict[str, DictConfig] = {}
+        model_overrides: dict[str, Any] = {}
         if ckpt_config is not None:
             cli_model = config.get("model", {})
             ckpt_model = ckpt_config.get("model", {})
