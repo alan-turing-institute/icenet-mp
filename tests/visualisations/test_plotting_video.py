@@ -6,10 +6,12 @@ styling configurations.
 """
 
 import io
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import date
 from typing import Literal
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -58,6 +60,7 @@ class TestPlotVideoPrediction:
         sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
         fake_video_from_animation: Callable[..., io.BytesIO],
         video_format: Literal["gif", "mp4"],
+        no_land_mask: LandMask,
     ) -> None:
         """video_maps should produce a dict with a BytesIO video buffer (fast path)."""
         ground_truth, prediction, dates = sic_pair_3d_stream
@@ -70,7 +73,7 @@ class TestPlotVideoPrediction:
             ground_truth,
             prediction,
             dates=dates,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=spec,
             variable_name=variable_name,
         )
@@ -84,6 +87,150 @@ class TestPlotVideoPrediction:
         assert isinstance(buffer, io.BytesIO)
         assert buffer.getvalue()  # not empty
 
+    def test_renders_real_animation(
+        self,
+        sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        no_land_mask: LandMask,
+    ) -> None:
+        """Exercise the real (unmocked) frame-drawing path used by animation.save()."""
+        ground_truth, prediction, dates = sic_pair_3d_stream
+        spec = replace(DEFAULT_SIC_SPEC, include_difference=True, video_format="gif")
+
+        result = plot_video_prediction(
+            ground_truth,
+            prediction,
+            dates=dates,
+            land_mask=no_land_mask,
+            plot_spec=spec,
+            variable_name="test-variable",
+        )
+
+        buffer = next(iter(result.values()))
+        buffer.seek(0)
+        assert buffer.read()[:6] == b"GIF89a"
+
+    @pytest.mark.parametrize("diff_strategy", ["precompute", "two-pass", "per-frame"])
+    def test_all_difference_strategies(
+        self,
+        sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        fake_video_from_animation: Callable[..., io.BytesIO],
+        diff_strategy: Literal["precompute", "two-pass", "per-frame"],
+        no_land_mask: LandMask,
+    ) -> None:
+        """video_maps should succeed under every difference-computation strategy."""
+        ground_truth, prediction, dates = sic_pair_3d_stream
+        spec = replace(
+            DEFAULT_SIC_SPEC, include_difference=True, diff_strategy=diff_strategy
+        )
+
+        result = plot_video_prediction(
+            ground_truth,
+            prediction,
+            dates=dates,
+            land_mask=no_land_mask,
+            plot_spec=spec,
+            variable_name="test-variable",
+        )
+
+        assert fake_video_from_animation is not None
+        assert next(iter(result.values())).getvalue()
+
+    def test_rejects_mismatched_shapes(
+        self,
+        sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        no_land_mask: LandMask,
+    ) -> None:
+        """Reject prediction and ground truth streams with different shapes."""
+        ground_truth, prediction, dates = sic_pair_3d_stream
+
+        with pytest.raises(InvalidArrayError, match="different shape"):
+            plot_video_prediction(
+                ground_truth,
+                prediction[:, :-1, :],
+                dates=dates,
+                land_mask=no_land_mask,
+                plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="test-variable",
+            )
+
+    def test_rejects_mismatched_dates(
+        self,
+        sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        no_land_mask: LandMask,
+    ) -> None:
+        """Reject a dates sequence whose length doesn't match the number of timesteps."""
+        ground_truth, prediction, dates = sic_pair_3d_stream
+
+        with pytest.raises(
+            InvalidArrayError, match=r"Number of dates.*!= number of timesteps"
+        ):
+            plot_video_prediction(
+                ground_truth,
+                prediction,
+                dates=dates[:-1],
+                land_mask=no_land_mask,
+                plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="test-variable",
+            )
+
+    def test_continues_without_title_when_suptitle_fails(
+        self,
+        sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        fake_video_from_animation: Callable[..., io.BytesIO],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
+    ) -> None:
+        """Still produce a video if drawing the suptitle raises."""
+        ground_truth, prediction, dates = sic_pair_3d_stream
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_video.set_suptitle_with_box",
+            MagicMock(side_effect=RuntimeError("boom")),
+        )
+
+        with caplog.at_level(logging.ERROR):
+            result = plot_video_prediction(
+                ground_truth,
+                prediction,
+                dates=dates,
+                land_mask=no_land_mask,
+                plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="test-variable",
+            )
+
+        assert fake_video_from_animation is not None
+        assert "Failed to draw suptitle" in caplog.text
+        assert next(iter(result.values())).getvalue()
+
+    def test_continues_without_footer_when_footer_fails(
+        self,
+        sic_pair_3d_stream: tuple[np.ndarray, np.ndarray, Sequence[date]],
+        fake_video_from_animation: Callable[..., io.BytesIO],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
+    ) -> None:
+        """Still produce a video if drawing the footer raises."""
+        ground_truth, prediction, dates = sic_pair_3d_stream
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_video.set_footer_with_box",
+            MagicMock(side_effect=RuntimeError("boom")),
+        )
+
+        with caplog.at_level(logging.ERROR):
+            result = plot_video_prediction(
+                ground_truth,
+                prediction,
+                dates=dates,
+                land_mask=no_land_mask,
+                plot_spec=DEFAULT_SIC_SPEC,
+                variable_name="test-variable",
+            )
+
+        assert fake_video_from_animation is not None
+        assert "Failed to draw footer" in caplog.text
+        assert next(iter(result.values())).getvalue()
+
 
 class TestPlotVideoSingleInput:
     def test_single_variable_basic(
@@ -91,13 +238,14 @@ class TestPlotVideoSingleInput:
         era5_temperature_thw: np.ndarray,
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test basic video creation for a single variable."""
         video_buffer = plot_video_single_input(
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
         )
 
@@ -132,6 +280,7 @@ class TestPlotVideoSingleInput:
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
         video_format: Literal["gif", "mp4"],
+        no_land_mask: LandMask,
     ) -> None:
         """Test creating videos in different formats."""
         plot_spec = replace(base_plot_spec, video_format=video_format)
@@ -139,7 +288,7 @@ class TestPlotVideoSingleInput:
             "era5:2t",
             era5_temperature_thw,
             dates=test_dates_short,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=plot_spec,
         )
 
@@ -155,10 +304,66 @@ class TestPlotVideoSingleInput:
             # MP4 typically has ftyp box early
             assert b"ftyp" in content[:100]
 
+    def test_two_slope_centre_uses_symmetric_ticks(
+        self,
+        era5_temperature_thw: np.ndarray,
+        test_dates_short: list[date],
+        base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
+    ) -> None:
+        """A two_slope_centre style should route through the TwoSlopeNorm tick path."""
+        plot_spec = replace(
+            base_plot_spec,
+            per_variable_styles={
+                "era5:2t": {"cmap": "RdBu_r", "two_slope_centre": 273.15},
+            },
+        )
+
+        video_buffer = plot_video_single_input(
+            "era5:2t",
+            era5_temperature_thw,
+            dates=test_dates_short,
+            land_mask=no_land_mask,
+            plot_spec=plot_spec,
+        )
+
+        assert isinstance(video_buffer, io.BytesIO)
+        video_buffer.seek(0)
+        assert len(video_buffer.read()) > 1000
+
+    def test_continues_without_title_when_title_fails(
+        self,
+        era5_temperature_thw: np.ndarray,
+        test_dates_short: list[date],
+        base_plot_spec: PlotSpec,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
+    ) -> None:
+        """Still produce a video if drawing the title raises."""
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_video.set_suptitle_with_box",
+            MagicMock(side_effect=ValueError("boom")),
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            video_buffer = plot_video_single_input(
+                "era5:2t",
+                era5_temperature_thw,
+                dates=test_dates_short,
+                land_mask=no_land_mask,
+                plot_spec=base_plot_spec,
+            )
+
+        assert "Failed to draw title" in caplog.text
+        video_buffer.seek(0)
+        assert len(video_buffer.read()) > 1000
+
     def test_video_wrong_dimension(
         self,
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test error when video data is not 3D."""
         rng = np.random.default_rng(42)
@@ -169,7 +374,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 wrong_dim_array,
                 dates=test_dates_short,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
             )
 
@@ -177,6 +382,7 @@ class TestPlotVideoSingleInput:
         self,
         era5_temperature_thw: np.ndarray,
         base_plot_spec: PlotSpec,
+        no_land_mask: LandMask,
     ) -> None:
         """Test error when number of dates doesn't match timesteps."""
         wrong_dates = [TEST_DATE]  # Only 1 date for 2 timesteps
@@ -188,7 +394,7 @@ class TestPlotVideoSingleInput:
                 "era5:2t",
                 era5_temperature_thw,
                 dates=wrong_dates,
-                land_mask=LandMask(None),
+                land_mask=no_land_mask,
                 plot_spec=base_plot_spec,
             )
 
@@ -199,6 +405,7 @@ class TestPlotVideoInputs:
         test_dates_short: list[date],
         base_plot_spec: PlotSpec,
         fake_video_from_animation: Callable[..., io.BytesIO],
+        no_land_mask: LandMask,
     ) -> None:
         """Test batch video creation for multiple variables."""
         rng = np.random.default_rng(100)
@@ -212,14 +419,14 @@ class TestPlotVideoInputs:
             "era5:10u": rng.normal(
                 0, 5, size=(n_timesteps, TEST_HEIGHT, TEST_WIDTH)
             ).astype(np.float32),
-            "sic-icenet:ice_conc": rng.uniform(
+            "sic-osisaf:ice_conc": rng.uniform(
                 0, 1, size=(n_timesteps, TEST_HEIGHT, TEST_WIDTH)
             ).astype(np.float32),
         }
 
         results = plot_video_inputs(
             dates=test_dates_short,
-            land_mask=LandMask(None),
+            land_mask=no_land_mask,
             plot_spec=base_plot_spec,
             variables=variables,
         )
@@ -232,3 +439,46 @@ class TestPlotVideoInputs:
             key = f"{test_dates_short[0].strftime('%Y-%m-%d')}-{name}"
             assert key in results
             assert results[key].getvalue() == b"fake-video-data"
+
+    def test_skips_variable_that_fails_to_render(
+        self,
+        test_dates_short: list[date],
+        base_plot_spec: PlotSpec,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        no_land_mask: LandMask,
+    ) -> None:
+        """Skip a variable whose rendering fails, but still return the others."""
+        rng = np.random.default_rng(100)
+        n_timesteps = len(test_dates_short)
+        variables = {
+            "era5:2t": rng.uniform(
+                270, 280, size=(n_timesteps, TEST_HEIGHT, TEST_WIDTH)
+            ).astype(np.float32),
+            "era5:10u": rng.normal(
+                0, 5, size=(n_timesteps, TEST_HEIGHT, TEST_WIDTH)
+            ).astype(np.float32),
+        }
+
+        monkeypatch.setattr(
+            "icenet_mp.visualisations.plotting_video.plot_video_single_input",
+            MagicMock(
+                side_effect=[
+                    InvalidArrayError("bad array"),
+                    io.BytesIO(b"fake-video-data"),
+                ]
+            ),
+        )
+
+        with caplog.at_level(logging.ERROR):
+            results = plot_video_inputs(
+                dates=test_dates_short,
+                land_mask=no_land_mask,
+                plot_spec=base_plot_spec,
+                variables=variables,
+            )
+
+        assert "Failed to create animation for variable era5:2t" in caplog.text
+        assert len(results) == 1
+        key = f"{test_dates_short[0].strftime('%Y-%m-%d')}-era5:10u"
+        assert results[key].getvalue() == b"fake-video-data"

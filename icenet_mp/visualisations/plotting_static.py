@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
 from PIL.ImageFile import ImageFile
 
-from icenet_mp.types import ArrayHW, PlotSpec
+from icenet_mp.types import ArrayHW, PlotSpec, UncertaintyArrays
 
 from .convert import image_from_figure
 from .helpers import (
@@ -40,6 +40,7 @@ from .layout import (
 )
 from .plotting_core import (
     colourmap_with_bad,
+    compute_standardised_difference,
     create_normalisation,
     style_for_variable,
 )
@@ -47,7 +48,7 @@ from .plotting_core import (
 logger = logging.getLogger(__name__)
 
 
-def plot_static_prediction(
+def plot_static_prediction(  # noqa: PLR0913
     ground_truth: ArrayHW,
     prediction: ArrayHW,
     *,
@@ -55,6 +56,7 @@ def plot_static_prediction(
     land_mask: LandMask,
     plot_spec: PlotSpec,
     variable_name: str,
+    climatology: ArrayHW | None = None,
 ) -> dict[str, list[ImageFile]]:
     """Create static maps comparing ground truth and prediction data.
 
@@ -70,11 +72,16 @@ def plot_static_prediction(
         date: Date/datetime for the data being visualised, used in the plot title.
         variable_name: Name of the variable being plotted, used in the plot title and
             output key.
+        climatology: Optional 2D array of the calendar-day-mean (climatology) field for
+            the calendar day of the date. When given, an additional standalone
+            single-panel figure is returned under the key
+            ``<date>-<variable_name>-climatology``.
 
     Returns:
-        Dictionary that maps plot names to lists of PIL ImageFile objects. Currently
-        returns a single key `variable_name`-`date` containing a list with one image
-        representing the generated plot.
+        Dictionary that maps plot names to lists of PIL ImageFile objects. Returns a
+        single key `variable_name`-`date` containing a list with one image representing
+        the generated plot, plus (when a climatology field is given) the key
+        ``<date>-<variable_name>-climatology``.
 
     Raises:
         InvalidArrayError: If ground_truth and prediction arrays have incompatible shapes.
@@ -137,13 +144,137 @@ def plot_static_prediction(
     _maybe_add_footer(fig, plot_spec)
 
     try:
-        return {
+        images: dict[str, list[ImageFile]] = {
             f"{date.strftime(r'%Y-%m-%d')}-{variable_name}": [
                 image_from_figure(fig, dpi=plot_spec.dpi)
             ]
         }
     finally:
         plt.close(fig)
+
+    if climatology is not None:
+        try:
+            images.update(
+                plot_static_climatology(
+                    climatology,
+                    date=date,
+                    land_mask=land_mask,
+                    plot_spec=plot_spec,
+                    variable_name=variable_name,
+                )
+            )
+        except (ValueError, OSError) as err:
+            logger.warning(
+                "Failed to render climatology plot; continuing without it: %s", err
+            )
+
+    return images
+
+
+def plot_static_uncertainty(
+    arrays: UncertaintyArrays,
+    *,
+    date: date | datetime,
+    land_mask: LandMask,
+    plot_spec: PlotSpec,
+    variable_name: str,
+) -> dict[str, list[ImageFile]]:
+    """Plot signed prediction error in units of observational uncertainty.
+
+    A value of ``z=1`` means the observation exceeds the prediction by one
+    reported standard uncertainty. Invalid or non-positive uncertainty values
+    are masked.
+    """
+    z_difference = compute_standardised_difference(
+        arrays.ground_truth, arrays.prediction, arrays.uncertainty
+    )
+    z_difference = land_mask.apply_to(z_difference)
+
+    height, width = z_difference.shape
+    fig, ax, cax = build_single_panel_figure(
+        height=height,
+        width=width,
+        colourbar_location=plot_spec.colourbar_location,
+    )
+
+    norm, vmin, vmax = create_normalisation(z_difference, centre=0.0)
+    image = ax.imshow(
+        z_difference,
+        cmap=colourmap_with_bad("RdBu_r", bad_color="lightgrey"),
+        norm=norm,
+        origin="lower",
+        interpolation="nearest",
+    )
+
+    is_vertical = plot_spec.colourbar_location == "vertical"
+    colourbar = fig.colorbar(
+        image,
+        ax=ax,
+        cax=cax,
+        orientation=plot_spec.colourbar_location,
+    )
+    format_symmetric_ticks(
+        colourbar,
+        vmin=vmin,
+        vmax=vmax,
+        decimals=1,
+        is_vertical=is_vertical,
+        centre=0.0,
+        use_scientific_notation=False,
+    )
+
+    shown = date.date().isoformat() if isinstance(date, datetime) else date.isoformat()
+    set_suptitle_with_box(
+        fig,
+        f"{variable_name} standardised difference (z)   Shown: {shown}",
+    )
+
+    try:
+        image_file = image_from_figure(fig, dpi=plot_spec.dpi)
+    finally:
+        plt.close(fig)
+
+    return {f"{shown}-{variable_name}-uncertainty-z": [image_file]}
+
+
+def plot_static_climatology(
+    climatology: ArrayHW,
+    *,
+    date: date | datetime,
+    land_mask: LandMask,
+    plot_spec: PlotSpec,
+    variable_name: str,
+) -> dict[str, list[ImageFile]]:
+    """Create a static map of the climatology (calendar-day mean) field.
+
+    Rendered as a standalone single-panel figure, styled like the raw input plots, so it
+    can be shown alongside the ground truth/prediction comparison.
+
+    Args:
+        climatology: 2D array of the calendar-day-mean (climatology) field.
+        plot_spec: Configuration object specifying titles, colourmaps, value ranges, and
+            other visualisation parameters.
+        land_mask: Land mask to apply to the data.
+        date: Date/datetime of the forecast, used in the plot title and output key.
+        variable_name: Name of the variable the climatology was computed from, used in
+            the plot title and output key.
+
+    Returns:
+        Dictionary that maps the plot name ``<date>-<variable_name>-climatology`` to a
+        list with one PIL ImageFile for the climatology panel. Returns an empty
+        dictionary if the array is not 2D.
+
+    """
+    images = plot_static_inputs(
+        {variable_name: climatology},
+        land_mask=land_mask,
+        plot_spec=plot_spec,
+        when=date,
+    )
+    if not images:
+        return {}
+    image_list = next(iter(images.values()))
+    return {f"{date.strftime(r'%Y-%m-%d')}-{variable_name}-climatology": image_list}
 
 
 def plot_static_inputs(
