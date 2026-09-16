@@ -104,19 +104,28 @@ class ModelService:
             msg = f"Checkpoint file {checkpoint_path} does not exist."
             raise FileNotFoundError(msg)
 
-        # Build a combined model configuration where the command line config takes
-        # precedence except for the "model", "predict" and "train" keys which are
-        # related to training the model.
+        # Build a combined model configuration. Checkpoint values are used as
+        # defaults; anything the CLI/eval config specifies that differs from
+        # the saved values wins (see #525). Overrides to fields that would
+        # break weight loading (model._target_, channel counts, encoder
+        # shapes, etc.) are the caller's responsibility.
         config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
+        ckpt_config: DictConfig | None = None
         try:
-            # Load the model configuration from the checkpoint directory
             ckpt_config = DictConfig(OmegaConf.load(config_path))
             log.debug("Loaded checkpoint configuration from %s.", config_path)
             combined_cfg = DictConfig(OmegaConf.merge(ckpt_config, config))
             for key in ("model", "predict", "train"):
-                combined_cfg[key] = OmegaConf.merge(
-                    combined_cfg.get(key, {}), ckpt_config.get(key, {})
+                cli_val = OmegaConf.to_container(config.get(key, {}), resolve=False)
+                ckpt_val = OmegaConf.to_container(
+                    ckpt_config.get(key, {}), resolve=False
                 )
+                if cli_val and cli_val != ckpt_val:
+                    log.warning(
+                        "Applying CLI override for '%s'; the corresponding "
+                        "values saved with the checkpoint will be ignored.",
+                        key,
+                    )
         except (NotADirectoryError, FileNotFoundError):
             combined_cfg = config
             log.debug("Could not load checkpoint configuration from %s.", config_path)
