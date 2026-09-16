@@ -156,8 +156,9 @@ class TestModelService:
 
             expected_config = cfg_model_service.copy()
             expected_config["reporting"]["loggers"] = "will_overwrite"
+            expected_config["model"]["name"] = "will_not_overwrite"
             assert service.config == expected_config
-            assert service.config["model"]["name"] != "will_not_overwrite"
+            assert service.config["model"]["name"] == "will_not_overwrite"
 
     def test_from_checkpoint_raises_when_checkpoint_missing(
         self, tmp_path: Path
