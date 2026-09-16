@@ -136,6 +136,23 @@ class ModelService:
             builder.config["model"]["_target_"]
         )
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
+
+        # Forward model subfields (encoders, processor, decoder) as kwargs to
+        # load_from_checkpoint only when the eval config's value differs from
+        # what was saved with the checkpoint. Without this, Lightning restores
+        # the saved hyper_parameters and any config override is silently
+        # ignored (see #525).
+        model_overrides: dict[str, DictConfig] = {}
+        if ckpt_config is not None:
+            cli_model = config.get("model", {})
+            ckpt_model = ckpt_config.get("model", {})
+            for k in ("encoders", "processor", "decoder"):
+                if k not in cli_model:
+                    continue
+                cli_val = OmegaConf.to_container(cli_model[k], resolve=False)
+                ckpt_val = OmegaConf.to_container(ckpt_model.get(k, {}), resolve=False)
+                if cli_val != ckpt_val:
+                    model_overrides[k] = builder.config["model"][k]
         builder.model_ = model_cls.load_from_checkpoint(
             checkpoint_path,
             mask_dir=str(builder.data_module.mask_directory),
@@ -143,6 +160,7 @@ class ModelService:
             longitudes_fn=lambda: builder.data_module.longitudes,
             map_location="cpu",  # portability: will be moved to the correct device later
             weights_only=False,
+            **model_overrides,
         )
 
         return builder
