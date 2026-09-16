@@ -1,6 +1,5 @@
 from unittest.mock import MagicMock
 
-import numpy as np
 import torch
 from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
@@ -12,10 +11,9 @@ from icenet_mp.types import (
     AnemoiInitArgs,
     AnemoiInspectArgs,
     AnemoiLoadArgs,
-    DiffColourmapSpec,
+    DiffColourmap,
     Metadata,
     ProcessorOutput,
-    UncertaintyArrays,
 )
 
 
@@ -23,11 +21,10 @@ class TestAnemoiCommandArgs:
     """Tests for the Anemoi CLI command argument dataclasses."""
 
     def test_cleanup_defaults(self) -> None:
-        """Default AnemoiCleanupArgs command and delta when omitted."""
+        """Default AnemoiCleanupArgs command when omitted."""
         args = AnemoiCleanupArgs(path="dataset.zarr")
 
         assert args.command == "unused"
-        assert args.delta is None
 
     def test_finalise_defaults(self) -> None:
         """Default AnemoiFinaliseArgs command while preserving the recipe."""
@@ -89,14 +86,14 @@ class TestAnemoiDatasetStatus:
         assert status.download_complete is True
 
 
-class TestDiffColourmapSpec:
-    """Tests for DiffColourmapSpec."""
+class TestDiffColourmap:
+    """Tests for DiffColourmap."""
 
     def test_preserves_normalisation_and_bounds(self) -> None:
         """Preserve normalisation, bounds and colourmap configuration."""
         norm = Normalize(vmin=-1.0, vmax=1.0)
 
-        spec = DiffColourmapSpec(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
+        spec = DiffColourmap(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
 
         assert spec.norm is norm
         assert spec.vmin is None
@@ -111,7 +108,6 @@ class TestMetadata:
         """Accept and preserve training-summary metadata fields."""
         metadata = Metadata(
             model="cnn-vit-cnn",
-            max_epochs=20,
             current_epoch=7,
             start="2017-01-01",
             end="2019-12-31",
@@ -128,13 +124,12 @@ class TestMetadata:
 
     def test_defaults_are_independent_and_optional(self) -> None:
         """Keep Metadata defaults optional and independent across instances."""
-        first = Metadata()
+        first = Metadata(vars_by_source={"era5": ["2t"]})
         second = Metadata()
-
-        first.vars_by_source = {"era5": ["2t"]}
 
         assert first.model is None
         assert first.n_points is None
+        assert first.vars_by_source == {"era5": ["2t"]}
         assert second.vars_by_source is None
 
 
@@ -158,26 +153,3 @@ class TestProcessorOutput:
         output = ProcessorOutput(prediction=prediction, loss=loss)
 
         assert output.loss is loss
-
-
-class TestUncertaintyArrays:
-    """Tests for UncertaintyArrays."""
-
-    def test_preserve_named_tuple_fields(self) -> None:
-        """Preserve array identities and tuple ordering for uncertainty values."""
-        ground_truth = np.zeros((2, 3), dtype=np.float32)
-        prediction = np.ones((2, 3), dtype=np.float32)
-        uncertainty = np.full((2, 3), 0.1, dtype=np.float32)
-
-        arrays = UncertaintyArrays(
-            ground_truth=ground_truth,
-            prediction=prediction,
-            uncertainty=uncertainty,
-        )
-
-        assert arrays.ground_truth is ground_truth
-        assert arrays.prediction is prediction
-        assert arrays.uncertainty is uncertainty
-        assert arrays[0] is ground_truth
-        assert arrays[1] is prediction
-        assert arrays[2] is uncertainty

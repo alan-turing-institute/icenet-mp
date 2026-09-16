@@ -1,48 +1,82 @@
 import logging
+from contextlib import suppress
 from datetime import datetime
 from io import BytesIO
 
-from omegaconf import DictConfig
+import numpy as np
 from PIL.ImageFile import ImageFile
 
-from icenet_mp.data import SingleDataset
+from icenet_mp.data import CombinedDataset, SingleDataset
 from icenet_mp.exceptions import InvalidArrayError, VideoRenderError
 from icenet_mp.types import (
     ArrayHW,
     ArrayTCHW,
     ArrayTHW,
-    Hemisphere,
     Metadata,
     ModelStepOutput,
     PlotSpec,
     SupportsImageLogging,
     SupportsVideoLogging,
-    UncertaintyArrays,
 )
 from icenet_mp.utils import npdatetime_from_datetime
 
 from .land_mask import LandMask
-from .metadata import build_metadata, format_metadata_subtitle
-from .plotting_static import (
-    plot_static_inputs,
-    plot_static_prediction,
-    plot_static_uncertainty,
-)
-from .plotting_video import plot_video_inputs, plot_video_prediction
+from .panel_renderer import PanelRenderer
 
 logger = logging.getLogger(__name__)
 
 
-class Plotter:
-    def __init__(self, plot_spec: PlotSpec | None = None) -> None:
-        """A helper class to create and log plots."""
-        self.plot_spec = plot_spec if plot_spec is not None else PlotSpec()
-        self.land_mask = LandMask(None)
+class MediaPublisher:
+    """Publish static and video plots for a dataset/plot_spec/land_mask context."""
+
+    def __init__(
+        self,
+        *,
+        dataset: CombinedDataset,
+        plot_spec: PlotSpec,
+        land_mask: LandMask,
+        current_epoch: int | None = None,
+        model_name: str | None = None,
+    ) -> None:
+        """Build a publisher bound to one dataset/plot_spec/land_mask context.
+
+        `dataset`/`current_epoch`/`model_name` describe the metadata subtitle
+        shown in every rendered footer. Hemisphere is set on `plot_spec` itself.
+        """
+        self._plot_spec = plot_spec
+        self._panel_renderer = PanelRenderer(
+            land_mask,
+            self.build_metadata(dataset, current_epoch, model_name),
+            plot_spec,
+        )
 
     @staticmethod
-    def _log_path(prefix: str | None, name: str) -> str:
-        """Build a consistent logger namespace."""
-        return f"{prefix}/{name}" if prefix else name
+    def build_metadata(
+        dataset: CombinedDataset,
+        current_epoch: int | None = None,
+        model_name: str | None = None,
+    ) -> Metadata:
+        """Build structured metadata from a CombinedDataset."""
+        # Format the dataset's frequency as a short, human-readable cadence label.
+        hours = float(dataset.frequency / np.timedelta64(1, "h"))
+        if hours % 24 == 0:
+            days = int(hours // 24)
+            cadence = "daily" if days == 1 else f"{days}d"
+        else:
+            cadence = "hourly" if hours == 1 else f"{hours:g}h"
+
+        vars_by_source = {ds.name: sorted(ds.variable_names) for ds in dataset.inputs}
+
+        return Metadata(
+            model=model_name,
+            current_epoch=current_epoch,
+            start=str(dataset.start_date.astype("datetime64[D]")),
+            end=str(dataset.end_date.astype("datetime64[D]")),
+            cadence=cadence,
+            n_points=len(dataset),
+            n_history_steps=dataset.n_history_steps,
+            vars_by_source=vars_by_source or None,
+        )
 
     @staticmethod
     def _channel_name(channel_names: list[str], idx_channel: int) -> str:
@@ -64,6 +98,11 @@ class Plotter:
                     key=f"{log_path}/{image_name}", images=image_list
                 )
 
+    @staticmethod
+    def _log_path(prefix: str | None, name: str) -> str:
+        """Build a consistent logger namespace."""
+        return f"{prefix}/{name}" if prefix else name
+
     def _log_videos(
         self,
         videos: dict[str, BytesIO],
@@ -77,16 +116,8 @@ class Plotter:
                 video_logger.log_video(
                     key=f"{log_path}/{video_name}",
                     videos=[video_buffer],
-                    format=[self.plot_spec.video_format],
+                    format=[self._plot_spec.video_format],
                 )
-
-    def get_metadata(self, config: DictConfig, model_name: str) -> Metadata:
-        """Get metadata for the plotter based on the model test output."""
-        return build_metadata(config, model_name)
-
-    def set_metadata(self, metadata: Metadata) -> None:
-        """Set metadata for the plotter, which may be used in titles and subtitles."""
-        self.plot_spec.metadata_subtitle = format_metadata_subtitle(metadata)
 
     def log_static_inputs(
         self,
@@ -97,23 +128,22 @@ class Plotter:
     ) -> None:
         """Extract and log static raw input plots."""
         try:
-            idx_date = self.plot_spec.selected_timestep
+            idx_date = self._plot_spec.selected_timestep
+            when = dates[idx_date]
             log_path = self._log_path(prefix, "input_static")
             for input_ds in inputs:
                 # Get data for all variables at the selected timestep
-                variables = {
-                    f"{input_ds.name}:{v_name}": input_ds[idx_date][channel, :]
-                    for channel, v_name in enumerate(input_ds.variable_names)
-                }
-                # Plot static input images
-                images = plot_static_inputs(
-                    variables,
-                    land_mask=self.land_mask,
-                    plot_spec=self.plot_spec,
-                    when=dates[idx_date],
-                )
-                # Log static input images
-                self._log_images(images, image_loggers, log_path)
+                for channel, v_name in enumerate(input_ds.variable_names):
+                    variable_name = f"{input_ds.name}:{v_name}"
+                    image = self._panel_renderer.static_singlet(
+                        input_ds[idx_date][channel, :],
+                        when=when,
+                        variable_name=variable_name,
+                    )
+                    key = f"{when.strftime(r'%Y-%m-%d')}-{variable_name}"
+                    images: dict[str, list[ImageFile]] = {key: [image]}
+                    # Log static input images
+                    self._log_images(images, image_loggers, log_path)
         except InvalidArrayError as exc:
             logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
         except (IndexError, ValueError, MemoryError, OSError) as exc:
@@ -135,7 +165,7 @@ class Plotter:
         given, a calendar-day-mean (climatology) map for the plotted date and channel.
         """
         try:
-            idx_date = self.plot_spec.selected_timestep
+            idx_date = self._plot_spec.selected_timestep
             log_path = self._log_path(prefix, "output_static")
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
@@ -146,22 +176,30 @@ class Plotter:
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names, idx_channel)
-                climatology_field: ArrayHW | None = (
-                    climatology[idx_date, idx_channel]
-                    if climatology is not None
-                    else None
-                )
-                # Plot and log output static images
-                images = plot_static_prediction(
-                    ground_truth,
-                    prediction,
-                    date=dates[idx_date],
-                    land_mask=self.land_mask,
-                    plot_spec=self.plot_spec,
-                    variable_name=variable_name,
-                    climatology=climatology_field,
-                )
-                # Plot static uncertainty images
+                date_key = dates[idx_date].strftime(r"%Y-%m-%d")
+                images: dict[str, list[ImageFile]] = {}
+                # Plot static truth/prediction/difference image
+                images[f"{date_key}-{variable_name}-truth-difference"] = [
+                    self._panel_renderer.static_triplet(
+                        ground_truth,
+                        prediction,
+                        when=dates[idx_date],
+                        variable_name=variable_name,
+                    )
+                ]
+                # Plot static climatology/prediction/difference image
+                if climatology is not None:
+                    with suppress(IndexError, TypeError):
+                        climatology_field = climatology[idx_date, idx_channel]
+                        images[f"{date_key}-{variable_name}-climatology-difference"] = [
+                            self._panel_renderer.static_triplet(
+                                ground_truth,
+                                climatology_field,
+                                when=dates[idx_date],
+                                variable_name=variable_name,
+                            )
+                        ]
+                # Plot static truth/prediction/z-score image
                 if (
                     uncertainty := (
                         uncertainties.get(idx_channel)
@@ -169,17 +207,15 @@ class Plotter:
                         else None
                     )
                 ) is not None:
-                    images.update(
-                        plot_static_uncertainty(
-                            UncertaintyArrays(
-                                ground_truth, prediction, uncertainty[idx_date]
-                            ),
-                            date=dates[idx_date],
-                            land_mask=self.land_mask,
-                            plot_spec=self.plot_spec,
+                    images[f"{date_key}-{variable_name}-z-score"] = [
+                        self._panel_renderer.static_triplet(
+                            ground_truth,
+                            prediction,
+                            when=dates[idx_date],
                             variable_name=variable_name,
+                            uncertainty=uncertainty[idx_date],
                         )
-                    )
+                    ]
                 # Log static output images
                 self._log_images(images, image_loggers, log_path)
         except InvalidArrayError as err:
@@ -197,24 +233,20 @@ class Plotter:
         """Extract and log raw input videos."""
         try:
             log_path = self._log_path(prefix, "input_video")
+            np_dates = [npdatetime_from_datetime(date) for date in dates]
+            date_key = dates[0].strftime(r"%Y-%m-%d")
             for input_ds in inputs:
-                # Get data for all variables at the selected timestep
-                np_dates = [npdatetime_from_datetime(date) for date in dates]
-                variables = {
-                    f"{input_ds.name}:{v_name}": input_ds.get_tchw(np_dates)[
-                        :, channel, :
-                    ]
-                    for channel, v_name in enumerate(input_ds.variable_names)
-                }
-                # Plot input animations
-                videos = plot_video_inputs(
-                    variables,
-                    dates=dates,
-                    plot_spec=self.plot_spec,
-                    land_mask=self.land_mask,
-                )
-                # Log input animations
-                self._log_videos(videos, video_loggers, log_path)
+                # Get data for all variables over the full date range
+                for channel, v_name in enumerate(input_ds.variable_names):
+                    variable_name = f"{input_ds.name}:{v_name}"
+                    video = self._panel_renderer.video_singlet(
+                        input_ds.get_tchw(np_dates)[:, channel, :],
+                        dates=dates,
+                        variable_name=variable_name,
+                    )
+                    video_data = {f"{date_key}-{variable_name}": video}
+                    # Log input animations
+                    self._log_videos(video_data, video_loggers, log_path)
         except (InvalidArrayError, VideoRenderError) as err:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):
@@ -239,25 +271,19 @@ class Plotter:
                 prediction: ArrayTHW = (
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
-                # Plot output animations
-                video_data = plot_video_prediction(
+                variable_name = self._channel_name(channel_names, idx_channel)
+                # Plot output animation via the minimal MatplotlibRenderer core
+                video = self._panel_renderer.video_triplet(
                     ground_truth,
                     prediction,
                     dates=dates,
-                    land_mask=self.land_mask,
-                    plot_spec=self.plot_spec,
-                    variable_name=self._channel_name(channel_names, idx_channel),
+                    variable_name=variable_name,
                 )
+                date_key = dates[0].strftime(r"%Y-%m-%d")
+                video_data = {f"{date_key}-{variable_name}": video}
                 # Log output animations
                 self._log_videos(video_data, video_loggers, log_path)
         except (InvalidArrayError, VideoRenderError) as err:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):
             logger.exception("Video plotting failed")
-
-    def set_hemisphere(
-        self,
-        hemisphere: Hemisphere,
-    ) -> None:
-        """Set the hemisphere and update the plot spec accordingly."""
-        self.plot_spec.hemisphere = hemisphere

@@ -13,7 +13,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
-from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
+from icenet_mp.callbacks import MediaLoggingCallback, UnconditionalCheckpoint
 from icenet_mp.compatibility.torch import (
     patch_interpolate_antialias,
     patch_open_file_limit,
@@ -21,7 +21,6 @@ from icenet_mp.compatibility.torch import (
 from icenet_mp.data import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
-from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
 log = logging.getLogger(__name__)
@@ -174,7 +173,7 @@ class ModelService:
         Args:
             model: Model to train. Defaults to ``self.model`` if not provided.
             config: Job-specific config section (e.g. ``self.config["train"]``).
-            job_stage: Label passed to ``PlottingCallback.prefix`` and used in log messages.
+            job_stage: Label passed to ``MediaLoggingCallback.prefix`` and used in log messages.
             ckpt_path: Optional checkpoint to load training state from.
 
         Returns:
@@ -298,7 +297,7 @@ class ModelService:
         Args:
             config: Job-specific config section (e.g. ``self.config["train"]``).
             project: W&B project name (one of "train" or "evaluate").
-            job_stage: Optional label passed to ``PlottingCallback.prefix`` and used
+            job_stage: Optional label passed to ``MediaLoggingCallback.prefix`` and used
                 in log messages. Also sets the W&B ``job_type`` to ``"multistage"``
                 when provided, or ``"single-stage"`` otherwise.
 
@@ -392,17 +391,10 @@ class ModelService:
         # Additional configuration for callbacks
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
             log.debug("Configuring callback %s.", callback.__class__.__name__)
-            # Set metadata for supported callbacks
-            if isinstance(callback, SupportsMetadata):
-                log.debug("Setting metadata for %s.", callback.__class__.__name__)
-                model_name = self.config["model"].get(
-                    "name", self.model.__class__.__name__
-                )
-                callback.set_metadata(self.config, model_name)
-            # Set plotting stage
-            if isinstance(callback, PlottingCallback):
+            # Set image logging prefix
+            if isinstance(callback, MediaLoggingCallback):
                 log.debug(
-                    "Setting plotting prefix for %s to %s.",
+                    "Setting image logging prefix for %s to %s.",
                     callback.__class__.__name__,
                     job_stage,
                 )

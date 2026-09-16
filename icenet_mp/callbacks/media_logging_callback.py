@@ -1,12 +1,12 @@
 import logging
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from lightning import LightningModule, Trainer
 from lightning.pytorch import Callback
-from omegaconf import DictConfig
 from torch import Tensor
 from torch.utils.data import DataLoader
 
@@ -14,36 +14,36 @@ from icenet_mp.data import CombinedDataset
 from icenet_mp.models import BaseModel
 from icenet_mp.types import (
     ArrayTHW,
-    Metadata,
     ModelStepOutput,
     PlotSpec,
     SupportsImageLogging,
     SupportsVideoLogging,
 )
 from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
-from icenet_mp.visualisations import DEFAULT_SIC_SPEC, Plotter
+from icenet_mp.visualisations import MediaPublisher
 from icenet_mp.visualisations.land_mask import LandMask
 
-if TYPE_CHECKING:  # per rule TC003
+if TYPE_CHECKING:
     from pathlib import Path
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
-class PlottingCallback(Callback):
-    """A callback to create plots during evaluation."""
+class MediaLoggingCallback(Callback):
+    """A callback to create and log images during evaluation."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         frequency: dict[str, int] | None = None,
         make_input_plots: bool = False,
         make_static_plots: bool = True,
         make_video_plots: bool = True,
+        model_name: str | None = None,
         plot_spec: PlotSpec | None = None,
         prefix: str | None = None,
     ) -> None:
-        """Create plots during evaluation or training validation.
+        """Create images during evaluation or training validation.
 
         Note that we do not plot during training as the data is shuffled so it would be
         difficult to work out which date corresponds to each batch.
@@ -56,25 +56,26 @@ class PlottingCallback(Callback):
             make_input_plots: Whether to plot the raw inputs.
             make_static_plots: Whether to create static plots.
             make_video_plots: Whether to create video plots.
+            model_name: The name of the model to include in plot subtitles.
             plot_spec: Plotting specification to use (contains difference settings, timestep selection, etc.).
             prefix: An optional prefix to add to all plot keys when logging.
 
         """
         super().__init__()
+        # When to make plots
         self.frequency_batch = int((frequency or {}).get("batch", -1))
         self.frequency_epoch = int((frequency or {}).get("epoch", -1))
         self.frequency_number = int((frequency or {}).get("number", -1))
+
+        # Which plots to make
         self.make_input_plots = make_input_plots
         self.make_static_plots = make_static_plots
         self.make_video_plots = make_video_plots
 
-        # Uncertainty plots
-        self.uncertainty_variables = {"ice_conc": "total_standard_uncertainty"}
-
-        # Plotter instance
-        self.plotter = Plotter(DEFAULT_SIC_SPEC + plot_spec)
-        self.plotter_metadata: Metadata | None = None
+        # Plotting specification
         self._land_mask_cache: dict[Path | None, LandMask] = {}
+        self._model_name: str | None = model_name
+        self._plot_spec = PlotSpec() + plot_spec
         self.prefix: str | None = prefix
 
         # Cache the most recent batch
@@ -122,23 +123,23 @@ class PlottingCallback(Callback):
         dataset = dataloader.dataset
         batch_size = dataloader.batch_size
         if not isinstance(dataset, CombinedDataset):
-            logger.warning("Dataset is of type %s not CombinedDataset", type(dataset))
+            log.warning("Dataset is of type %s not CombinedDataset", type(dataset))
             return None
         if batch_size is None:
-            logger.warning("Dataloader does not have a batch size.")
+            log.warning("Dataloader does not have a batch size.")
             return None
         return (dataset, batch_size)
 
     def load_target_uncertainties(
         self, dataset: CombinedDataset, dates: list
     ) -> dict[int, ArrayTHW]:
-        """Load SIC uncertainty in the same normalised scale as the target."""
+        """Load uncertainty at the same normalised scale as the target."""
         try:
             uncertainties: dict[int, ArrayTHW] = {}
             for (
                 target_variable,
                 uncertainty_variable,
-            ) in self.uncertainty_variables.items():
+            ) in self._plot_spec.uncertainty_variables.items():
                 # Attempt to load target index from the dataset
                 if target_variable not in dataset.target.variable_names:
                     continue
@@ -174,7 +175,7 @@ class PlottingCallback(Callback):
                 target_max = float(dataset.target.statistics["maximum"][target_idx])
                 target_range = target_max - target_min
                 if not np.isfinite(target_range) or target_range <= 0:
-                    logger.warning(
+                    log.warning(
                         "Could not scale target uncertainty because target range is %s.",
                         target_range,
                     )
@@ -191,7 +192,7 @@ class PlottingCallback(Callback):
             MemoryError,
             OSError,
         ) as exc:
-            logger.warning("Could not load target uncertainty: %s", exc)
+            log.warning("Could not load target uncertainty: %s", exc)
             return {}
         else:
             return uncertainties
@@ -203,37 +204,38 @@ class PlottingCallback(Callback):
         dataset: CombinedDataset,
         batch_size: int,
     ) -> None:
-        # Set plotting metadata
-        if self.plotter_metadata:
-            self.plotter_metadata.current_epoch = trainer.current_epoch
-            self.plotter.set_metadata(self.plotter_metadata)
+        # Ensure the module is a BaseModel
+        if not isinstance(pl_module, BaseModel):
+            msg = f"Lightning module is of type {type(pl_module)}, skipping plotting."
+            log.warning(msg)
+            return
 
         # Ensure that outputs is a ModelStepOutput
         if self.cached_outputs_ is None or self.cached_batch_idx_ is None:
-            logger.warning("Could not load outputs, skipping plotting.")
+            log.warning("Could not load outputs, skipping plotting.")
             return
+
+        # Load land mask for plotting based on dataset
+        datamodule = getattr(trainer, "datamodule", None)
+        mask_directory = getattr(datamodule, "mask_directory", None)
+        land_mask_path = mask_directory / "land_mask.npy" if mask_directory else None
+        if land_mask_path not in self._land_mask_cache:
+            self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
+
+        # Construct a publisher to handle the actual plotting and logging of media.
+        publisher = MediaPublisher(
+            current_epoch=trainer.current_epoch,
+            dataset=dataset,
+            land_mask=self._land_mask_cache[land_mask_path],
+            model_name=self._model_name,
+            plot_spec=replace(self._plot_spec, hemisphere=pl_module.hemisphere),
+        )
 
         # Load dates from the dataset
         start_date = dataset.dates[batch_size * self.cached_batch_idx_]
         dates = list(
             map(datetime_from_npdatetime, dataset.get_forecast_steps(start_date))
         )
-
-        # Set hemisphere for plotting based on dataset
-        if not isinstance(pl_module, BaseModel):
-            msg = f"Lightning module is of type {type(pl_module)}, skipping plotting."
-            logger.warning(msg)
-            return
-        self.plotter.set_hemisphere(pl_module.hemisphere)
-
-        # Load land mask for plotting based on dataset (built once per path,
-        # not rebuilt every validation epoch)
-        datamodule = getattr(trainer, "datamodule", None)
-        mask_directory = getattr(datamodule, "mask_directory", None)
-        land_mask_path = mask_directory / "land_mask.npy" if mask_directory else None
-        if land_mask_path not in self._land_mask_cache:
-            self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
-        self.plotter.land_mask = self._land_mask_cache[land_mask_path]
 
         # Get loggers that support image and video logging
         image_loggers: list[SupportsImageLogging] = [
@@ -248,7 +250,7 @@ class PlottingCallback(Callback):
 
         if self.make_static_plots:
             uncertainties = self.load_target_uncertainties(dataset, dates)
-            self.plotter.log_static_outputs(
+            publisher.log_static_outputs(
                 self.cached_outputs_,
                 dates,
                 image_loggers,
@@ -258,12 +260,12 @@ class PlottingCallback(Callback):
                 climatology=dataset.climatology_for(start_date),
             )
             if self.make_input_plots:
-                self.plotter.log_static_inputs(
+                publisher.log_static_inputs(
                     dataset.inputs, dates, image_loggers, prefix=self.prefix
                 )
 
         if self.make_video_plots:
-            self.plotter.log_video_outputs(
+            publisher.log_video_outputs(
                 self.cached_outputs_,
                 dates,
                 video_loggers,
@@ -271,7 +273,7 @@ class PlottingCallback(Callback):
                 prefix=self.prefix,
             )
             if self.make_input_plots:
-                self.plotter.log_video_inputs(
+                publisher.log_video_inputs(
                     dataset.inputs, dates, video_loggers, prefix=self.prefix
                 )
 
@@ -300,7 +302,7 @@ class PlottingCallback(Callback):
         if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
-                logger.warning("Could not load dataset, skipping plotting.")
+                log.warning("Could not load dataset, skipping plotting.")
                 return
 
             # Make the plots
@@ -314,7 +316,7 @@ class PlottingCallback(Callback):
 
         # Load the dataset
         if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
-            logger.warning("Could not load dataset, skipping plotting.")
+            log.warning("Could not load dataset, skipping plotting.")
             return
 
         # Make the plots
@@ -349,7 +351,7 @@ class PlottingCallback(Callback):
         if is_per_batch or is_sampled_batch:
             # Load the dataset
             if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
-                logger.warning("Could not load dataset, skipping plotting.")
+                log.warning("Could not load dataset, skipping plotting.")
                 return
 
             # Make the plots
@@ -365,12 +367,8 @@ class PlottingCallback(Callback):
 
         # Load the dataset
         if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
-            logger.warning("Could not load dataset, skipping plotting.")
+            log.warning("Could not load dataset, skipping plotting.")
             return
 
         # Make the plots
         self.make_plots(trainer, pl_module, *ds_tuple)
-
-    def set_metadata(self, config: DictConfig, model_name: str) -> None:
-        """Set metadata for the plotter."""
-        self.plotter_metadata = self.plotter.get_metadata(config, model_name)

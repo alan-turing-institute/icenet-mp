@@ -5,8 +5,9 @@ from typing import Any, Literal, Self, cast
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
+from .annotations import TensorNTCHW
 from .constants import SEA_ICE_THRESHOLD
-from .typedefs import DiffMode, DiffStrategy, TensorNTCHW
+from .enums import DiffMode, Hemisphere
 
 
 class DataSpace:
@@ -45,7 +46,7 @@ class DataSpace:
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModelStepOutput(Mapping[str, Tensor]):
     """Output of a model step: prediction, target, and loss."""
 
@@ -79,74 +80,50 @@ class ModelStepOutput(Mapping[str, Tensor]):
         return dict(self)
 
 
-@dataclass
+@dataclass(frozen=True)
 class PlotSpec:
     """Configure how sea-ice plots are rendered.
 
     Attributes:
-        variable: Variable name shown in plots / used for routing.
         title_groundtruth: Title above the ground-truth panel.
         title_prediction: Title above the prediction panel.
         title_difference: Title above the difference panel.
-        n_contour_levels: Number of contour levels per panel.
         colourmap: colourmap used for GT/prediction panels.
         dpi: Dots per inch for figure rendering (default 300).
         include_difference: Whether to draw a difference panel.
         diff_mode: Difference definition (e.g. "signed", "absolute", "smape").
-        diff_strategy: Strategy for animations (precompute, two-pass, per-frame).
         selected_timestep: Slice index when a single timestep is needed.
         vmin: Lower bound for GT/prediction colour scale (None = infer).
         vmax: Upper bound for GT/prediction colour scale (None = infer).
-        colourbar_location: "vertical" or "horizontal".
-        colourbar_strategy: "shared" or "separate" colourbars.
-        outside_warn: Threshold for “values outside display range” warnings.
-        severe_outside: Severe threshold for clipping warnings.
-        include_shared_range_mismatch_check: If True, add magnitude mismatch nudges.
         include_ice_edge: Whether to overlay the sea ice edge contour in red.
         ice_edge_threshold: Concentration value defining the sea ice edge contour.
+        uncertainty_variables: Maps each target variable to the input variable
+            holding its reported standard uncertainty (used for the z-score panel).
 
     """
 
-    variable: str = "sea_ice_concentration"
     title_groundtruth: str = "Ground Truth"
     title_prediction: str = "Prediction"
     title_difference: str = "Difference"
 
-    n_contour_levels: int = 51
     colourmap: str = "viridis"
     dpi: int = 300
 
     # Difference pane
     include_difference: bool = True
-    diff_mode: DiffMode = "signed"
-    diff_strategy: DiffStrategy = "precompute"
+    diff_mode: DiffMode = DiffMode.SIGNED
     selected_timestep: int = 0
 
     # Colourscale ranges: defaults to [0,1]
     vmin: float | None = 0.0
     vmax: float | None = 1.0
 
-    # Colourbar layout
-    colourbar_location: Literal["vertical", "horizontal"] = "horizontal"
-    colourbar_strategy: Literal["shared", "separate"] = "shared"
-
-    # Range Check/warnings in badge
-    outside_warn: float = 0.05
-    severe_outside: float = 0.20
-    include_shared_range_mismatch_check: bool = True
-
     # Sea ice edge overlay
     include_ice_edge: bool = False
     ice_edge_threshold: float = SEA_ICE_THRESHOLD
 
     # Optional metadata for titling
-    # hemisphere: "north" | "south" when known (used in titles)
-    hemisphere: Literal["north", "south"] | None = None
-    # metadata_subtitle: free-form text (e.g., "epochs=50; train=2010-2018")
-    metadata_subtitle: str | None = None
-
-    # Footer control
-    include_footer_metadata: bool = True
+    hemisphere: Hemisphere | None = None
 
     # Video settings
     video_fps: int = 2
@@ -159,6 +136,11 @@ class PlotSpec:
             "sic-osisaf:ice_conc": {"cmap": "Blues_r"},
             "sic-ssmis:ice_conc": {"cmap": "Blues_r"},
         }
+    )
+
+    # Uncertainty variable lookup, for the z-score panel
+    uncertainty_variables: dict[str, str] = field(
+        default_factory=lambda: {"ice_conc": "total_standard_uncertainty"}
     )
 
     def __add__(

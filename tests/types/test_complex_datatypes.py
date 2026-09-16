@@ -2,7 +2,7 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from icenet_mp.types.complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
+from icenet_mp.types import DataSpace, Hemisphere, ModelStepOutput, PlotSpec
 
 
 class TestDataSpace:
@@ -43,29 +43,29 @@ class TestPlotSpec:
 
     def test_accepts_dictconfig_override(self) -> None:
         """Apply PlotSpec overrides supplied as DictConfig."""
-        spec = PlotSpec(variable="sic")
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH)
         override = DictConfig(
             {
                 "include_difference": False,
-                "colourbar_location": "vertical",
+                "dpi": 200,
             }
         )
 
         result = spec + override
 
-        assert result.variable == "sic"
+        assert result.hemisphere == "north"
         assert result.include_difference is False
-        assert result.colourbar_location == "vertical"
+        assert result.dpi == 200
 
     def test_add_none_returns_same_spec(self) -> None:
         """Return the same PlotSpec when merging with None."""
-        spec = PlotSpec(variable="sic")
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH)
 
         assert spec + None is spec
 
     def test_add_plot_spec_override(self) -> None:
         """Apply overrides supplied as another PlotSpec instance."""
-        spec = PlotSpec(variable="sic", colourmap="viridis")
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH, colourmap="viridis")
         override = PlotSpec(colourmap="magma", video_fps=5)
 
         result = spec + override
@@ -82,13 +82,34 @@ class TestPlotSpec:
 
         assert second.per_variable_styles["sic-ssmis:ice_conc"]["cmap"] == "Blues_r"
 
+    def test_default_uncertainty_variables(self) -> None:
+        """Default uncertainty_variables maps ice_conc to its reported uncertainty."""
+        spec = PlotSpec()
+
+        assert spec.uncertainty_variables == {"ice_conc": "total_standard_uncertainty"}
+
+    def test_default_uncertainty_variables_are_not_shared(self) -> None:
+        """Keep default uncertainty_variables dictionaries independent across instances."""
+        first = PlotSpec()
+        second = PlotSpec()
+
+        first.uncertainty_variables["ice_conc"] = "other_uncertainty"
+
+        assert second.uncertainty_variables["ice_conc"] == "total_standard_uncertainty"
+
+    def test_uncertainty_variables_is_overridable(self) -> None:
+        """Allow callers to configure a different uncertainty-variable mapping."""
+        spec = PlotSpec(uncertainty_variables={"sic": "sic_uncertainty"})
+
+        assert spec.uncertainty_variables == {"sic": "sic_uncertainty"}
+
     def test_dict_override_preserves_other_values(self) -> None:
         """Apply dict overrides without changing unspecified PlotSpec values."""
-        spec = PlotSpec(variable="sic", colourmap="viridis", video_fps=2)
+        spec = PlotSpec(hemisphere=Hemisphere.NORTH, colourmap="viridis", video_fps=2)
 
         result = spec + {"colourmap": "magma", "video_fps": 5}
 
-        assert result.variable == "sic"
+        assert result.hemisphere == "north"
         assert result.colourmap == "magma"
         assert result.video_fps == 5
         assert result.include_difference is True

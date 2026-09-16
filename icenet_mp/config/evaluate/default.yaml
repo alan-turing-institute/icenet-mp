@@ -1,8 +1,8 @@
 defaults:
   - callbacks:
     - activation_saver
+    - media_logging
     - metric_summary
-    - plotting
   - _self_
 
 trainer: ${train.trainer}

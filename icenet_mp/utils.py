@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -60,8 +61,38 @@ def npdatetime_from_datetime(dt: datetime) -> np.datetime64:
     return np.datetime64(dt.replace(tzinfo=None))
 
 
-def to_list(value: str | list[str]) -> list[str]:
-    """Convert a string or list of strings to a list of strings."""
+def safe_nanmin(arr: np.ndarray, default: float = 0.0) -> float:
+    """Safely compute nanmin with fallback for empty or all-NaN arrays.
+
+    Args:
+        arr: Array to compute minimum from.
+        default: Default value if array is empty or all NaN.
+
+    Returns:
+        Minimum value or default.
+
+    """
+    finite = arr[np.isfinite(arr)]
+    return float(np.min(finite)) if finite.size else default
+
+
+def safe_nanmax(arr: np.ndarray, default: float = 1.0) -> float:
+    """Safely compute nanmax with fallback for empty or all-NaN arrays.
+
+    Args:
+        arr: Array to compute maximum from.
+        default: Default value if array is empty or all NaN.
+
+    Returns:
+        Maximum value or default.
+
+    """
+    finite = arr[np.isfinite(arr)]
+    return float(np.max(finite)) if finite.size else default
+
+
+def to_list(value: str | Sequence[str]) -> list[str]:
+    """Convert a value or sequence of values to a list of values."""
     if isinstance(value, str):
         return [value]
-    return value
+    return value if isinstance(value, list) else list(value)

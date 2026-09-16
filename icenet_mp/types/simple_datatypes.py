@@ -5,7 +5,7 @@ from anemoi.datasets.create.recipe import Recipe
 from matplotlib.colors import Normalize
 from torch import Tensor
 
-from .typedefs import ArrayHW, TensorNTCHW
+from .annotations import TensorNTCHW
 
 
 @dataclass
@@ -14,7 +14,6 @@ class AnemoiCleanupArgs:
 
     path: str
     command: str = "unused"
-    delta: list[str] | None = None
 
 
 class AnemoiDatasetStatus(NamedTuple):
@@ -77,7 +76,7 @@ class DataloaderArgs(TypedDict):
     worker_init_fn: None
 
 
-class DiffColourmapSpec(NamedTuple):
+class DiffColourmap(NamedTuple):
     """Specify the colour scale used for a difference panel.
 
     Attributes:
@@ -94,13 +93,12 @@ class DiffColourmapSpec(NamedTuple):
     cmap: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Metadata:
     """Structured metadata extracted from training configuration.
 
     Attributes:
         model: Model name (if available).
-        max_epochs: Maximum number of training epochs (if available).
         current_epoch: Current training epoch (if available).
         start: Training start date string (if available).
         end: Training end date string (if available).
@@ -112,7 +110,6 @@ class Metadata:
     """
 
     model: str | None = None
-    max_epochs: int | None = None
     current_epoch: int | None = None
     start: str | None = None
     end: str | None = None
@@ -122,7 +119,7 @@ class Metadata:
     vars_by_source: dict[str, list[str]] | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class ProcessorOutput:
     """Output of a processor rollout step."""
 
@@ -130,9 +127,19 @@ class ProcessorOutput:
     loss: Tensor | None = None
 
 
-class UncertaintyArrays(NamedTuple):
-    """The observed, predicted and uncertainty arrays for a standardised difference."""
+@dataclass(frozen=True)
+class VariableStyle:
+    """Styling configuration for individual variables.
 
-    ground_truth: ArrayHW
-    prediction: ArrayHW
-    uncertainty: ArrayHW
+    Attributes:
+        cmap: Matplotlib colourmap name (e.g., "viridis", "RdBu_r").
+        vmin: Minimum value for colour scale.
+        vmax: Maximum value for colour scale.
+        units: Display units for the variable (e.g., "K", "m/s").
+
+    """
+
+    cmap: str
+    vmin: float | None = None
+    vmax: float | None = None
+    units: str | None = None

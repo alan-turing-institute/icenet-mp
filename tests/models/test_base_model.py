@@ -20,7 +20,7 @@ from icenet_mp.metrics import (
     SSIMPerForecastDay,
 )
 from icenet_mp.models import BaseModel
-from icenet_mp.types import ModelStepOutput, TensorNTCHW
+from icenet_mp.types import Hemisphere, ModelStepOutput, TensorNTCHW
 
 NON_FSS_METRIC_TYPES = {
     "accuracy": IceNetAccuracyPerForecastDay,
@@ -61,7 +61,7 @@ class FakeDataModel(BaseModel):
             ],
         )
         super().__init__(
-            *args, loss=loss_cfg, metrics=metrics, hemisphere="north", **kwargs
+            *args, loss=loss_cfg, metrics=metrics, hemisphere=Hemisphere.NORTH, **kwargs
         )
         self.t = kwargs["n_forecast_steps"]
         self.c = kwargs["output_space"]["channels"]

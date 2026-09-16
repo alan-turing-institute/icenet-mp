@@ -10,7 +10,7 @@ import pytest
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
-from icenet_mp.callbacks import PlottingCallback
+from icenet_mp.callbacks import MediaLoggingCallback
 from icenet_mp.model_service import ModelService
 from icenet_mp.models import EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
@@ -293,7 +293,7 @@ class TestModelService:
     def test_build_trainer_configures_run_directory_and_callbacks(
         self, tmp_path: Path
     ) -> None:
-        """Wire up workers, the run directory, and per-callback metadata/dirpath."""
+        """Wire up workers, the run directory, and per-callback prefix/dirpath."""
         service = ModelService.__new__(ModelService)
         service.fully_deterministic = False
         service.model_ = MagicMock()
@@ -301,7 +301,7 @@ class TestModelService:
         service.config_ = DictConfig({"model": {"name": "test_model"}})
         config = DictConfig({"trainer": {}})
 
-        plotting_callback = MagicMock(spec=PlottingCallback)
+        plotting_callback = MagicMock(spec=MediaLoggingCallback)
         checkpoint_callback = MagicMock(spec=ModelCheckpoint)
 
         fake_trainer = MagicMock()
@@ -331,9 +331,6 @@ class TestModelService:
 
         service.data_module_.assign_workers.assert_called_once_with(4)
         assert (run_dir / "files" / "model_config.yaml").exists()
-        plotting_callback.set_metadata.assert_called_once_with(
-            service.config_, "test_model"
-        )
         assert plotting_callback.prefix == "processor"
         assert checkpoint_callback.dirpath == run_dir / "checkpoints"
         assert result is fake_trainer
