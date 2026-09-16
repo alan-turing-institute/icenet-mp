@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from PIL.ImageFile import ImageFile
 
+from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 
 from .colour_scale import ColourScale
@@ -16,6 +17,8 @@ from .style_resolver import StyleResolver
 
 if TYPE_CHECKING:
     from matplotlib.colors import Colormap, Normalize
+
+_VIDEO_NDIM = 3
 
 
 class PanelRenderer:
@@ -56,6 +59,27 @@ class PanelRenderer:
         diff_vmin, diff_vmax = self._colour_scale.bounds(diff_colour_scale)
         title = f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
         return difference, title, diff_colour_scale.cmap, diff_vmin, diff_vmax
+
+    def _validate_video_frames(
+        self, arrays: list[ArrayTHW], dates: list[datetime]
+    ) -> None:
+        """Validate that video inputs are 3D [T, H, W] arrays matching `dates`.
+
+        Raises:
+            InvalidArrayError: If an array isn't 3D, or its frame count doesn't
+                match the number of dates.
+
+        """
+        for array in arrays:
+            if array.ndim != _VIDEO_NDIM:
+                msg = f"Expected a 3D [T, H, W] array, got shape {array.shape}."
+                raise InvalidArrayError(msg)
+            if array.shape[0] != len(dates):
+                msg = (
+                    "Number of dates must match the number of frames; "
+                    f"got {len(dates)} dates and {array.shape[0]} frames."
+                )
+                raise InvalidArrayError(msg)
 
     def static_singlet(
         self,
@@ -200,7 +224,12 @@ class PanelRenderer:
         Returns:
             A BytesIO object containing the rendered video.
 
+        Raises:
+            InvalidArrayError: If `values` isn't 3D, or `dates` doesn't have
+                one entry per frame.
+
         """
+        self._validate_video_frames([values], dates)
         masked_values = self.land_mask.apply_to(values)
         style = self._resolver.style_for_variable(variable_name)
 
@@ -240,7 +269,12 @@ class PanelRenderer:
         Returns:
             A BytesIO object containing the rendered video.
 
+        Raises:
+            InvalidArrayError: If `ground_truth` or `prediction` isn't 3D, or
+                `dates` doesn't have one entry per frame.
+
         """
+        self._validate_video_frames([ground_truth, prediction], dates)
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
 

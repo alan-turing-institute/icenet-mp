@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from PIL.ImageFile import ImageFile
 
+from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.matplotlib_renderer import MatplotlibRenderer
@@ -95,6 +96,43 @@ class TestRenderVideoSinglet:
         titles = [title_for_frame(i) for i in range(len(dates))]
         assert len(set(titles)) == len(dates)
         assert all(dates[i].date().isoformat() in titles[i] for i in range(len(dates)))
+
+    def test_rejects_2d_array(
+        self,
+        era5_temperature_2d: ArrayHW,
+        test_dates_short: list[date],
+        no_land_mask: LandMask,
+        base_plot_spec: PlotSpec,
+    ) -> None:
+        """A 2D array should be rejected deterministically, not fail deep inside rendering."""
+        dates = [datetime.combine(d, datetime.min.time()) for d in test_dates_short]
+        renderer = PanelRenderer(no_land_mask, Metadata(), base_plot_spec)
+
+        with pytest.raises(InvalidArrayError):
+            renderer.video_singlet(
+                era5_temperature_2d,  # type: ignore[arg-type]
+                dates=dates,
+                variable_name="era5:2t",
+            )
+
+    def test_rejects_dates_not_matching_frame_count(
+        self,
+        era5_temperature_thw: ArrayTHW,
+        test_dates_short: list[date],
+        no_land_mask: LandMask,
+        base_plot_spec: PlotSpec,
+    ) -> None:
+        dates = [
+            datetime.combine(d, datetime.min.time()) for d in test_dates_short[:-1]
+        ]
+        renderer = PanelRenderer(no_land_mask, Metadata(), base_plot_spec)
+
+        with pytest.raises(InvalidArrayError):
+            renderer.video_singlet(
+                era5_temperature_thw,
+                dates=dates,
+                variable_name="era5:2t",
+            )
 
 
 class TestRenderStaticTriplet:
@@ -317,3 +355,33 @@ class TestRenderVideoTriplet:
             fake_render.call_args.kwargs["contour_level"]
             == plot_spec.ice_edge_threshold
         )
+
+    def test_rejects_2d_array(
+        self,
+        sic_pair_2d: tuple[ArrayHW, ArrayHW, date],
+    ) -> None:
+        """A 2D array should be rejected deterministically, not fail deep inside rendering."""
+        ground_truth, prediction, raw_when = sic_pair_2d
+        dates = [datetime.combine(raw_when, datetime.min.time())]
+        renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
+
+        with pytest.raises(InvalidArrayError):
+            renderer.video_triplet(
+                ground_truth,  # type: ignore[arg-type]
+                prediction,  # type: ignore[arg-type]
+                dates=dates,
+                variable_name="ice_conc",
+            )
+
+    def test_rejects_dates_not_matching_frame_count(
+        self,
+        sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]],
+    ) -> None:
+        ground_truth, prediction, raw_dates = sic_pair_3d_stream
+        dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates[:-1]]
+        renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
+
+        with pytest.raises(InvalidArrayError):
+            renderer.video_triplet(
+                ground_truth, prediction, dates=dates, variable_name="ice_conc"
+            )
