@@ -116,11 +116,15 @@ class ModelService:
             log.debug("Loaded checkpoint configuration from %s.", config_path)
             combined_cfg = DictConfig(OmegaConf.merge(ckpt_config, config))
             for key in ("model", "predict", "train"):
-                cli_val = OmegaConf.to_container(config.get(key, {}), resolve=False)
-                ckpt_val = OmegaConf.to_container(
-                    ckpt_config.get(key, {}), resolve=False
+                if key not in config:
+                    continue
+                cli_val = OmegaConf.to_container(config[key], resolve=False)
+                ckpt_val = (
+                    OmegaConf.to_container(ckpt_config[key], resolve=False)
+                    if key in ckpt_config
+                    else None
                 )
-                if cli_val and cli_val != ckpt_val:
+                if cli_val != ckpt_val:
                     log.warning(
                         "Applying CLI override for '%s'; the corresponding "
                         "values saved with the checkpoint will be ignored.",
@@ -150,7 +154,11 @@ class ModelService:
                 if k not in cli_model:
                     continue
                 cli_val = OmegaConf.to_container(cli_model[k], resolve=False)
-                ckpt_val = OmegaConf.to_container(ckpt_model.get(k, {}), resolve=False)
+                ckpt_val = (
+                    OmegaConf.to_container(ckpt_model[k], resolve=False)
+                    if k in ckpt_model
+                    else None
+                )
                 if cli_val != ckpt_val:
                     model_overrides[k] = builder.config["model"][k]
         builder.model_ = model_cls.load_from_checkpoint(
