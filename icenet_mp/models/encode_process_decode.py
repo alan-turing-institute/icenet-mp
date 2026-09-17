@@ -1,32 +1,41 @@
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 import hydra
 import torch
 from omegaconf import DictConfig
 from typing_extensions import override
 
-from icenet_mp.types import DataSpace, ModelStepOutput, TensorNCHW, TensorNTCHW
+from icenet_mp.models.decoders import BaseDecoder
+from icenet_mp.models.encoders import BaseEncoder
+from icenet_mp.models.processors import BaseProcessor
+from icenet_mp.types import (
+    DataSpace,
+    ModelStepOutput,
+    SkipConnectionType,
+    TensorNCHW,
+    TensorNTCHW,
+)
 
 from .base_model import BaseModel
-
-if TYPE_CHECKING:
-    from icenet_mp.models.decoders import BaseDecoder
-    from icenet_mp.models.encoders import BaseEncoder
-    from icenet_mp.models.processors import BaseProcessor
 
 
 class EncodeProcessDecode(BaseModel):
     """Model that encodes to latent space, processes, then decodes back."""
 
     # Parameters that should be excluded from hyperparameter logging (e.g. local paths)
-    ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {"mask_dir"}
+    ignored_hparams: ClassVar[frozenset[str]] = BaseModel.ignored_hparams | {
+        "decoder",
+        "encoders",
+        "mask_dir",
+        "processor",
+    }
 
-    def __init__(  # noqa: PLR0913 - config-driven keywords, all defaulted
+    def __init__(  # noqa: PLR0913
         self,
         *,
-        encoders: DictConfig,
-        processor: DictConfig,
-        decoder: DictConfig,
+        encoders: DictConfig | list[BaseEncoder],
+        processor: DictConfig | BaseProcessor,
+        decoder: DictConfig | BaseDecoder,
         target_variable_indices: list[int],
         mask_dir: str | None = None,
         rollout_space: str = "latent",
@@ -54,14 +63,9 @@ class EncodeProcessDecode(BaseModel):
             raise ValueError(msg)
         self.target_variable_indices = target_variable_indices
 
-        self._validate_rollout_options(rollout_space, predict_residual, decoder)
-        self.rollout_space = rollout_space
-        self.predict_residual = bool(predict_residual)
-
         # Add one encoder per dataset
-        # We store this as a list to ensure consistent ordering
-        try:
-            self.encoders: list[BaseEncoder] = [
+        self.encoders: list[BaseEncoder] = (
+            [
                 hydra.utils.instantiate(
                     encoders[input_space.name],
                     data_space_in=input_space,
@@ -71,37 +75,18 @@ class EncodeProcessDecode(BaseModel):
                 )
                 for input_space in self.input_spaces
             ]
-        except KeyError as exc:
-            msg = (
-                f"Error instantiating encoders: {exc}. Please ensure that encoders are "
-                f"specified for all input spaces: {self.input_spaces}"
-            )
-            raise ValueError(msg) from exc
+            if isinstance(encoders, DictConfig)
+            else [
+                encoder
+                for input_space in self.input_spaces
+                for encoder in encoders
+                if encoder.name == input_space.name
+            ]
+        )
 
-        # Add an additional encoder that encodes the target dataset into latent space
-        # This will be used by any processors that need to compute latent space losses.
-        try:
-            self.target_encoder: BaseEncoder = hydra.utils.instantiate(
-                encoders[self.output_space.name],
-                data_space_in=DataSpace(
-                    name="target",
-                    channels=self.output_space.channels,
-                    shape=self.output_space.shape,
-                ),
-                latent_space=encoders["latent_space"],
-                latitudes_fn=self.latitudes_fn,
-                longitudes_fn=self.longitudes_fn,
-            )
-        except KeyError as exc:
-            msg = (
-                f"Error instantiating target encoder: {exc}. Please ensure that an "
-                f"encoder is specified for '{self.output_space.name}', even if it is "
-                f"not one of the input spaces: {self.input_spaces}."
-            )
-            raise ValueError(msg) from exc
-
-        # Explicitly register each encoder (list[Module] not
-        # automatically readable by PyTorch)
+        # Because the encoders are stored as `list[Module]`` to ensure consistent
+        # ordering, `self.encoders` will not be automatically registered as Lightning
+        # submodules. We therefore do so explicitly here.
         for input_space, module in zip(self.input_spaces, self.encoders, strict=True):
             module_name = f"encoder_{input_space.name}".lower().replace("-", "_")
             self.add_module(module_name, module)
@@ -115,6 +100,30 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
+        # Add an additional encoder that encodes the target dataset into latent space
+        # This will be used by any processors that need to compute latent space losses.
+        self.target_encoder: BaseEncoder = (
+            hydra.utils.instantiate(
+                encoders[self.output_space.name],
+                data_space_in=DataSpace(
+                    name="target",
+                    channels=self.output_space.channels,
+                    shape=self.output_space.shape,
+                ),
+                latent_space=encoders["latent_space"],
+                latitudes_fn=self.latitudes_fn,
+                longitudes_fn=self.longitudes_fn,
+            )
+            if isinstance(encoders, DictConfig)
+            else encoders.pop(
+                next(
+                    idx
+                    for idx, encoder in enumerate(encoders)
+                    if encoder.name == self.output_space.name
+                )
+            )
+        )
+
         # Verify the output channels for each encoder
         for encoder in (*self.encoders, self.target_encoder):
             encoder.verify_output_channels(self.device)
@@ -125,27 +134,43 @@ class EncodeProcessDecode(BaseModel):
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
             shape=latent_shapes.pop(),
         )
-        self.processor: BaseProcessor = hydra.utils.instantiate(
-            processor,
-            data_space=combined_latent_space,
-            data_space_target=self.target_encoder.data_space_out,
-            n_forecast_steps=self.n_forecast_steps,
-            n_history_steps=self.n_history_steps,
-            target_channel_offset=self.find_target_channel_offset(),
+        self.processor: BaseProcessor = (
+            processor
+            if isinstance(processor, BaseProcessor)
+            else hydra.utils.instantiate(
+                processor,
+                data_space=combined_latent_space,
+                data_space_target=self.target_encoder.data_space_out,
+                n_forecast_steps=self.n_forecast_steps,
+                n_history_steps=self.n_history_steps,
+                target_channel_offset=self.find_target_channel_offset(),
+            )
         )
 
         # Add a decoder
-        self.decoder: BaseDecoder = hydra.utils.instantiate(
-            decoder,
-            data_space_in=combined_latent_space,
-            data_space_out=self.output_space,
-            mask_dir=mask_dir,
+        self.decoder: BaseDecoder = (
+            decoder
+            if isinstance(decoder, BaseDecoder)
+            else hydra.utils.instantiate(
+                decoder,
+                data_space_in=combined_latent_space,
+                data_space_out=self.output_space,
+                mask_dir=mask_dir,
+            )
         )
+
+        # Validate rollout options
+        self.rollout_space = rollout_space
+        self.predict_residual = predict_residual
+        self._validate_rollout_options()
 
         # The physical rollout drives the decoder itself and computes the loss on the
         # decoded field, so it cannot host a processor that owns the training signal
         # in latent space (whose decoder is frozen below).
-        if rollout_space == "physical" and self.processor.computes_loss_in_latent_space:
+        if (
+            self.rollout_space == "physical"
+            and self.processor.computes_loss_in_latent_space
+        ):
             msg = (
                 f"rollout_space='physical' is incompatible with processor "
                 f"{type(self.processor).__name__}, which computes its loss in latent "
@@ -156,26 +181,19 @@ class EncodeProcessDecode(BaseModel):
         # Freeze unused modules
         self._freeze_unused_modules()
 
-    @staticmethod
-    def _validate_rollout_options(
-        rollout_space: str,
-        predict_residual: bool,  # noqa: FBT001 - mirrors the __init__ keyword
-        decoder: DictConfig,
-    ) -> None:
+    def _validate_rollout_options(self) -> None:
         """Reject rollout/residual settings that cannot work, before anything is built.
 
         Kept out of `__init__` so that adding a check does not push it past the
         cyclomatic-complexity limit.
         """
-        if rollout_space not in {"latent", "physical"}:
-            msg = (
-                f"rollout_space must be 'latent' or 'physical', got {rollout_space!r}."
-            )
+        if self.rollout_space not in {"latent", "physical"}:
+            msg = f"rollout_space must be 'latent' or 'physical', got {self.rollout_space!r}."
             raise ValueError(msg)
-        if not predict_residual:
+        if not self.predict_residual:
             return
 
-        if rollout_space != "physical":
+        if self.rollout_space != "physical":
             msg = (
                 "predict_residual=True requires rollout_space='physical': the residual "
                 "is added to the previous PHYSICAL field, which only exists as a "
@@ -183,12 +201,15 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
-        # The residual update is applied by the decoder's additive skip connection
-        # (#405), so one must be configured: finalise() adds the anchor only when
-        # skip_connection is present, and would otherwise silently drop it and
-        # return an absolute prediction (rather than the tendency).
-        skip_method = str((decoder.get("skip_connection") or {}).get("method", "none"))
-        if skip_method != "additive":
+        # The residual update is applied by the decoder's additive skip connection so
+        # this must be present. Without this, finalise() would silently drop the anchor
+        # and return an absolute prediction rather than a residual one.
+        skip_method = (
+            self.decoder.skip_connection.method
+            if self.decoder.skip_connection
+            else SkipConnectionType.NONE
+        )
+        if skip_method != SkipConnectionType.ADDITIVE:
             msg = (
                 f"predict_residual=True requires the decoder to use an additive skip "
                 f"connection (got skip_connection.method={skip_method!r}): the "
@@ -240,9 +261,7 @@ class EncodeProcessDecode(BaseModel):
         When `rollout_space="physical"` the loop is closed in observation space instead;
         see `_forward_physical`.
         """
-        # getattr because multistage's ProcessorStage reuses this method without
-        # running EncodeProcessDecode.__init__ (same reason as in training_step).
-        if getattr(self, "rollout_space", "latent") == "physical":
+        if self.rollout_space == "physical":
             return self._forward_physical(inputs)
 
         # Encode inputs into latent space: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
@@ -393,9 +412,8 @@ class EncodeProcessDecode(BaseModel):
         # The physical rollout lives in forward(). Without this branch the model would
         # TRAIN on the latent path below while validation_step/test_step (BaseModel,
         # which call ``self(batch)``) score the PHYSICAL path - two different
-        # architectures, silently. Pinned by TestTrainEvalParity. getattr because
-        # multistage's ProcessorStage reuses this method without EPD's __init__.
-        if getattr(self, "rollout_space", "latent") == "physical":
+        # architectures, silently. Pinned by TestTrainEvalParity.
+        if self.rollout_space == "physical":
             prediction = self(batch)
             loss = self.loss(prediction, target)
             self.log(
