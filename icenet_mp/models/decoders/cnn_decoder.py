@@ -140,17 +140,17 @@ class CNNDecoder(BaseDecoder):
         # Combine the layers sequentially
         self.model = nn.Sequential(*layers)
 
-        # Start from a zero output if requested: the final layer is always the 1x1
-        # channel convolution appended above, so zeroing it zeroes the whole output.
+        # If zero_init_output is requested then zero the weights in the final
+        # convolution layer so that the untrained decoder outputs exactly zero.
         if zero_init_output:
-            final = self.model[-1]
-            if not isinstance(final, nn.Conv2d):
-                msg = "zero_init_output expects the final layer to be a Conv2d."
-                raise TypeError(msg)
-            with torch.no_grad():
-                final.weight.zero_()
-                if final.bias is not None:
-                    final.bias.zero_()
+            if isinstance(final := self.model[-1], nn.Conv2d):
+                with torch.no_grad():
+                    final.weight.zero_()
+                    if final.bias is not None:
+                        final.bias.zero_()
+            else:
+                msg = "zero_init_output needs the final decoder layer to be a Conv2d."
+                raise ValueError(msg)
 
     def forward(self, x: TensorNCHW) -> TensorNCHW:
         """Forward step: decode latent space into output space with a CNN.
