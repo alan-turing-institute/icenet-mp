@@ -2,6 +2,7 @@ import gc
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, cast
 
@@ -93,7 +94,7 @@ class ModelService:
         return builder
 
     @classmethod
-    def from_checkpoint(
+    def from_checkpoint(  # noqa: C901, PLR0912
         cls, config: DictConfig, checkpoint_path: Path
     ) -> "ModelService":
         """Build a new ModelService by loading a model from a checkpoint."""
@@ -104,31 +105,41 @@ class ModelService:
             msg = f"Checkpoint file {checkpoint_path} does not exist."
             raise FileNotFoundError(msg)
 
+        apply_overrides = "--config-name" in sys.argv
+
         # Build a combined model configuration. Checkpoint values are used as
-        # defaults; anything the CLI/eval config specifies that differs from
-        # the saved values wins (see #525). Overrides to fields that would
-        # break weight loading (model._target_, channel counts, encoder
-        # shapes, etc.) are the caller's responsibility.
+        # defaults; the eval config fills in eval-only sections.
+        # When apply_overrides is True (the user passed
+        # --config-name), the eval config's model/predict/train values also
+        # override the saved values — overrides to fields that would break
+        # weight loading (model._target_, channel counts, encoder shapes,
+        # etc.) are the caller's responsibility. See #525.
         config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
         ckpt_config: DictConfig | None = None
         try:
             ckpt_config = DictConfig(OmegaConf.load(config_path))
             log.debug("Loaded checkpoint configuration from %s.", config_path)
             combined_cfg = DictConfig(OmegaConf.merge(ckpt_config, config))
-            for key in ("model", "predict", "train"):
-                if key not in config:
-                    continue
-                cli_val = OmegaConf.to_container(config[key], resolve=False)
-                ckpt_val = (
-                    OmegaConf.to_container(ckpt_config[key], resolve=False)
-                    if key in ckpt_config
-                    else None
-                )
-                if cli_val != ckpt_val:
-                    log.warning(
-                        "Applying CLI override for '%s'; the corresponding "
-                        "values saved with the checkpoint will be ignored.",
-                        key,
+            if apply_overrides:
+                for key in ("model", "predict", "train"):
+                    if key not in config:
+                        continue
+                    cli_val = OmegaConf.to_container(config[key], resolve=False)
+                    ckpt_val = (
+                        OmegaConf.to_container(ckpt_config[key], resolve=False)
+                        if key in ckpt_config
+                        else None
+                    )
+                    if cli_val != ckpt_val:
+                        log.warning(
+                            "Applying CLI override for '%s'; the corresponding "
+                            "values saved with the checkpoint will be ignored.",
+                            key,
+                        )
+            else:
+                for key in ("model", "predict", "train"):
+                    combined_cfg[key] = OmegaConf.merge(
+                        combined_cfg.get(key, {}), ckpt_config.get(key, {})
                     )
         except (NotADirectoryError, FileNotFoundError):
             combined_cfg = config
@@ -141,13 +152,13 @@ class ModelService:
         )
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
 
-        # Forward model subfields (encoders, processor, decoder) as kwargs to
-        # load_from_checkpoint only when the eval config's value differs from
-        # what was saved with the checkpoint. Without this, Lightning restores
-        # the saved hyper_parameters and any config override is silently
-        # ignored (see #525).
+        # When apply_overrides is True, forward model subfields (encoders,
+        # processor, decoder) as kwargs to load_from_checkpoint whenever the
+        # eval-config value differs from what was saved with the checkpoint.
+        # Without this, Lightning would restore the saved hyper_parameters
+        # and any config override would be silently ignored (see #525).
         model_overrides: dict[str, Any] = {}
-        if ckpt_config is not None:
+        if apply_overrides and ckpt_config is not None:
             cli_model = config.get("model", {})
             ckpt_model = ckpt_config.get("model", {})
             for k in ("encoders", "processor", "decoder"):
