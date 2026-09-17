@@ -105,7 +105,9 @@ class ModelService:
             msg = f"Checkpoint file {checkpoint_path} does not exist."
             raise FileNotFoundError(msg)
 
-        apply_overrides = "--config-name" in sys.argv
+        apply_overrides = any(
+            a == "--config-name" or a.startswith("--config-name=") for a in sys.argv
+        )
 
         # Build a combined model configuration. Checkpoint values are used as
         # defaults; the eval config fills in eval-only sections.
