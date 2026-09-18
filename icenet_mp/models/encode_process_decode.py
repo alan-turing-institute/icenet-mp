@@ -165,7 +165,7 @@ class EncodeProcessDecode(BaseModel):
                 data_space_target=self.target_encoder.data_space_out,
                 n_forecast_steps=self.n_forecast_steps,
                 n_history_steps=self.n_history_steps,
-                target_channel_offset=self.find_target_channel_offset(),
+                target_channel_offset=self._find_target_channel_offset(),
             )
         )
 
@@ -206,17 +206,7 @@ class EncodeProcessDecode(BaseModel):
     def multistage_only(self) -> bool:
         return self.processor.computes_loss_in_latent_space
 
-    def _freeze_unused_modules(self) -> None:
-        """Freeze unused modules."""
-        # Processors that compute loss in latent space do not touch the decoder.
-        # However, processors that do not do this, do not touch the target_encoder.
-        # We therefore explicitly freeze the unused modules.
-        if self.processor.computes_loss_in_latent_space:
-            self.decoder.freeze()
-        else:
-            self.target_encoder.freeze()
-
-    def encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+    def _encode_inputs(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Encode all input datasets and concatenate along the channel dimension.
 
         Args:
@@ -232,15 +222,29 @@ class EncodeProcessDecode(BaseModel):
         ]
         return torch.cat(latent_inputs, dim=2)
 
-    def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Forward step of the model (used for inference).
+    def _extract_anchor(self, window: TensorNTCHW) -> TensorNCHW | None:
+        """Extract the last frame's target variables as the decoder skip-connection anchor.
 
-        Delegates to either the latent-space or physical-space path depending on the
-        `rollout_space` setting.
+        Returns None if the decoder has no skip connection configured, in which case
+        the anchor is unused.
+
+        Args:
+            window: TensorNTCHW holding the target dataset, most recent frame last, e.g.
+                the model's own input window or an evolving physical rollout state.
+
         """
-        if self.rollout_space == RolloutSpace.PHYSICAL:
-            return self._forward_rollout_physical(inputs)
-        return self._forward_rollout_latent(inputs)
+        if not self.decoder.skip_connection:
+            return None
+        return window[:, -1, self.target_variable_indices, :, :]
+
+    def _find_target_channel_offset(self) -> int | None:
+        """Find the channel offset of the target dataset within the combined latent space, if present."""
+        offset = 0
+        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
+            if input_space.name == self.output_space.name:
+                return offset
+            offset += encoder.data_space_out.channels
+        return None
 
     def _forward_rollout_latent(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Rollout to the desired number of forecast steps in latent space.
@@ -261,18 +265,20 @@ class EncodeProcessDecode(BaseModel):
 
         """
         # Encode inputs into latent space: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
-        latent_input_combined: TensorNTCHW = self.encode_inputs(inputs)
+        latent_input_combined: TensorNTCHW = self._encode_inputs(inputs)
 
         # Process in latent space: tensor with (batch_size, n_forecast_steps, n_latent_channels_total, latent_height, latent_width)
         latent_output: TensorNTCHW = self.processor.rollout(
             latent_input_combined
         ).prediction
 
-        # Get persistence if required for skip connection
-        persistence = self.get_persistence(inputs)
+        # Use persistence as the skip-connection anchor, if required
+        persistence = self._extract_anchor(inputs[self.output_space.name])
 
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
-        return self.decoder.rollout(latent_output, persistence)
+        return self.decoder.rollout(
+            latent_output, None if persistence is None else persistence.unsqueeze(1)
+        )
 
     def _forward_rollout_physical(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Rollout to the desired number of forecast steps in physical space.
@@ -316,7 +322,7 @@ class EncodeProcessDecode(BaseModel):
 
             # Encode inputs to latent space
             # -> (B, n_history, C_latent_total, H_latent, W_latent)
-            latent: TensorNTCHW = self.encode_inputs(windows)
+            latent: TensorNTCHW = self._encode_inputs(windows)
 
             # Process in latent space
             # -> (B, C_latent_total, H_latent, W_latent)
@@ -326,13 +332,9 @@ class EncodeProcessDecode(BaseModel):
             # -> (B, C_out, H_out, W_out)
             raw_output: TensorNCHW = self.decoder(step_latent)
 
-            # If we want to predict residuals, we use the last forecast as the anchor
+            # Use the evolving rollout state as the skip-connection anchor, if required.
             # -> (B, C_out, H_out, W_out)
-            anchor = (
-                target_window[:, -1, self.target_variable_indices, :, :]
-                if self.predict_residual
-                else None
-            )
+            anchor = self._extract_anchor(target_window)
             output = self.decoder.finalise(raw_output, anchor)
             outputs.append(output)
 
@@ -345,6 +347,16 @@ class EncodeProcessDecode(BaseModel):
             )
 
         return torch.stack(outputs, dim=1)
+
+    def _freeze_unused_modules(self) -> None:
+        """Freeze unused modules."""
+        # Processors that compute loss in latent space do not touch the decoder.
+        # However, processors that do not do this, do not touch the target_encoder.
+        # We therefore explicitly freeze the unused modules.
+        if self.processor.computes_loss_in_latent_space:
+            self.decoder.freeze()
+        else:
+            self.target_encoder.freeze()
 
     def _validate_rollout_options(
         self, rollout_space: RolloutSpace | str
@@ -394,22 +406,15 @@ class EncodeProcessDecode(BaseModel):
 
         return rollout_space
 
-    def find_target_channel_offset(self) -> int | None:
-        """Find the channel offset of the target dataset within the combined latent space, if present."""
-        offset = 0
-        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
-            if input_space.name == self.output_space.name:
-                return offset
-            offset += encoder.data_space_out.channels
-        return None
+    def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+        """Forward step of the model (used for inference).
 
-    def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
-        """Extract persistence if needed for a skip connection."""
-        if self.decoder.skip_connection:
-            return inputs[self.output_space.name][
-                :, -1, self.target_variable_indices, :, :
-            ].unsqueeze(1)
-        return None
+        Delegates to either the latent-space or physical-space path depending on the
+        `rollout_space` setting.
+        """
+        if self.rollout_space == RolloutSpace.PHYSICAL:
+            return self._forward_rollout_physical(inputs)
+        return self._forward_rollout_latent(inputs)
 
     @override
     def train(self, mode: bool = True) -> "EncodeProcessDecode":
@@ -458,7 +463,7 @@ class EncodeProcessDecode(BaseModel):
                 raise ValueError(msg)
 
             # Encode inputs into latent space
-            latent_input_combined = self.encode_inputs(batch)
+            latent_input_combined = self._encode_inputs(batch)
 
             # Process in latent space
             processor_output = self.processor.rollout(
@@ -475,9 +480,12 @@ class EncodeProcessDecode(BaseModel):
                 raise ValueError(msg)
 
             # Decode under no_grad for metrics/callbacks only.
+            # Use persistence as the skip-connection anchor, if required.
+            anchor = self._extract_anchor(batch[self.output_space.name])
             with torch.no_grad():
                 prediction = self.decoder.rollout(
-                    processor_output.prediction, self.get_persistence(batch)
+                    processor_output.prediction,
+                    None if anchor is None else anchor.unsqueeze(1),
                 )
 
         # Standard path: calculate loss by comparing decoded output to target.

@@ -307,12 +307,11 @@ class TestProcessorStage:
             ),
         }
 
-        persistence = processor_stage.get_persistence(inputs)
+        persistence = processor_stage._extract_anchor(inputs["target"])
 
         assert persistence is not None
         assert persistence.shape == (
             batch_size,
-            1,
             len(decoder_stage.target_variable_indices),
             *cfg_output_space["shape"],
         )
