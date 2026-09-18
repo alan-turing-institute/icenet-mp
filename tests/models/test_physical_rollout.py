@@ -7,7 +7,8 @@ Background — the two defects these options exist to fix, both in the historica
    requires pushing it through a downsampling CNN, a patch-embedding ViT and an
    upsampling CNN, so persistence is not representable. Measured on the toy: the
    model scores active-cell MAE 0.093 at lead 1 where copying the input scores
-   0.034. `predict_residual=True` makes delta=0 exactly persistence.
+   0.034. An additive decoder skip connection during a physical rollout makes
+   delta=0 exactly persistence.
 
 2. UNCONSTRAINED LATENT FEEDBACK. `BaseProcessor.rollout` appends the processor's
    own output latent to its own input window, never re-encodes it, and never
@@ -40,7 +41,6 @@ SEED = 1234
 def _build_model(
     *,
     rollout_space: str = "latent",
-    predict_residual: bool = False,
     decoder_extra: dict[str, Any] | None = None,
     processor: dict[str, Any] | None = None,
     grid: int = 32,
@@ -75,11 +75,6 @@ def _build_model(
         "_target_": "icenet_mp.models.decoders.CNNDecoder",
         "n_layers": 1,
     }
-    if predict_residual:
-        # The tendency is applied by the decoder's additive skip connection, so a
-        # residual model must configure one (mirrors cnn_vit_cnn_residual.yaml).
-        # `decoder_extra` still overrides this, so tests can probe the validation.
-        decoder_payload["skip_connection"] = {"method": "additive"}
     decoder_payload.update(decoder_extra or {})
     decoder = DictConfig(decoder_payload)
     torch.manual_seed(seed)
@@ -91,7 +86,6 @@ def _build_model(
         ),
         decoder=decoder,
         rollout_space=rollout_space,
-        predict_residual=predict_residual,
         hemisphere="north",
         input_spaces=input_spaces,
         n_forecast_steps=n_forecast_steps,
@@ -155,12 +149,11 @@ class TestDefaultsOff:
     def test_defaults(self) -> None:
         model = _build_model()
         assert model.rollout_space == "latent"
-        assert model.predict_residual is False
         assert model.target_variable_indices == [0]
 
     def test_off_is_identical_to_absent(self) -> None:
         absent = _build_model()
-        explicit = _build_model(rollout_space="latent", predict_residual=False)
+        explicit = _build_model(rollout_space="latent")
         inputs = _inputs(absent)
         absent.eval()
         explicit.eval()
@@ -172,8 +165,10 @@ class TestDefaultsOff:
         latent = _build_model()
         physical = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
         )
         assert set(latent.state_dict()) == set(physical.state_dict())
         assert sum(p.numel() for p in latent.parameters()) == sum(
@@ -187,8 +182,10 @@ class TestResidualIsExactlyPersistence:
     def test_zero_tendency_reproduces_persistence_at_every_lead(self) -> None:
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
         )
         _zero_decoder_output(model)
         inputs = _inputs(model)
@@ -208,7 +205,7 @@ class TestResidualIsExactlyPersistence:
         This is the failure in one line — the historical path's cheapest output is an
         empty field, and reproducing the input is a whole learning problem.
         """
-        model = _build_model(rollout_space="physical", predict_residual=False)
+        model = _build_model(rollout_space="physical")
         _zero_decoder_output(model)
         inputs = _inputs(model)
         model.eval()
@@ -220,8 +217,10 @@ class TestResidualIsExactlyPersistence:
     def test_residual_output_is_bounded(self) -> None:
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
         )
         # a large positive bias would drive the sum far above 1 without the clamp
         bias = _final_conv(model).bias
@@ -256,8 +255,10 @@ class TestPhysicalRolloutAdvancesTheState:
         """A non-zero tendency must produce a moving trajectory, not one field."""
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
             processor={
                 "_target_": "icenet_mp.models.processors.VitProcessor",
                 "patch_size": 4,
@@ -280,8 +281,11 @@ class TestPhysicalRolloutAdvancesTheState:
         """zero_init_output must place the whole trajectory exactly on persistence."""
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none", "zero_init_output": True},
+            decoder_extra={
+                "restrict_range": "none",
+                "zero_init_output": True,
+                "skip_connection": {"method": "additive"},
+            },
         )
         inputs = _inputs(model)
         model.eval()
@@ -301,8 +305,10 @@ class TestPhysicalRolloutAdvancesTheState:
         """
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
             processor={
                 "_target_": "icenet_mp.models.processors.VitProcessor",
                 "patch_size": 4,
@@ -328,8 +334,10 @@ class TestPhysicalRolloutAdvancesTheState:
         extra = DictConfig({"channels": 2, "name": "era5", "shape": (32, 32)})
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
             extra_inputs=[extra],
         )
         model.eval()
@@ -344,8 +352,10 @@ class TestPhysicalRolloutAdvancesTheState:
         """A multi-channel target group: the prediction is fed back into channel 1 only."""
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
             input_channels=3,
             target_variable_indices=[1],
         )
@@ -363,8 +373,10 @@ class TestPhysicalRolloutAdvancesTheState:
         """Target variables need not be neighbours: channels 0 and 2 of a 3-channel group."""
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
             input_channels=3,
             output_channels=2,
             target_variable_indices=[0, 2],
@@ -385,8 +397,10 @@ class TestNoFutureLeak:
     def test_target_key_is_never_read(self) -> None:
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
         )
         model.eval()
         inputs = _inputs(model)
@@ -401,39 +415,24 @@ class TestConfigValidation:
         with pytest.raises(ValueError, match="not a valid RolloutSpace"):
             _build_model(rollout_space="nonsense")
 
-    def test_residual_requires_physical(self) -> None:
-        with pytest.raises(ValueError, match="requires rollout_space='physical'"):
-            _build_model(rollout_space="latent", predict_residual=True)
-
     def test_residual_accepts_a_bounded_decoder(self) -> None:
-        """A bounded decoder is accepted for residual models.
+        """A bounded decoder works for a residual (additive-skip) physical model.
 
         With an additive skip connection BaseDecoder bounds SIGNED values
         symmetrically, so the tendency is never squashed into [0, 1].
         """
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "clamp"},
+            decoder_extra={
+                "restrict_range": "clamp",
+                "skip_connection": {"method": "additive"},
+            },
         )
-        assert model.predict_residual
-
-    def test_residual_requires_an_additive_skip_connection(self) -> None:
-        """Without a skip connection the anchor would be silently dropped.
-
-        finalise() applies the anchor only when the decoder has a skip connection, so
-        a residual model configured without one would quietly return an absolute
-        prediction - the exact failure this parameterisation exists to prevent.
-        """
-        with pytest.raises(ValueError, match="additive skip connection"):
-            _build_model(
-                rollout_space="physical",
-                predict_residual=True,
-                decoder_extra={
-                    "restrict_range": "none",
-                    "skip_connection": {"method": "none"},
-                },
-            )
+        model.eval()
+        with torch.no_grad():
+            prediction = model(_inputs(model))
+        assert float(prediction.min()) >= 0.0
+        assert float(prediction.max()) <= 1.0
 
 
 class TestAnchorSemantics:
@@ -461,8 +460,10 @@ class TestAnchorSemantics:
         """rollout_space='physical': each lead corrects the PREVIOUS lead."""
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
         )
         step = 0.05
         self._constant_tendency(model, step)
@@ -524,7 +525,6 @@ class TestTrainEvalParity:
     def test_training_step_prediction_matches_forward_physical(self) -> None:
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
             decoder_extra={
                 "restrict_range": "none",
                 "skip_connection": {"method": "additive"},
@@ -541,7 +541,6 @@ class TestTrainEvalParity:
     def test_training_step_loss_is_computed_on_the_physical_prediction(self) -> None:
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
             decoder_extra={
                 "restrict_range": "none",
                 "skip_connection": {"method": "additive"},
@@ -572,8 +571,11 @@ class TestDecoderZeroInitOutput:
     def test_zero_init_output_makes_residual_exactly_persistence(self) -> None:
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none", "zero_init_output": True},
+            decoder_extra={
+                "restrict_range": "none",
+                "zero_init_output": True,
+                "skip_connection": {"method": "additive"},
+            },
         )
         inputs = _inputs(model)
         persistence = inputs[TARGET_GROUP][:, -1]
@@ -586,8 +588,10 @@ class TestDecoderZeroInitOutput:
     def test_default_is_off(self) -> None:
         model = _build_model(
             rollout_space="physical",
-            predict_residual=True,
-            decoder_extra={"restrict_range": "none"},
+            decoder_extra={
+                "restrict_range": "none",
+                "skip_connection": {"method": "additive"},
+            },
         )
         final = _final_conv(model)
         assert final.weight.abs().max() > 0

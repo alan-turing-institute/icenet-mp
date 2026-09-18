@@ -12,7 +12,6 @@ from icenet_mp.types import (
     DataSpace,
     ModelStepOutput,
     RolloutSpace,
-    SkipConnectionType,
     TensorNCHW,
     TensorNTCHW,
 )
@@ -31,7 +30,7 @@ class EncodeProcessDecode(BaseModel):
         "processor",
     }
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         *,
         encoders: DictConfig | list[BaseEncoder],
@@ -40,7 +39,6 @@ class EncodeProcessDecode(BaseModel):
         target_variable_indices: list[int],
         mask_dir: str | None = None,
         rollout_space: RolloutSpace | str = RolloutSpace.LATENT,
-        predict_residual: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialise an EncodeProcessDecode model.
@@ -53,7 +51,6 @@ class EncodeProcessDecode(BaseModel):
             mask_dir: directory containing masks for the decoder (if needed).
             rollout_space: RolloutSpace.LATENT or RolloutSpace.PHYSICAL (or the
                 equivalent string), where to perform the forecast loop.
-            predict_residual: if True, the decoder predicts a residual to add to the previous field.
             **kwargs: forwarded to ``BaseModel`` (spaces, masks, range, skip).
 
         """
@@ -182,7 +179,6 @@ class EncodeProcessDecode(BaseModel):
         )
 
         # Validate rollout options
-        self.predict_residual = predict_residual
         self.rollout_space = self._validate_rollout_options(rollout_space)
 
         # The physical rollout drives the decoder itself and computes the loss on the
@@ -288,9 +284,9 @@ class EncodeProcessDecode(BaseModel):
         re-encode on the next iteration. Contrast with the default path, which appends
         the processor's raw latent to its own input window and never re-encodes.
 
-        With `predict_residual=True` the decoder emits a tendency and the state advances
-        as `x_{k+1} = clamp(x_k + delta_k, 0, 1)`, so a zero-output network reproduces
-        persistence exactly.
+        When the decoder has an additive skip connection, it emits a tendency and the
+        state advances as `x_{k+1} = clamp(x_k + delta_k, 0, 1)`, so a zero-output
+        network reproduces persistence exactly.
 
         Non-target input groups hold their most recent OBSERVED frame for every forecast
         step. No future information enters: only `inputs[...]`, which holds the
@@ -361,7 +357,7 @@ class EncodeProcessDecode(BaseModel):
     def _validate_rollout_options(
         self, rollout_space: RolloutSpace | str
     ) -> RolloutSpace:
-        """Reject rollout/residual settings that cannot work, before anything is built."""
+        """Reject a rollout_space setting that cannot work, before anything is built."""
         rollout_space = RolloutSpace(rollout_space)
 
         if rollout_space == RolloutSpace.PHYSICAL:
@@ -374,35 +370,6 @@ class EncodeProcessDecode(BaseModel):
                     f"{sorted(input_names)}."
                 )
                 raise ValueError(msg)
-
-        if not self.predict_residual:
-            return rollout_space
-
-        if rollout_space != RolloutSpace.PHYSICAL:
-            msg = (
-                "predict_residual=True requires rollout_space='physical': the residual "
-                "is added to the previous PHYSICAL field, which only exists as a "
-                "rollout state in physical space."
-            )
-            raise ValueError(msg)
-
-        # The residual update is applied by the decoder's additive skip connection so
-        # this must be present. Without this, finalise() would silently drop the anchor
-        # and return an absolute prediction rather than a residual one.
-        skip_method = (
-            self.decoder.skip_connection.method
-            if self.decoder.skip_connection
-            else SkipConnectionType.NONE
-        )
-        if skip_method != SkipConnectionType.ADDITIVE:
-            msg = (
-                f"predict_residual=True requires the decoder to use an additive skip "
-                f"connection (got skip_connection.method={skip_method!r}): the "
-                f"tendency is added to the anchor by the decoder's skip connection, "
-                f"so without it the anchor would be dropped and the output would be "
-                f"an absolute prediction rather than a residual one."
-            )
-            raise ValueError(msg)
 
         return rollout_space
 
