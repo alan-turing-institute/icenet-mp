@@ -407,13 +407,14 @@ class EncodeProcessDecode(BaseModel):
     ) -> ModelStepOutput:
         """Run the training step.
 
-        If the processor returns a loss in its `ProcessorOutput` (rather than `None`),
-        this is used for backpropagation. We use `no_grad` to compute the decoded
-        prediction, which allows us to calculate metrics and log outputs, but the
-        usefulness of these will depend on what `ProcessorOutput.prediction` contains.
+        The standard path is to call the forward step with `self(batch)` and compute the
+        loss by comparing the decoded prediction to the target.
 
-        Otherwise, the standard encode-process-decode path is used and the loss is
-        computed by comparing the decoded prediction to the target.
+        Processors that set the flag `computes_loss_in_latent_space=True` are a special
+        case. We encode the inputs and target into latent space, call `rollout()` on the
+        processor, which returns both a latent prediction and a loss. We pass this
+        prediction through a frozen decoder in order to calculate metrics, but we use
+        the loss returned by the processor for backpropagation.
 
         Args:
             batch: Dictionary with one NTCHW entry per input dataset (n_history_steps)
@@ -426,54 +427,44 @@ class EncodeProcessDecode(BaseModel):
         batch = self.process_batch(batch)
         target = batch["target"].clone().detach()
 
-        # The physical rollout lives in forward(). Without this branch the model would
-        # TRAIN on the latent path below while validation_step/test_step (BaseModel,
-        # which call ``self(batch)``) score the PHYSICAL path - two different
-        # architectures, silently. Pinned by TestTrainEvalParity.
-        if self.rollout_space == "physical":
-            prediction = self(batch)
-            loss = self.loss(prediction, target)
-            self.log(
-                "train_loss",
-                loss,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                sync_dist=True,
-            )
-            self.train_metrics.update(prediction, target)
-            return ModelStepOutput(prediction, target, loss)
-
-        combined_latent = self.encode_inputs(batch)
-
-        expected_chw = self.target_encoder.data_space_in.chw
-        if tuple(target.shape[2:]) != expected_chw:
-            msg = (
-                f"Target CHW {tuple(target.shape[2:])} does not match "
-                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
-            )
-            raise ValueError(msg)
-
-        target_latent = None
+        # Custom loss path: use the loss returned by the processor
         if self.processor.computes_loss_in_latent_space:
-            target_latent = self.target_encoder.rollout(target)
-        processor_output = self.processor.rollout(combined_latent, target_latent)
+            expected_chw = self.target_encoder.data_space_in.chw
+            if tuple(target.shape[2:]) != expected_chw:
+                msg = (
+                    f"Target CHW shape ({tuple(target.shape[2:])}) does not match the "
+                    f"shape expected by the '{self.target_encoder.name}' encoder "
+                    f"({expected_chw})"
+                )
+                raise ValueError(msg)
 
-        # Get persistence if required for skip connection
-        persistence = self.get_persistence(batch)
+            # Encode inputs into latent space
+            latent_input_combined = self.encode_inputs(batch)
 
-        if processor_output.loss is None:
-            # Standard path: compare decoded output to target.
-            prediction = self.decoder.rollout(processor_output.prediction, persistence)
-            loss = self.loss(prediction, target)
-        else:
-            # Custom loss path: processor owns the training signal.
-            # Decode under no_grad for metrics/callbacks only.
+            # Process in latent space
+            processor_output = self.processor.rollout(
+                latent_input_combined, self.target_encoder.rollout(target)
+            )
+
+            # Get the loss from the processor output
             loss = processor_output.loss
+            if loss is None:
+                msg = (
+                    f"Processor {type(self.processor).__name__} promises to compute "
+                    "loss in latent space, but did not return one."
+                )
+                raise ValueError(msg)
+
+            # Decode under no_grad for metrics/callbacks only.
             with torch.no_grad():
                 prediction = self.decoder.rollout(
-                    processor_output.prediction, persistence
+                    processor_output.prediction, self.get_persistence(batch)
                 )
+
+        # Standard path: calculate loss by comparing decoded output to target.
+        else:
+            prediction = self(batch)
+            loss = self.loss(prediction, target)
 
         # Log metrics; computation will be done at epoch end
         self.log(
