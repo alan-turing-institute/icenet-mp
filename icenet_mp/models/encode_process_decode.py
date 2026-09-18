@@ -44,11 +44,16 @@ class EncodeProcessDecode(BaseModel):
     ) -> None:
         """Initialise an EncodeProcessDecode model.
 
-        ``rollout_space`` selects where the forecast loop closes: ``"latent"`` feeds the
-        processor's own output back (the default); ``"physical"`` decodes every step to a
-        field, rolls that field into the target window and re-encodes. ``predict_residual``
-        makes the decoder emit a change that is added to the previous field; it requires
-        ``rollout_space="physical"`` and a decoder with an additive skip connection.
+        Args:
+            encoders: DictConfig or list of BaseEncoder, one per input dataset.
+            processor: DictConfig or BaseProcessor, the latent-space processor.
+            decoder: DictConfig or BaseDecoder, the decoder from latent to output space.
+            target_variable_indices: indices of the target variables within the output space.
+            mask_dir: directory containing masks for the decoder (if needed).
+            rollout_space: "latent" or "physical", where to perform the forecast loop.
+            predict_residual: if True, the decoder predicts a residual to add to the previous field.
+            **kwargs: forwarded to ``BaseModel`` (spaces, masks, range, skip).
+
         """
         super().__init__(mask_dir=mask_dir, **kwargs)
 
