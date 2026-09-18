@@ -369,16 +369,16 @@ class TestPhysicalRolloutAdvancesTheState:
             output_channels=2,
             target_variable_indices=[0, 2],
         )
-        window = _inputs(model)[TARGET_GROUP]
-        field = torch.full_like(window[:, -1, [0, 2]], 0.5)
-        advanced = model._advance(window, field)
-        assert advanced.shape == window.shape
-        assert torch.equal(advanced[:, :-1], window[:, 1:])  # oldest frame dropped
-        assert torch.equal(advanced[:, -1, [0, 2]], field)  # target channels written
-        assert torch.equal(
-            advanced[:, -1, 1], window[:, -1, 1]
-        )  # the other one untouched
-        assert torch.equal(model._anchor(advanced), field)
+        _zero_decoder_output(model)
+        inputs = _inputs(model)
+        model.eval()
+        with torch.no_grad():
+            prediction = model(inputs)
+        # zero tendency anchored on channels [0, 2] => persistence of those channels
+        # at every lead, exactly as in the contiguous case above.
+        expected = inputs[TARGET_GROUP][:, -1, [0, 2]]
+        for lead in range(model.n_forecast_steps):
+            assert torch.equal(prediction[:, lead], expected)
 
 
 class TestNoFutureLeak:

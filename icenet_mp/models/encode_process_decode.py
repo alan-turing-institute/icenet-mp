@@ -237,7 +237,8 @@ class EncodeProcessDecode(BaseModel):
         """Encode all input datasets and concatenate along the channel dimension.
 
         Args:
-            inputs: Dictionary with one TensorNTCHW entry per input dataset with shape (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
+            inputs: Dictionary with one TensorNTCHW entry per input dataset with shape
+                (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
 
         Returns:
             TensorNTCHW with shape (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
@@ -251,6 +252,16 @@ class EncodeProcessDecode(BaseModel):
     def forward(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
         """Forward step of the model (used for inference).
 
+        Delegates to either the latent-space or physical-space path depending on the
+        `rollout_space` setting.
+        """
+        if self.rollout_space == "physical":
+            return self._forward_rollout_physical(inputs)
+        return self._forward_rollout_latent(inputs)
+
+    def _forward_rollout_latent(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+        """Rollout to the desired number of forecast steps in latent space.
+
         - start with multiple `NTCHW` inputs each with shape (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
         - encode inputs to `NTCHW` latent space (batch, n_history_steps, n_latent_channels, H_latent, W_latent)
         - concatenate inputs in `NTCHW` latent space (batch, n_history_steps, n_latent_channels_total, H_latent, W_latent)
@@ -258,12 +269,14 @@ class EncodeProcessDecode(BaseModel):
         - decode back to `NTCHW` output space (batch, n_forecast_steps, n_output_channels, H_output, W_output)
         - add a skip connection from the most recent target value to every forecast step
 
-        When `rollout_space="physical"` the loop is closed in observation space instead;
-        see `_forward_physical`.
-        """
-        if self.rollout_space == "physical":
-            return self._forward_physical(inputs)
+        Args:
+            inputs: Dictionary with one TensorNTCHW entry per input dataset with shape
+                (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
 
+        Returns:
+            TensorNTCHW with shape (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
+
+        """
         # Encode inputs into latent space: tensor with (batch_size, n_history_steps, n_latent_channels_total, latent_height, latent_width)
         latent_input_combined: TensorNTCHW = self.encode_inputs(inputs)
 
@@ -278,8 +291,8 @@ class EncodeProcessDecode(BaseModel):
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         return self.decoder.rollout(latent_output, persistence)
 
-    def _forward_physical(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
-        """Autoregressive-like rollout closed in physical/observation space one forecast step at a time.
+    def _forward_rollout_physical(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW:
+        """Rollout to the desired number of forecast steps in physical space.
 
         Per step: encode the window of observed/predicted frames, take ONE processor
         step, decode to a physical field, then roll that field into the window and
@@ -294,6 +307,14 @@ class EncodeProcessDecode(BaseModel):
         step. No future information enters: only `inputs[...]`, which holds the
         n_history_steps frames ending at the forecast origin, is ever read; the ground
         truth lives under the separate reserved key "target" and is not touched here.
+
+        Args:
+            inputs: Dictionary with one TensorNTCHW entry per input dataset with shape
+                (batch, n_history_steps, n_input_channels_k, H_input_k, W_input_k)
+
+        Returns:
+            TensorNTCHW with shape (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
+
         """
         target_name = self.output_space.name
         if target_name not in inputs:
@@ -304,7 +325,7 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
-        target_window = inputs[target_name].clone()  # (B, nh, C_t, H, W)
+        target_window = inputs[target_name].clone()  # (B, n_history, C_t, H, W)
 
         # Non-target groups: hold the newest observed frame for the whole rollout.
         frozen: dict[str, TensorNTCHW] = {
@@ -321,7 +342,7 @@ class EncodeProcessDecode(BaseModel):
             latent = torch.cat(
                 [encoder.rollout(windows[encoder.name]) for encoder in self.encoders],
                 dim=2,
-            )  # (B, nh, C_latent_total, h, w)
+            )  # (B, n_history, C_latent_total, h, w)
 
             # One processor step: the window is concatenated along channels, oldest to
             # newest, exactly as BaseProcessor.rollout does it.
@@ -330,33 +351,29 @@ class EncodeProcessDecode(BaseModel):
             )
             step_latent = self.processor(step_in)
 
-            raw = self.decoder(step_latent)
-
+            raw_output = self.decoder(step_latent)
             if self.predict_residual:
                 # Compared to the latent path the difference here is
                 # the anchor: here we use the state produced by the previous forecast step.
-                anchor = self._anchor(target_window)
-                field = self.decoder.finalise(raw, anchor)
+                anchor = target_window[
+                    :, -1, self.target_variable_indices
+                ]  # (B, C_out, H, W)
+                output = self.decoder.finalise(raw_output, anchor)
             else:
                 # The non-residual physical path has no
                 # anchor of its own, so pass None; the decoder then applies only
                 # range restriction and masking, exactly as before.
-                field = self.decoder.finalise(raw, None)
-            outputs.append(field)
+                output = self.decoder.finalise(raw_output, None)
+            outputs.append(output)
 
-            target_window = self._advance(target_window, field)
+            # Drop the oldest frame; append the newest with its target variables replaced
+            newest = target_window[:, -1].clone()
+            newest[:, self.target_variable_indices] = output
+            target_window = torch.cat(
+                [target_window[:, 1:], newest.unsqueeze(1)], dim=1
+            )
 
         return torch.stack(outputs, dim=1)
-
-    def _anchor(self, target_window: TensorNTCHW) -> TensorNCHW:
-        """Return the target variables of the newest frame in the window."""
-        return target_window[:, -1, self.target_variable_indices]  # (B, C_out, H, W)
-
-    def _advance(self, target_window: TensorNTCHW, field: TensorNCHW) -> TensorNTCHW:
-        """Drop the oldest frame; append the newest with its target variables replaced."""
-        newest = target_window[:, -1].clone()
-        newest[:, self.target_variable_indices] = field
-        return torch.cat([target_window[:, 1:], newest.unsqueeze(1)], dim=1)
 
     def find_target_channel_offset(self) -> int | None:
         """Find the channel offset of the target dataset within the combined latent space, if present."""
