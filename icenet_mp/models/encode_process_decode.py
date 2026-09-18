@@ -325,20 +325,18 @@ class EncodeProcessDecode(BaseModel):
             )
             raise ValueError(msg)
 
-        target_window = inputs[target_name].clone()  # (B, n_history, C_t, H, W)
-
         # Non-target groups: hold the newest observed frame for the whole rollout.
-        frozen: dict[str, TensorNTCHW] = {
+        windows: dict[str, TensorNTCHW] = {  # (B, n_history, C_k, H_k, W_k)
             name: tensor[:, -1:].expand_as(tensor)
             for name, tensor in inputs.items()
             if name not in {target_name, "target"}
         }
+        target_window = inputs[target_name].clone()  # (B, n_history, C_t, H_t, W_t)
 
         outputs: list[TensorNCHW] = []
         for _ in range(self.n_forecast_steps):
-            windows = dict(frozen)
+            # Set target window to the most recent observation/prediction then encode
             windows[target_name] = target_window
-
             latent = self.encode_inputs(windows)  # (B, n_history, C_latent_total, h, w)
 
             # One processor step: the window is concatenated along channels, oldest to
