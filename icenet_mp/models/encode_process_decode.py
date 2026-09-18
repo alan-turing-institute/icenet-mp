@@ -335,28 +335,33 @@ class EncodeProcessDecode(BaseModel):
 
         outputs: list[TensorNCHW] = []
         for _ in range(self.n_forecast_steps):
-            # Set target window to the most recent observation/prediction then encode
+            # Set target window to the most recent observation/prediction
             windows[target_name] = target_window
-            latent = self.encode_inputs(windows)  # (B, n_history, C_latent_total, h, w)
 
-            # One processor step: the window is concatenated along channels, oldest to
-            # newest, exactly as BaseProcessor.rollout does it.
-            step_in = torch.cat(
-                [latent[:, idx_t] for idx_t in range(self.n_history_steps)], dim=1
-            )
-            step_latent = self.processor(step_in)
-            raw_output = self.decoder(step_latent)
+            # Encode inputs to latent space
+            # -> (B, n_history, C_latent_total, H_latent, W_latent)
+            latent: TensorNTCHW = self.encode_inputs(windows)
+
+            # Process in latent space
+            # -> (B, C_latent_total, H_latent, W_latent)
+            step_latent: TensorNCHW = self.processor.step(latent.unbind(dim=1))
+
+            # Decode to physical space
+            # -> (B, C_out, H_out, W_out)
+            raw_output: TensorNCHW = self.decoder(step_latent)
 
             # If we want to predict residuals, we use the last forecast as the anchor
+            # -> (B, C_out, H_out, W_out)
             anchor = (
-                target_window[:, -1, self.target_variable_indices]  # (B, C_out, H, W)
+                target_window[:, -1, self.target_variable_indices, :, :]
                 if self.predict_residual
                 else None
             )
             output = self.decoder.finalise(raw_output, anchor)
             outputs.append(output)
 
-            # Drop the oldest frame; append the newest with its target variables replaced
+            # Drop the oldest target frame; append the newest with its target variables replaced
+            # Replace the oldest target frame by the newest, with
             newest = target_window[:, -1].clone()
             newest[:, self.target_variable_indices] = output
             target_window = torch.cat(
