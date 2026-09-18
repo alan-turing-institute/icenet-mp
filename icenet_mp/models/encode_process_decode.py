@@ -71,25 +71,32 @@ class EncodeProcessDecode(BaseModel):
         self.target_variable_indices = target_variable_indices
 
         # Add one encoder per dataset
-        self.encoders: list[BaseEncoder] = (
-            [
-                hydra.utils.instantiate(
-                    encoders[input_space.name],
-                    data_space_in=input_space,
-                    latent_space=encoders["latent_space"],
-                    latitudes_fn=self.latitudes_fn,
-                    longitudes_fn=self.longitudes_fn,
-                )
-                for input_space in self.input_spaces
-            ]
-            if isinstance(encoders, DictConfig)
-            else [
-                encoder
-                for input_space in self.input_spaces
-                for encoder in encoders
-                if encoder.name == input_space.name
-            ]
-        )
+        try:
+            self.encoders: list[BaseEncoder] = (
+                [
+                    hydra.utils.instantiate(
+                        encoders[input_space.name],
+                        data_space_in=input_space,
+                        latent_space=encoders["latent_space"],
+                        latitudes_fn=self.latitudes_fn,
+                        longitudes_fn=self.longitudes_fn,
+                    )
+                    for input_space in self.input_spaces
+                ]
+                if isinstance(encoders, DictConfig)
+                else [
+                    encoder
+                    for input_space in self.input_spaces
+                    for encoder in encoders
+                    if encoder.name == input_space.name
+                ]
+            )
+        except KeyError as exc:
+            msg = (
+                f"Error instantiating encoders: {exc}. Please ensure that encoders are "
+                f"specified for all input spaces: {self.input_spaces}"
+            )
+            raise ValueError(msg) from exc
 
         # Because the encoders are stored as `list[Module]`` to ensure consistent
         # ordering, `self.encoders` will not be automatically registered as Lightning
@@ -109,27 +116,35 @@ class EncodeProcessDecode(BaseModel):
 
         # Add an additional encoder that encodes the target dataset into latent space
         # This will be used by any processors that need to compute latent space losses.
-        self.target_encoder: BaseEncoder = (
-            hydra.utils.instantiate(
-                encoders[self.output_space.name],
-                data_space_in=DataSpace(
-                    name="target",
-                    channels=self.output_space.channels,
-                    shape=self.output_space.shape,
-                ),
-                latent_space=encoders["latent_space"],
-                latitudes_fn=self.latitudes_fn,
-                longitudes_fn=self.longitudes_fn,
-            )
-            if isinstance(encoders, DictConfig)
-            else encoders.pop(
-                next(
-                    idx
-                    for idx, encoder in enumerate(encoders)
-                    if encoder.name == "target"
+        try:
+            self.target_encoder: BaseEncoder = (
+                hydra.utils.instantiate(
+                    encoders[self.output_space.name],
+                    data_space_in=DataSpace(
+                        name="target",
+                        channels=self.output_space.channels,
+                        shape=self.output_space.shape,
+                    ),
+                    latent_space=encoders["latent_space"],
+                    latitudes_fn=self.latitudes_fn,
+                    longitudes_fn=self.longitudes_fn,
+                )
+                if isinstance(encoders, DictConfig)
+                else encoders.pop(
+                    next(
+                        idx
+                        for idx, encoder in enumerate(encoders)
+                        if encoder.name == "target"
+                    )
                 )
             )
-        )
+        except KeyError as exc:
+            msg = (
+                f"Error instantiating target encoder: {exc}. Please ensure that an "
+                f"encoder is specified for '{self.output_space.name}', even if it is "
+                f"not one of the input spaces: {self.input_spaces}."
+            )
+            raise ValueError(msg) from exc
 
         # Verify the output channels for each encoder
         for encoder in (*self.encoders, self.target_encoder):
