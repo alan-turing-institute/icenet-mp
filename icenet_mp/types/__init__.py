@@ -4,6 +4,7 @@ from .enums import (
     BetaSchedule,
     MaskType,
     RangeRestriction,
+    RolloutSpace,
     SkipConnectionType,
 )
 from .protocols import SupportsImageLogging, SupportsMetadata, SupportsVideoLogging
@@ -61,6 +62,7 @@ __all__ = [
     "PlotSpec",
     "ProcessorOutput",
     "RangeRestriction",
+    "RolloutSpace",
     "SkipConnectionType",
     "SupportsImageLogging",
     "SupportsMetadata",
