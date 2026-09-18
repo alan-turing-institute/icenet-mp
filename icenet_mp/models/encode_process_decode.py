@@ -126,7 +126,7 @@ class EncodeProcessDecode(BaseModel):
                 next(
                     idx
                     for idx, encoder in enumerate(encoders)
-                    if encoder.name == self.output_space.name
+                    if encoder.name == "target"
                 )
             )
         )
