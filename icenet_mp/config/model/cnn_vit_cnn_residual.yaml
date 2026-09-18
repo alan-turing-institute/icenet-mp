@@ -1,61 +1,22 @@
 # cnn-vit-cnn with the forecast loop closed in PHYSICAL space and a residual
-# (tendency) head. Identical blocks and sizes to cnn_vit_cnn.yaml; the only
-# differences are the rollout flag and the decoder's skip connection/range restriction:
-#   rollout_space: physical   each forecast step encodes the current window of
-#                             physical frames, takes one processor step, decodes,
-#                             and rolls the updated PHYSICAL field into the window
-#                             (re-encoded next step) - instead of feeding the
-#                             processor's raw latent back into its own input
-#   skip_connection:          (decoder) additive - the decoder output is a signed
-#     method: additive        daily INCREMENT: x_{k+1} = mask(clip(x_k + delta_k, 0, 1));
-#                             the identity forecast (persistence) is delta = 0
-#   zero_init_output: true    (decoder) the final decoder convolution starts at
-#                             zero, so an untrained model reproduces (masked)
-#                             persistence bit-exactly at every lead
-#   restrict_range: none      no bounding of the raw increment; the decoder's
-#                             finalise() clamps the SUM after the skip connection.
-#                             (With an additive skip the decoder bounds signed
-#                             values symmetrically, so sigmoid/tanh/clamp are also
-#                             valid choices here.)
-_target_: icenet_mp.models.EncodeProcessDecode
+# (tendency) head.
+defaults:
+  - cnn_vit_cnn
+  - _self_
 
 name: cnn-vit-cnn-residual
 
+# Perform the rollout in physical space: each forecast step encodes the current
+# window of physical frames, takes one processor step, decodes, then re-encodes
+# and rolls the updated PHYSICAL field into the window (re-encoded next step)
+# instead of feeding the processor raw latent back into its own input
 rollout_space: physical
 
-encoders:
-  latent_space: [216, 216]
-  era5:
-    _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 1
-  float-argo:
-    _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 1
-  sic-osisaf:
-    _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 1
-  sic-ssmis:
-    _target_: icenet_mp.models.encoders.CNNEncoder
-    n_layers: 1
-
-processor:
-  _target_: icenet_mp.models.processors.VitProcessor
-  depth: 6
-  dropout: 0.1
-  emb_dim: 256
-  heads: 8
-  mlp_dim: 1024
-  patch_size: 24
-
 decoder:
-  _target_: icenet_mp.models.decoders.CNNDecoder
-  n_layers: 1
-  mask_type: active
-  norm_type: groupnorm
-  restrict_range: none
+  # Start with a zero-initialized output layer so that an untrained model
+  # produces no output
   zero_init_output: true
-  # The tendency is applied by the decoder additive skip connection (#405); the only difference is
-  # that the physical rollout takes the previous forecast of physical states as the anchor instead of
-  # the fixed newest observation
+  # Combining an additive skip connection with a zero-initialized output layer
+  # means that an untrained model will produce persistence exactly.
   skip_connection:
     method: additive
