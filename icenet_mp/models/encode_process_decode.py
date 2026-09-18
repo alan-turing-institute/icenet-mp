@@ -339,10 +339,7 @@ class EncodeProcessDecode(BaseModel):
             windows = dict(frozen)
             windows[target_name] = target_window
 
-            latent = torch.cat(
-                [encoder.rollout(windows[encoder.name]) for encoder in self.encoders],
-                dim=2,
-            )  # (B, n_history, C_latent_total, h, w)
+            latent = self.encode_inputs(windows)  # (B, n_history, C_latent_total, h, w)
 
             # One processor step: the window is concatenated along channels, oldest to
             # newest, exactly as BaseProcessor.rollout does it.
