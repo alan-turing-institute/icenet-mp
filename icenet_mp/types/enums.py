@@ -25,6 +25,13 @@ class RangeRestriction(StrEnum):
     TANH = "tanh"
 
 
+class RolloutSpace(StrEnum):
+    """Enum for where EncodeProcessDecode performs its forecast loop."""
+
+    LATENT = "latent"
+    PHYSICAL = "physical"
+
+
 class SkipConnectionType(StrEnum):
     """Enum for decoder skip connection types."""
 

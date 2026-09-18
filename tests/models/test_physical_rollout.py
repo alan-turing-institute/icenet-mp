@@ -398,7 +398,7 @@ class TestNoFutureLeak:
 
 class TestConfigValidation:
     def test_bad_rollout_space(self) -> None:
-        with pytest.raises(ValueError, match="rollout_space must be"):
+        with pytest.raises(ValueError, match="not a valid RolloutSpace"):
             _build_model(rollout_space="nonsense")
 
     def test_residual_requires_physical(self) -> None:
