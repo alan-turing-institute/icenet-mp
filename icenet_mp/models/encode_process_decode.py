@@ -300,13 +300,6 @@ class EncodeProcessDecode(BaseModel):
 
         """
         target_name = self.output_space.name
-        if target_name not in inputs:
-            msg = (
-                f"rollout_space='physical' requires the prediction target group "
-                f"'{target_name}' to also be a model input, so that the rollout has an "
-                f"observed physical state to advance. Inputs: {sorted(inputs)}."
-            )
-            raise ValueError(msg)
 
         # Non-target groups: hold the newest observed frame for the whole rollout.
         windows: dict[str, TensorNTCHW] = {  # (B, n_history, C_k, H_k, W_k)
@@ -358,6 +351,18 @@ class EncodeProcessDecode(BaseModel):
     ) -> RolloutSpace:
         """Reject rollout/residual settings that cannot work, before anything is built."""
         rollout_space = RolloutSpace(rollout_space)
+
+        if rollout_space == RolloutSpace.PHYSICAL:
+            input_names = {input_space.name for input_space in self.input_spaces}
+            if self.output_space.name not in input_names:
+                msg = (
+                    f"rollout_space='physical' requires the prediction target group "
+                    f"'{self.output_space.name}' to also be a model input, so that "
+                    f"the rollout has an observed physical state to advance. Inputs: "
+                    f"{sorted(input_names)}."
+                )
+                raise ValueError(msg)
+
         if not self.predict_residual:
             return rollout_space
 
