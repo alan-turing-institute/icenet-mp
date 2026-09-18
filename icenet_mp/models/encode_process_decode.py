@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any, ClassVar
 
 import hydra
@@ -80,7 +81,7 @@ class EncodeProcessDecode(BaseModel):
                     )
                     for input_space in self.input_spaces
                 ]
-                if isinstance(encoders, DictConfig)
+                if isinstance(encoders, Mapping)
                 else [
                     encoder
                     for input_space in self.input_spaces
@@ -126,7 +127,7 @@ class EncodeProcessDecode(BaseModel):
                     latitudes_fn=self.latitudes_fn,
                     longitudes_fn=self.longitudes_fn,
                 )
-                if isinstance(encoders, DictConfig)
+                if isinstance(encoders, Mapping)
                 else encoders.pop(
                     next(
                         idx
