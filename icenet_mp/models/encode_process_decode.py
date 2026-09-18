@@ -322,7 +322,14 @@ class EncodeProcessDecode(BaseModel):
 
             # Process in latent space
             # -> (B, C_latent_total, H_latent, W_latent)
-            step_latent: TensorNCHW = self.processor.step(latent.unbind(dim=1))
+            try:
+                step_latent: TensorNCHW = self.processor.step(latent.unbind(dim=1))
+            except NotImplementedError as exc:
+                msg = (
+                    f"Processor {type(self.processor).__name__} does not implement an "
+                    "autoregressive forward() method."
+                )
+                raise ValueError(msg) from exc
 
             # Decode to physical space
             # -> (B, C_out, H_out, W_out)
