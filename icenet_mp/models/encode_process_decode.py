@@ -347,20 +347,15 @@ class EncodeProcessDecode(BaseModel):
                 [latent[:, idx_t] for idx_t in range(self.n_history_steps)], dim=1
             )
             step_latent = self.processor(step_in)
-
             raw_output = self.decoder(step_latent)
-            if self.predict_residual:
-                # Compared to the latent path the difference here is
-                # the anchor: here we use the state produced by the previous forecast step.
-                anchor = target_window[
-                    :, -1, self.target_variable_indices
-                ]  # (B, C_out, H, W)
-                output = self.decoder.finalise(raw_output, anchor)
-            else:
-                # The non-residual physical path has no
-                # anchor of its own, so pass None; the decoder then applies only
-                # range restriction and masking, exactly as before.
-                output = self.decoder.finalise(raw_output, None)
+
+            # If we want to predict residuals, we use the last forecast as the anchor
+            anchor = (
+                target_window[:, -1, self.target_variable_indices]  # (B, C_out, H, W)
+                if self.predict_residual
+                else None
+            )
+            output = self.decoder.finalise(raw_output, anchor)
             outputs.append(output)
 
             # Drop the oldest frame; append the newest with its target variables replaced
