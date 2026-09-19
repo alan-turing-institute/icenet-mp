@@ -5,6 +5,7 @@ from .conv_block_upsample import ConvBlockUpsample
 from .conv_norm_act_upsample import ConvNormActUpsample
 from .freezable import Freezable
 from .gated_attention import GatedAttentionBlock
+from .latent_fusion import LatentFusion
 from .lite_mla import LiteMLA
 from .mask import Mask
 from .normalised_fold import NormalisedFold
@@ -29,6 +30,7 @@ __all__ = [
     "ConvNormActUpsample",
     "Freezable",
     "GatedAttentionBlock",
+    "LatentFusion",
     "LiteMLA",
     "Mask",
     "NormalisedFold",
