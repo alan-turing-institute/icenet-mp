@@ -31,12 +31,18 @@ class BaseDecoder(Freezable):
         restrict_range_min: float | None = None,
         restrict_range: str | None = None,
         skip_connection: dict[str, Any] | None = None,
+        target_channel_offset: int | None = None,
+        target_group_channels: int | None = None,
+        target_variable_indices: list[int] | None = None,
     ) -> None:
         """Initialise a BaseDecoder."""
         super().__init__()
         self.data_space_in = data_space_in
         self.data_space_out = data_space_out
         self.name = data_space_out.name
+        self.target_channel_offset = target_channel_offset
+        self.target_group_channels = target_group_channels
+        self.target_variable_indices = tuple(target_variable_indices or ())
 
         # The valid output range, used when finalising outputs
         self.range_min = restrict_range_min or 0
