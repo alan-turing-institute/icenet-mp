@@ -30,6 +30,9 @@ def compute_feature_importance(
     per input variable (its spatial and temporal mean over the sample's history
     window) and one scalar target (the spatial, temporal, and channel mean of the
     prediction target over its forecast window).
+    Every configured group contributes features, including the target group's own
+    variables; those lagged target features are typically the strongest predictors
+    and dominate the top of the ranking.
 
     Args:
         config: Hydra-composed config, as passed to ``imp train``.
@@ -67,6 +70,13 @@ def compute_feature_importance(
 
     x = np.concatenate(rows, axis=0)
     y = np.concatenate(targets, axis=0)
+
+    if not (np.isfinite(x).all() and np.isfinite(y).all()):
+        msg = (
+            "Training data contains NaN or inf values; check the configured "
+            "datasets for missing cells."
+        )
+        raise ValueError(msg)
 
     logger.info("Fitting Random Forest on %d samples, %d features.", *x.shape)
     model = RandomForestRegressor(
