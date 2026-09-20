@@ -30,6 +30,7 @@ def compute_feature_importance(
     per input variable (its spatial and temporal mean over the sample's history
     window) and one scalar target (the spatial, temporal, and channel mean of the
     prediction target over its forecast window).
+
     Every configured group contributes features, including the target group's own
     variables; those lagged target features are typically the strongest predictors
     and dominate the top of the ranking.
