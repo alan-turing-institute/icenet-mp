@@ -9,6 +9,7 @@ line:
 ```bash
 imp train --config-name <config> loss=mse
 imp train --config-name <config> loss=amse loss.mode=hybrid loss.spectral_weight=0.1
+imp train --config-name <config> loss=time_weighted loss.final_weight=2.0
 ```
 
 Each option corresponds to a file in `icenet_mp/config/loss/`, whose header comments
@@ -24,8 +25,22 @@ them.
 | `mae` | absolute residual | fully outlier-robust; constant gradient | non-smooth at zero; weak signal on small errors |
 | `rmse` | `sqrt(MSE + eps)` | interpretable in target units | same optimum as MSE; gradient rescaled by the running loss value |
 | `smooth_l1` | Huber variant with `beta` transition | as Huber; PyTorch-native parameterisation | as Huber |
+| `time_weighted` | wrapped Huber loss with linearly increasing lead-time weights | emphasises errors further into the forecast while preserving mean loss scale | endpoint weights must be chosen; autoregressive one-step training has no within-step lead-time weighting |
 | `weighted_mse` / `weighted_l1` / `weighted_bce` | elementwise `sample_weights` × MSE / L1 / BCE-with-logits | spatial weighting (e.g. emphasise the ice edge or active cells) | weights must be supplied and justified; BCE assumes a [0, 1] classification framing |
 | `amse` | spectral anti-blur loss (Subich et al. 2025, arXiv:2501.19374, flat-grid adaptation) | removes the "double penalty": matching the target's power spectrum per scale band is optimal at any coherence, so partially-predictable fine scales are no longer rewarded for being damped | more expensive than pointwise losses (FFT per step); `hybrid` mode introduces `spectral_weight` to calibrate |
+
+
+## Lead-time weighting
+
+`loss=time_weighted` evaluates the wrapped loss separately at each forecast step.
+The first and last lead times use `initial_weight` and `final_weight`; intermediate
+steps are linearly interpolated and the resulting weights are normalised to mean one.
+The default wraps Huber loss with weights increasing from 1 to 2. The wrapped loss can
+be changed through `loss.base_loss`.
+
+For autoregressive DDPM training, only one forecast step is optimised at a time, so
+there is no within-step lead-time weighting on that training path. Parallel DDPM and
+standard multi-step forecast losses use the full lead-time schedule.
 
 ## Why an anti-blur loss exists (the double penalty, in two sentences)
 

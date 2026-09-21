@@ -1,6 +1,6 @@
 import pytest
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from icenet_mp.models import DDPM
 
@@ -76,6 +76,32 @@ class TestDDPM:
         assert result.prediction.shape == (2, expected_steps, 1, 16, 16)
         assert result.target.shape == result.prediction.shape
         assert result.loss.ndim == 0
+
+    @pytest.mark.parametrize("use_autoregressive", [True, False])
+    def test_training_supports_time_weighted_loss(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        use_autoregressive: bool,
+    ) -> None:
+        """DDPM restores forecast time before a time-weighted loss call."""
+        loss_cfg = OmegaConf.create(
+            {
+                "_target_": "icenet_mp.losses.time_weighted_loss.TimeWeightedLoss",
+                "base_loss": {"_target_": "torch.nn.MSELoss"},
+            }
+        )
+        model = self._make_model(loss_cfg, use_autoregressive=use_autoregressive)
+        monkeypatch.setattr(
+            model.model,
+            "forward",
+            lambda noisy, _timesteps, _conditioning: torch.zeros_like(noisy),
+        )
+
+        result = model.training_step(self._make_batch(), 0)
+
+        assert result.loss.ndim == 0
+        assert torch.isfinite(result.loss)
 
     def test_parallel_sample_runs_reverse_diffusion_loop(
         self,

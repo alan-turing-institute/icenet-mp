@@ -439,6 +439,37 @@ class DDPM(BaseModel):
 
         return torch.cat([osisaf_features, era5_features], dim=1)  # [B, cond, H, W]
 
+    def _forecast_loss(
+        self, prediction: torch.Tensor, target: torch.Tensor
+    ) -> torch.Tensor:
+        """Calculate loss, restoring forecast time when the loss requires it."""
+        if not getattr(self.loss_fn, "requires_time_dimension", False):
+            return self.loss(prediction, target)
+
+        expected_ndim = len(self.output_space.chw) + 1
+        if prediction.ndim != expected_ndim:
+            msg = (
+                "DDPM time-weighted loss expects flattened NCHW tensors, got "
+                f"{tuple(prediction.shape)}."
+            )
+            raise ValueError(msg)
+
+        if prediction.shape[1] == self.base_output_channels:
+            return self.loss(prediction.unsqueeze(1), target.unsqueeze(1))
+
+        expected_channels = self.n_forecast_steps * self.base_output_channels
+        if prediction.shape[1] != expected_channels:
+            msg = (
+                f"Expected {expected_channels} flattened forecast channels, got "
+                f"{prediction.shape[1]}."
+            )
+            raise ValueError(msg)
+
+        return self.loss(
+            prediction.unflatten(1, (self.n_forecast_steps, self.base_output_channels)),
+            target.unflatten(1, (self.n_forecast_steps, self.base_output_channels)),
+        )
+
     def training_step(
         self, batch: dict[str, TensorNTCHW], _batch_idx: int
     ) -> ModelStepOutput:
@@ -492,7 +523,7 @@ class DDPM(BaseModel):
         )  # [B, C, H, W] (AR) or [B, T*C, H, W] (parallel)
 
         # Compute loss
-        loss = self.loss(pred_v, target_v)
+        loss = self._forecast_loss(pred_v, target_v)
         self.log(
             "train_loss",
             loss,
@@ -544,7 +575,7 @@ class DDPM(BaseModel):
         y_hat = self.sample(batch)  # [B, T*C, H, W]
 
         # Calculate loss
-        loss = self.loss(y_hat, y)
+        loss = self._forecast_loss(y_hat, y)
         self.log(
             "validation_loss",
             loss,
@@ -591,7 +622,7 @@ class DDPM(BaseModel):
         y = batch["target"].flatten(1, 2)  # [B, T*C, H, W]
         y_hat = self.sample(batch)  # [B, T*C, H, W]
 
-        loss = self.loss(y_hat, y)
+        loss = self._forecast_loss(y_hat, y)
         self.log(
             "test_loss",
             loss,

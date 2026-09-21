@@ -319,7 +319,16 @@ class DDPMProcessor(BaseProcessor):
         target_v = self.diffusion.calculate_v(y_flat, noise, t)
 
         # Compute the v-prediction training loss.
-        loss = self.loss_fn(pred_v, target_v)
+        if getattr(self.loss_fn, "requires_time_dimension", False):
+            if self.use_autoregressive:
+                loss = self.loss_fn(pred_v.unsqueeze(1), target_v.unsqueeze(1))
+            else:
+                loss = self.loss_fn(
+                    pred_v.unflatten(1, (self.n_forecast_steps, self.c_target)),
+                    target_v.unflatten(1, (self.n_forecast_steps, self.c_target)),
+                )
+        else:
+            loss = self.loss_fn(pred_v, target_v)
 
         # Reconstruct x0 for metrics only; this is not used for training.
         with torch.no_grad():
