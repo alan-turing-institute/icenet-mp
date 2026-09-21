@@ -66,19 +66,21 @@ class PanelRenderer:
         """Validate that video inputs are 3D [T, H, W] arrays matching `dates`.
 
         Raises:
-            InvalidArrayError: If an array isn't 3D, or its frame count doesn't
-                match the number of dates.
+            InvalidArrayError: If an array isn't 3D, or its frame count does not match
+                the number of dates.
 
         """
-        for array in arrays:
-            if array.ndim != _VIDEO_NDIM:
-                msg = f"Expected a 3D [T, H, W] array, got shape {array.shape}."
-                raise InvalidArrayError(msg)
-            if array.shape[0] != len(dates):
-                msg = (
-                    "Number of dates must match the number of frames; "
-                    f"got {len(dates)} dates and {array.shape[0]} frames."
-                )
+        # Validate that the first array is 3D and has the correct number of frames
+        shape = arrays[0].shape
+        if len(shape) != _VIDEO_NDIM or shape[0] != len(dates):
+            msg = (
+                f"Expected a 3D [T, H, W] array with {len(dates)} frames, got {shape}."
+            )
+            raise InvalidArrayError(msg)
+        # The remaining arrays only need to match the shape of the first array
+        for array in arrays[1:]:
+            if array.shape != shape:
+                msg = f"Array shapes must match; expected {shape}, got {array.shape}."
                 raise InvalidArrayError(msg)
 
     def static_singlet(
