@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from matplotlib import animation
-from matplotlib.colors import Colormap, to_rgba
+from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from PIL.ImageFile import ImageFile
 
@@ -74,6 +74,16 @@ class TestRenderPanels:
     ) -> None:
         with pytest.raises(ValueError, match=r"zip\(\)"):
             renderer.panels_static([era5_temperature_2d], panel_titles=["a", "b"])
+
+    def test_mismatched_cmap_length_raises(
+        self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
+    ) -> None:
+        """A cmap list not matching the panel count raises, not silently mis-pairs."""
+        with pytest.raises(ValueError, match=r"zip\(\)"):
+            renderer.panels_static(
+                [era5_temperature_2d, osisaf_ice_conc_2d, osisaf_ice_conc_2d],
+                cmap=["viridis", "magma"],
+            )
 
     def test_per_panel_cmap_and_scale(
         self, era5_temperature_2d: ArrayHW, osisaf_ice_conc_2d: ArrayHW
@@ -153,49 +163,6 @@ class TestCmapWithBad:
 
         assert first is second
 
-    def test_colormap_instance_is_not_cached(self) -> None:
-        """A Colormap instance is copied fresh on every call, never cached."""
-        local_renderer = MatplotlibRenderer()
-        custom = mpl.colormaps.get_cmap("viridis").copy()
-
-        first = local_renderer._cmap_with_bad(custom)
-        second = local_renderer._cmap_with_bad(custom)
-
-        assert first is not second
-
-    def test_copy_fallback_on_uncopyable_colourmap(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Fall back to a fresh lookup when the returned colourmap can't be copied.
-
-        Some matplotlib versions can hand back a colourmap object whose
-        .copy() raises AttributeError/TypeError; the function should recover
-        by re-fetching a fresh (copyable) colourmap by name rather than
-        propagating the error.
-        """
-        real_get_cmap = mpl.colormaps.get_cmap
-        calls = {"n": 0}
-
-        class _UncopyableCmap:
-            name = "viridis"
-
-            def copy(self) -> Colormap:
-                msg = "this colourmap cannot be copied"
-                raise AttributeError(msg)
-
-        def fake_get_cmap(name: str) -> Colormap:
-            calls["n"] += 1
-            if calls["n"] == 1:
-                return _UncopyableCmap()  # type: ignore[return-value]
-            return real_get_cmap(name)
-
-        monkeypatch.setattr(mpl.colormaps, "get_cmap", fake_get_cmap)
-
-        cmap = MatplotlibRenderer()._cmap_with_bad("viridis")
-
-        assert isinstance(cmap, Colormap)
-        assert calls["n"] == 2
-
 
 class TestCmapBadColourConfigured:
     def test_string_cmap_gets_opaque_bad_colour(
@@ -219,18 +186,6 @@ class TestCmapBadColourConfigured:
         renderer.panels([era5_temperature_2d], cmap="viridis")
 
         assert mpl.colormaps.get_cmap("viridis").get_bad()[3] == pytest.approx(0.0)
-
-    def test_colormap_instance_keeps_its_own_bad_colour(
-        self, era5_temperature_2d: ArrayHW
-    ) -> None:
-        """A pre-configured Colormap instance keeps its own bad colour, not the default."""
-        custom = mpl.colormaps.get_cmap("viridis").copy()
-        custom.set_bad("red")
-
-        _, axes = renderer.panels([era5_temperature_2d], cmap=custom)
-
-        assert axes[0].images[0].get_cmap().get_bad() == pytest.approx(to_rgba("red"))
-        assert custom.get_bad() == pytest.approx(to_rgba("red"))
 
 
 class TestRenderPanelsVideo:

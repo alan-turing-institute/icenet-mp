@@ -16,7 +16,7 @@ from .media_annotator import MediaAnnotator
 from .style_resolver import StyleResolver
 
 if TYPE_CHECKING:
-    from matplotlib.colors import Colormap, Normalize
+    from matplotlib.colors import Normalize
 
 _VIDEO_NDIM = 3
 
@@ -153,7 +153,7 @@ class PanelRenderer:
             panel_titles.get("prediction", self.plot_spec.title_prediction),
         ]
 
-        cmaps: list[str | Colormap] = [
+        cmaps: list[str] = [
             self.plot_spec.colourmap,
             self.plot_spec.colourmap,
         ]
@@ -290,7 +290,7 @@ class PanelRenderer:
             panel_titles.get("prediction", self.plot_spec.title_prediction),
         ]
 
-        cmaps: list[str | Colormap] = [
+        cmaps: list[str] = [
             self.plot_spec.colourmap,
             self.plot_spec.colourmap,
         ]

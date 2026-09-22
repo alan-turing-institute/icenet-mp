@@ -52,36 +52,23 @@ class MatplotlibRenderer:
         self._contour_linewidth = contour_linewidth
         self._panel_height_in = panel_height_in
 
-    def _cmap_with_bad(self, cmap: str | Colormap) -> Colormap:
-        """Get a Colormap copy with `self._bad_colour` set for NaN values.
+    def _cmap_with_bad(self, name: str) -> Colormap:
+        """Get a Colormap with `self._bad_colour` set for NaN values.
 
-        A named colour map is cached after its first build for re-use; a `Colormap`
-        instance is never cached, since it may be a caller-owned object that is unsafe
-        to reuse.
+        A named colour map is cached after its first build for re-use.
         """
-        name = cmap if isinstance(cmap, str) else None
-        if name is not None:
-            cached = self._cmap_cache.get(name)
-            if cached is not None:
-                return cached
+        # If the requested name is not cached then build a new Colormap and cache it.
+        if (cmap := self._cmap_cache.get(name)) is None:
+            # Load the corresponding matplotlib colormap
+            cmap = colormaps.get_cmap(name)
 
-        # If we are given a string, load the corresponding matplotlib colormap
-        if isinstance(cmap, str):
-            cmap = colormaps.get_cmap(cmap)
+            # Apply the default bad colour if the current one is transparent (alpha=0)
+            if cmap.get_bad()[-1] == 0:
+                cmap.set_bad(self._bad_colour)
 
-        # Copy to avoid mutating a Colormap instance that may be used elsewhere
-        try:
-            cmap = cmap.copy()
-        except (AttributeError, TypeError):
-            # Some matplotlib versions return non-copyable Colormap; create new
-            cmap = colormaps.get_cmap(cmap.name)
-
-        # Apply the default bad colour if the current one is transparent (alpha=0).
-        if cmap.get_bad()[-1] == 0:
-            cmap.set_bad(self._bad_colour)
-
-        if name is not None:
+            # Cache the modified colormap for future use
             self._cmap_cache[name] = cmap
+
         return cmap
 
     @contextlib.contextmanager
@@ -206,7 +193,7 @@ class MatplotlibRenderer:
         self,
         arrays: Sequence[ArrayHW],
         *,
-        cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
+        cmap: str | Sequence[str] = "viridis",
         contour_arrays: Sequence[ArrayHW | None] | None = None,
         contour_color: str = "red",
         contour_level: float | None = None,
@@ -241,17 +228,8 @@ class MatplotlibRenderer:
             Axes' drawn image is available as `ax.images[0]`, e.g. for animation).
 
         """
+        # Create a figure with `n` subplots, each with the same height and an aspect ratio
         n = len(arrays)
-        cmaps = [
-            self._cmap_with_bad(name_or_map)
-            for name_or_map in (
-                [cmap] * n if isinstance(cmap, str | Colormap) else (list(cmap) * n)[:n]
-            )
-        ]
-        vmins = list(vmin) if isinstance(vmin, Sequence) else [vmin] * n
-        vmaxs = list(vmax) if isinstance(vmax, Sequence) else [vmax] * n
-        norms: list[Normalize | None] = list(norm) if norm is not None else [None] * n
-
         fig, axes_ = plt.subplots(
             1,
             n,
@@ -262,22 +240,38 @@ class MatplotlibRenderer:
         for ax, array in zip(axes, arrays, strict=True):
             ax.set_box_aspect(array.shape[0] / array.shape[1])
 
+        _cmaps = (
+            self._cmap_with_bad(name)
+            for name in ([cmap] * n if isinstance(cmap, str) else list(cmap))
+        )
+        _ranges = zip(
+            list(vmin) if isinstance(vmin, Sequence) else [vmin] * n,
+            list(vmax) if isinstance(vmax, Sequence) else [vmax] * n,
+            list(norm) if norm is not None else [None] * n,
+            strict=True,
+        )
+
+        # Render each panel's array with its corresponding colourmap and normalisation
         images = [
-            ax.imshow(arr, cmap=c, norm=nrm, origin="upper")
-            if nrm is not None
-            else ax.imshow(arr, cmap=c, vmin=lo, vmax=hi, origin="upper")
-            for ax, arr, c, lo, hi, nrm in zip(
-                axes, arrays, cmaps, vmins, vmaxs, norms, strict=True
+            ax.imshow(array, cmap=_cmap, norm=_norm, origin="upper")
+            if _norm is not None
+            else ax.imshow(array, cmap=_cmap, vmin=_vmin, vmax=_vmax, origin="upper")
+            for ax, array, _cmap, (_vmin, _vmax, _norm) in zip(
+                axes, arrays, _cmaps, _ranges, strict=True
             )
         ]
+
+        # Set panel titles and turn off axes ticks/labels
         for ax, title in zip(axes, panel_titles or [""] * n, strict=True):
             ax.set_title(title)
             ax.axis("off")
 
+        # Draw contours on each panel that has a contour array, if requested
         self._draw_contours(
             axes, contour_arrays, color=contour_color, level=contour_level
         )
 
+        # Add colourbars, either one per panel or a single shared one for a range of panels
         if group_axes is not None:
             start, end = group_axes
             self._add_colourbar(fig, images[start], axes[start : end + 1])
@@ -288,6 +282,7 @@ class MatplotlibRenderer:
             for ax, image in zip(axes, images, strict=True):
                 self._add_colourbar(fig, image, ax)
 
+        # Add figure-level title and footer text if provided
         if figure_title:
             fig.suptitle(figure_title)
         if footer_text:
@@ -299,7 +294,7 @@ class MatplotlibRenderer:
         self,
         arrays: Sequence[ArrayHW],
         *,
-        cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
+        cmap: str | Sequence[str] = "viridis",
         contour_arrays: Sequence[ArrayHW | None] | None = None,
         contour_color: str = "red",
         contour_level: float | None = None,
@@ -358,7 +353,7 @@ class MatplotlibRenderer:
         self,
         arrays: Sequence[ArrayTHW],
         *,
-        cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
+        cmap: str | Sequence[str] = "viridis",
         contour_arrays: Sequence[ArrayTHW | None] | None = None,
         contour_color: str = "red",
         contour_level: float | None = None,
