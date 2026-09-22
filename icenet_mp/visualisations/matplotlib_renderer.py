@@ -23,14 +23,31 @@ from icenet_mp.types import ArrayHW, ArrayTHW
 
 from .colour_scale import ColourScale
 
-_COLOURBAR_ASPECT = 25
-_COLOURBAR_LABEL_SIZE = 9
-_PANEL_HEIGHT_IN = 6
-_CONTOUR_LINEWIDTH = 1.2
-
 
 class MatplotlibRenderer:
     """Minimal matplotlib rendering of figures and videos from raw arrays."""
+
+    def __init__(
+        self,
+        *,
+        colourbar_aspect: float = 25,
+        colourbar_label_size: float = 9,
+        contour_linewidth: float = 1.2,
+        panel_height_in: float = 6,
+    ) -> None:
+        """Initialise a MatplotlibRenderer.
+
+        Args:
+            colourbar_aspect: Long:short-axis ratio of a single-panel colourbar.
+            colourbar_label_size: Font size of colourbar tick labels.
+            contour_linewidth: Line width of drawn contours (e.g. the sea ice edge).
+            panel_height_in: Height in inches of each panel (width scales with it).
+
+        """
+        self._colourbar_aspect = colourbar_aspect
+        self._colourbar_label_size = colourbar_label_size
+        self._contour_linewidth = contour_linewidth
+        self._panel_height_in = panel_height_in
 
     @contextlib.contextmanager
     def _suppress_mpl_animation_logs(self) -> Generator[None]:
@@ -114,10 +131,10 @@ class MatplotlibRenderer:
             image,
             ax=axes,
             orientation="horizontal",
-            aspect=_COLOURBAR_ASPECT * span,
+            aspect=self._colourbar_aspect * span,
             pad=0.04,
         )
-        cbar.ax.tick_params(labelsize=_COLOURBAR_LABEL_SIZE)
+        cbar.ax.tick_params(labelsize=self._colourbar_label_size)
 
     def _draw_contours(
         self,
@@ -144,7 +161,7 @@ class MatplotlibRenderer:
                     contour_arr,
                     colors=color,
                     levels=[level],
-                    linewidths=_CONTOUR_LINEWIDTH,
+                    linewidths=self._contour_linewidth,
                     origin="upper",
                 )
             )
@@ -201,7 +218,10 @@ class MatplotlibRenderer:
         norms: list[Normalize | None] = list(norm) if norm is not None else [None] * n
 
         fig, axes_ = plt.subplots(
-            1, n, figsize=(_PANEL_HEIGHT_IN * n, _PANEL_HEIGHT_IN), layout="compressed"
+            1,
+            n,
+            figsize=(self._panel_height_in * n, self._panel_height_in),
+            layout="compressed",
         )
         axes: list[Axes] = np.atleast_1d(axes_).tolist()
         for ax, array in zip(axes, arrays, strict=True):
