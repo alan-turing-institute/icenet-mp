@@ -340,7 +340,7 @@ class TestLogStaticInputs:
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
-        assert "Static plotting skipped" in caplog.text
+        assert "Image logging failed: bad array" in caplog.text
 
     def test_skips_on_generic_plotting_error(
         self,
@@ -364,7 +364,7 @@ class TestLogStaticInputs:
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
-        assert "Static plotting failed" in caplog.text
+        assert "Image logging failed: bad shape" in caplog.text
 
 
 class TestLogStaticOutputs:
@@ -491,7 +491,7 @@ class TestLogStaticOutputs:
                 channel_names=["sic"],
             )
 
-        assert "Static plotting skipped" in caplog.text
+        assert "Image logging failed: bad array" in caplog.text
 
     def test_skips_on_generic_plotting_error(
         self,
@@ -518,7 +518,7 @@ class TestLogStaticOutputs:
                 channel_names=["sic"],
             )
 
-        assert "Static plotting failed" in caplog.text
+        assert "Image logging failed:" in caplog.text
 
     def test_preserves_prefix_and_channel_names(
         self, monkeypatch: pytest.MonkeyPatch
@@ -639,7 +639,7 @@ class TestLogVideoInputs:
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
-        assert "Video plotting skipped" in caplog.text
+        assert "Video logging failed: bad array" in caplog.text
 
     def test_skips_on_video_render_error(
         self,
@@ -663,7 +663,7 @@ class TestLogVideoInputs:
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
-        assert "Video plotting skipped" in caplog.text
+        assert "Video logging failed: encoding failed" in caplog.text
 
     def test_skips_on_generic_plotting_error(
         self,
@@ -687,7 +687,7 @@ class TestLogVideoInputs:
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
-        assert "Video plotting failed" in caplog.text
+        assert "Video logging failed: bad shape" in caplog.text
 
 
 class TestLogVideoOutputs:
@@ -814,7 +814,7 @@ class TestLogVideoOutputs:
                 channel_names=["sic"],
             )
 
-        assert "Video plotting skipped" in caplog.text
+        assert "Video logging failed: bad array" in caplog.text
 
     def test_skips_on_video_render_error(
         self,
@@ -841,7 +841,7 @@ class TestLogVideoOutputs:
                 channel_names=["sic"],
             )
 
-        assert "Video plotting skipped" in caplog.text
+        assert "Video logging failed: encoding failed" in caplog.text
 
     def test_skips_on_generic_plotting_error(
         self,
@@ -868,7 +868,7 @@ class TestLogVideoOutputs:
                 channel_names=["sic"],
             )
 
-        assert "Video plotting failed" in caplog.text
+        assert "Video logging failed" in caplog.text
 
     def test_rewinds_buffers_before_logging(
         self, monkeypatch: pytest.MonkeyPatch

@@ -217,10 +217,8 @@ class MediaPublisher:
                     images: dict[str, list[ImageFile]] = {key: [image]}
                     # Log static input images
                     self._log_images(images, image_loggers, log_path)
-        except InvalidArrayError as exc:
-            log.warning("Static plotting skipped due to invalid arrays: %s", exc)
-        except (IndexError, ValueError, MemoryError, OSError) as exc:
-            log.warning("Static plotting failed: %s", exc)
+        except (InvalidArrayError, IndexError, ValueError, MemoryError, OSError) as exc:
+            log.warning("Image logging failed: %s", exc)
 
     def log_static_outputs(  # noqa: PLR0913
         self,
@@ -272,10 +270,8 @@ class MediaPublisher:
                 }
                 # Log static output images
                 self._log_images(images, image_loggers, log_path)
-        except InvalidArrayError as exc:
-            log.warning("Static plotting skipped due to invalid arrays: %s", exc)
-        except (IndexError, ValueError, MemoryError, OSError) as exc:
-            log.warning("Static plotting failed: %s", exc)
+        except (InvalidArrayError, IndexError, ValueError, MemoryError, OSError) as exc:
+            log.warning("Image logging failed: %s", exc)
 
     def log_video_inputs(
         self,
@@ -292,8 +288,8 @@ class MediaPublisher:
             date_key = iso_from_date(dates[0])
             for input_ds in inputs:
                 # Get data for all variables over the full date range
-                for channel, v_name in enumerate(input_ds.variable_names):
-                    variable_name = f"{input_ds.name}:{v_name}"
+                for channel, unqualified_name in enumerate(input_ds.variable_names):
+                    variable_name = f"{input_ds.name}:{unqualified_name}"
                     video = self.panel_renderer.video_singlet(
                         input_ds.get_tchw(np_dates)[:, channel, :],
                         dates=dates,
@@ -302,10 +298,15 @@ class MediaPublisher:
                     video_data = {f"{date_key}-{variable_name}": video}
                     # Log input animations
                     self._log_videos(video_data, video_loggers, log_path)
-        except (InvalidArrayError, VideoRenderError) as exc:
-            log.warning("Video plotting skipped: %s", exc)
-        except (IndexError, ValueError, MemoryError, OSError) as exc:
-            log.warning("Video plotting failed: %s", exc)
+        except (
+            IndexError,
+            InvalidArrayError,
+            MemoryError,
+            OSError,
+            ValueError,
+            VideoRenderError,
+        ) as exc:
+            log.warning("Video logging failed: %s", exc)
 
     def log_video_outputs(  # noqa: PLR0913
         self,
@@ -353,7 +354,12 @@ class MediaPublisher:
                 )
             # Log output animations
             self._log_videos(videos, video_loggers, log_path)
-        except (InvalidArrayError, VideoRenderError) as exc:
-            log.warning("Video plotting skipped: %s", exc)
-        except (IndexError, ValueError, MemoryError, OSError) as exc:
-            log.warning("Video plotting failed: %s", exc)
+        except (
+            IndexError,
+            InvalidArrayError,
+            MemoryError,
+            OSError,
+            ValueError,
+            VideoRenderError,
+        ) as exc:
+            log.warning("Video logging failed: %s", exc)
