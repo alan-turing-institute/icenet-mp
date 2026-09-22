@@ -124,6 +124,7 @@ class MediaPublisher:
         inputs: list[SingleDataset],
         dates: list[datetime],
         image_loggers: list[SupportsImageLogging],
+        *,
         prefix: str | None = None,
     ) -> None:
         """Extract and log static raw input plots."""
@@ -149,15 +150,16 @@ class MediaPublisher:
         except (IndexError, ValueError, MemoryError, OSError) as exc:
             logger.warning("Static plotting failed: %s", exc)
 
-    def log_static_outputs(  # noqa: PLR0913, PLR0917
+    def log_static_outputs(  # noqa: PLR0913
         self,
         outputs: ModelStepOutput,
         dates: list[datetime],
         image_loggers: list[SupportsImageLogging],
-        channel_names: list[str],
+        *,
+        channel_names: list[str] | None = None,
+        climatology: ArrayTCHW | None = None,
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
-        climatology: ArrayTCHW | None = None,
     ) -> None:
         """Create and log static output plots, including climatology when available.
 
@@ -175,7 +177,7 @@ class MediaPublisher:
                 prediction: ArrayHW = (
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
-                variable_name = self._channel_name(channel_names, idx_channel)
+                variable_name = self._channel_name(channel_names or [], idx_channel)
                 date_key = dates[idx_date].strftime(r"%Y-%m-%d")
                 images: dict[str, list[ImageFile]] = {}
                 # Plot static truth/prediction/difference image
@@ -228,6 +230,7 @@ class MediaPublisher:
         inputs: list[SingleDataset],
         dates: list[datetime],
         video_loggers: list[SupportsVideoLogging],
+        *,
         prefix: str | None = None,
     ) -> None:
         """Extract and log raw input videos."""
@@ -252,17 +255,22 @@ class MediaPublisher:
         except (IndexError, ValueError, MemoryError, OSError):
             logger.exception("Video plotting failed")
 
-    def log_video_outputs(
+    def log_video_outputs(  # noqa: PLR0913
         self,
         outputs: ModelStepOutput,
         dates: list[datetime],
         video_loggers: list[SupportsVideoLogging],
-        channel_names: list[str],
+        *,
+        channel_names: list[str] | None = None,
+        climatology: ArrayTCHW | None = None,
         prefix: str | None = None,
+        uncertainties: dict[int, ArrayTHW] | None = None,
     ) -> None:
         """Create and log output videos."""
         try:
             log_path = self._log_path(prefix, "output_video")
+            date_key = dates[0].strftime(r"%Y-%m-%d")
+            videos: dict[str, BytesIO] = {}
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayTHW = (
@@ -271,18 +279,46 @@ class MediaPublisher:
                 prediction: ArrayTHW = (
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
-                variable_name = self._channel_name(channel_names, idx_channel)
-                # Plot output animation via the minimal MatplotlibRenderer core
-                video = self._panel_renderer.video_triplet(
-                    ground_truth,
-                    prediction,
-                    dates=dates,
-                    variable_name=variable_name,
+                variable_name = self._channel_name(channel_names or [], idx_channel)
+                # Plot truth/prediction/difference video
+                videos[f"{date_key}-{variable_name}-truth-difference"] = (
+                    self._panel_renderer.video_triplet(
+                        ground_truth,
+                        prediction,
+                        dates=dates,
+                        variable_name=variable_name,
+                    )
                 )
-                date_key = dates[0].strftime(r"%Y-%m-%d")
-                video_data = {f"{date_key}-{variable_name}": video}
-                # Log output animations
-                self._log_videos(video_data, video_loggers, log_path)
+                # Plot climatology/prediction/difference video
+                if climatology is not None:
+                    with suppress(IndexError, TypeError):
+                        climatology_thw = climatology[:, idx_channel, :, :]
+                        videos[f"{date_key}-{variable_name}-climatology-difference"] = (
+                            self._panel_renderer.video_triplet(
+                                ground_truth,
+                                climatology_thw,
+                                dates=dates,
+                                variable_name=variable_name,
+                            )
+                        )
+                # Plot static truth/prediction/z-score image
+                if (
+                    uncertainty := (
+                        uncertainties.get(idx_channel)
+                        if uncertainties is not None
+                        else None
+                    )
+                ) is not None:
+                    videos[f"{date_key}-{variable_name}-z-score"] = (
+                        self._panel_renderer.video_triplet(
+                            ground_truth,
+                            uncertainty,
+                            dates=dates,
+                            variable_name=variable_name,
+                        )
+                    )
+            # Log output animations
+            self._log_videos(videos, video_loggers, log_path)
         except (InvalidArrayError, VideoRenderError) as err:
             logger.warning("Video plotting skipped: %s", err)
         except (IndexError, ValueError, MemoryError, OSError):

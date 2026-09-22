@@ -248,16 +248,19 @@ class MediaLoggingCallback(Callback):
         # Get channel names from the model
         channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
 
+        # Load uncertainties
+        uncertainties = self.load_target_uncertainties(dataset, dates)
+        climatology_tchw = dataset.climatology_for(start_date)
+
         if self.make_static_plots:
-            uncertainties = self.load_target_uncertainties(dataset, dates)
             publisher.log_static_outputs(
                 self.cached_outputs_,
                 dates,
                 image_loggers,
-                channel_names,
+                channel_names=channel_names,
+                climatology=climatology_tchw,
                 prefix=self.prefix,
                 uncertainties=uncertainties,
-                climatology=dataset.climatology_for(start_date),
             )
             if self.make_input_plots:
                 publisher.log_static_inputs(
@@ -269,8 +272,10 @@ class MediaLoggingCallback(Callback):
                 self.cached_outputs_,
                 dates,
                 video_loggers,
-                channel_names,
+                channel_names=channel_names,
+                climatology=climatology_tchw,
                 prefix=self.prefix,
+                uncertainties=uncertainties,
             )
             if self.make_input_plots:
                 publisher.log_video_inputs(
