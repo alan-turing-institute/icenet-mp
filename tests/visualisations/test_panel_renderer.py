@@ -26,7 +26,7 @@ class TestMetadata:
         """Metadata passed at construction is used by the renderer's own annotator."""
         renderer = PanelRenderer(no_land_mask, Metadata(model="unet"), PlotSpec())
 
-        assert renderer._annotator.footer_for_static() == "Model: unet"
+        assert renderer.annotator.footer_for_static() == "Model: unet"
 
 
 class TestRenderStaticSinglet:

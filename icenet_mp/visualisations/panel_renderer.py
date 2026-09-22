@@ -30,13 +30,13 @@ class PanelRenderer:
         """Build a PanelRenderer for a given land mask, metadata, and plot spec."""
         self.land_mask = land_mask
         self.plot_spec = plot_spec
-        self._resolver = StyleResolver(
+        self.annotator = MediaAnnotator(metadata, plot_spec)
+        self.colour_scale = ColourScale(plot_spec.diff_mode)
+        self.difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
+        self.renderer = MatplotlibRenderer()
+        self.resolver = StyleResolver(
             plot_spec.per_variable_styles, plot_spec.colourmap
         )
-        self._colour_scale = ColourScale(plot_spec.diff_mode)
-        self._annotator = MediaAnnotator(metadata, plot_spec)
-        self._difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
-        self._renderer = MatplotlibRenderer()
 
     @property
     def video_format(self) -> Literal["mp4", "gif"]:
@@ -55,14 +55,14 @@ class PanelRenderer:
         # If we have uncertainty data then calculate z-score
         if uncertainty is not None:
             return self.land_mask.apply_to(
-                self._difference_calculator.standardised_difference(
+                self.difference_calculator.standardised_difference(
                     ground_truth, prediction, uncertainty
                 )
             )
 
         # Otherwise return the signed difference
         return self.land_mask.apply_to(
-            self._difference_calculator.difference(ground_truth, prediction)
+            self.difference_calculator.difference(ground_truth, prediction)
         )
 
     def _validate_video_frames(
@@ -108,9 +108,9 @@ class PanelRenderer:
 
         """
         masked_values = self.land_mask.apply_to(values)
-        style = self._resolver.style_for_variable(variable_name)
-        title = self._annotator.title_for_variable(variable_name, when, style.units)
-        return self._renderer.panels_static(
+        style = self.resolver.style_for_variable(variable_name)
+        title = self.annotator.title_for_variable(variable_name, when, style.units)
+        return self.renderer.panels_static(
             [masked_values],
             cmap=style.cmap,
             dpi=self.plot_spec.dpi,
@@ -178,8 +178,8 @@ class PanelRenderer:
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            norms.append(self._colour_scale.normalisation(difference, centre=0.0))
-            diff_colour_scale = self._colour_scale.diff_colourmap(difference)
+            norms.append(self.colour_scale.normalisation(difference, centre=0.0))
+            diff_colour_scale = self.colour_scale.diff_colourmap(difference)
             cmaps.append(diff_colour_scale.cmap)
             vmins.append(diff_colour_scale.bounds()[0])
             vmaxs.append(diff_colour_scale.bounds()[1])
@@ -189,9 +189,9 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        title = self._annotator.title_for_static(variable_name, when)
-        footer = self._annotator.footer_for_static()
-        return self._renderer.panels_static(
+        title = self.annotator.title_for_static(variable_name, when)
+        footer = self.annotator.footer_for_static()
+        return self.renderer.panels_static(
             arrays,
             cmap=cmaps,
             contour_arrays=contour_arrays,
@@ -233,14 +233,14 @@ class PanelRenderer:
         """
         self._validate_video_frames([values], dates)
         masked_values = self.land_mask.apply_to(values)
-        style = self._resolver.style_for_variable(variable_name)
+        style = self.resolver.style_for_variable(variable_name)
 
         def title_for_frame(tt: int) -> str:
-            return self._annotator.title_for_variable(
+            return self.annotator.title_for_variable(
                 variable_name, dates[tt], style.units
             )
 
-        return self._renderer.panels_video(
+        return self.renderer.panels_video(
             [masked_values],
             cmap=style.cmap,
             dpi=self.plot_spec.dpi,
@@ -314,7 +314,7 @@ class PanelRenderer:
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            diff_colour_scale = self._colour_scale.diff_colourmap(difference)
+            diff_colour_scale = self.colour_scale.diff_colourmap(difference)
             cmaps.append(diff_colour_scale.cmap)
             vmins.append(diff_colour_scale.bounds()[0])
             vmaxs.append(diff_colour_scale.bounds()[1])
@@ -325,11 +325,11 @@ class PanelRenderer:
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
         def title_for_frame(tt: int) -> str:
-            return self._annotator.title_for_video(variable_name, dates, tt)
+            return self.annotator.title_for_video(variable_name, dates, tt)
 
-        footer = self._annotator.footer_for_video(dates)
+        footer = self.annotator.footer_for_video(dates)
 
-        return self._renderer.panels_video(
+        return self.renderer.panels_video(
             arrays,
             cmap=cmaps,
             contour_arrays=contour_arrays,
@@ -342,5 +342,5 @@ class PanelRenderer:
             panel_titles=titles,
             vmax=vmaxs,
             vmin=vmins,
-            video_format=self.plot_spec.video_format,
+            video_format=self.video_format,
         )

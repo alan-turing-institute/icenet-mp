@@ -248,7 +248,7 @@ class TestMetadataAndHemisphere:
             model_name="unet",
         )
 
-        footer = media_publisher._panel_renderer._annotator.footer_for_static()
+        footer = media_publisher.panel_renderer.annotator.footer_for_static()
 
         assert "Model: unet" in footer
         assert "Epoch: 50" in footer
@@ -261,7 +261,7 @@ class TestMetadataAndHemisphere:
             plot_spec=PlotSpec(hemisphere=Hemisphere.SOUTH),
         )
 
-        assert media_publisher._plot_spec.hemisphere == "south"
+        assert media_publisher.panel_renderer.plot_spec.hemisphere == "south"
 
     def test_land_mask_kwarg_is_used_by_the_renderer(self) -> None:
         """The given land_mask is passed straight through to the panel renderer."""
@@ -273,7 +273,7 @@ class TestMetadataAndHemisphere:
             land_mask=new_land_mask,
         )
 
-        assert media_publisher._panel_renderer.land_mask is new_land_mask
+        assert media_publisher.panel_renderer.land_mask is new_land_mask
 
     def test_current_epoch_and_model_name_are_optional(self) -> None:
         """Omitting current_epoch/model_name leaves the footer without those lines."""
@@ -283,7 +283,7 @@ class TestMetadataAndHemisphere:
             plot_spec=PlotSpec(),
         )
 
-        footer = media_publisher._panel_renderer._annotator.footer_for_static()
+        footer = media_publisher.panel_renderer.annotator.footer_for_static()
 
         assert "Model:" not in footer
         assert "Epoch:" not in footer
@@ -608,12 +608,12 @@ class TestLogVideoInputs:
             call(
                 key="validation/input_video/2020-01-01-example:ice_conc",
                 videos=[buffer],
-                format=[media_publisher._plot_spec.video_format],
+                format=[media_publisher.panel_renderer.video_format],
             ),
             call(
                 key="validation/input_video/2020-01-01-example:temperature",
                 videos=[buffer],
-                format=[media_publisher._plot_spec.video_format],
+                format=[media_publisher.panel_renderer.video_format],
             ),
         ]
 

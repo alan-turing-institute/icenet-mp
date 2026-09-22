@@ -43,12 +43,12 @@ class MediaPublisher:
         model_name: str | None = None,
     ) -> None:
         """Build a publisher bound to one dataset/plot_spec/land_mask context."""
-        self._plot_spec = plot_spec
-        self._panel_renderer = PanelRenderer(
+        self.panel_renderer = PanelRenderer(
             land_mask,
             self._build_metadata(dataset, current_epoch, model_name),
             plot_spec,
         )
+        self.idx_date = plot_spec.selected_timestep
 
     @staticmethod
     def _build_metadata(
@@ -189,7 +189,7 @@ class MediaPublisher:
                 video_logger.log_video(
                     key=f"{log_path}/{video_name}",
                     videos=[video_buffer],
-                    format=[self._plot_spec.video_format],
+                    format=[self.panel_renderer.video_format],
                 )
 
     def log_static_inputs(
@@ -202,15 +202,14 @@ class MediaPublisher:
     ) -> None:
         """Extract and log static raw input plots."""
         try:
-            idx_date = self._plot_spec.selected_timestep
-            when = dates[idx_date]
+            when = dates[self.idx_date]
             log_path = self._log_path(prefix, "input_static")
             for input_ds in inputs:
                 # Get data for all variables at the selected timestep
                 for channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    image = self._panel_renderer.static_singlet(
-                        input_ds[idx_date][channel, :],
+                    image = self.panel_renderer.static_singlet(
+                        input_ds[self.idx_date][channel, :],
                         when=when,
                         variable_name=variable_name,
                     )
@@ -240,30 +239,32 @@ class MediaPublisher:
         given, a calendar-day-mean (climatology) map for the plotted date and channel.
         """
         try:
-            idx_date = self._plot_spec.selected_timestep
             log_path = self._log_path(prefix, "output_static")
-            date_key = dates[idx_date].strftime(r"%Y-%m-%d")
+            date_key = dates[self.idx_date].strftime(r"%Y-%m-%d")
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayHW = (
-                    outputs.target[0, idx_date, idx_channel].detach().cpu().numpy()
+                    outputs.target[0, self.idx_date, idx_channel].detach().cpu().numpy()
                 )
                 prediction: ArrayHW = (
-                    outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
+                    outputs.prediction[0, self.idx_date, idx_channel]
+                    .detach()
+                    .cpu()
+                    .numpy()
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
                 media = self._render_three_panel_media(
                     ground_truth=ground_truth,
                     prediction=prediction,
                     variable_name=variable_name,
-                    render=self._panel_renderer.static_triplet,
+                    render=self.panel_renderer.static_triplet,
                     climatology=self._select_climatology(
-                        climatology, idx_channel, idx_date
+                        climatology, idx_channel, self.idx_date
                     ),
                     uncertainty=self._select_uncertainty(
-                        uncertainties, idx_channel, idx_date
+                        uncertainties, idx_channel, self.idx_date
                     ),
-                    when=dates[idx_date],
+                    when=dates[self.idx_date],
                 )
                 images: dict[str, list[ImageFile]] = {
                     f"{date_key}-{variable_name}-{suffix}": [image]
@@ -293,7 +294,7 @@ class MediaPublisher:
                 # Get data for all variables over the full date range
                 for channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    video = self._panel_renderer.video_singlet(
+                    video = self.panel_renderer.video_singlet(
                         input_ds.get_tchw(np_dates)[:, channel, :],
                         dates=dates,
                         variable_name=variable_name,
@@ -335,7 +336,7 @@ class MediaPublisher:
                     ground_truth=ground_truth,
                     prediction=prediction,
                     variable_name=variable_name,
-                    render=self._panel_renderer.video_triplet,
+                    render=self.panel_renderer.video_triplet,
                     climatology=self._select_climatology(
                         climatology, idx_channel, None
                     ),
