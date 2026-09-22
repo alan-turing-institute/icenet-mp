@@ -44,8 +44,9 @@ class DatasetMediaWriter:
             raise IndexError(msg)
 
         when = datetime_from_npdatetime(dataset.dates[timestep])
+        frame = dataset[timestep]
         variables = {
-            f"{dataset.name}:{variable_name}": dataset[timestep][channel]
+            f"{dataset.name}:{variable_name}": frame[channel]
             for channel, variable_name in enumerate(dataset.variable_names)
         }
         renderer, output_dir = self._prepare(dataset)
