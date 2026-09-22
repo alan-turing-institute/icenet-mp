@@ -303,7 +303,7 @@ class MatplotlibRenderer:
         self,
         arrays: Sequence[ArrayTHW],
         *,
-        cmap: str | Sequence[str] = "viridis",
+        cmap: str | Colormap | Sequence[str | Colormap] = "viridis",
         contour_arrays: Sequence[ArrayTHW | None] | None = None,
         contour_color: str = "red",
         contour_level: float | None = None,

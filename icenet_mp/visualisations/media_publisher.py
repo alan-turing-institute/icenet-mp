@@ -38,11 +38,7 @@ class MediaPublisher:
         current_epoch: int | None = None,
         model_name: str | None = None,
     ) -> None:
-        """Build a publisher bound to one dataset/plot_spec/land_mask context.
-
-        `dataset`/`current_epoch`/`model_name` describe the metadata subtitle
-        shown in every rendered footer. Hemisphere is set on `plot_spec` itself.
-        """
+        """Build a publisher bound to one dataset/plot_spec/land_mask context."""
         self._plot_spec = plot_spec
         self._panel_renderer = PanelRenderer(
             land_mask,
@@ -312,8 +308,9 @@ class MediaPublisher:
                     videos[f"{date_key}-{variable_name}-z-score"] = (
                         self._panel_renderer.video_triplet(
                             ground_truth,
-                            uncertainty,
+                            prediction,
                             dates=dates,
+                            uncertainty=uncertainty,
                             variable_name=variable_name,
                         )
                     )

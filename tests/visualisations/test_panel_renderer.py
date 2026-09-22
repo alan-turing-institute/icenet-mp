@@ -326,6 +326,38 @@ class TestRenderVideoTriplet:
         assert len(set(titles)) == len(dates)
         assert all(dates[i].date().isoformat() in titles[i] for i in range(len(dates)))
 
+    def test_uncertainty_panel_replaces_difference_panel(
+        self, sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]]
+    ) -> None:
+        """An uncertainty panel is added instead of (not alongside) the difference panel."""
+        ground_truth, prediction, raw_dates = sic_pair_3d_stream
+        dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        uncertainty = np.full_like(ground_truth, 0.1)
+
+        renderer = PanelRenderer(
+            LandMask(None), Metadata(), PlotSpec(include_difference=True)
+        )
+        with_uncertainty = renderer.video_triplet(
+            ground_truth,
+            prediction,
+            dates=dates,
+            variable_name="ice_conc",
+            uncertainty=uncertainty,
+        )
+        two_panel_renderer = PanelRenderer(
+            LandMask(None), Metadata(), PlotSpec(include_difference=False)
+        )
+        two_panel = two_panel_renderer.video_triplet(
+            ground_truth,
+            prediction,
+            dates=dates,
+            variable_name="ice_conc",
+        )
+
+        assert isinstance(with_uncertainty, BytesIO)
+        assert with_uncertainty.getbuffer().nbytes > 0
+        assert two_panel.getbuffer().nbytes != with_uncertainty.getbuffer().nbytes
+
     def test_ice_edge_contours_ground_truth_and_prediction_only(
         self,
         sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]],

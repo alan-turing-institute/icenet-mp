@@ -42,23 +42,39 @@ class PanelRenderer:
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
 
-    def _difference_panel(
-        self, masked_ground_truth: np.ndarray, masked_prediction: np.ndarray
-    ) -> tuple[np.ndarray, str, str, float | None, float | None]:
-        """Compute the difference panel array, title, cmap and colour bounds.
+    def _get_difference(
+        self,
+        ground_truth: np.ndarray,
+        prediction: np.ndarray,
+        uncertainty: np.ndarray | None = None,
+    ) -> np.ndarray | None:
+        """Compute the masked difference array if requested."""
+        if not self.plot_spec.include_difference:
+            return None
 
-        Shared by `static_triplet` and `video_triplet`, which otherwise each
-        rebuilt this identically for their (single) difference panel.
-        """
-        difference = self.land_mask.apply_to(
-            self._difference_calculator.difference(
-                masked_ground_truth, masked_prediction
-            )
+        # If we have uncertainty data then calculate z-score
+        if uncertainty is not None:
+            # standardised_difference() is 2D-only; for video (3D [T,H,W])
+            # inputs, compute it frame-by-frame and restack.
+            if ground_truth.ndim == _VIDEO_NDIM:
+                z_score = np.stack(
+                    [
+                        self._difference_calculator.standardised_difference(
+                            ground_truth[t], prediction[t], uncertainty[t]
+                        )
+                        for t in range(ground_truth.shape[0])
+                    ]
+                )
+            else:
+                z_score = self._difference_calculator.standardised_difference(
+                    ground_truth, prediction, uncertainty
+                )
+            return self.land_mask.apply_to(z_score)
+
+        # Otherwise return the signed difference
+        return self.land_mask.apply_to(
+            self._difference_calculator.difference(ground_truth, prediction)
         )
-        diff_colour_scale = self._colour_scale.diff_colourmap(difference)
-        diff_vmin, diff_vmax = self._colour_scale.bounds(diff_colour_scale)
-        title = f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
-        return difference, title, diff_colour_scale.cmap, diff_vmin, diff_vmax
 
     def _validate_video_frames(
         self, arrays: list[ArrayTHW], dates: list[datetime]
@@ -120,22 +136,20 @@ class PanelRenderer:
         prediction: ArrayHW,
         *,
         when: datetime,
-        variable_name: str,
         uncertainty: ArrayHW | None = None,
+        variable_name: str,
     ) -> ImageFile:
         """Render a three panel ImageFile via MatplotlibRenderer.panels().
 
         Args:
             ground_truth: 2D array of the ground truth field.
             prediction: 2D array of the predicted field.
-            when: Datetime of the plotted timestep.
+            when: Datetime for the data in `ground_truth` and `prediction`.
+            uncertainty: Optional 2D array of the reported standard uncertainty of the
+                prediction field. When given, the third panel shows the standardised
+                difference `z = (ground_truth - prediction) / uncertainty`.
             variable_name: Name of the variable being plotted, used for styling and
                 title generation.
-            uncertainty: Optional 2D array of the reported standard uncertainty of the
-                prediction field. When given, an additional panel shows the standardised
-                difference `z = (ground_truth - prediction) / uncertainty`. A value of
-                `z=1` means the observation exceeds the prediction by one reported standard
-                uncertainty.
 
         Returns:
             An ImageFile containing the rendered panels.
@@ -154,35 +168,23 @@ class PanelRenderer:
         vmins: list[float | None] = [self.plot_spec.vmin, self.plot_spec.vmin]
         vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
-        # If we have uncertainty data then use z-score as the third panel
-        if uncertainty is not None:
-            z_difference = self.land_mask.apply_to(
-                self._difference_calculator.standardised_difference(
-                    ground_truth, prediction, uncertainty
-                )
+        # Optionally add a difference panel
+        if (
+            difference := self._get_difference(
+                masked_ground_truth, masked_prediction, uncertainty
             )
-            z_norm = self._colour_scale.normalisation(z_difference, centre=0.0)
-
-            arrays.append(z_difference)
-            titles.append("Standardised Difference (z)")
-            cmaps.append(
-                self._colour_scale.cmap_with_bad("RdBu_r", bad_colour="lightgrey")
-            )
-            norms.append(z_norm)
-            vmins.append(None)
-            vmaxs.append(None)
-
-        # Otherwise, use the difference panel if requested
-        elif self.plot_spec.include_difference:
-            difference, title, cmap, diff_vmin, diff_vmax = self._difference_panel(
-                masked_ground_truth, masked_prediction
-            )
+        ) is not None:
             arrays.append(difference)
-            titles.append(title)
-            cmaps.append(cmap)
-            norms.append(None)
-            vmins.append(diff_vmin)
-            vmaxs.append(diff_vmax)
+            titles.append(
+                "Standardised Difference (z)"
+                if uncertainty is not None
+                else f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
+            )
+            norms.append(self._colour_scale.normalisation(difference, centre=0.0))
+            diff_colour_scale = self._colour_scale.diff_colourmap(difference)
+            cmaps.append(diff_colour_scale.cmap)
+            vmins.append(diff_colour_scale.bounds()[0])
+            vmaxs.append(diff_colour_scale.bounds()[1])
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:
@@ -257,14 +259,18 @@ class PanelRenderer:
         prediction: ArrayTHW,
         *,
         dates: list[datetime],
+        uncertainty: ArrayTHW | None = None,
         variable_name: str,
     ) -> BytesIO:
         """Render a three-panel video BytesIO via MatplotlibRenderer.panels_video().
 
         Args:
-            ground_truth: 3D array of the ground truth field, with shape (time, height, width).
-            prediction: 3D array of the predicted field, with shape (time, height, width).
-            dates: List of datetimes corresponding to each timestep in `ground_truth` and `prediction`.
+            ground_truth: 3D array of the ground truth field.
+            prediction: 3D array of the predicted field.
+            dates: Datetimes for the data in `ground_truth` and `prediction`.
+            uncertainty: Optional 3D array of the reported standard uncertainty of the
+                prediction field. When given, the third panel shows the standardised
+                difference `z = (ground_truth - prediction) / uncertainty`.
             variable_name: Name of the variable being plotted, used for styling and
                 title generation.
 
@@ -282,19 +288,30 @@ class PanelRenderer:
 
         arrays = [masked_ground_truth, masked_prediction]
         titles = [self.plot_spec.title_groundtruth, self.plot_spec.title_prediction]
-        cmaps: list[str] = [self.plot_spec.colourmap, self.plot_spec.colourmap]
+        cmaps: list[str | Colormap] = [
+            self.plot_spec.colourmap,
+            self.plot_spec.colourmap,
+        ]
         vmins: list[float | None] = [self.plot_spec.vmin, self.plot_spec.vmin]
         vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
-        if self.plot_spec.include_difference:
-            difference, title, cmap, diff_vmin, diff_vmax = self._difference_panel(
-                masked_ground_truth, masked_prediction
+        # Optionally add a difference panel
+
+        if (
+            difference := self._get_difference(
+                masked_ground_truth, masked_prediction, uncertainty
             )
+        ) is not None:
             arrays.append(difference)
-            titles.append(title)
-            cmaps.append(cmap)
-            vmins.append(diff_vmin)
-            vmaxs.append(diff_vmax)
+            titles.append(
+                "Standardised Difference (z)"
+                if uncertainty is not None
+                else f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
+            )
+            diff_colour_scale = self._colour_scale.diff_colourmap(difference)
+            cmaps.append(diff_colour_scale.cmap)
+            vmins.append(diff_colour_scale.bounds()[0])
+            vmaxs.append(diff_colour_scale.bounds()[1])
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:

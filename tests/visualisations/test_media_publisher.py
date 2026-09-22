@@ -427,14 +427,15 @@ class TestLogStaticOutputs:
             "output_static/2020-01-01-temperature-truth-difference",
         ]
 
-        # The z-score render is the one with a norm set for its extra panel.
+        # The z-score render's extra panel is titled distinctly from a plain
+        # difference panel's.
         z_score_call = fake_render.call_args_list[1]
-        assert z_score_call.kwargs["norm"][-1] is not None
+        assert z_score_call.kwargs["panel_titles"][-1] == "Standardised Difference (z)"
         for difference_call in (
             fake_render.call_args_list[0],
             fake_render.call_args_list[2],
         ):
-            assert all(n is None for n in difference_call.kwargs["norm"])
+            assert difference_call.kwargs["panel_titles"][-1] == "Difference (signed)"
 
     def test_skips_on_invalid_array_error(
         self,
@@ -688,6 +689,48 @@ class TestLogVideoOutputs:
             "output_video/2020-01-01-sic-truth-difference",
             "output_video/2020-01-01-channel_1-truth-difference",
         ]
+
+    def test_includes_uncertainty_when_provided(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Log an extra standardised-difference video for channels with uncertainty data."""
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        video_logger = MagicMock()
+        uncertainties = {0: torch.zeros((N_TIMESTEPS, HEIGHT, WIDTH)).numpy()}
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
+        )
+        media_publisher.log_video_outputs(
+            make_model_step_output(),
+            TEST_DATES,
+            [video_logger],
+            channel_names=["sic", "temperature"],
+            uncertainties=uncertainties,
+        )
+
+        # Channel 0 (has uncertainty) renders twice: difference and z-score.
+        # Channel 1 (no uncertainty) renders once: difference only.
+        assert fake_render.call_count == N_CHANNELS + 1
+        logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
+        assert logged_keys == [
+            "output_video/2020-01-01-sic-truth-difference",
+            "output_video/2020-01-01-sic-z-score",
+            "output_video/2020-01-01-temperature-truth-difference",
+        ]
+
+        # The z-score render's extra panel is titled distinctly from a plain
+        # difference panel's.
+        z_score_call = fake_render.call_args_list[1]
+        assert z_score_call.kwargs["panel_titles"][-1] == "Standardised Difference (z)"
+        for difference_call in (
+            fake_render.call_args_list[0],
+            fake_render.call_args_list[2],
+        ):
+            assert difference_call.kwargs["panel_titles"][-1] == "Difference (signed)"
 
     def test_skips_on_invalid_array_error(
         self,
