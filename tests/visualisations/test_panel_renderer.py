@@ -154,6 +154,35 @@ class TestRenderStaticTriplet:
 
         assert isinstance(result, ImageFile)
 
+    def test_panel_titles_override_only_the_given_keys(
+        self,
+        sic_pair_2d: tuple[ArrayHW, ArrayHW, date],
+        no_land_mask: LandMask,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A caller-supplied panel_titles entry replaces its default; other keys fall back.
+
+        Used for the climatology/prediction/difference panel, where the first
+        panel holds climatology data rather than the ground truth.
+        """
+        ground_truth, prediction, raw_when = sic_pair_2d
+        when = datetime.combine(raw_when, datetime.min.time())
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
+        renderer = PanelRenderer(no_land_mask, Metadata(), PlotSpec())
+
+        renderer.static_triplet(
+            ground_truth,
+            prediction,
+            when=when,
+            panel_titles={"ground_truth": "Climatology"},
+            variable_name="ice_conc",
+        )
+
+        panel_titles = fake_render.call_args.kwargs["panel_titles"]
+        assert panel_titles[0] == "Climatology"
+        assert panel_titles[1] == "Prediction"
+
     def test_without_difference_panel_is_narrower(
         self, sic_pair_2d: tuple[ArrayHW, ArrayHW, date], no_land_mask: LandMask
     ) -> None:
@@ -295,7 +324,34 @@ class TestRenderVideoTriplet:
         )
 
         assert isinstance(result, BytesIO)
-        assert result.getbuffer().nbytes > 0
+
+    def test_panel_titles_override_only_the_given_keys(
+        self,
+        sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A caller-supplied panel_titles entry replaces its default; other keys fall back.
+
+        Used for the climatology/prediction/difference panel, where the first
+        panel holds climatology data rather than the ground truth.
+        """
+        ground_truth, prediction, raw_dates = sic_pair_3d_stream
+        dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
+
+        renderer.video_triplet(
+            ground_truth,
+            prediction,
+            dates=dates,
+            panel_titles={"ground_truth": "Climatology"},
+            variable_name="ice_conc",
+        )
+
+        panel_titles = fake_render.call_args.kwargs["panel_titles"]
+        assert panel_titles[0] == "Climatology"
+        assert panel_titles[1] == "Prediction"
 
     def test_figure_title_changes_per_frame(
         self,

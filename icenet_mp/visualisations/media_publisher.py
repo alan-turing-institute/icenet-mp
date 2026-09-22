@@ -191,10 +191,11 @@ class MediaPublisher:
                         climatology_field = climatology[idx_date, idx_channel]
                         images[f"{date_key}-{variable_name}-climatology-difference"] = [
                             self._panel_renderer.static_triplet(
-                                ground_truth,
                                 climatology_field,
-                                when=dates[idx_date],
+                                prediction,
+                                panel_titles={"ground_truth": "Climatology"},
                                 variable_name=variable_name,
+                                when=dates[idx_date],
                             )
                         ]
                 # Plot static truth/prediction/z-score image
@@ -209,9 +210,10 @@ class MediaPublisher:
                         self._panel_renderer.static_triplet(
                             ground_truth,
                             prediction,
-                            when=dates[idx_date],
+                            panel_titles={"difference": "Standardised Difference (z)"},
                             variable_name=variable_name,
                             uncertainty=uncertainty[idx_date],
+                            when=dates[idx_date],
                         )
                     ]
                 # Log static output images
@@ -291,9 +293,10 @@ class MediaPublisher:
                         climatology_thw = climatology[:, idx_channel, :, :]
                         videos[f"{date_key}-{variable_name}-climatology-difference"] = (
                             self._panel_renderer.video_triplet(
-                                ground_truth,
                                 climatology_thw,
+                                prediction,
                                 dates=dates,
+                                panel_titles={"ground_truth": "Climatology"},
                                 variable_name=variable_name,
                             )
                         )
@@ -310,6 +313,7 @@ class MediaPublisher:
                             ground_truth,
                             prediction,
                             dates=dates,
+                            panel_titles={"difference": "Standardised Difference (z)"},
                             uncertainty=uncertainty,
                             variable_name=variable_name,
                         )

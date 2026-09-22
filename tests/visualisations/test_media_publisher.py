@@ -395,6 +395,35 @@ class TestLogStaticOutputs:
             "output_static/2020-01-01-channel_1-truth-difference",
         ]
 
+    def test_climatology_panel_is_labelled_climatology(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The climatology/prediction/difference image titles its first panel Climatology."""
+        fake_render = MagicMock(return_value=object())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
+        climatology = np.zeros(
+            (N_TIMESTEPS, N_CHANNELS, HEIGHT, WIDTH), dtype=np.float32
+        )
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
+        )
+        media_publisher.log_static_outputs(
+            make_model_step_output(),
+            TEST_DATES,
+            [MagicMock()],
+            channel_names=["sic"],
+            climatology=climatology,
+        )
+
+        # Second render call for channel 0 is the climatology/prediction/difference image.
+        climatology_call = fake_render.call_args_list[1]
+        panel_titles = climatology_call.kwargs["panel_titles"]
+        assert panel_titles[0] == "Climatology"
+        assert panel_titles[1] == "Prediction"
+
     def test_includes_uncertainty_when_provided(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -689,6 +718,35 @@ class TestLogVideoOutputs:
             "output_video/2020-01-01-sic-truth-difference",
             "output_video/2020-01-01-channel_1-truth-difference",
         ]
+
+    def test_climatology_panel_is_labelled_climatology(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The climatology/prediction/difference video titles its first panel Climatology."""
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        climatology = np.zeros(
+            (N_TIMESTEPS, N_CHANNELS, HEIGHT, WIDTH), dtype=np.float32
+        )
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
+        )
+        media_publisher.log_video_outputs(
+            make_model_step_output(),
+            TEST_DATES,
+            [MagicMock()],
+            channel_names=["sic"],
+            climatology=climatology,
+        )
+
+        # Second render call for channel 0 is the climatology/prediction/difference video.
+        climatology_call = fake_render.call_args_list[1]
+        panel_titles = climatology_call.kwargs["panel_titles"]
+        assert panel_titles[0] == "Climatology"
+        assert panel_titles[1] == "Prediction"
 
     def test_includes_uncertainty_when_provided(
         self, monkeypatch: pytest.MonkeyPatch

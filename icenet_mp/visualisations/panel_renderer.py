@@ -124,9 +124,10 @@ class PanelRenderer:
         ground_truth: ArrayHW,
         prediction: ArrayHW,
         *,
-        when: datetime,
+        panel_titles: dict[str, str] | None = None,
         uncertainty: ArrayHW | None = None,
         variable_name: str,
+        when: datetime,
     ) -> ImageFile:
         """Render a three panel ImageFile via MatplotlibRenderer.panels().
 
@@ -137,6 +138,8 @@ class PanelRenderer:
             uncertainty: Optional 2D array of the reported standard uncertainty of the
                 prediction field. When given, the third panel shows the standardised
                 difference `z = (ground_truth - prediction) / uncertainty`.
+            panel_titles: Optional overrides for the panel titles, keyed by
+                "ground_truth", "prediction" and/or "difference".
             variable_name: Name of the variable being plotted, used for styling and
                 title generation.
 
@@ -146,9 +149,14 @@ class PanelRenderer:
         """
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
+        panel_titles = panel_titles or {}
 
         arrays = [masked_ground_truth, masked_prediction]
-        titles = [self.plot_spec.title_groundtruth, self.plot_spec.title_prediction]
+        titles = [
+            panel_titles.get("ground_truth", self.plot_spec.title_groundtruth),
+            panel_titles.get("prediction", self.plot_spec.title_prediction),
+        ]
+
         cmaps: list[str | Colormap] = [
             self.plot_spec.colourmap,
             self.plot_spec.colourmap,
@@ -165,9 +173,10 @@ class PanelRenderer:
         ) is not None:
             arrays.append(difference)
             titles.append(
-                "Standardised Difference (z)"
-                if uncertainty is not None
-                else f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
+                panel_titles.get(
+                    "difference",
+                    f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
+                )
             )
             norms.append(self._colour_scale.normalisation(difference, centre=0.0))
             diff_colour_scale = self._colour_scale.diff_colourmap(difference)
@@ -248,6 +257,7 @@ class PanelRenderer:
         prediction: ArrayTHW,
         *,
         dates: list[datetime],
+        panel_titles: dict[str, str] | None = None,
         uncertainty: ArrayTHW | None = None,
         variable_name: str,
     ) -> BytesIO:
@@ -260,6 +270,8 @@ class PanelRenderer:
             uncertainty: Optional 3D array of the reported standard uncertainty of the
                 prediction field. When given, the third panel shows the standardised
                 difference `z = (ground_truth - prediction) / uncertainty`.
+            panel_titles: Optional overrides for the panel titles, keyed by
+                "ground_truth", "prediction" and/or "difference".
             variable_name: Name of the variable being plotted, used for styling and
                 title generation.
 
@@ -274,9 +286,14 @@ class PanelRenderer:
         self._validate_video_frames([ground_truth, prediction], dates)
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
+        panel_titles = panel_titles or {}
 
         arrays = [masked_ground_truth, masked_prediction]
-        titles = [self.plot_spec.title_groundtruth, self.plot_spec.title_prediction]
+        titles = [
+            panel_titles.get("ground_truth", self.plot_spec.title_groundtruth),
+            panel_titles.get("prediction", self.plot_spec.title_prediction),
+        ]
+
         cmaps: list[str | Colormap] = [
             self.plot_spec.colourmap,
             self.plot_spec.colourmap,
@@ -285,7 +302,6 @@ class PanelRenderer:
         vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
         # Optionally add a difference panel
-
         if (
             difference := self._get_difference(
                 masked_ground_truth, masked_prediction, uncertainty
@@ -293,9 +309,10 @@ class PanelRenderer:
         ) is not None:
             arrays.append(difference)
             titles.append(
-                "Standardised Difference (z)"
-                if uncertainty is not None
-                else f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})"
+                panel_titles.get(
+                    "difference",
+                    f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
+                )
             )
             diff_colour_scale = self._colour_scale.diff_colourmap(difference)
             cmaps.append(diff_colour_scale.cmap)
