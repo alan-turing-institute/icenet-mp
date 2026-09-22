@@ -118,7 +118,7 @@ class TestBuildMetadata:
         frequency = np.timedelta64(int(hours * 60), "m")
         dataset = fake_combined_dataset(frequency=frequency)
 
-        metadata = MediaPublisher.build_metadata(dataset)
+        metadata = MediaPublisher._build_metadata(dataset)
 
         assert metadata.cadence == expected
 
@@ -132,7 +132,7 @@ class TestBuildMetadata:
             n_history_steps=3,
         )
 
-        metadata = MediaPublisher.build_metadata(
+        metadata = MediaPublisher._build_metadata(
             dataset, current_epoch=5, model_name="unet"
         )
 
@@ -148,7 +148,7 @@ class TestBuildMetadata:
         """Omitted model_name/current_epoch fall back to None."""
         dataset = fake_combined_dataset()
 
-        metadata = MediaPublisher.build_metadata(dataset)
+        metadata = MediaPublisher._build_metadata(dataset)
 
         assert metadata.model is None
         assert metadata.current_epoch is None
@@ -162,7 +162,7 @@ class TestBuildMetadata:
             ]
         )
 
-        metadata = MediaPublisher.build_metadata(dataset)
+        metadata = MediaPublisher._build_metadata(dataset)
 
         assert metadata.vars_by_source == {
             "era5": ["2t", "sp"],
@@ -173,7 +173,7 @@ class TestBuildMetadata:
         """No input datasets means no variable-by-source mapping."""
         dataset = fake_combined_dataset(inputs=[])
 
-        metadata = MediaPublisher.build_metadata(dataset)
+        metadata = MediaPublisher._build_metadata(dataset)
 
         assert metadata.vars_by_source is None
 

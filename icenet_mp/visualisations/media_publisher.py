@@ -1,7 +1,9 @@
 import logging
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime
 from io import BytesIO
+from typing import TypeVar
 
 import numpy as np
 from PIL.ImageFile import ImageFile
@@ -25,6 +27,8 @@ from .panel_renderer import PanelRenderer
 
 logger = logging.getLogger(__name__)
 
+RenderedMedia = TypeVar("RenderedMedia", ImageFile, BytesIO)
+
 
 class MediaPublisher:
     """Publish static and video plots for a dataset/plot_spec/land_mask context."""
@@ -42,12 +46,12 @@ class MediaPublisher:
         self._plot_spec = plot_spec
         self._panel_renderer = PanelRenderer(
             land_mask,
-            self.build_metadata(dataset, current_epoch, model_name),
+            self._build_metadata(dataset, current_epoch, model_name),
             plot_spec,
         )
 
     @staticmethod
-    def build_metadata(
+    def _build_metadata(
         dataset: CombinedDataset,
         current_epoch: int | None = None,
         model_name: str | None = None,
@@ -98,6 +102,79 @@ class MediaPublisher:
     def _log_path(prefix: str | None, name: str) -> str:
         """Build a consistent logger namespace."""
         return f"{prefix}/{name}" if prefix else name
+
+    @staticmethod
+    def _render_three_panel_media(
+        *,
+        ground_truth: np.ndarray,
+        prediction: np.ndarray,
+        variable_name: str,
+        render: Callable[..., RenderedMedia],
+        climatology: np.ndarray | None,
+        uncertainty: np.ndarray | None,
+        **render_kwargs: object,
+    ) -> dict[str, RenderedMedia]:
+        """Render the configured three-panel media.
+
+        These may include truth/prediction/difference, climatology/prediction/difference
+        and truth/prediction/z-score.
+
+        Shared by the static and video loggers, which differ only in the `render`
+        callable used and the extra `when`/`dates` keyword each one needs.
+        """
+        media: dict[str, RenderedMedia] = {
+            "truth-difference": render(
+                ground_truth, prediction, variable_name=variable_name, **render_kwargs
+            )
+        }
+        if climatology is not None:
+            with suppress(IndexError, TypeError):
+                media["climatology-difference"] = render(
+                    climatology,
+                    prediction,
+                    panel_titles={"ground_truth": "Climatology"},
+                    variable_name=variable_name,
+                    **render_kwargs,
+                )
+        if uncertainty is not None:
+            media["z-score"] = render(
+                ground_truth,
+                prediction,
+                panel_titles={"difference": "Standardised Difference (z)"},
+                uncertainty=uncertainty,
+                variable_name=variable_name,
+                **render_kwargs,
+            )
+        return media
+
+    @staticmethod
+    def _select_climatology(
+        climatology: ArrayTCHW | None,
+        idx_channel: int,
+        idx_date: int | None,
+    ) -> np.ndarray | None:
+        """Return the climatology array for a given channel and (optionally) date."""
+        if climatology is None:
+            return None
+        with suppress(IndexError, TypeError):
+            return climatology[
+                slice(None) if idx_date is None else idx_date, idx_channel
+            ]
+        return None
+
+    @staticmethod
+    def _select_uncertainty(
+        uncertainties: dict[int, ArrayTHW] | None,
+        idx_channel: int,
+        idx_date: int | None,
+    ) -> np.ndarray | None:
+        """Return the uncertainty array for a given channel and (optionally) date."""
+        if (
+            uncertainties is None
+            or (uncertainty := uncertainties.get(idx_channel)) is None
+        ):
+            return None
+        return uncertainty[idx_date] if idx_date is not None else uncertainty
 
     def _log_videos(
         self,
@@ -165,6 +242,7 @@ class MediaPublisher:
         try:
             idx_date = self._plot_spec.selected_timestep
             log_path = self._log_path(prefix, "output_static")
+            date_key = dates[idx_date].strftime(r"%Y-%m-%d")
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayHW = (
@@ -174,48 +252,23 @@ class MediaPublisher:
                     outputs.prediction[0, idx_date, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
-                date_key = dates[idx_date].strftime(r"%Y-%m-%d")
-                images: dict[str, list[ImageFile]] = {}
-                # Plot static truth/prediction/difference image
-                images[f"{date_key}-{variable_name}-truth-difference"] = [
-                    self._panel_renderer.static_triplet(
-                        ground_truth,
-                        prediction,
-                        when=dates[idx_date],
-                        variable_name=variable_name,
-                    )
-                ]
-                # Plot static climatology/prediction/difference image
-                if climatology is not None:
-                    with suppress(IndexError, TypeError):
-                        climatology_field = climatology[idx_date, idx_channel]
-                        images[f"{date_key}-{variable_name}-climatology-difference"] = [
-                            self._panel_renderer.static_triplet(
-                                climatology_field,
-                                prediction,
-                                panel_titles={"ground_truth": "Climatology"},
-                                variable_name=variable_name,
-                                when=dates[idx_date],
-                            )
-                        ]
-                # Plot static truth/prediction/z-score image
-                if (
-                    uncertainty := (
-                        uncertainties.get(idx_channel)
-                        if uncertainties is not None
-                        else None
-                    )
-                ) is not None:
-                    images[f"{date_key}-{variable_name}-z-score"] = [
-                        self._panel_renderer.static_triplet(
-                            ground_truth,
-                            prediction,
-                            panel_titles={"difference": "Standardised Difference (z)"},
-                            variable_name=variable_name,
-                            uncertainty=uncertainty[idx_date],
-                            when=dates[idx_date],
-                        )
-                    ]
+                media = self._render_three_panel_media(
+                    ground_truth=ground_truth,
+                    prediction=prediction,
+                    variable_name=variable_name,
+                    render=self._panel_renderer.static_triplet,
+                    climatology=self._select_climatology(
+                        climatology, idx_channel, idx_date
+                    ),
+                    uncertainty=self._select_uncertainty(
+                        uncertainties, idx_channel, idx_date
+                    ),
+                    when=dates[idx_date],
+                )
+                images: dict[str, list[ImageFile]] = {
+                    f"{date_key}-{variable_name}-{suffix}": [image]
+                    for suffix, image in media.items()
+                }
                 # Log static output images
                 self._log_images(images, image_loggers, log_path)
         except InvalidArrayError as err:
@@ -278,46 +331,25 @@ class MediaPublisher:
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
-                # Plot truth/prediction/difference video
-                videos[f"{date_key}-{variable_name}-truth-difference"] = (
-                    self._panel_renderer.video_triplet(
-                        ground_truth,
-                        prediction,
-                        dates=dates,
-                        variable_name=variable_name,
-                    )
+                media = self._render_three_panel_media(
+                    ground_truth=ground_truth,
+                    prediction=prediction,
+                    variable_name=variable_name,
+                    render=self._panel_renderer.video_triplet,
+                    climatology=self._select_climatology(
+                        climatology, idx_channel, None
+                    ),
+                    uncertainty=self._select_uncertainty(
+                        uncertainties, idx_channel, None
+                    ),
+                    dates=dates,
                 )
-                # Plot climatology/prediction/difference video
-                if climatology is not None:
-                    with suppress(IndexError, TypeError):
-                        climatology_thw = climatology[:, idx_channel, :, :]
-                        videos[f"{date_key}-{variable_name}-climatology-difference"] = (
-                            self._panel_renderer.video_triplet(
-                                climatology_thw,
-                                prediction,
-                                dates=dates,
-                                panel_titles={"ground_truth": "Climatology"},
-                                variable_name=variable_name,
-                            )
-                        )
-                # Plot static truth/prediction/z-score image
-                if (
-                    uncertainty := (
-                        uncertainties.get(idx_channel)
-                        if uncertainties is not None
-                        else None
-                    )
-                ) is not None:
-                    videos[f"{date_key}-{variable_name}-z-score"] = (
-                        self._panel_renderer.video_triplet(
-                            ground_truth,
-                            prediction,
-                            dates=dates,
-                            panel_titles={"difference": "Standardised Difference (z)"},
-                            uncertainty=uncertainty,
-                            variable_name=variable_name,
-                        )
-                    )
+                videos.update(
+                    {
+                        f"{date_key}-{variable_name}-{suffix}": video
+                        for suffix, video in media.items()
+                    }
+                )
             # Log output animations
             self._log_videos(videos, video_loggers, log_path)
         except (InvalidArrayError, VideoRenderError) as err:
