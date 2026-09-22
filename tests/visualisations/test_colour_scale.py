@@ -1,74 +1,11 @@
 """Tests for icenet_mp/visualisations/colour_scale.py."""
 
-import matplotlib as mpl
 import numpy as np
 import pytest
-from matplotlib.colors import Colormap, Normalize, TwoSlopeNorm, to_rgba
+from matplotlib.colors import Normalize, TwoSlopeNorm
 
 from icenet_mp.types import DiffMode
 from icenet_mp.visualisations.colour_scale import ColourScale
-
-
-class TestColourmapWithBad:
-    def test_none_defaults_to_viridis(self) -> None:
-        """Omitting cmap_name falls back to the viridis colourmap."""
-        cmap = ColourScale(DiffMode.SIGNED).cmap_with_bad()
-
-        assert isinstance(cmap, Colormap)
-        assert cmap.name == "viridis"
-
-    def test_named_cmap_is_used(self) -> None:
-        """A named colourmap is looked up and returned by that name."""
-        cmap = ColourScale(DiffMode.SIGNED).cmap_with_bad("magma")
-
-        assert cmap.name == "magma"
-
-    def test_bad_color_is_configured(self) -> None:
-        """The bad (NaN) colour is set to the requested colour."""
-        cmap = ColourScale(DiffMode.SIGNED).cmap_with_bad(
-            "viridis", bad_colour="#ff00ff"
-        )
-
-        np.testing.assert_allclose(cmap.get_bad(), to_rgba("#ff00ff"))
-
-    def test_default_bad_color(self) -> None:
-        """With no bad_color argument, the light grey default is used."""
-        cmap = ColourScale(DiffMode.SIGNED).cmap_with_bad("viridis")
-
-        np.testing.assert_allclose(cmap.get_bad(), to_rgba("#dcdcdc"))
-
-    def test_copy_fallback_on_uncopyable_colourmap(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Fall back to a fresh lookup when the returned colourmap can't be copied.
-
-        Some matplotlib versions can hand back a colourmap object whose
-        .copy() raises AttributeError/TypeError; the function should recover
-        by re-fetching a fresh (copyable) colourmap by name rather than
-        propagating the error.
-        """
-        real_get_cmap = mpl.colormaps.get_cmap
-        calls = {"n": 0}
-
-        class _UncopyableCmap:
-            name = "viridis"
-
-            def copy(self) -> Colormap:
-                msg = "this colourmap cannot be copied"
-                raise AttributeError(msg)
-
-        def fake_get_cmap(name: str) -> Colormap:
-            calls["n"] += 1
-            if calls["n"] == 1:
-                return _UncopyableCmap()  # type: ignore[return-value]
-            return real_get_cmap(name)
-
-        monkeypatch.setattr(mpl.colormaps, "get_cmap", fake_get_cmap)
-
-        cmap = ColourScale(DiffMode.SIGNED).cmap_with_bad("viridis")
-
-        assert isinstance(cmap, Colormap)
-        assert calls["n"] == 2
 
 
 class TestCreateNormalisation:

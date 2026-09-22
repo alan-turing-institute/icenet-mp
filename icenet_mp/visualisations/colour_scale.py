@@ -1,8 +1,7 @@
 import logging
 
-import matplotlib as mpl
 import numpy as np
-from matplotlib.colors import Colormap, Normalize, TwoSlopeNorm
+from matplotlib.colors import Normalize, TwoSlopeNorm
 
 from icenet_mp.types import ColourStyle, DiffMode
 from icenet_mp.utils import safe_nanmax, safe_nanmin
@@ -25,41 +24,6 @@ class ColourScale:
 
         """
         self._diff_mode = diff_mode
-
-    @staticmethod
-    def cmap_with_bad(
-        cmap: str | Colormap = "viridis", *, bad_colour: str = "#dcdcdc"
-    ) -> Colormap:
-        """Create a Colormap copy with a specified color for bad (NaN) values.
-
-        This function copies the specified Colormap and, if it doesn't already have one
-        configured, sets the 'bad' color to handle NaN values consistently, preventing
-        transparent/white artifacts in visualisations.
-
-        Args:
-            cmap: Colormap name or instance (e.g., "RdBu_r"). Default is "viridis".
-            bad_colour: Color to use for NaN/bad values, if none is already
-                configured. Default is light grey (#dcdcdc).
-
-        Returns:
-            A copy of the Colormap, with set_bad() configured if it wasn't already.
-
-        """
-        # If we are given a string, load the corresponding matplotlib colormap
-        if isinstance(cmap, str):
-            cmap = mpl.colormaps.get_cmap(cmap)
-
-        # Copy to avoid mutating a Colormap instance that may be used elsewhere
-        try:
-            cmap = cmap.copy()
-        except (AttributeError, TypeError):
-            # Some matplotlib versions return non-copyable Colormap; create new
-            cmap = mpl.colormaps.get_cmap(cmap.name)
-
-        # Apply the default bad colour if the current one is transparent (alpha=0).
-        if cmap.get_bad()[-1] == 0:
-            cmap.set_bad(bad_colour)
-        return cmap
 
     def diff_colourmap(
         self,

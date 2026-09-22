@@ -9,7 +9,7 @@ from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import animation
+from matplotlib import animation, colormaps
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap, Normalize
 from matplotlib.contour import QuadContourSet
@@ -21,8 +21,6 @@ from PIL.ImageFile import ImageFile
 from icenet_mp.exceptions import VideoRenderError
 from icenet_mp.types import ArrayHW, ArrayTHW
 
-from .colour_scale import ColourScale
-
 
 class MatplotlibRenderer:
     """Minimal matplotlib rendering of figures and videos from raw arrays."""
@@ -30,24 +28,61 @@ class MatplotlibRenderer:
     def __init__(
         self,
         *,
+        bad_colour: str = "#dcdcdc",
         colourbar_aspect: float = 25,
         colourbar_label_size: float = 9,
         contour_linewidth: float = 1.2,
         panel_height_in: float = 6,
     ) -> None:
-        """Initialise a MatplotlibRenderer.
+        """Initialise a MatplotlibRenderer with an empty named-colourmap cache.
 
         Args:
+            bad_colour: Colour used for NaN/bad values in a colourmap that doesn't
+                already have one configured, preventing transparent/white artifacts.
             colourbar_aspect: Long:short-axis ratio of a single-panel colourbar.
             colourbar_label_size: Font size of colourbar tick labels.
             contour_linewidth: Line width of drawn contours (e.g. the sea ice edge).
             panel_height_in: Height in inches of each panel (width scales with it).
 
         """
+        self._bad_colour = bad_colour
+        self._cmap_cache: dict[str, Colormap] = {}
         self._colourbar_aspect = colourbar_aspect
         self._colourbar_label_size = colourbar_label_size
         self._contour_linewidth = contour_linewidth
         self._panel_height_in = panel_height_in
+
+    def _cmap_with_bad(self, cmap: str | Colormap) -> Colormap:
+        """Get a Colormap copy with `self._bad_colour` set for NaN values.
+
+        A named colour map is cached after its first build for re-use; a `Colormap`
+        instance is never cached, since it may be a caller-owned object that is unsafe
+        to reuse.
+        """
+        name = cmap if isinstance(cmap, str) else None
+        if name is not None:
+            cached = self._cmap_cache.get(name)
+            if cached is not None:
+                return cached
+
+        # If we are given a string, load the corresponding matplotlib colormap
+        if isinstance(cmap, str):
+            cmap = colormaps.get_cmap(cmap)
+
+        # Copy to avoid mutating a Colormap instance that may be used elsewhere
+        try:
+            cmap = cmap.copy()
+        except (AttributeError, TypeError):
+            # Some matplotlib versions return non-copyable Colormap; create new
+            cmap = colormaps.get_cmap(cmap.name)
+
+        # Apply the default bad colour if the current one is transparent (alpha=0).
+        if cmap.get_bad()[-1] == 0:
+            cmap.set_bad(self._bad_colour)
+
+        if name is not None:
+            self._cmap_cache[name] = cmap
+        return cmap
 
     @contextlib.contextmanager
     def _suppress_mpl_animation_logs(self) -> Generator[None]:
@@ -208,7 +243,7 @@ class MatplotlibRenderer:
         """
         n = len(arrays)
         cmaps = [
-            ColourScale.cmap_with_bad(name_or_map)
+            self._cmap_with_bad(name_or_map)
             for name_or_map in (
                 [cmap] * n if isinstance(cmap, str | Colormap) else (list(cmap) * n)[:n]
             )

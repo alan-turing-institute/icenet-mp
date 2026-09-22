@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 from matplotlib import animation
-from matplotlib.colors import to_rgba
+from matplotlib.colors import Colormap, to_rgba
 from matplotlib.figure import Figure
 from PIL.ImageFile import ImageFile
 
@@ -123,6 +123,78 @@ class TestRenderPanels:
                 contour_arrays=[osisaf_ice_conc_2d],
                 contour_level=0.15,
             )
+
+
+class TestCmapWithBad:
+    def test_named_cmap_is_used(self) -> None:
+        """A named colourmap is looked up and returned by that name."""
+        cmap = MatplotlibRenderer()._cmap_with_bad("magma")
+
+        assert cmap.name == "magma"
+
+    def test_bad_colour_is_configured(self) -> None:
+        """The bad (NaN) colour is set to the renderer's configured colour."""
+        cmap = MatplotlibRenderer(bad_colour="#ff00ff")._cmap_with_bad("viridis")
+
+        np.testing.assert_allclose(cmap.get_bad(), to_rgba("#ff00ff"))
+
+    def test_default_bad_colour(self) -> None:
+        """With no bad_colour override, the light grey default is used."""
+        cmap = MatplotlibRenderer()._cmap_with_bad("viridis")
+
+        np.testing.assert_allclose(cmap.get_bad(), to_rgba("#dcdcdc"))
+
+    def test_named_cmap_is_cached(self) -> None:
+        """A second lookup by the same name returns the identical cached object."""
+        local_renderer = MatplotlibRenderer()
+
+        first = local_renderer._cmap_with_bad("viridis")
+        second = local_renderer._cmap_with_bad("viridis")
+
+        assert first is second
+
+    def test_colormap_instance_is_not_cached(self) -> None:
+        """A Colormap instance is copied fresh on every call, never cached."""
+        local_renderer = MatplotlibRenderer()
+        custom = mpl.colormaps.get_cmap("viridis").copy()
+
+        first = local_renderer._cmap_with_bad(custom)
+        second = local_renderer._cmap_with_bad(custom)
+
+        assert first is not second
+
+    def test_copy_fallback_on_uncopyable_colourmap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fall back to a fresh lookup when the returned colourmap can't be copied.
+
+        Some matplotlib versions can hand back a colourmap object whose
+        .copy() raises AttributeError/TypeError; the function should recover
+        by re-fetching a fresh (copyable) colourmap by name rather than
+        propagating the error.
+        """
+        real_get_cmap = mpl.colormaps.get_cmap
+        calls = {"n": 0}
+
+        class _UncopyableCmap:
+            name = "viridis"
+
+            def copy(self) -> Colormap:
+                msg = "this colourmap cannot be copied"
+                raise AttributeError(msg)
+
+        def fake_get_cmap(name: str) -> Colormap:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return _UncopyableCmap()  # type: ignore[return-value]
+            return real_get_cmap(name)
+
+        monkeypatch.setattr(mpl.colormaps, "get_cmap", fake_get_cmap)
+
+        cmap = MatplotlibRenderer()._cmap_with_bad("viridis")
+
+        assert isinstance(cmap, Colormap)
+        assert calls["n"] == 2
 
 
 class TestCmapBadColourConfigured:
