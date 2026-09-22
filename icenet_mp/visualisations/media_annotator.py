@@ -26,6 +26,11 @@ class MediaAnnotator:
         pretty = variable.replace("_", " ").strip()
         return pretty.title() if pretty else ""
 
+    def _hemisphere_suffix(self) -> str:
+        """Return ' (<Hemisphere>)' for the bound plot spec, or '' if unset."""
+        hemisphere = self.plot_spec.hemisphere
+        return f" ({hemisphere.capitalize()})" if hemisphere else ""
+
     def _subtitle_dates(self) -> str | None:
         """Format the 'Training Dates: <start> — <end> (<cadence>[, N step history]) N pts' segment."""
         metadata = self.metadata
@@ -114,9 +119,8 @@ class MediaAnnotator:
 
         """
         metric = self._format_variable_name(variable_name)
-        hemisphere = self.plot_spec.hemisphere
-        hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
-        return f"{metric}{hemi} Prediction   Shown: {self._format_date_for_title(when)}"
+        hemi_suffix = self._hemisphere_suffix()
+        return f"{metric}{hemi_suffix} Prediction   Shown: {self._format_date_for_title(when)}"
 
     def title_for_variable(
         self,
@@ -135,13 +139,12 @@ class MediaAnnotator:
             Formatted title string.
 
         """
-        hemisphere = self.plot_spec.hemisphere
-        hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
+        hemi_suffix = self._hemisphere_suffix()
         units_s = f" [{units}]" if units else ""
         shown = (
             when.date().isoformat() if isinstance(when, datetime) else when.isoformat()
         )
-        return f"{variable}{units_s}{hemi}   Shown: {shown}"
+        return f"{variable}{units_s}{hemi_suffix}   Shown: {shown}"
 
     def title_for_video(
         self,
@@ -164,9 +167,8 @@ class MediaAnnotator:
 
         """
         metric = self._format_variable_name(variable_name)
-        hemisphere = self.plot_spec.hemisphere
-        hemi = f" ({hemisphere.capitalize()})" if hemisphere else ""
+        hemi_suffix = self._hemisphere_suffix()
         if dates:
             shown = self._format_date_for_title(dates[current_index])
-            return f"{metric}{hemi} Prediction   Frame: {shown}"
-        return f"{metric}{hemi} Prediction"
+            return f"{metric}{hemi_suffix} Prediction   Frame: {shown}"
+        return f"{metric}{hemi_suffix} Prediction"
