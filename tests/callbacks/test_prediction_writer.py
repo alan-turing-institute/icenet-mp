@@ -60,8 +60,18 @@ class TestPredictionWriter:
         )
         writer.on_test_end(cast("Trainer", SimpleNamespace()), LightningModule())
 
+    def test_rejects_enabled_writer_with_no_output_path(self) -> None:
+        writer = PredictionWriter(enabled=True)
+
+        with pytest.raises(RuntimeError, match="no output_path was set"):
+            writer.on_test_start(
+                _trainer(_combined_dataset()),
+                LightningModule(),
+            )
+
     def test_rejects_multi_process_export(self, tmp_path: Path) -> None:
-        writer = PredictionWriter(tmp_path / "predictions.nc")
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = tmp_path / "predictions.nc"
 
         with pytest.raises(RuntimeError, match="single-process evaluation"):
             writer.on_test_start(
@@ -75,7 +85,8 @@ class TestPredictionWriter:
         output_path = tmp_path / "predictions.nc"
         dataset = _combined_dataset()
         trainer = _trainer(dataset)
-        writer = PredictionWriter(output_path)
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = output_path
 
         writer.on_test_start(trainer, LightningModule())
 
@@ -146,7 +157,9 @@ class TestPredictionWriter:
     def test_rejects_prediction_channel_mismatch(self, tmp_path: Path) -> None:
         dataset = _combined_dataset()
         trainer = _trainer(dataset)
-        writer = PredictionWriter(tmp_path / "predictions.nc")
+        output_path = tmp_path / "predictions.nc"
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = output_path
         writer.on_test_start(trainer, LightningModule())
 
         with pytest.raises(ValueError, match="channel count"):
@@ -158,4 +171,6 @@ class TestPredictionWriter:
                 0,
             )
 
-        writer.teardown(trainer, LightningModule(), "test")
+        assert writer._file is None
+        with NetCDFDataset(str(output_path)) as netcdf:
+            assert netcdf.variables

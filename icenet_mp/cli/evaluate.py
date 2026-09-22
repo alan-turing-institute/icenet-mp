@@ -59,16 +59,17 @@ def evaluate(
             ),
         ),
     ] = None,
+    *,
     save_predictions: Annotated[
-        Path | None,
+        bool,
         typer.Option(
             "--save-predictions",
             help=(
-                "Write predictions for the configured test period to a NetCDF file. "
-                "Evaluation must use a single process."
+                "Write predictions for the configured test period to a NetCDF file "
+                "in the run directory. Evaluation must use a single process."
             ),
         ),
-    ] = None,
+    ] = False,
 ) -> None:
     """Evaluate a pre-trained model."""
     # If activation saving is enabled, then add requested layers
@@ -77,11 +78,12 @@ def evaluate(
             "layer_paths"
         ] = layer_paths
 
-    # If prediction saving is enabled, set the requested NetCDF output path.
-    if save_predictions is not None:
+    # If prediction saving is enabled, mark the prediction writer callback as such.
+    # ModelService.build_trainer sets the output path from the run directory.
+    if save_predictions:
         _require_callback_config(config, "prediction_writer", "--save-predictions")[
-            "output_path"
-        ] = str(save_predictions.resolve())
+            "enabled"
+        ] = True
 
     model = ModelService.from_checkpoint(config, Path(checkpoint).resolve())
     model.evaluate()

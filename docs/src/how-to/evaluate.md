@@ -59,10 +59,10 @@ Pass `--save-predictions` to write the model output from the configured test per
 uv run imp evaluate \
   --config-name <your-name>.local \
   --checkpoint PATH_TO_CHECKPOINT \
-  --save-predictions predictions.nc
+  --save-predictions
 ```
 
-The file is written incrementally during evaluation, so the full test period does not need to be held in memory. It contains `forecast_reference_time`, `lead_time`, `valid_time`, latitude/longitude coordinates, and one data variable per prediction target. Sea-ice concentration is exported as `ice_conc` in its original source scale with CF `sea_ice_area_fraction` metadata.
+The file is written incrementally during evaluation, so the full test period does not need to be held in memory. It is saved as `predictions.nc` inside the run's directory (alongside checkpoints and other run artifacts, and under W&B's `files/` in the run's dashboard when using W&B). It contains `forecast_reference_time`, `lead_time`, `valid_time`, latitude/longitude coordinates, and one data variable per prediction target. Sea-ice concentration is exported as `ice_conc` in its original source scale with CF `sea_ice_area_fraction` metadata.
 
 Prediction export uses the existing `data.split.test` date ranges. To export a smaller date range, change the test split in the config rather than running a separate prediction pass.
 

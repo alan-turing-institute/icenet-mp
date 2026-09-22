@@ -13,7 +13,11 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
-from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
+from icenet_mp.callbacks import (
+    PlottingCallback,
+    PredictionWriter,
+    UnconditionalCheckpoint,
+)
 from icenet_mp.compatibility.torch import (
     patch_interpolate_antialias,
     patch_open_file_limit,
@@ -415,6 +419,15 @@ class ModelService:
                     run_directory / "checkpoints",
                 )
                 callback.dirpath = run_directory / "checkpoints"
+            # Set prediction output path for the prediction writer, if enabled
+            if isinstance(callback, PredictionWriter) and callback.enabled:
+                output_path = run_directory / "files" / "predictions.nc"
+                log.debug(
+                    "Setting output_path for %s to %s.",
+                    callback.__class__.__name__,
+                    output_path,
+                )
+                callback.output_path = output_path
 
         return trainer
 

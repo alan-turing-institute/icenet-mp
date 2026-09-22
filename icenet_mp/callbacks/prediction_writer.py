@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Mapping, Sequence
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from lightning import LightningModule, Trainer
@@ -11,6 +10,9 @@ from torch import Tensor
 
 from icenet_mp.data import CombinedDataset
 
+if TYPE_CHECKING:  # per rule TC003
+    from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 _TIME_UNITS = "seconds since 1970-01-01 00:00:00"
@@ -19,20 +21,16 @@ _NTCHW_NDIM = 5
 
 
 class PredictionWriter(Callback):
-    """Write evaluation predictions to a CF-style NetCDF file."""
+    """Write evaluation predictions to a CF-style NetCDF file in the run directory."""
 
-    def __init__(self, output_path: str | Path | None = None) -> None:
-        """Configure the optional NetCDF output path."""
+    def __init__(self, *, enabled: bool = False) -> None:
+        """Configure whether prediction export is enabled."""
         super().__init__()
-        self.output_path = None if output_path is None else Path(output_path)
+        self.enabled = enabled
+        self.output_path: Path | None = None
         self._dataset: CombinedDataset | None = None
         self._file: Any | None = None
         self._sample_offset = 0
-
-    @property
-    def enabled(self) -> bool:
-        """Return whether prediction export is enabled."""
-        return self.output_path is not None
 
     @staticmethod
     def _load_dataset(trainer: Trainer) -> CombinedDataset:
@@ -80,7 +78,11 @@ class PredictionWriter(Callback):
     def _initialise_file(self, dataset: CombinedDataset) -> None:
         """Create NetCDF dimensions, coordinates, and prediction variables."""
         if self.output_path is None:
-            return
+            msg = (
+                "PredictionWriter is enabled but no output_path was set. "
+                "ModelService.build_trainer should set it from the run directory."
+            )
+            raise RuntimeError(msg)
 
         height, width = dataset.target.space.shape
         latitudes = np.asarray(dataset.target.latitudes, dtype=np.float32)
@@ -160,6 +162,13 @@ class PredictionWriter(Callback):
                 variable.standard_name = "sea_ice_area_fraction"
                 variable.long_name = "sea ice concentration"
                 variable.units = "1"
+            else:
+                logger.warning(
+                    "No CF standard_name/units mapping for prediction variable '%s'; "
+                    "it will be written without them, despite this file's Conventions "
+                    "attribute declaring CF-1.10.",
+                    variable_name,
+                )
 
     def on_test_start(
         self,
@@ -178,7 +187,11 @@ class PredictionWriter(Callback):
 
         self._dataset = self._load_dataset(trainer)
         self._sample_offset = 0
-        self._initialise_file(self._dataset)
+        try:
+            self._initialise_file(self._dataset)
+        except BaseException:
+            self._close()
+            raise
 
     def on_test_batch_end(
         self,
@@ -192,6 +205,14 @@ class PredictionWriter(Callback):
         """Append one evaluation batch to the NetCDF file."""
         if not self.enabled:
             return
+        try:
+            self._write_batch(outputs)
+        except BaseException:
+            self._close()
+            raise
+
+    def _write_batch(self, outputs: Tensor | Mapping[str, Any] | None) -> None:
+        """Validate and append one evaluation batch to the NetCDF file."""
         if self._dataset is None or self._file is None:
             msg = "Prediction writer was not initialised before receiving a test batch."
             raise RuntimeError(msg)
