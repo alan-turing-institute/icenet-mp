@@ -282,6 +282,57 @@ class MediaLoggingCallback(Callback):
                     dataset.inputs, dates, video_loggers, prefix=self.prefix
                 )
 
+    def on_batch_end(  # noqa: PLR0913
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        outputs: Tensor | Mapping[str, Any] | None,
+        batch_idx: int,
+        dataloader_idx: int,
+        *,
+        is_last_batch: bool,
+        num_batches: float,
+        dataloaders: DataLoader | list[DataLoader] | None,
+    ) -> None:
+        """Shared test/validation batch-end handling: cache and maybe plot."""
+        # Check whether this is a batch we want to plot based on the frequency settings
+        is_per_epoch = is_last_batch
+        is_per_batch = self.frequency_batch > 0 and not batch_idx % self.frequency_batch
+        is_sampled_batch = self.is_sample_batch(batch_idx, num_batches)
+
+        # Cache if this is a batch we want to plot
+        if is_per_epoch or is_per_batch or is_sampled_batch:
+            self.cache_batch(batch_idx, dataloader_idx, outputs)
+
+        # If this is a selected batch then we will plot here
+        if is_per_batch or is_sampled_batch:
+            # Load the dataset
+            if not (ds_tuple := self.load_dataset(dataloaders)):
+                log.warning("Could not load dataset, skipping plotting.")
+                return
+
+            # Make the plots
+            self.make_plots(trainer, pl_module, *ds_tuple)
+
+    def on_epoch_end(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        dataloaders: DataLoader | list[DataLoader] | None,
+    ) -> None:
+        """Shared test/validation epoch-end handling: maybe plot."""
+        # Only run plotting if this batch is at the specified frequency
+        if self.frequency_epoch < 0 or trainer.current_epoch % self.frequency_epoch:
+            return
+
+        # Load the dataset
+        if not (ds_tuple := self.load_dataset(dataloaders)):
+            log.warning("Could not load dataset, skipping plotting.")
+            return
+
+        # Make the plots
+        self.make_plots(trainer, pl_module, *ds_tuple)
+
     def on_test_batch_end(
         self,
         trainer: Trainer,
@@ -292,40 +343,20 @@ class MediaLoggingCallback(Callback):
         dataloader_idx: int = 0,
     ) -> None:
         """Called at the end of each test batch."""
-        # Check whether this is a batch we want to plot based on the frequency settings
-        is_per_epoch = trainer.is_last_batch
-        is_per_batch = self.frequency_batch > 0 and not batch_idx % self.frequency_batch
-        is_sampled_batch = self.is_sample_batch(
-            batch_idx, trainer.num_test_batches[dataloader_idx]
+        self.on_batch_end(
+            trainer,
+            pl_module,
+            outputs,
+            batch_idx,
+            dataloader_idx,
+            is_last_batch=trainer.is_last_batch,
+            num_batches=trainer.num_test_batches[dataloader_idx],
+            dataloaders=trainer.test_dataloaders,
         )
-
-        # Cache if this is a batch we want to plot
-        if is_per_epoch or is_per_batch or is_sampled_batch:
-            self.cache_batch(batch_idx, dataloader_idx, outputs)
-
-        # If this is a selected batch then we will plot here
-        if is_per_batch or is_sampled_batch:
-            # Load the dataset
-            if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
-                log.warning("Could not load dataset, skipping plotting.")
-                return
-
-            # Make the plots
-            self.make_plots(trainer, pl_module, *ds_tuple)
 
     def on_test_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called at the end of each test epoch."""
-        # Only run plotting if this batch is at the specified frequency
-        if self.frequency_epoch < 0 or trainer.current_epoch % self.frequency_epoch:
-            return
-
-        # Load the dataset
-        if not (ds_tuple := self.load_dataset(trainer.test_dataloaders)):
-            log.warning("Could not load dataset, skipping plotting.")
-            return
-
-        # Make the plots
-        self.make_plots(trainer, pl_module, *ds_tuple)
+        self.on_epoch_end(trainer, pl_module, trainer.test_dataloaders)
 
     def on_validation_batch_end(
         self,
@@ -341,39 +372,19 @@ class MediaLoggingCallback(Callback):
         if trainer.sanity_checking:
             return
 
-        # Check whether this is a batch we want to plot based on the frequency settings
-        is_per_epoch = trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch
-        is_per_batch = self.frequency_batch > 0 and not batch_idx % self.frequency_batch
-        is_sampled_batch = self.is_sample_batch(
-            batch_idx, trainer.num_val_batches[dataloader_idx]
+        self.on_batch_end(
+            trainer,
+            pl_module,
+            outputs,
+            batch_idx,
+            dataloader_idx,
+            is_last_batch=trainer.fit_loop.epoch_loop.val_loop.batch_progress.is_last_batch,
+            num_batches=trainer.num_val_batches[dataloader_idx],
+            dataloaders=trainer.val_dataloaders,
         )
-
-        # Cache if this is a batch we want to plot
-        if is_per_epoch or is_per_batch or is_sampled_batch:
-            self.cache_batch(batch_idx, dataloader_idx, outputs)
-
-        # If this is a selected batch then we will plot here
-        if is_per_batch or is_sampled_batch:
-            # Load the dataset
-            if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
-                log.warning("Could not load dataset, skipping plotting.")
-                return
-
-            # Make the plots
-            self.make_plots(trainer, pl_module, *ds_tuple)
 
     def on_validation_epoch_end(
         self, trainer: Trainer, pl_module: LightningModule
     ) -> None:
         """Called at the end of each validation epoch."""
-        # Only run plotting if this batch is at the specified frequency
-        if self.frequency_epoch < 0 or trainer.current_epoch % self.frequency_epoch:
-            return
-
-        # Load the dataset
-        if not (ds_tuple := self.load_dataset(trainer.val_dataloaders)):
-            log.warning("Could not load dataset, skipping plotting.")
-            return
-
-        # Make the plots
-        self.make_plots(trainer, pl_module, *ds_tuple)
+        self.on_epoch_end(trainer, pl_module, trainer.val_dataloaders)
