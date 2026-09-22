@@ -174,8 +174,8 @@ class PanelRenderer:
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            norms.append(self.colour_scale.normalisation(difference, centre=0.0))
             diff_colour_scale = self.colour_scale.diff_colourmap(difference)
+            norms.append(diff_colour_scale.norm)
             cmaps.append(diff_colour_scale.cmap)
             vmins.append(diff_colour_scale.bounds()[0])
             vmaxs.append(diff_colour_scale.bounds()[1])
