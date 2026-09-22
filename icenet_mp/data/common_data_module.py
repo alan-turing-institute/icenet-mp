@@ -84,9 +84,15 @@ class CommonDataModule(LightningDataModule):
             for period in config["data"]["split"]["validate"]
         ]
 
-        # Set history and forecast steps
+        # Set history, target, and forecast steps
         self.n_forecast_steps = int(config["predict"].get("n_forecast_steps", 1))
         self.n_history_steps = int(config["predict"].get("n_history_steps", 1))
+        self.target_offset_steps = int(
+            config["predict"].get("target_offset_steps", self.n_history_steps)
+        )
+        if self.target_offset_steps < 0:
+            msg = "predict.target_offset_steps must be greater than or equal to 0."
+            raise ValueError(msg)
 
         # Set common arguments for the dataloader
         self._common_dataloader_kwargs = DataloaderArgs(
@@ -307,6 +313,7 @@ class CommonDataModule(LightningDataModule):
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_offset_steps=self.target_offset_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
             climatology=self._climatology_or_none,
@@ -327,6 +334,7 @@ class CommonDataModule(LightningDataModule):
             [ds.subset(date_ranges=self.test_periods) for ds in self.datasets.values()],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_offset_steps=self.target_offset_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
             climatology=self._climatology_or_none,
@@ -349,6 +357,7 @@ class CommonDataModule(LightningDataModule):
             ],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_offset_steps=self.target_offset_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
             climatology=self._climatology_or_none,
@@ -375,6 +384,7 @@ class CommonDataModule(LightningDataModule):
             [ds.subset(date_ranges=self.val_periods) for ds in self.datasets.values()],
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
+            target_offset_steps=self.target_offset_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
             climatology=self._climatology_or_none,

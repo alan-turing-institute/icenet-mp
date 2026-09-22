@@ -73,6 +73,19 @@ class TestHydraConfigLoading:
         assert cfg.train.trainer.max_epochs == 1
         assert cfg.train.trainer.gradient_clip_val is None
 
+    def test_downscaling_config_composes(
+        self, compose_config: Callable[..., DictConfig]
+    ) -> None:
+        """Downscaling config pairs OSI SAF input with a CARRA2 target."""
+        cfg = compose_config(config_name="downscaling_north")
+        assert cfg.model._target_ == "icenet_mp.models.Downscaler"
+        assert cfg.model.source_group_name == "sic-osisaf"
+        assert cfg.predict.target.group_name == "sic-carra2"
+        assert cfg.predict.target_offset_steps == 0
+        assert set(cfg.reporting.metrics) == {"mae", "rmse"}
+        groups = {dataset.group_as for dataset in cfg.data.datasets.values()}
+        assert groups == {"sic-osisaf", "sic-carra2"}
+
     def test_synthetic_config_uses_local_logger(
         self, compose_config: Callable[..., DictConfig]
     ) -> None:
