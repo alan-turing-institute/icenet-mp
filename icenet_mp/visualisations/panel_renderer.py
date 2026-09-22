@@ -54,22 +54,11 @@ class PanelRenderer:
 
         # If we have uncertainty data then calculate z-score
         if uncertainty is not None:
-            # standardised_difference() is 2D-only; for video (3D [T,H,W])
-            # inputs, compute it frame-by-frame and restack.
-            if ground_truth.ndim == _VIDEO_NDIM:
-                z_score = np.stack(
-                    [
-                        self._difference_calculator.standardised_difference(
-                            ground_truth[t], prediction[t], uncertainty[t]
-                        )
-                        for t in range(ground_truth.shape[0])
-                    ]
-                )
-            else:
-                z_score = self._difference_calculator.standardised_difference(
+            return self.land_mask.apply_to(
+                self._difference_calculator.standardised_difference(
                     ground_truth, prediction, uncertainty
                 )
-            return self.land_mask.apply_to(z_score)
+            )
 
         # Otherwise return the signed difference
         return self.land_mask.apply_to(

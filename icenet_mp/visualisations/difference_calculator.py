@@ -3,7 +3,7 @@ import numpy as np
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import DiffMode
 
-_SPATIAL_NDIM = 2
+_VALID_NDIMS = (2, 3)
 
 
 class DifferenceCalculator:
@@ -71,21 +71,25 @@ class DifferenceCalculator:
         uncertainty are returned as NaN because a z value is undefined there.
 
         Args:
-            ground_truth: Two-dimensional observed values.
-            prediction: Two-dimensional predicted values.
-            uncertainty: Two-dimensional standard uncertainty for the observations.
+            ground_truth: Observed values, 2D `[H, W]` (static) or 3D `[T, H, W]` (video).
+            prediction: Predicted values, matching `ground_truth`'s shape.
+            uncertainty: Standard uncertainty for the observations, matching
+                `ground_truth`'s shape.
 
         Returns:
-            Two-dimensional standardised difference array.
+            Standardised difference array, matching `ground_truth`'s shape.
 
         Raises:
-            InvalidArrayError: If inputs are not two-dimensional arrays of equal shape.
+            InvalidArrayError: If inputs are not 2D or 3D arrays of equal shape.
 
         """
         arrays = (ground_truth, prediction, uncertainty)
-        if any(array.ndim != _SPATIAL_NDIM for array in arrays):
+        if any(array.ndim not in _VALID_NDIMS for array in arrays):
             shapes = tuple(array.shape for array in arrays)
-            msg = f"Expected 2D ground truth, prediction and uncertainty arrays, got {shapes}."
+            msg = (
+                "Expected 2D [H, W] or 3D [T, H, W] ground truth, prediction and "
+                f"uncertainty arrays, got {shapes}."
+            )
             raise InvalidArrayError(msg)
         if not (ground_truth.shape == prediction.shape == uncertainty.shape):
             msg = (

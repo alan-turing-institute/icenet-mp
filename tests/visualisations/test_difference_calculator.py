@@ -130,11 +130,24 @@ class TestComputeStandardisedDifference:
                 np.zeros((3, 3), dtype=np.float32),
             )
 
-    def test_rejects_non_2d_arrays(self) -> None:
-        """Reject 1D (or any non-2D) ground truth/prediction/uncertainty arrays."""
+    def test_rejects_1d_arrays(self) -> None:
+        """Reject 1D ground truth/prediction/uncertainty arrays."""
         with pytest.raises(InvalidArrayError, match="Expected 2D"):
             DifferenceCalculator(DiffMode.SIGNED).standardised_difference(
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),
                 np.zeros(4, dtype=np.float32),
             )
+
+    def test_accepts_3d_video_arrays(self) -> None:
+        """Compute a standardised difference over a [T, H, W] video stack."""
+        ground_truth = np.ones((2, 2, 2), dtype=np.float32)
+        prediction = np.zeros((2, 2, 2), dtype=np.float32)
+        uncertainty = np.full((2, 2, 2), 0.5, dtype=np.float32)
+
+        result = DifferenceCalculator(DiffMode.SIGNED).standardised_difference(
+            ground_truth, prediction, uncertainty
+        )
+
+        assert result.shape == (2, 2, 2)
+        np.testing.assert_allclose(result, 2.0)
