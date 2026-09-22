@@ -2,6 +2,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Self, cast
 
+import numpy as np
 from matplotlib.colors import Normalize
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
@@ -9,6 +10,7 @@ from torch import Tensor
 from .annotations import TensorNTCHW
 from .constants import SEA_ICE_THRESHOLD
 from .enums import DiffMode, Hemisphere
+from .protocols import SupportsMetadataFromDataset
 
 
 class DataSpace:
@@ -78,6 +80,62 @@ class ColourStyle:
         if self.norm is not None:
             return self.norm.vmin, self.norm.vmax
         return self.vmin, self.vmax
+
+
+@dataclass(frozen=True)
+class Metadata:
+    """Structured metadata extracted from training configuration.
+
+    Attributes:
+        model: Model name (if available).
+        current_epoch: Current training epoch (if available).
+        start: Training start date string (if available).
+        end: Training end date string (if available).
+        cadence: Training data cadence string (if available).
+        n_points: Number of training points calculated from date range and cadence.
+        vars_by_source: Dictionary mapping dataset source names to lists of variable names.
+        n_history_steps: Number of history steps used as model input window (days).
+
+    """
+
+    model: str | None = None
+    current_epoch: int | None = None
+    start: str | None = None
+    end: str | None = None
+    cadence: str | None = None
+    n_points: int | None = None
+    n_history_steps: int | None = None
+    vars_by_source: dict[str, list[str]] | None = None
+
+    @classmethod
+    def from_dataset(
+        cls,
+        dataset: SupportsMetadataFromDataset,
+        *,
+        current_epoch: int | None = None,
+        model_name: str | None = None,
+    ) -> "Metadata":
+        """Build structured metadata from a dataset-like source."""
+        # Format the dataset's frequency as a short, human-readable cadence label.
+        hours = float(dataset.frequency / np.timedelta64(1, "h"))
+        if hours % 24 == 0:
+            days = int(hours // 24)
+            cadence = "daily" if days == 1 else f"{days}d"
+        else:
+            cadence = "hourly" if hours == 1 else f"{hours:g}h"
+
+        vars_by_source = {ds.name: sorted(ds.variable_names) for ds in dataset.inputs}
+
+        return cls(
+            model=model_name,
+            current_epoch=current_epoch,
+            start=str(dataset.start_date.astype("datetime64[D]")),
+            end=str(dataset.end_date.astype("datetime64[D]")),
+            cadence=cadence,
+            n_points=len(dataset),
+            n_history_steps=dataset.n_history_steps,
+            vars_by_source=vars_by_source or None,
+        )
 
 
 @dataclass(frozen=True)

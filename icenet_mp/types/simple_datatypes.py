@@ -76,32 +76,6 @@ class DataloaderArgs(TypedDict):
 
 
 @dataclass(frozen=True)
-class Metadata:
-    """Structured metadata extracted from training configuration.
-
-    Attributes:
-        model: Model name (if available).
-        current_epoch: Current training epoch (if available).
-        start: Training start date string (if available).
-        end: Training end date string (if available).
-        cadence: Training data cadence string (if available).
-        n_points: Number of training points calculated from date range and cadence.
-        vars_by_source: Dictionary mapping dataset source names to lists of variable names.
-        n_history_steps: Number of history steps used as model input window (days).
-
-    """
-
-    model: str | None = None
-    current_epoch: int | None = None
-    start: str | None = None
-    end: str | None = None
-    cadence: str | None = None
-    n_points: int | None = None
-    n_history_steps: int | None = None
-    vars_by_source: dict[str, list[str]] | None = None
-
-
-@dataclass(frozen=True)
 class ProcessorOutput:
     """Output of a processor rollout step."""
 

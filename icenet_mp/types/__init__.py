@@ -8,7 +8,13 @@ from .annotations import (
     TensorNCHW,
     TensorNTCHW,
 )
-from .complex_datatypes import ColourStyle, DataSpace, ModelStepOutput, PlotSpec
+from .complex_datatypes import (
+    ColourStyle,
+    DataSpace,
+    Metadata,
+    ModelStepOutput,
+    PlotSpec,
+)
 from .constants import SEA_ICE_THRESHOLD
 from .enums import (
     BetaSchedule,
@@ -18,7 +24,11 @@ from .enums import (
     RangeRestriction,
     SkipConnectionType,
 )
-from .protocols import SupportsImageLogging, SupportsVideoLogging
+from .protocols import (
+    SupportsImageLogging,
+    SupportsMetadataFromDataset,
+    SupportsVideoLogging,
+)
 from .simple_datatypes import (
     AnemoiCleanupArgs,
     AnemoiDatasetStatus,
@@ -27,7 +37,6 @@ from .simple_datatypes import (
     AnemoiInspectArgs,
     AnemoiLoadArgs,
     DataloaderArgs,
-    Metadata,
     ProcessorOutput,
 )
 
@@ -59,6 +68,7 @@ __all__ = [
     "RangeRestriction",
     "SkipConnectionType",
     "SupportsImageLogging",
+    "SupportsMetadataFromDataset",
     "SupportsVideoLogging",
     "TensorNCHW",
     "TensorNTCHW",

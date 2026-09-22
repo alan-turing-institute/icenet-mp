@@ -46,36 +46,10 @@ class MediaPublisher:
         self.idx_date = plot_spec.selected_timestep
         self.panel_renderer = PanelRenderer(
             land_mask,
-            self._build_metadata(dataset, current_epoch, model_name),
+            Metadata.from_dataset(
+                dataset, current_epoch=current_epoch, model_name=model_name
+            ),
             plot_spec,
-        )
-
-    @staticmethod
-    def _build_metadata(
-        dataset: CombinedDataset,
-        current_epoch: int | None = None,
-        model_name: str | None = None,
-    ) -> Metadata:
-        """Build structured metadata from a CombinedDataset."""
-        # Format the dataset's frequency as a short, human-readable cadence label.
-        hours = float(dataset.frequency / np.timedelta64(1, "h"))
-        if hours % 24 == 0:
-            days = int(hours // 24)
-            cadence = "daily" if days == 1 else f"{days}d"
-        else:
-            cadence = "hourly" if hours == 1 else f"{hours:g}h"
-
-        vars_by_source = {ds.name: sorted(ds.variable_names) for ds in dataset.inputs}
-
-        return Metadata(
-            model=model_name,
-            current_epoch=current_epoch,
-            start=str(dataset.start_date.astype("datetime64[D]")),
-            end=str(dataset.end_date.astype("datetime64[D]")),
-            cadence=cadence,
-            n_points=len(dataset),
-            n_history_steps=dataset.n_history_steps,
-            vars_by_source=vars_by_source or None,
         )
 
     @staticmethod

@@ -38,14 +38,14 @@ class SingleDataset(Dataset):
         We reshape this to CHW before returning.
         """
         super().__init__()
-        self._date_ranges = self.normalise_date_ranges(date_ranges)
         self.hemisphere: Hemisphere = (
             Hemisphere.NORTH
             if any("north" in str(input_file).lower() for input_file in input_files)
             else Hemisphere.SOUTH
         )
+        self.name = name
+        self._date_ranges = self.normalise_date_ranges(date_ranges)
         self._input_files = tuple(sorted(input_files))
-        self._name = name
         self._normalise = normalise
         self._norm_offset: np.ndarray | None = None
         self._norm_scale: np.ndarray | None = None
@@ -150,7 +150,7 @@ class SingleDataset(Dataset):
         """Get all slices of contiguous dates from the underlying Anemoi dataset."""
         return [
             self.load_dataset(self._input_files)._subset(
-                name=self._name,
+                name=self.name,
                 start=date_range["start"],
                 end=date_range["end"],
                 **({"select": self._variables} if self._variables else {}),
@@ -194,11 +194,6 @@ class SingleDataset(Dataset):
     def longitudes(self) -> list[float]:
         """Return the longitudes of the dataset."""
         return self.dataslices[0].longitudes.tolist()
-
-    @cached_property
-    def name(self) -> str:
-        """Return the name of the dataset."""
-        return self._name
 
     @cached_property
     def space(self) -> DataSpace:
