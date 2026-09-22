@@ -112,10 +112,16 @@ class EncodeProcessDecode(BaseModel):
             channels=sum(encoder.data_space_out.channels for encoder in self.encoders),
             shape=latent_shapes.pop(),
         )
+        target_input_encoder = self.target_input_encoder
+        target_latent_space = (
+            target_input_encoder.data_space_out
+            if target_input_encoder is not None
+            else self.target_encoder.data_space_out
+        )
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
             data_space=combined_latent_space,
-            data_space_target=self.target_encoder.data_space_out,
+            data_space_target=target_latent_space,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_channel_offset=self.find_target_channel_offset(),
@@ -185,6 +191,14 @@ class EncodeProcessDecode(BaseModel):
         # Decode to output space: tensor with (batch_size, n_forecast_steps, n_output_channels, output_height, output_width)
         return self.decoder.rollout(latent_output, persistence)
 
+    @property
+    def target_input_encoder(self) -> "BaseEncoder | None":
+        """Return the input encoder whose dataset contains the forecast target."""
+        for encoder, input_space in zip(self.encoders, self.input_spaces, strict=True):
+            if input_space.name == self.output_space.name:
+                return encoder
+        return None
+
     def find_target_channel_offset(self) -> int | None:
         """Find the channel offset of the target dataset within the combined latent space, if present."""
         offset = 0
@@ -193,6 +207,47 @@ class EncodeProcessDecode(BaseModel):
                 return offset
             offset += encoder.data_space_out.channels
         return None
+
+    def encode_target_latent(
+        self, inputs: dict[str, TensorNTCHW], target: TensorNTCHW
+    ) -> TensorNTCHW:
+        """Encode a forecast target in the decoder-compatible latent space.
+
+        When the target dataset is also an input, use that exact input encoder. The
+        forecast tensor may contain only a subset of the target dataset's physical
+        variables, so omitted variables are persisted from the last observed frame
+        before encoding. This keeps supervision in the same latent coordinate system
+        that the processor history and decoder use.
+
+        If the target dataset is not an input, retain the standalone target encoder
+        path used by processors that do not insert a target slice into the combined
+        latent representation.
+        """
+        if tuple(target.shape[2:]) != self.output_space.chw:
+            msg = (
+                f"Target CHW {tuple(target.shape[2:])} does not match output space "
+                f"(C, H, W)={self.output_space.chw}."
+            )
+            raise ValueError(msg)
+
+        target_input_encoder = self.target_input_encoder
+        if target_input_encoder is None:
+            return self.target_encoder.rollout(target)
+
+        target_input = inputs[self.output_space.name]
+        if tuple(target_input.shape[2:]) != target_input_encoder.data_space_in.chw:
+            msg = (
+                f"Target input CHW {tuple(target_input.shape[2:])} does not match "
+                f"'{target_input_encoder.name}' encoder input (C, H, W)="
+                f"{target_input_encoder.data_space_in.chw}."
+            )
+            raise ValueError(msg)
+
+        full_target = (
+            target_input[:, -1:].expand(-1, target.shape[1], -1, -1, -1).clone()
+        )
+        full_target[:, :, self.target_variable_indices, :, :] = target
+        return target_input_encoder.rollout(full_target)
 
     def get_persistence(self, inputs: dict[str, TensorNTCHW]) -> TensorNTCHW | None:
         """Extract persistence if needed for a skip connection."""
@@ -237,17 +292,16 @@ class EncodeProcessDecode(BaseModel):
         target = batch["target"].clone().detach()
         combined_latent = self.encode_inputs(batch)
 
-        expected_chw = self.target_encoder.data_space_in.chw
-        if tuple(target.shape[2:]) != expected_chw:
+        if tuple(target.shape[2:]) != self.output_space.chw:
             msg = (
-                f"Target CHW {tuple(target.shape[2:])} does not match "
-                f"'{self.target_encoder.name}' encoder input (C, H, W)={expected_chw}."
+                f"Target CHW {tuple(target.shape[2:])} does not match output space "
+                f"(C, H, W)={self.output_space.chw}."
             )
             raise ValueError(msg)
 
         target_latent = None
         if self.processor.computes_loss_in_latent_space:
-            target_latent = self.target_encoder.rollout(target)
+            target_latent = self.encode_target_latent(batch, target)
         processor_output = self.processor.rollout(combined_latent, target_latent)
 
         # Get persistence if required for skip connection
