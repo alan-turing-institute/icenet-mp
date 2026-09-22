@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +44,13 @@ def get_wandb_run(trainer: Trainer) -> Run | None:
         ):
             return experiment
     return None
+
+
+def iso_from_date(dt: date | datetime) -> str:
+    """Format a date/datetime as an ISO date string (YYYY-MM-DD) for titles/keys."""
+    if isinstance(dt, datetime):
+        return dt.date().isoformat()
+    return dt.isoformat()
 
 
 def mask_dir(base_path: Path, dataset_name: str) -> Path:

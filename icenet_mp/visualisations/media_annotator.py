@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from datetime import date, datetime
 
 from icenet_mp.types import Metadata, PlotSpec
+from icenet_mp.utils import iso_from_date
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,6 @@ class MediaAnnotator:
         self.plot_spec = plot_spec
         self.metadata = metadata
 
-    def _format_date_for_title(self, dt: date | datetime) -> str:
-        """Format a date/datetime to ISO date string (YYYY-MM-DD) for plot titles."""
-        if isinstance(dt, datetime):
-            return dt.date().isoformat()
-        return dt.isoformat()
-
     def _format_variable_name(self, variable: str) -> str:
         """Return a human-friendly variable name for titles."""
         pretty = variable.replace("_", " ").strip()
@@ -30,36 +25,6 @@ class MediaAnnotator:
         """Return ' (<Hemisphere>)' for the bound plot spec, or '' if unset."""
         hemisphere = self.plot_spec.hemisphere
         return f" ({hemisphere.capitalize()})" if hemisphere else ""
-
-    def _subtitle_dates(self) -> str | None:
-        """Format the 'Training Dates: <start> — <end> (<cadence>[, N step history]) N pts' segment."""
-        metadata = self.metadata
-        if not (metadata.start or metadata.end):
-            return None
-        dates_part = f"Training Dates: {metadata.start or '?'} — {metadata.end or '?'}"
-        if metadata.cadence:
-            if metadata.n_history_steps is not None and metadata.n_history_steps > 0:
-                dates_part += (
-                    f" ({metadata.cadence}, {metadata.n_history_steps} step history)"
-                )
-            else:
-                dates_part += f" ({metadata.cadence})"
-        if metadata.n_points is not None:
-            dates_part += f" {metadata.n_points} pts"
-        return dates_part
-
-    def _subtitle_sources(self) -> str | None:
-        """Format the 'Training Data: <source> (<n_vars> variables) ...' line."""
-        vars_by_source = self.metadata.vars_by_source
-        if not vars_by_source:
-            return None
-        source_parts = [
-            f"{source} ({len(vars_by_source[source])} variables)"
-            if vars_by_source[source]
-            else source
-            for source in sorted(vars_by_source)
-        ]
-        return f"Training Data: {' '.join(source_parts)}" if source_parts else None
 
     def footer_for_static(self) -> str:
         """Build footer text for static plots using metadata that used to be in title."""
@@ -72,8 +37,8 @@ class MediaAnnotator:
         """Build footer text for video plots: animation range and metadata."""
         lines: list[str] = []
         if dates:
-            start_s = self._format_date_for_title(dates[0])
-            end_s = self._format_date_for_title(dates[-1])
+            start_s = iso_from_date(dates[0])
+            end_s = iso_from_date(dates[-1])
             lines.append(f"Animating from {start_s} to {end_s}")
         if subtitle := self.subtitle():
             lines.append(subtitle)
@@ -90,19 +55,42 @@ class MediaAnnotator:
             Formatted metadata string with newlines, or None if no metadata available.
 
         """
+        metadata = self.metadata
         info_parts: list[str] = []
-        if self.metadata.model:
-            info_parts.append(f"Model: {self.metadata.model}")
-        if self.metadata.current_epoch is not None:
-            info_parts.append(f"Epoch: {self.metadata.current_epoch}")
-        if (dates_part := self._subtitle_dates()) is not None:
+        if metadata.model:
+            info_parts.append(f"Model: {metadata.model}")
+        if metadata.current_epoch is not None:
+            info_parts.append(f"Epoch: {metadata.current_epoch}")
+        if metadata.start or metadata.end:
+            dates_part = (
+                f"Training Dates: {metadata.start or '?'} — {metadata.end or '?'}"
+            )
+            if metadata.cadence:
+                if (
+                    metadata.n_history_steps is not None
+                    and metadata.n_history_steps > 0
+                ):
+                    dates_part += f" ({metadata.cadence}, {metadata.n_history_steps} step history)"
+                else:
+                    dates_part += f" ({metadata.cadence})"
+            if metadata.n_points is not None:
+                dates_part += f" {metadata.n_points} pts"
             info_parts.append(dates_part)
 
         lines: list[str] = []
         if info_parts:
             lines.append("  ".join(info_parts))
-        if (sources_part := self._subtitle_sources()) is not None:
-            lines.append(sources_part)
+
+        vars_by_source = metadata.vars_by_source
+        if vars_by_source:
+            source_parts = [
+                f"{source} ({len(vars_by_source[source])} variables)"
+                if vars_by_source[source]
+                else source
+                for source in sorted(vars_by_source)
+            ]
+            if source_parts:
+                lines.append(f"Training Data: {' '.join(source_parts)}")
 
         return "\n".join(lines) if lines else None
 
@@ -120,7 +108,7 @@ class MediaAnnotator:
         """
         metric = self._format_variable_name(variable_name)
         hemi_suffix = self._hemisphere_suffix()
-        return f"{metric}{hemi_suffix} Prediction   Shown: {self._format_date_for_title(when)}"
+        return f"{metric}{hemi_suffix} Prediction   Shown: {iso_from_date(when)}"
 
     def title_for_variable(
         self,
@@ -141,10 +129,7 @@ class MediaAnnotator:
         """
         hemi_suffix = self._hemisphere_suffix()
         units_s = f" [{units}]" if units else ""
-        shown = (
-            when.date().isoformat() if isinstance(when, datetime) else when.isoformat()
-        )
-        return f"{variable}{units_s}{hemi_suffix}   Shown: {shown}"
+        return f"{variable}{units_s}{hemi_suffix}   Shown: {iso_from_date(when)}"
 
     def title_for_video(
         self,
@@ -169,6 +154,6 @@ class MediaAnnotator:
         metric = self._format_variable_name(variable_name)
         hemi_suffix = self._hemisphere_suffix()
         if dates:
-            shown = self._format_date_for_title(dates[current_index])
+            shown = iso_from_date(dates[current_index])
             return f"{metric}{hemi_suffix} Prediction   Frame: {shown}"
         return f"{metric}{hemi_suffix} Prediction"

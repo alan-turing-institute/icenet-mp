@@ -1,5 +1,5 @@
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
@@ -16,6 +16,7 @@ from icenet_mp.utils import (
     get_device_name,
     get_timestamp,
     get_wandb_run,
+    iso_from_date,
     mask_dir,
     npdatetime_from_datetime,
     safe_nanmax,
@@ -31,6 +32,20 @@ class TestDatetimeFromNpdatetime:
 
         assert result.tzinfo is UTC
         assert result.microsecond == 789000
+
+
+class TestFormatDateKey:
+    def test_date_object(self) -> None:
+        """Format a plain date object as an ISO date string."""
+        result = iso_from_date(date(2023, 12, 25))
+
+        assert result == "2023-12-25"
+
+    def test_datetime_object_drops_time(self) -> None:
+        """Format a datetime object, stripping the time component."""
+        result = iso_from_date(datetime(2023, 12, 25, 14, 30))
+
+        assert result == "2023-12-25"
 
 
 class TestNpdatetimeFromDatetime:

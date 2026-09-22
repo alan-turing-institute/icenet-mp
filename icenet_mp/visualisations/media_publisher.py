@@ -20,7 +20,7 @@ from icenet_mp.types import (
     SupportsImageLogging,
     SupportsVideoLogging,
 )
-from icenet_mp.utils import npdatetime_from_datetime
+from icenet_mp.utils import iso_from_date, npdatetime_from_datetime
 
 from .land_mask import LandMask
 from .panel_renderer import PanelRenderer
@@ -213,7 +213,7 @@ class MediaPublisher:
                         when=when,
                         variable_name=variable_name,
                     )
-                    key = f"{when.strftime(r'%Y-%m-%d')}-{variable_name}"
+                    key = f"{iso_from_date(when)}-{variable_name}"
                     images: dict[str, list[ImageFile]] = {key: [image]}
                     # Log static input images
                     self._log_images(images, image_loggers, log_path)
@@ -240,7 +240,7 @@ class MediaPublisher:
         """
         try:
             log_path = self._log_path(prefix, "output_static")
-            date_key = dates[self.idx_date].strftime(r"%Y-%m-%d")
+            date_key = iso_from_date(dates[self.idx_date])
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayHW = (
@@ -289,7 +289,7 @@ class MediaPublisher:
         try:
             log_path = self._log_path(prefix, "input_video")
             np_dates = [npdatetime_from_datetime(date) for date in dates]
-            date_key = dates[0].strftime(r"%Y-%m-%d")
+            date_key = iso_from_date(dates[0])
             for input_ds in inputs:
                 # Get data for all variables over the full date range
                 for channel, v_name in enumerate(input_ds.variable_names):
@@ -321,7 +321,7 @@ class MediaPublisher:
         """Create and log output videos."""
         try:
             log_path = self._log_path(prefix, "output_video")
-            date_key = dates[0].strftime(r"%Y-%m-%d")
+            date_key = iso_from_date(dates[0])
             videos: dict[str, BytesIO] = {}
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):

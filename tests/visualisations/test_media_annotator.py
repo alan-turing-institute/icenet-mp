@@ -45,24 +45,6 @@ class TestFormattedVariableName:
         assert MediaAnnotator(Metadata(), PlotSpec())._format_variable_name("") == ""
 
 
-class TestFormatDateForTitle:
-    def test_date_object(self) -> None:
-        """Format a plain date object as an ISO date string."""
-        result = MediaAnnotator(Metadata(), PlotSpec())._format_date_for_title(
-            date(2023, 12, 25)
-        )
-
-        assert result == "2023-12-25"
-
-    def test_datetime_object_drops_time(self) -> None:
-        """Format a datetime object, stripping the time component."""
-        result = MediaAnnotator(Metadata(), PlotSpec())._format_date_for_title(
-            datetime(2023, 12, 25, 14, 30)
-        )
-
-        assert result == "2023-12-25"
-
-
 class TestBuildTitleVideo:
     def test_empty_dates_omits_frame_segment(self) -> None:
         """Omit the 'Frame:' segment entirely when no dates are given."""

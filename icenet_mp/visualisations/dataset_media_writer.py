@@ -2,7 +2,7 @@ from pathlib import Path
 
 from icenet_mp.data import SingleDataset
 from icenet_mp.types import Metadata, PlotSpec
-from icenet_mp.utils import datetime_from_npdatetime, mask_dir
+from icenet_mp.utils import datetime_from_npdatetime, iso_from_date, mask_dir
 
 from .land_mask import LandMask
 from .panel_renderer import PanelRenderer
@@ -60,9 +60,7 @@ class DatasetMediaWriter:
             )
             image.save(
                 output_dir
-                / self._safe_filename(
-                    f"{when.strftime(r'%Y-%m-%d')}-{variable_name}", "png"
-                )
+                / self._safe_filename(f"{iso_from_date(when)}-{variable_name}", "png")
             )
             saved += 1
         return saved
@@ -102,7 +100,7 @@ class DatasetMediaWriter:
             )
             video_buffer.seek(0)
             video_path = output_dir / self._safe_filename(
-                f"{dates[0].strftime(r'%Y-%m-%d')}-{variable_name}",
+                f"{iso_from_date(dates[0])}-{variable_name}",
                 renderer.video_format,
             )
             video_path.write_bytes(video_buffer.read())
