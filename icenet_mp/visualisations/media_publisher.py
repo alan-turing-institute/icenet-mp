@@ -25,7 +25,7 @@ from icenet_mp.utils import npdatetime_from_datetime
 from .land_mask import LandMask
 from .panel_renderer import PanelRenderer
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 RenderedMedia = TypeVar("RenderedMedia", ImageFile, BytesIO)
 
@@ -43,12 +43,12 @@ class MediaPublisher:
         model_name: str | None = None,
     ) -> None:
         """Build a publisher bound to one dataset/plot_spec/land_mask context."""
+        self.idx_date = plot_spec.selected_timestep
         self.panel_renderer = PanelRenderer(
             land_mask,
             self._build_metadata(dataset, current_epoch, model_name),
             plot_spec,
         )
-        self.idx_date = plot_spec.selected_timestep
 
     @staticmethod
     def _build_metadata(
@@ -218,9 +218,9 @@ class MediaPublisher:
                     # Log static input images
                     self._log_images(images, image_loggers, log_path)
         except InvalidArrayError as exc:
-            logger.warning("Static plotting skipped due to invalid arrays: %s", exc)
+            log.warning("Static plotting skipped due to invalid arrays: %s", exc)
         except (IndexError, ValueError, MemoryError, OSError) as exc:
-            logger.warning("Static plotting failed: %s", exc)
+            log.warning("Static plotting failed: %s", exc)
 
     def log_static_outputs(  # noqa: PLR0913
         self,
@@ -272,10 +272,10 @@ class MediaPublisher:
                 }
                 # Log static output images
                 self._log_images(images, image_loggers, log_path)
-        except InvalidArrayError as err:
-            logger.warning("Static plotting skipped due to invalid arrays: %s", err)
+        except InvalidArrayError as exc:
+            log.warning("Static plotting skipped due to invalid arrays: %s", exc)
         except (IndexError, ValueError, MemoryError, OSError) as exc:
-            logger.warning("Static plotting failed: %s", exc)
+            log.warning("Static plotting failed: %s", exc)
 
     def log_video_inputs(
         self,
@@ -302,10 +302,10 @@ class MediaPublisher:
                     video_data = {f"{date_key}-{variable_name}": video}
                     # Log input animations
                     self._log_videos(video_data, video_loggers, log_path)
-        except (InvalidArrayError, VideoRenderError) as err:
-            logger.warning("Video plotting skipped: %s", err)
-        except (IndexError, ValueError, MemoryError, OSError):
-            logger.exception("Video plotting failed")
+        except (InvalidArrayError, VideoRenderError) as exc:
+            log.warning("Video plotting skipped: %s", exc)
+        except (IndexError, ValueError, MemoryError, OSError) as exc:
+            log.warning("Video plotting failed: %s", exc)
 
     def log_video_outputs(  # noqa: PLR0913
         self,
@@ -353,7 +353,7 @@ class MediaPublisher:
                 )
             # Log output animations
             self._log_videos(videos, video_loggers, log_path)
-        except (InvalidArrayError, VideoRenderError) as err:
-            logger.warning("Video plotting skipped: %s", err)
-        except (IndexError, ValueError, MemoryError, OSError):
-            logger.exception("Video plotting failed")
+        except (InvalidArrayError, VideoRenderError) as exc:
+            log.warning("Video plotting skipped: %s", exc)
+        except (IndexError, ValueError, MemoryError, OSError) as exc:
+            log.warning("Video plotting failed: %s", exc)

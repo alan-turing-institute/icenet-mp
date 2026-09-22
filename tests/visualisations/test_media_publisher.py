@@ -323,7 +323,7 @@ class TestLogStaticInputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow InvalidArrayError and log a warning instead of raising."""
+        """An InvalidArrayError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_static",
@@ -347,7 +347,7 @@ class TestLogStaticInputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow ValueError from the plotting layer and log a warning."""
+        """A ValueError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_static",
@@ -471,7 +471,7 @@ class TestLogStaticOutputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow InvalidArrayError and log a warning instead of raising."""
+        """An InvalidArrayError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_static",
@@ -498,7 +498,7 @@ class TestLogStaticOutputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow MemoryError from the plotting layer and log a warning."""
+        """A MemoryError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_static",
@@ -622,7 +622,7 @@ class TestLogVideoInputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow InvalidArrayError and log a warning instead of raising."""
+        """An InvalidArrayError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_video",
@@ -646,7 +646,7 @@ class TestLogVideoInputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow VideoRenderError and log a warning."""
+        """A VideoRenderError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_video",
@@ -665,12 +665,12 @@ class TestLogVideoInputs:
 
         assert "Video plotting skipped" in caplog.text
 
-    def test_logs_exception_on_generic_error(
+    def test_skips_on_generic_plotting_error(
         self,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow a generic rendering error but log it at ERROR level with a traceback."""
+        """A ValueError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_video",
@@ -682,13 +682,12 @@ class TestLogVideoInputs:
             land_mask=LandMask(None),
             plot_spec=PlotSpec(),
         )
-        with caplog.at_level(logging.ERROR):
+        with caplog.at_level(logging.WARNING):
             media_publisher.log_video_inputs(
                 [fake_single_dataset()], TEST_DATES, [MagicMock()]
             )
 
         assert "Video plotting failed" in caplog.text
-        assert caplog.records[-1].levelno == logging.ERROR
 
 
 class TestLogVideoOutputs:
@@ -795,7 +794,7 @@ class TestLogVideoOutputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow InvalidArrayError and log a warning instead of raising."""
+        """An InvalidArrayError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_video",
@@ -822,7 +821,7 @@ class TestLogVideoOutputs:
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow VideoRenderError and log a warning."""
+        """A VideoRenderError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_video",
@@ -844,12 +843,12 @@ class TestLogVideoOutputs:
 
         assert "Video plotting skipped" in caplog.text
 
-    def test_logs_exception_on_generic_error(
+    def test_skips_on_generic_plotting_error(
         self,
         caplog: pytest.LogCaptureFixture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Swallow a generic rendering error but log it at ERROR level with a traceback."""
+        """A ValueError is consumed and logged at WARNING level."""
         monkeypatch.setattr(
             MatplotlibRenderer,
             "panels_video",
@@ -861,7 +860,7 @@ class TestLogVideoOutputs:
             land_mask=LandMask(None),
             plot_spec=PlotSpec(),
         )
-        with caplog.at_level(logging.ERROR):
+        with caplog.at_level(logging.WARNING):
             media_publisher.log_video_outputs(
                 make_model_step_output(),
                 TEST_DATES,
@@ -870,7 +869,6 @@ class TestLogVideoOutputs:
             )
 
         assert "Video plotting failed" in caplog.text
-        assert caplog.records[-1].levelno == logging.ERROR
 
     def test_rewinds_buffers_before_logging(
         self, monkeypatch: pytest.MonkeyPatch
