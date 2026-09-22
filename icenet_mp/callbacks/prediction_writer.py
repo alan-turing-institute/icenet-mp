@@ -249,12 +249,14 @@ class PredictionWriter(Callback):
             )
             raise IndexError(msg)
 
-        reference_dates = (
-            start_dates + (self._dataset.n_history_steps - 1) * self._dataset.frequency
+        reference_dates = np.asarray(
+            [self._dataset.get_history_steps(date)[-1] for date in start_dates]
         )
         reference_seconds = self._seconds(reference_dates)
-        lead_seconds = np.asarray(self._file.variables["lead_time"][:], dtype=np.int64)
-        valid_seconds = reference_seconds[:, None] + lead_seconds[None, :]
+        valid_dates = np.asarray(
+            [self._dataset.get_forecast_steps(date) for date in start_dates]
+        )
+        valid_seconds = self._seconds(valid_dates)
 
         self._file.variables["forecast_reference_time"][start:end] = reference_seconds
         self._file.variables["valid_time"][start:end, :] = valid_seconds
