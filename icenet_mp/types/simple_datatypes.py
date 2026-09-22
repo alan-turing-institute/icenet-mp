@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import NamedTuple, TypedDict
 
 from anemoi.datasets.create.recipe import Recipe
-from matplotlib.colors import Normalize
 from torch import Tensor
 
 from .annotations import TensorNTCHW
@@ -74,23 +73,6 @@ class DataloaderArgs(TypedDict):
     persistent_workers: bool
     sampler: None
     worker_init_fn: None
-
-
-class DiffColourmap(NamedTuple):
-    """Specify the colour scale used for a difference panel.
-
-    Attributes:
-        norm: Normalisation for mapping values to colours (e.g. TwoSlopeNorm for signed diffs).
-        vmin: Lower bound if no norm is provided.
-        vmax: Upper bound if no norm is provided.
-        cmap: Matplotlib colourmap name.
-
-    """
-
-    norm: Normalize | None
-    vmin: float | None
-    vmax: float | None
-    cmap: str
 
 
 @dataclass(frozen=True)

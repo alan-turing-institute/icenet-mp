@@ -17,21 +17,6 @@ class ColourScale:
         """Initialise a ColourScale with a difference mode."""
         self._diff_mode = diff_mode
 
-    def bounds(
-        self, diff_colour_scale: DiffColourmap
-    ) -> tuple[float | None, float | None]:
-        """Resolve the effective (vmin, vmax) from a `DiffColourmap`.
-
-        A diverging scale (mode "signed") carries its bounds on `norm`;
-        a sequential scale (mode "absolute"/"smape") carries them directly
-        as `vmin`/`vmax`. Callers that only need plain bounds (e.g. to hand
-        to `MatplotlibRenderer`) shouldn't need to know which encoding
-        `diff_colourmap()` chose.
-        """
-        if diff_colour_scale.norm is not None:
-            return diff_colour_scale.norm.vmin, diff_colour_scale.norm.vmax
-        return diff_colour_scale.vmin, diff_colour_scale.vmax
-
     @staticmethod
     def cmap_with_bad(
         cmap: str | Colormap = "viridis", *, bad_colour: str = "#dcdcdc"

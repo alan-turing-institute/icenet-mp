@@ -215,19 +215,3 @@ class TestMakeDiffColourmap:
         """An unrecognised mode raises ValueError."""
         with pytest.raises(ValueError, match="Unknown difference mode"):
             ColourScale("bogus").diff_colourmap(1.0)  # type: ignore[arg-type]
-
-
-class TestBounds:
-    def test_reads_bounds_from_norm_when_present(self) -> None:
-        """A diverging (signed) colourmap's bounds come from its norm."""
-        colour_scale = ColourScale(DiffMode.SIGNED)
-        spec = colour_scale.diff_colourmap(2.5)
-
-        assert colour_scale.bounds(spec) == (pytest.approx(-2.5), pytest.approx(2.5))
-
-    def test_reads_explicit_bounds_when_no_norm(self) -> None:
-        """A sequential (absolute/smape) colourmap's bounds come from vmin/vmax directly."""
-        colour_scale = ColourScale(DiffMode.ABSOLUTE)
-        spec = colour_scale.diff_colourmap(0.75)
-
-        assert colour_scale.bounds(spec) == (pytest.approx(0.0), pytest.approx(0.75))

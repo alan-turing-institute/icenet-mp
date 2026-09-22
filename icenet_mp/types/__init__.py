@@ -8,7 +8,7 @@ from .annotations import (
     TensorNCHW,
     TensorNTCHW,
 )
-from .complex_datatypes import DataSpace, ModelStepOutput, PlotSpec
+from .complex_datatypes import DataSpace, DiffColourmap, ModelStepOutput, PlotSpec
 from .constants import SEA_ICE_THRESHOLD
 from .enums import (
     BetaSchedule,
@@ -27,7 +27,6 @@ from .simple_datatypes import (
     AnemoiInspectArgs,
     AnemoiLoadArgs,
     DataloaderArgs,
-    DiffColourmap,
     Metadata,
     ProcessorOutput,
     VariableStyle,

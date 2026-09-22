@@ -1,7 +1,8 @@
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Self, cast
+from typing import Any, Literal, NamedTuple, Self, cast
 
+from matplotlib.colors import Normalize
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
@@ -44,6 +45,35 @@ class DataSpace:
         return DictConfig(
             {"channels": self.channels, "name": self.name, "shape": self.shape}
         )
+
+
+class DiffColourmap(NamedTuple):
+    """Specify the colour scale used for a difference panel.
+
+    Attributes:
+        norm: Normalisation for mapping values to colours (e.g. TwoSlopeNorm for signed diffs).
+        vmin: Lower bound if no norm is provided.
+        vmax: Upper bound if no norm is provided.
+        cmap: Matplotlib colourmap name.
+
+    """
+
+    norm: Normalize | None
+    vmin: float | None
+    vmax: float | None
+    cmap: str
+
+    def bounds(self) -> tuple[float | None, float | None]:
+        """Resolve the effective (vmin, vmax).
+
+        A diverging scale (mode "signed") carries its bounds on `norm`; a sequential
+        scale (mode "absolute"/"smape") carries them directly as `vmin`/`vmax`. Callers
+        that only need plain bounds (e.g. to hand to `MatplotlibRenderer`) do not need
+        to know which encoding is used.
+        """
+        if self.norm is not None:
+            return self.norm.vmin, self.norm.vmax
+        return self.vmin, self.vmax
 
 
 @dataclass(frozen=True)
