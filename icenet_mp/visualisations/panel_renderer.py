@@ -48,22 +48,18 @@ class PanelRenderer:
         prediction: np.ndarray,
         uncertainty: np.ndarray | None = None,
     ) -> np.ndarray | None:
-        """Compute the masked difference array if requested."""
+        """Compute a difference between input arrays or return None if not requested."""
         if not self.plot_spec.include_difference:
             return None
 
         # If we have uncertainty data then calculate z-score
         if uncertainty is not None:
-            return self.land_mask.apply_to(
-                self.difference_calculator.standardised_difference(
-                    ground_truth, prediction, uncertainty
-                )
+            return self.difference_calculator.standardised_difference(
+                ground_truth, prediction, uncertainty
             )
 
         # Otherwise return the signed difference
-        return self.land_mask.apply_to(
-            self.difference_calculator.difference(ground_truth, prediction)
-        )
+        return self.difference_calculator.difference(ground_truth, prediction)
 
     def _validate_video_frames(
         self, arrays: list[ArrayTHW], dates: list[datetime]
