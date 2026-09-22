@@ -16,7 +16,8 @@ class MediaAnnotator:
         self.plot_spec = plot_spec
         self.metadata = metadata
 
-    def _format_variable_name(self, variable: str) -> str:
+    @staticmethod
+    def _format_variable_name(variable: str) -> str:
         """Return a human-friendly variable name for titles."""
         pretty = variable.replace("_", " ").strip()
         return pretty.title() if pretty else ""

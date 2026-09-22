@@ -8,7 +8,7 @@ from .annotations import (
     TensorNCHW,
     TensorNTCHW,
 )
-from .complex_datatypes import DataSpace, DiffColourmap, ModelStepOutput, PlotSpec
+from .complex_datatypes import ColourStyle, DataSpace, ModelStepOutput, PlotSpec
 from .constants import SEA_ICE_THRESHOLD
 from .enums import (
     BetaSchedule,
@@ -29,7 +29,6 @@ from .simple_datatypes import (
     DataloaderArgs,
     Metadata,
     ProcessorOutput,
-    VariableStyle,
 )
 
 __all__ = [
@@ -47,9 +46,9 @@ __all__ = [
     "ArrayTCHW",
     "ArrayTHW",
     "BetaSchedule",
+    "ColourStyle",
     "DataSpace",
     "DataloaderArgs",
-    "DiffColourmap",
     "DiffMode",
     "Hemisphere",
     "MaskType",
@@ -63,5 +62,4 @@ __all__ = [
     "SupportsVideoLogging",
     "TensorNCHW",
     "TensorNTCHW",
-    "VariableStyle",
 ]

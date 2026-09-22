@@ -43,12 +43,12 @@ class MatplotlibRenderer:
         finally:
             mpl_logger.setLevel(original_level)
 
-    def _image_from_figure(self, fig: Figure, *, dpi: int) -> ImageFile:
+    def _image_from_figure(self, figure: Figure, *, dpi: int) -> ImageFile:
         """Convert a matplotlib figure to a PIL image file."""
-        buf = BytesIO()
-        fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
-        buf.seek(0)
-        return Image.open(buf)
+        buffer = BytesIO()
+        figure.savefig(buffer, format="png", dpi=dpi, bbox_inches="tight")
+        buffer.seek(0)
+        return Image.open(buffer)
 
     def _video_from_animation(
         self,

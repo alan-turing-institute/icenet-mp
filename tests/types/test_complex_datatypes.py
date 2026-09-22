@@ -4,8 +4,8 @@ from matplotlib.colors import Normalize, TwoSlopeNorm
 from omegaconf import DictConfig
 
 from icenet_mp.types import (
+    ColourStyle,
     DataSpace,
-    DiffColourmap,
     Hemisphere,
     ModelStepOutput,
     PlotSpec,
@@ -45,14 +45,14 @@ class TestDataSpace:
         assert tuple(result.shape) == (32, 48)
 
 
-class TestDiffColourmap:
-    """Tests for DiffColourmap."""
+class TestColourStyle:
+    """Tests for ColourStyle."""
 
     def test_preserves_normalisation_and_bounds(self) -> None:
         """Preserve normalisation, bounds and colourmap configuration."""
         norm = Normalize(vmin=-1.0, vmax=1.0)
 
-        spec = DiffColourmap(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
+        spec = ColourStyle(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
 
         assert spec.norm is norm
         assert spec.vmin is None
@@ -61,7 +61,7 @@ class TestDiffColourmap:
 
     def test_bounds_reads_from_norm_when_present(self) -> None:
         """A diverging (signed) colourmap's bounds come from its norm."""
-        spec = DiffColourmap(
+        spec = ColourStyle(
             norm=TwoSlopeNorm(vmin=-2.5, vcenter=0.0, vmax=2.5),
             vmin=None,
             vmax=None,
@@ -72,9 +72,15 @@ class TestDiffColourmap:
 
     def test_bounds_reads_explicit_bounds_when_no_norm(self) -> None:
         """A sequential (absolute/smape) colourmap's bounds come from vmin/vmax directly."""
-        spec = DiffColourmap(norm=None, vmin=0.0, vmax=0.75, cmap="magma")
+        spec = ColourStyle(norm=None, vmin=0.0, vmax=0.75, cmap="magma")
 
         assert spec.bounds() == (pytest.approx(0.0), pytest.approx(0.75))
+
+    def test_defaults_to_no_units(self) -> None:
+        """A ColourStyle built without units (e.g. for a difference panel) defaults to None."""
+        spec = ColourStyle(cmap="viridis")
+
+        assert spec.units is None
 
 
 class TestPlotSpec:

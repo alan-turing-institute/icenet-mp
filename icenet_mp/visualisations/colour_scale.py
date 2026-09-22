@@ -4,7 +4,7 @@ import matplotlib as mpl
 import numpy as np
 from matplotlib.colors import Colormap, Normalize, TwoSlopeNorm
 
-from icenet_mp.types import DiffColourmap, DiffMode
+from icenet_mp.types import ColourStyle, DiffMode
 from icenet_mp.utils import safe_nanmax, safe_nanmin
 
 logger = logging.getLogger(__name__)
@@ -64,10 +64,10 @@ class ColourScale:
     def diff_colourmap(
         self,
         sample: np.ndarray | float,
-    ) -> DiffColourmap:
-        """Construct a DiffColourmap for visualising differences.
+    ) -> ColourStyle:
+        """Construct a ColourStyle for visualising differences.
 
-        This function generates a DiffColourmap object that contains the appropriate
+        This function generates a ColourStyle object that contains the appropriate
         normalisation, colour limits, and colourmap for visualising differences between
         datasets. The behaviour of the colour mapping depends on the difference mode
         specified during the ColourScale initialisation.
@@ -76,7 +76,7 @@ class ColourScale:
             sample: A full array of differences
 
         Returns:
-            DiffColourmap: Normalisation, colour limits, and colourmap for the difference panel.
+            ColourStyle: Normalisation, colour limits, and colourmap for the difference panel.
 
         """
         if self._diff_mode == DiffMode.SIGNED:
@@ -92,7 +92,7 @@ class ColourScale:
                 max_abs = max(1.0, abs(vmin_data), abs(vmax_data))
                 vmin, vmax = -max_abs, max_abs
 
-            return DiffColourmap(
+            return ColourStyle(
                 norm=TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax),
                 vmin=None,
                 vmax=None,
@@ -106,7 +106,7 @@ class ColourScale:
             else:
                 vmax = max(1e-6, safe_nanmax(sample, default=0.0))
 
-            return DiffColourmap(
+            return ColourStyle(
                 norm=None,
                 vmin=0.0,
                 vmax=vmax,

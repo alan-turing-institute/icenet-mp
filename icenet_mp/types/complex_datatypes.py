@@ -1,6 +1,6 @@
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, NamedTuple, Self, cast
+from typing import Any, Literal, Self, cast
 
 from matplotlib.colors import Normalize
 from omegaconf import DictConfig, OmegaConf
@@ -47,21 +47,25 @@ class DataSpace:
         )
 
 
-class DiffColourmap(NamedTuple):
-    """Specify the colour scale used for a difference panel.
+@dataclass(frozen=True)
+class ColourStyle:
+    """Specify how to colour a rendered panel, for a variable or a difference.
 
     Attributes:
-        norm: Normalisation for mapping values to colours (e.g. TwoSlopeNorm for signed diffs).
-        vmin: Lower bound if no norm is provided.
-        vmax: Upper bound if no norm is provided.
-        cmap: Matplotlib colourmap name.
+        cmap: Matplotlib colourmap name (e.g., "viridis", "RdBu_r").
+        vmin: Lower bound for the colour scale if no norm is provided.
+        vmax: Upper bound for the colour scale if no norm is provided.
+        units: Display units for the variable (e.g., "K", "m/s").
+        norm: Normalisation for mapping values to colours (e.g. TwoSlopeNorm for signed
+            diffs), overriding vmin/vmax when present.
 
     """
 
-    norm: Normalize | None
-    vmin: float | None
-    vmax: float | None
     cmap: str
+    vmin: float | None = None
+    vmax: float | None = None
+    units: str | None = None
+    norm: Normalize | None = None
 
     def bounds(self) -> tuple[float | None, float | None]:
         """Resolve the effective (vmin, vmax).

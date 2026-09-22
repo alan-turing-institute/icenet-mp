@@ -107,21 +107,3 @@ class ProcessorOutput:
 
     prediction: TensorNTCHW
     loss: Tensor | None = None
-
-
-@dataclass(frozen=True)
-class VariableStyle:
-    """Styling configuration for individual variables.
-
-    Attributes:
-        cmap: Matplotlib colourmap name (e.g., "viridis", "RdBu_r").
-        vmin: Minimum value for colour scale.
-        vmax: Maximum value for colour scale.
-        units: Display units for the variable (e.g., "K", "m/s").
-
-    """
-
-    cmap: str
-    vmin: float | None = None
-    vmax: float | None = None
-    units: str | None = None
