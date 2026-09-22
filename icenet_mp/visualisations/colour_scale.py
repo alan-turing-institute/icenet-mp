@@ -14,7 +14,16 @@ class ColourScale:
     """Build matplotlib colour-mapping (norm, cmap, vmin/vmax) for a set of arrays."""
 
     def __init__(self, diff_mode: DiffMode) -> None:
-        """Initialise a ColourScale with a difference mode."""
+        """Initialise a ColourScale with a difference mode.
+
+        Args:
+            diff_mode: The difference mode to use for visualising differences. If
+            "signed", a symmetric diverging scale centred on 0 will be used, this is
+            useful for showing positive vs negative bias. If "absolute" or "smape", a
+            sequential scale from 0 to max will be used, this is useful for showing
+            error magnitude.
+
+        """
         self._diff_mode = diff_mode
 
     @staticmethod
@@ -56,21 +65,18 @@ class ColourScale:
         self,
         sample: np.ndarray | float,
     ) -> DiffColourmap:
-        """Construct colour mapping settings for a difference panel.
+        """Construct a DiffColourmap for visualising differences.
 
-        Behaviour depends on the difference mode:
-
-        - "signed": symmetric diverging scale centred on 0,
-          useful for showing positive vs negative bias.
-        - "absolute" / "smape": sequential scale from 0 to max,
-          useful for showing error magnitude.
+        This function generates a DiffColourmap object that contains the appropriate
+        normalisation, colour limits, and colourmap for visualising differences between
+        datasets. The behaviour of the colour mapping depends on the difference mode
+        specified during the ColourScale initialisation.
 
         Args:
-            sample: Either a full array of differences (for precompute mode)
-                    or a scalar maximum difference (for two-pass mode).
+            sample: A full array of differences
 
         Returns:
-            DiffRenderParams: Normalisation, colour limits, and colourmap.
+            DiffColourmap: Normalisation, colour limits, and colourmap for the difference panel.
 
         """
         if self._diff_mode == DiffMode.SIGNED:
