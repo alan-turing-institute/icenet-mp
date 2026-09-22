@@ -21,6 +21,7 @@ from icenet_mp.utils import (
     npdatetime_from_datetime,
     safe_nanmax,
     safe_nanmin,
+    sanitise_filename,
     to_list,
 )
 
@@ -273,3 +274,17 @@ class TestSafeNanmax:
         result = safe_nanmax(np.array([np.inf, np.nan, 4.0]), default=1.0)
 
         assert result == pytest.approx(4.0)
+
+
+class TestSanitiseFilename:
+    def test_replaces_a_single_unsafe_character(self) -> None:
+        """Replace one unsafe character with an underscore."""
+        assert sanitise_filename("a:b") == "a_b"
+
+    def test_collapses_a_run_of_unsafe_characters(self) -> None:
+        """Collapse a run of consecutive unsafe characters into one underscore."""
+        assert sanitise_filename("a :/b") == "a_b"
+
+    def test_leaves_safe_characters_unchanged(self) -> None:
+        """Leave letters, digits, underscores, periods and hyphens untouched."""
+        assert sanitise_filename("Safe-Name_123.png") == "Safe-Name_123.png"

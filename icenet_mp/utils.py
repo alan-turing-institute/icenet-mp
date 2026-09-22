@@ -1,3 +1,4 @@
+import re
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -7,6 +8,8 @@ import torch
 from lightning import Trainer
 from lightning.pytorch.loggers import WandbLogger
 from wandb.wandb_run import Run
+
+_UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 def datetime_from_npdatetime(dt: np.datetime64) -> datetime:
@@ -96,6 +99,11 @@ def safe_nanmax(arr: np.ndarray, default: float = 1.0) -> float:
     """
     finite = arr[np.isfinite(arr)]
     return float(np.max(finite)) if finite.size else default
+
+
+def sanitise_filename(text: str) -> str:
+    """Replace characters unsafe for filenames/logger keys with an underscore."""
+    return _UNSAFE_FILENAME_CHARS.sub("_", text)
 
 
 def to_list(value: str | Sequence[str]) -> list[str]:

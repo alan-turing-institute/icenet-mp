@@ -2,7 +2,12 @@ from pathlib import Path
 
 from icenet_mp.data import SingleDataset
 from icenet_mp.types import Metadata, PlotSpec
-from icenet_mp.utils import datetime_from_npdatetime, iso_from_date, mask_dir
+from icenet_mp.utils import (
+    datetime_from_npdatetime,
+    iso_from_date,
+    mask_dir,
+    sanitise_filename,
+)
 
 from .land_mask import LandMask
 from .panel_renderer import PanelRenderer
@@ -23,11 +28,6 @@ class DatasetMediaWriter:
         output_dir = self.base_path / "data" / "input_plots" / dataset.name
         output_dir.mkdir(parents=True, exist_ok=True)
         return renderer, output_dir
-
-    @staticmethod
-    def _safe_filename(media_title: str, suffix: str) -> str:
-        """Sanitise the title of a piece of media with a suffix to give a filename."""
-        return media_title.replace(":", "_").replace("/", "_") + "." + suffix
 
     def static(
         self,
@@ -60,7 +60,7 @@ class DatasetMediaWriter:
             )
             image.save(
                 output_dir
-                / self._safe_filename(f"{iso_from_date(when)}-{variable_name}", "png")
+                / sanitise_filename(f"{iso_from_date(when)}-{variable_name}.png")
             )
             saved += 1
         return saved
@@ -99,9 +99,8 @@ class DatasetMediaWriter:
                 variable_name=variable_name,
             )
             video_buffer.seek(0)
-            video_path = output_dir / self._safe_filename(
-                f"{iso_from_date(dates[0])}-{variable_name}",
-                renderer.video_format,
+            video_path = output_dir / sanitise_filename(
+                f"{iso_from_date(dates[0])}-{variable_name}.{renderer.video_format}"
             )
             video_path.write_bytes(video_buffer.read())
             saved += 1

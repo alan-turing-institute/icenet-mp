@@ -9,19 +9,18 @@ by selecting the `local_files` logger configuration.
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
 from lightning.pytorch.loggers.logger import Logger
+
+from icenet_mp.utils import sanitise_filename
 
 logger = logging.getLogger(__name__)
 
 
 class LocalFileLogger(Logger):
     """Write metrics, images, and videos to plain files under `save_dir`."""
-
-    UNSAFE_KEY_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
 
     def __init__(
         self, save_dir: str, name: str = "local_files", **_kwargs: Any
@@ -90,7 +89,7 @@ class LocalFileLogger(Logger):
             if not hasattr(image, "save"):
                 logger.warning("Cannot save non-image object for key '%s'.", key)
                 continue
-            image.save(image_dir / f"{call_idx:05d}__{self.sanitise(key)}_{idx}.png")
+            image.save(image_dir / sanitise_filename(f"{call_idx:05d}_{key}_{idx}.png"))
 
     def log_video(
         self,
@@ -112,8 +111,6 @@ class LocalFileLogger(Logger):
         for idx, (video, video_format) in enumerate(zip(videos, formats, strict=True)):
             video.seek(0)
             (
-                video_dir / f"{call_idx:05d}__{self.sanitise(key)}_{idx}.{video_format}"
+                video_dir
+                / sanitise_filename(f"{call_idx:05d}_{key}_{idx}.{video_format}")
             ).write_bytes(video.read())
-
-    def sanitise(self, key: str) -> str:
-        return self.UNSAFE_KEY_CHARS.sub("__", key)
