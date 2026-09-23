@@ -2,26 +2,26 @@ from datetime import datetime
 from io import BytesIO
 from typing import TYPE_CHECKING, Literal
 
-import numpy as np
 from PIL.ImageFile import ImageFile
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 
-from .difference_calculator import DifferenceCalculator
+from .difference_panel import DifferencePanel
 from .land_mask import LandMask
 from .matplotlib_renderer import MatplotlibRenderer
 from .media_annotator import MediaAnnotator
 from .style_resolver import StyleResolver
 
 if TYPE_CHECKING:
+    import numpy as np
     from matplotlib.colors import Normalize
-
-_VIDEO_NDIM = 3
 
 
 class PanelRenderer:
     """Renders styled, land-masked panels for one land_mask/plot_spec pairing."""
+
+    VIDEO_NDIM = 3
 
     def __init__(
         self, land_mask: LandMask, metadata: Metadata, plot_spec: PlotSpec
@@ -30,7 +30,6 @@ class PanelRenderer:
         self.land_mask = land_mask
         self.plot_spec = plot_spec
         self.annotator = MediaAnnotator(metadata, plot_spec)
-        self.diff_calc = DifferenceCalculator(plot_spec.diff_mode)
         self.renderer = MatplotlibRenderer()
         self.resolver = StyleResolver(
             plot_spec.per_variable_styles, plot_spec.colourmap
@@ -39,25 +38,6 @@ class PanelRenderer:
     @property
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
-
-    def _get_difference(
-        self,
-        ground_truth: np.ndarray,
-        prediction: np.ndarray,
-        uncertainty: np.ndarray | None = None,
-    ) -> np.ndarray | None:
-        """Compute a difference between input arrays or return None if not requested."""
-        if not self.plot_spec.include_difference:
-            return None
-
-        # If we have uncertainty data then calculate z-score
-        if uncertainty is not None:
-            return self.diff_calc.standardised_difference(
-                ground_truth, prediction, uncertainty
-            )
-
-        # Otherwise return the signed difference
-        return self.diff_calc.difference(ground_truth, prediction)
 
     def _validate_video_frames(
         self, arrays: list[ArrayTHW], dates: list[datetime]
@@ -71,7 +51,7 @@ class PanelRenderer:
         """
         # Validate that the first array is 3D and has the correct number of frames
         shape = arrays[0].shape
-        if len(shape) != _VIDEO_NDIM or shape[0] != len(dates):
+        if len(shape) != self.VIDEO_NDIM or shape[0] != len(dates):
             msg = (
                 f"Expected a 3D [T, H, W] array with {len(dates)} frames, got {shape}."
             )
@@ -160,23 +140,24 @@ class PanelRenderer:
         vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
         # Optionally add a difference panel
-        if (
-            difference := self._get_difference(
-                masked_ground_truth, masked_prediction, uncertainty
+        if self.plot_spec.include_difference:
+            diff_panel = DifferencePanel(
+                self.plot_spec.diff_mode,
+                masked_ground_truth,
+                masked_prediction,
+                uncertainty,
             )
-        ) is not None:
-            arrays.append(difference)
+            arrays.append(diff_panel.difference)
             titles.append(
                 panel_titles.get(
                     "difference",
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            diff_colour_style = self.diff_calc.colour_style(difference)
-            norms.append(diff_colour_style.norm)
-            cmaps.append(diff_colour_style.cmap)
-            vmins.append(diff_colour_style.bounds()[0])
-            vmaxs.append(diff_colour_style.bounds()[1])
+            norms.append(diff_panel.colour_style.norm)
+            cmaps.append(diff_panel.colour_style.cmap)
+            vmins.append(diff_panel.colour_style.bounds()[0])
+            vmaxs.append(diff_panel.colour_style.bounds()[1])
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:
@@ -296,22 +277,23 @@ class PanelRenderer:
         vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
         # Optionally add a difference panel
-        if (
-            difference := self._get_difference(
-                masked_ground_truth, masked_prediction, uncertainty
+        if self.plot_spec.include_difference:
+            diff_panel = DifferencePanel(
+                self.plot_spec.diff_mode,
+                masked_ground_truth,
+                masked_prediction,
+                uncertainty,
             )
-        ) is not None:
-            arrays.append(difference)
+            arrays.append(diff_panel.difference)
             titles.append(
                 panel_titles.get(
                     "difference",
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            diff_colour_style = self.diff_calc.colour_style(difference)
-            cmaps.append(diff_colour_style.cmap)
-            vmins.append(diff_colour_style.bounds()[0])
-            vmaxs.append(diff_colour_style.bounds()[1])
+            cmaps.append(diff_panel.colour_style.cmap)
+            vmins.append(diff_panel.colour_style.bounds()[0])
+            vmaxs.append(diff_panel.colour_style.bounds()[1])
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:
