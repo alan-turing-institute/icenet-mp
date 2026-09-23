@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation, colormaps
 from matplotlib.axes import Axes
-from matplotlib.colors import Colormap, Normalize
+from matplotlib.colors import Colormap
 from matplotlib.contour import QuadContourSet
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
@@ -200,7 +200,6 @@ class MatplotlibRenderer:
         figure_title: str | None = None,
         footer_text: str | None = None,
         group_axes: tuple[int, int] | None = None,
-        norm: Sequence[Normalize | None] | None = None,
         panel_titles: Sequence[str] | None = None,
         vmax: float | Sequence[float | None] | None = None,
         vmin: float | Sequence[float | None] | None = None,
@@ -218,7 +217,6 @@ class MatplotlibRenderer:
             figure_title: Optional figure-level title drawn above all panels.
             footer_text: Optional footer text drawn below the colourbars.
             group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
-            norm: Optional per-panel `Normalize` that is used instead of `vmin`/`vmax`.
             panel_titles: Optional per-panel title, one per panel.
             vmax: Optional upper colour-scale bound(s), either shared or one per panel.
             vmin: Optional lower colour-scale bound(s), either shared or one per panel.
@@ -247,16 +245,13 @@ class MatplotlibRenderer:
         _ranges = zip(
             list(vmin) if isinstance(vmin, Sequence) else [vmin] * n,
             list(vmax) if isinstance(vmax, Sequence) else [vmax] * n,
-            list(norm) if norm is not None else [None] * n,
             strict=True,
         )
 
         # Render each panel's array with its corresponding colourmap and normalisation
         images = [
-            ax.imshow(array, cmap=_cmap, norm=_norm, origin="upper")
-            if _norm is not None
-            else ax.imshow(array, cmap=_cmap, vmin=_vmin, vmax=_vmax, origin="upper")
-            for ax, array, _cmap, (_vmin, _vmax, _norm) in zip(
+            ax.imshow(array, cmap=_cmap, vmin=_vmin, vmax=_vmax, origin="upper")
+            for ax, array, _cmap, (_vmin, _vmax) in zip(
                 axes, arrays, _cmaps, _ranges, strict=True
             )
         ]
@@ -302,7 +297,6 @@ class MatplotlibRenderer:
         figure_title: str | None = None,
         footer_text: str | None = None,
         group_axes: tuple[int, int] | None = None,
-        norm: Sequence[Normalize | None] | None = None,
         panel_titles: Sequence[str] | None = None,
         vmax: float | Sequence[float | None] | None = None,
         vmin: float | Sequence[float | None] | None = None,
@@ -321,7 +315,6 @@ class MatplotlibRenderer:
             figure_title: Optional figure-level title drawn above all panels.
             footer_text: Optional footer text drawn below the colourbars.
             group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
-            norm: Optional per-panel `Normalize` that is used instead of `vmin`/`vmax`.
             panel_titles: Optional per-panel title, one per panel.
             vmax: Optional upper colour-scale bound(s), either shared or one per panel.
             vmin: Optional lower colour-scale bound(s), either shared or one per panel.
@@ -339,7 +332,6 @@ class MatplotlibRenderer:
             figure_title=figure_title,
             footer_text=footer_text,
             group_axes=group_axes,
-            norm=norm,
             panel_titles=panel_titles,
             vmax=vmax,
             vmin=vmin,

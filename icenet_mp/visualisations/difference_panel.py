@@ -1,10 +1,9 @@
 from functools import cached_property
 
 import numpy as np
-from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import ColourStyle, DiffMode
+from icenet_mp.types import ColourScale, DiffMode
 from icenet_mp.utils import safe_nanmax, safe_nanmin
 
 
@@ -132,17 +131,16 @@ class DifferencePanel:
         return self._diff_mode_difference
 
     @cached_property
-    def colour_style(self) -> ColourStyle:
-        """Construct a ColourStyle for visualising `difference`.
+    def colour_scale(self) -> ColourScale:
+        """Construct a ColourScale for visualising `difference`.
 
-        This generates a ColourStyle object that contains the appropriate
-        normalisation, colour limits, and colourmap for visualising differences
-        between datasets. The behaviour of the colour mapping depends on the
+        This generates a ColourScale object that contains the appropriate
+        colour limits and colourmap for visualising differences between
+        datasets. The behaviour of the colour mapping depends on the
         difference mode bound at construction.
 
         Returns:
-            ColourStyle: Normalisation, colour limits, and colourmap for the
-                difference panel.
+            ColourScale: Colour limits and colourmap for the difference panel.
 
         """
         sample = self.difference
@@ -152,20 +150,17 @@ class DifferencePanel:
             vmin_data = safe_nanmin(sample, default=-1.0)
             vmax_data = safe_nanmax(sample, default=1.0)
             max_abs = max(1.0, abs(vmin_data), abs(vmax_data))
-            vmin, vmax = -max_abs, max_abs
 
-            return ColourStyle(
-                norm=TwoSlopeNorm(vmin=vmin, vcenter=0.0, vmax=vmax),
-                vmin=None,
-                vmax=None,
+            return ColourScale(
+                vmin=-max_abs,
+                vmax=max_abs,
                 cmap="RdBu_r",
             )
 
         # ABSOLUTE or SMAPE: positive-only scale (`difference` above already
         # validates diff_mode, so no other mode can reach this point)
         vmax = max(1e-6, safe_nanmax(sample, default=0.0))
-        return ColourStyle(
-            norm=None,
+        return ColourScale(
             vmin=0.0,
             vmax=vmax,
             cmap="magma",

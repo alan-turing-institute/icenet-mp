@@ -6,7 +6,6 @@ ground-truth/prediction pair.
 
 import numpy as np
 import pytest
-from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import DiffMode
@@ -170,61 +169,59 @@ class TestComputeStandardisedDifference:
 
 class TestMakeDiffColourmap:
     def test_signed(self) -> None:
-        """A signed sample yields a symmetric TwoSlopeNorm around its largest extreme."""
+        """A signed sample yields a symmetric range around its largest extreme."""
         ground_truth = np.array([-2.0, 3.0, 0.5])
         prediction = np.zeros(3)
 
-        spec = DifferencePanel(DiffMode.SIGNED, ground_truth, prediction).colour_style
+        scale = DifferencePanel(DiffMode.SIGNED, ground_truth, prediction).colour_scale
 
-        assert isinstance(spec.norm, TwoSlopeNorm)
-        assert spec.norm.vcenter == pytest.approx(0.0)
-        assert spec.norm.vmin == pytest.approx(-3.0)
-        assert spec.norm.vmax == pytest.approx(3.0)
-        assert spec.vmin is None
-        assert spec.vmax is None
-        assert spec.cmap == "RdBu_r"
+        assert scale.vmin == pytest.approx(-3.0)
+        assert scale.vmax == pytest.approx(3.0)
+        assert scale.cmap == "RdBu_r"
 
     def test_signed_below_one_still_uses_unit_floor(self) -> None:
         """A small-magnitude sample still gets at least a +/-1 symmetric range."""
         ground_truth = np.array([0.1])
         prediction = np.zeros(1)
 
-        spec = DifferencePanel(DiffMode.SIGNED, ground_truth, prediction).colour_style
+        scale = DifferencePanel(DiffMode.SIGNED, ground_truth, prediction).colour_scale
 
-        assert isinstance(spec.norm, TwoSlopeNorm)
-        assert spec.norm.vmin == pytest.approx(-1.0)
-        assert spec.norm.vmax == pytest.approx(1.0)
+        assert scale.vmin == pytest.approx(-1.0)
+        assert scale.vmax == pytest.approx(1.0)
 
     def test_absolute(self) -> None:
         """Absolute mode sets vmax from the difference array's max."""
         ground_truth = np.array([0.1, 0.9, 0.4])
         prediction = np.zeros(3)
 
-        spec = DifferencePanel(DiffMode.ABSOLUTE, ground_truth, prediction).colour_style
+        scale = DifferencePanel(
+            DiffMode.ABSOLUTE, ground_truth, prediction
+        ).colour_scale
 
-        assert spec.norm is None
-        assert spec.vmin == pytest.approx(0.0)
-        assert spec.vmax == pytest.approx(0.9)
-        assert spec.cmap == "magma"
+        assert scale.vmin == pytest.approx(0.0)
+        assert scale.vmax == pytest.approx(0.9)
+        assert scale.cmap == "magma"
 
     def test_smape(self) -> None:
         """SMAPE mode behaves like absolute mode."""
         ground_truth = np.array([0.2, 0.6])
         prediction = np.zeros(2)
 
-        spec = DifferencePanel(DiffMode.SMAPE, ground_truth, prediction).colour_style
+        scale = DifferencePanel(DiffMode.SMAPE, ground_truth, prediction).colour_scale
 
-        assert spec.vmin == pytest.approx(0.0)
-        assert spec.cmap == "magma"
+        assert scale.vmin == pytest.approx(0.0)
+        assert scale.cmap == "magma"
 
     def test_vmax_floor_avoids_zero_width_range(self) -> None:
         """An all-zero difference array still yields a strictly positive vmax."""
         ground_truth = np.zeros(3)
         prediction = np.zeros(3)
 
-        spec = DifferencePanel(DiffMode.ABSOLUTE, ground_truth, prediction).colour_style
+        scale = DifferencePanel(
+            DiffMode.ABSOLUTE, ground_truth, prediction
+        ).colour_scale
 
-        assert spec.vmax == pytest.approx(1e-6)
+        assert scale.vmax == pytest.approx(1e-6)
 
     def test_invalid_mode_raises(self) -> None:
         """An unrecognised mode raises ValueError."""
@@ -233,17 +230,16 @@ class TestMakeDiffColourmap:
                 "dummy",  # type: ignore[arg-type]
                 np.zeros(2),
                 np.zeros(2),
-            ).colour_style
+            ).colour_scale
 
     def test_colours_standardised_difference_when_uncertainty_given(self) -> None:
-        """colour_style scales against the standardised difference, not the raw one."""
+        """colour_scale scales against the standardised difference, not the raw one."""
         ground_truth = np.array([[10.0]])
         prediction = np.array([[0.0]])
         uncertainty = np.array([[2.0]])
 
-        spec = DifferencePanel(
+        scale = DifferencePanel(
             DiffMode.SIGNED, ground_truth, prediction, uncertainty
-        ).colour_style
+        ).colour_scale
 
-        assert isinstance(spec.norm, TwoSlopeNorm)
-        assert spec.norm.vmax == pytest.approx(5.0)
+        assert scale.vmax == pytest.approx(5.0)

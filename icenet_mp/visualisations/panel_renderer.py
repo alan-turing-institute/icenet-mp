@@ -15,7 +15,6 @@ from .style_resolver import StyleResolver
 
 if TYPE_CHECKING:
     import numpy as np
-    from matplotlib.colors import Normalize
 
 
 class PanelRenderer:
@@ -82,15 +81,15 @@ class PanelRenderer:
 
         """
         masked_values = self.land_mask.apply_to(values)
-        style = self.resolver.style_for_variable(variable_name)
-        title = self.annotator.title_for_variable(variable_name, when, style.units)
+        scale = self.resolver.colour_scale(variable_name)
+        title = self.annotator.title_for_variable(variable_name, when, scale.units)
         return self.renderer.panels_static(
             [masked_values],
-            cmap=style.cmap,
+            cmap=scale.cmap,
             dpi=self.plot_spec.dpi,
             figure_title=title,
-            vmax=style.vmax,
-            vmin=style.vmin,
+            vmax=scale.vmax,
+            vmin=scale.vmin,
         )
 
     def static_triplet(
@@ -135,7 +134,6 @@ class PanelRenderer:
             self.plot_spec.colourmap,
             self.plot_spec.colourmap,
         ]
-        norms: list[Normalize | None] = [None, None]
         vmins: list[float | None] = [self.plot_spec.vmin, self.plot_spec.vmin]
         vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
 
@@ -154,10 +152,9 @@ class PanelRenderer:
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            norms.append(diff_panel.colour_style.norm)
-            cmaps.append(diff_panel.colour_style.cmap)
-            vmins.append(diff_panel.colour_style.bounds()[0])
-            vmaxs.append(diff_panel.colour_style.bounds()[1])
+            cmaps.append(diff_panel.colour_scale.cmap)
+            vmins.append(diff_panel.colour_scale.vmin)
+            vmaxs.append(diff_panel.colour_scale.vmax)
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:
@@ -177,7 +174,6 @@ class PanelRenderer:
             group_axes=(0, 1)
             if self.plot_spec.include_difference or uncertainty is not None
             else None,
-            norm=norms,
             panel_titles=titles,
             vmax=vmaxs,
             vmin=vmins,
@@ -208,21 +204,21 @@ class PanelRenderer:
         """
         self._validate_video_frames([values], dates)
         masked_values = self.land_mask.apply_to(values)
-        style = self.resolver.style_for_variable(variable_name)
+        scale = self.resolver.colour_scale(variable_name)
 
         def title_for_frame(tt: int) -> str:
             return self.annotator.title_for_variable(
-                variable_name, dates[tt], style.units
+                variable_name, dates[tt], scale.units
             )
 
         return self.renderer.panels_video(
             [masked_values],
-            cmap=style.cmap,
+            cmap=scale.cmap,
             dpi=self.plot_spec.dpi,
             figure_title=title_for_frame,
             fps=self.plot_spec.video_fps,
-            vmax=style.vmax,
-            vmin=style.vmin,
+            vmax=scale.vmax,
+            vmin=scale.vmin,
             video_format=self.video_format,
         )
 
@@ -291,9 +287,9 @@ class PanelRenderer:
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            cmaps.append(diff_panel.colour_style.cmap)
-            vmins.append(diff_panel.colour_style.bounds()[0])
-            vmaxs.append(diff_panel.colour_style.bounds()[1])
+            cmaps.append(diff_panel.colour_scale.cmap)
+            vmins.append(diff_panel.colour_scale.vmin)
+            vmaxs.append(diff_panel.colour_scale.vmax)
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:

@@ -3,7 +3,6 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Self, cast
 
 import numpy as np
-from matplotlib.colors import Normalize
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
@@ -50,16 +49,14 @@ class DataSpace:
 
 
 @dataclass(frozen=True)
-class ColourStyle:
+class ColourScale:
     """Specify how to colour a rendered panel, for a variable or a difference.
 
     Attributes:
         cmap: Matplotlib colourmap name (e.g., "viridis", "RdBu_r").
-        vmin: Lower bound for the colour scale if no norm is provided.
-        vmax: Upper bound for the colour scale if no norm is provided.
+        vmin: Lower bound for the colour scale.
+        vmax: Upper bound for the colour scale.
         units: Display units for the variable (e.g., "K", "m/s").
-        norm: Normalisation for mapping values to colours (e.g. TwoSlopeNorm for signed
-            diffs), overriding vmin/vmax when present.
 
     """
 
@@ -67,19 +64,6 @@ class ColourStyle:
     vmin: float | None = None
     vmax: float | None = None
     units: str | None = None
-    norm: Normalize | None = None
-
-    def bounds(self) -> tuple[float | None, float | None]:
-        """Resolve the effective (vmin, vmax).
-
-        A diverging scale (mode "signed") carries its bounds on `norm`; a sequential
-        scale (mode "absolute"/"smape") carries them directly as `vmin`/`vmax`. Callers
-        that only need plain bounds (e.g. to hand to `MatplotlibRenderer`) do not need
-        to know which encoding is used.
-        """
-        if self.norm is not None:
-            return self.norm.vmin, self.norm.vmax
-        return self.vmin, self.vmax
 
 
 @dataclass(frozen=True)

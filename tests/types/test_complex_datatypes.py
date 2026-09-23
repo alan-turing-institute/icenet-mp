@@ -1,10 +1,9 @@
 import pytest
 import torch
-from matplotlib.colors import Normalize, TwoSlopeNorm
 from omegaconf import DictConfig
 
 from icenet_mp.types import (
-    ColourStyle,
+    ColourScale,
     DataSpace,
     Hemisphere,
     ModelStepOutput,
@@ -45,40 +44,20 @@ class TestDataSpace:
         assert tuple(result.shape) == (32, 48)
 
 
-class TestColourStyle:
-    """Tests for ColourStyle."""
+class TestColourScale:
+    """Tests for ColourScale."""
 
-    def test_preserves_normalisation_and_bounds(self) -> None:
-        """Preserve normalisation, bounds and colourmap configuration."""
-        norm = Normalize(vmin=-1.0, vmax=1.0)
+    def test_preserves_bounds_and_colourmap(self) -> None:
+        """Preserve bounds and colourmap configuration."""
+        spec = ColourScale(vmin=-1.0, vmax=1.0, cmap="coolwarm")
 
-        spec = ColourStyle(norm=norm, vmin=None, vmax=None, cmap="coolwarm")
-
-        assert spec.norm is norm
-        assert spec.vmin is None
-        assert spec.vmax is None
+        assert spec.vmin == pytest.approx(-1.0)
+        assert spec.vmax == pytest.approx(1.0)
         assert spec.cmap == "coolwarm"
 
-    def test_bounds_reads_from_norm_when_present(self) -> None:
-        """A diverging (signed) colourmap's bounds come from its norm."""
-        spec = ColourStyle(
-            norm=TwoSlopeNorm(vmin=-2.5, vcenter=0.0, vmax=2.5),
-            vmin=None,
-            vmax=None,
-            cmap="RdBu_r",
-        )
-
-        assert spec.bounds() == (pytest.approx(-2.5), pytest.approx(2.5))
-
-    def test_bounds_reads_explicit_bounds_when_no_norm(self) -> None:
-        """A sequential (absolute/smape) colourmap's bounds come from vmin/vmax directly."""
-        spec = ColourStyle(norm=None, vmin=0.0, vmax=0.75, cmap="magma")
-
-        assert spec.bounds() == (pytest.approx(0.0), pytest.approx(0.75))
-
     def test_defaults_to_no_units(self) -> None:
-        """A ColourStyle built without units (e.g. for a difference panel) defaults to None."""
-        spec = ColourStyle(cmap="viridis")
+        """A ColourScale built without units (e.g. for a difference panel) defaults to None."""
+        spec = ColourScale(cmap="viridis")
 
         assert spec.units is None
 

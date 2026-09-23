@@ -9,7 +9,7 @@ from .annotations import (
     TensorNTCHW,
 )
 from .complex_datatypes import (
-    ColourStyle,
+    ColourScale,
     DataSpace,
     Metadata,
     ModelStepOutput,
@@ -55,7 +55,7 @@ __all__ = [
     "ArrayTCHW",
     "ArrayTHW",
     "BetaSchedule",
-    "ColourStyle",
+    "ColourScale",
     "DataSpace",
     "DataloaderArgs",
     "DiffMode",

@@ -2,7 +2,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from icenet_mp.types import ColourStyle
+from icenet_mp.types import ColourScale
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +82,10 @@ class StyleResolver:
                     return spec
         return None
 
-    def style_for_variable(self, var_name: str) -> ColourStyle:
-        """Resolve variable style, falling back to the default colourmap if needed."""
+    def colour_scale(self, var_name: str) -> ColourScale:
+        """Construct a ColourScale for this variable, with a default cmap fallback."""
         spec = self._match(var_name) or {}
-        return ColourStyle(
+        return ColourScale(
             cmap=spec.get("cmap") or self._default_cmap,
             vmin=spec.get("vmin"),
             vmax=spec.get("vmax"),
