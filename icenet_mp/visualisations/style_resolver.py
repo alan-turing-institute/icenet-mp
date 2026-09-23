@@ -4,7 +4,7 @@ from typing import Any
 
 from icenet_mp.types import ColourScale
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class StyleResolver:
@@ -14,72 +14,37 @@ class StyleResolver:
         self, styles: Mapping[str, Mapping[str, Any]] | None, default_cmap: str
     ) -> None:
         """Construct a StyleResolver from a dict with a default colourmap."""
+        if not isinstance(styles, Mapping):
+            log.warning("styles is a %s not a Mapping", type(styles))
+            styles = {}
         self._styles = styles
         self._default_cmap = default_cmap
-
-    @staticmethod
-    def _normalise(name: str) -> str:
-        """Normalise separators in a variable name so config keys match consistently.
-
-        'era5__2t' and 'era5-2t' both normalise to 'era5:2t'.
-        """
-        # Convert double-underscore to colon (this maps 'era5__2t' -> 'era5:2t')
-        name = name.replace("__", ":")
-        # Treat hyphens as separators too: 'era5-2t' -> 'era5:2t'
-        name = name.replace("-", ":")
-        # Collapse accidental repeated '::' to single ':'
-        while "::" in name:
-            name = name.replace("::", ":")
-        # Keep single underscores (they are meaningful in some variable names)
-        return name
 
     def _match(self, var_name: str) -> Mapping[str, Any] | None:
         """Return the best matched style config for a variable from the bound dict.
 
         Matching priority:
-          1) exact key (raw, then with separators normalised)
+          1) exact key
           2) wildcard prefix key ending with '*'
           3) _default
           4) no match (None)
         """
-        if not self._styles or not isinstance(self._styles, Mapping):
-            logger.debug(
-                "StyleResolver: styles is a %s not a Mapping",
-                type(self._styles),
-            )
-            return None
+        candidates = (
+            self._styles.get(var_name),
+            self._wildcard_match(var_name),
+            self._styles.get("_default"),
+        )
+        return next((spec for spec in candidates if isinstance(spec, Mapping)), None)
 
-        norm_var = self._normalise(var_name)
-        spec: Mapping[str, Any] | None
-        for key in dict.fromkeys((var_name, norm_var)):
-            spec = self._styles.get(key)
-            if isinstance(spec, Mapping):
-                return spec
-
-        if (spec := self._wildcard_match(var_name, norm_var)) is not None:
-            return spec
-
-        spec = self._styles.get("_default", None)
-        return spec if isinstance(spec, Mapping) else None
-
-    def _wildcard_match(self, var_name: str, norm_var: str) -> Mapping[str, Any] | None:
+    def _wildcard_match(self, var_name: str) -> Mapping[str, Any] | None:
         """Scan wildcard-suffixed keys (e.g. 'era5:*') for a prefix match."""
-        if not self._styles:
-            return None
-
-        for key in self._styles:
+        for key, spec in self._styles.items():
             if not (isinstance(key, str) and key.endswith("*")):
                 continue
             prefix = key[:-1]
-            prefix_norm = self._normalise(prefix)
-            # If prefix_norm is empty (user wrote '*' only) skip it
-            if not prefix_norm:
-                continue
-            # Compare against both raw and normalised var names
-            if var_name.startswith(prefix) or norm_var.startswith(prefix_norm):
-                spec = self._styles.get(key, None)
-                if isinstance(spec, Mapping):
-                    return spec
+            # If prefix is empty (user wrote '*' only) skip it
+            if prefix and var_name.startswith(prefix) and isinstance(spec, Mapping):
+                return spec
         return None
 
     def colour_scale(self, var_name: str) -> ColourScale:

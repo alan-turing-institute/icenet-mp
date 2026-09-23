@@ -31,30 +31,13 @@ class TestStyleForVariable:
 
         assert scale.cmap == DEFAULT_CMAP
 
-    def test_double_underscore_normalises_to_colon(self) -> None:
-        """'era5__2t' normalises to 'era5:2t' and matches that style key."""
+    def test_unnormalised_name_does_not_match(self) -> None:
+        """A variable name spelled differently from the style key does not match."""
         styles = {"era5:2t": {"cmap": "RdBu_r", "units": "K"}}
 
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("era5__2t")
+        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("era5-2t")
 
-        assert scale.cmap == "RdBu_r"
-        assert scale.units == "K"
-
-    def test_hyphen_normalises_to_colon(self) -> None:
-        """'era5-2t' normalises to 'era5:2t' and matches that style key."""
-        styles = {"era5:2t": {"cmap": "RdBu_r", "units": "K"}}
-
-        style = StyleResolver(styles, DEFAULT_CMAP).colour_scale("era5-2t")
-
-        assert style.cmap == "RdBu_r"
-
-    def test_repeated_colons_collapse(self) -> None:
-        """A variable name normalising to repeated ':' collapses to a single ':'."""
-        styles = {"era5:2t": {"cmap": "RdBu_r"}}
-
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("era5__-2t")
-
-        assert scale.cmap == "RdBu_r"
+        assert scale.cmap == DEFAULT_CMAP
 
     def test_default_fallback(self) -> None:
         """An unmatched variable name falls back to the '_default' style."""
