@@ -8,7 +8,6 @@ from PIL.ImageFile import ImageFile
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
 
-from .colour_scale import ColourScale
 from .difference_calculator import DifferenceCalculator
 from .land_mask import LandMask
 from .matplotlib_renderer import MatplotlibRenderer
@@ -31,8 +30,7 @@ class PanelRenderer:
         self.land_mask = land_mask
         self.plot_spec = plot_spec
         self.annotator = MediaAnnotator(metadata, plot_spec)
-        self.colour_scale = ColourScale(plot_spec.diff_mode)
-        self.difference_calculator = DifferenceCalculator(plot_spec.diff_mode)
+        self.diff_calc = DifferenceCalculator(plot_spec.diff_mode)
         self.renderer = MatplotlibRenderer()
         self.resolver = StyleResolver(
             plot_spec.per_variable_styles, plot_spec.colourmap
@@ -54,12 +52,12 @@ class PanelRenderer:
 
         # If we have uncertainty data then calculate z-score
         if uncertainty is not None:
-            return self.difference_calculator.standardised_difference(
+            return self.diff_calc.standardised_difference(
                 ground_truth, prediction, uncertainty
             )
 
         # Otherwise return the signed difference
-        return self.difference_calculator.difference(ground_truth, prediction)
+        return self.diff_calc.difference(ground_truth, prediction)
 
     def _validate_video_frames(
         self, arrays: list[ArrayTHW], dates: list[datetime]
@@ -174,11 +172,11 @@ class PanelRenderer:
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            diff_colour_scale = self.colour_scale.diff_colourmap(difference)
-            norms.append(diff_colour_scale.norm)
-            cmaps.append(diff_colour_scale.cmap)
-            vmins.append(diff_colour_scale.bounds()[0])
-            vmaxs.append(diff_colour_scale.bounds()[1])
+            diff_colour_style = self.diff_calc.colour_style(difference)
+            norms.append(diff_colour_style.norm)
+            cmaps.append(diff_colour_style.cmap)
+            vmins.append(diff_colour_style.bounds()[0])
+            vmaxs.append(diff_colour_style.bounds()[1])
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:
@@ -310,10 +308,10 @@ class PanelRenderer:
                     f"{self.plot_spec.title_difference} ({self.plot_spec.diff_mode})",
                 )
             )
-            diff_colour_scale = self.colour_scale.diff_colourmap(difference)
-            cmaps.append(diff_colour_scale.cmap)
-            vmins.append(diff_colour_scale.bounds()[0])
-            vmaxs.append(diff_colour_scale.bounds()[1])
+            diff_colour_style = self.diff_calc.colour_style(difference)
+            cmaps.append(diff_colour_style.cmap)
+            vmins.append(diff_colour_style.bounds()[0])
+            vmaxs.append(diff_colour_style.bounds()[1])
 
         contour_arrays: list[np.ndarray | None] | None = None
         if self.plot_spec.include_ice_edge:

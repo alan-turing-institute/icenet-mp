@@ -6,6 +6,7 @@ ground-truth/prediction pair.
 
 import numpy as np
 import pytest
+from matplotlib.colors import TwoSlopeNorm
 
 from icenet_mp.exceptions import InvalidArrayError
 from icenet_mp.types import DiffMode
@@ -21,23 +22,23 @@ class TestComputeDifference:
     def test_signed(self) -> None:
         """Signed difference is ground_truth - prediction."""
         result = DifferenceCalculator(DiffMode.SIGNED).difference(
-            self.ground_truth, self.prediction, DiffMode.SIGNED
+            self.ground_truth, self.prediction
         )
 
         np.testing.assert_allclose(result, [[0.5, -0.5], [1.0, -1.0]])
 
     def test_absolute(self) -> None:
         """Absolute difference is |ground_truth - prediction|."""
-        result = DifferenceCalculator(DiffMode.SIGNED).difference(
-            self.ground_truth, self.prediction, DiffMode.ABSOLUTE
+        result = DifferenceCalculator(DiffMode.ABSOLUTE).difference(
+            self.ground_truth, self.prediction
         )
 
         np.testing.assert_allclose(result, [[0.5, 0.5], [1.0, 1.0]])
 
     def test_smape(self) -> None:
         """SMAPE difference normalises the absolute error by the mean magnitude."""
-        result = DifferenceCalculator(DiffMode.SIGNED).difference(
-            self.ground_truth, self.prediction, DiffMode.SMAPE
+        result = DifferenceCalculator(DiffMode.SMAPE).difference(
+            self.ground_truth, self.prediction
         )
 
         expected = np.array(
@@ -53,8 +54,8 @@ class TestComputeDifference:
         ground_truth = np.array([0.0])
         prediction = np.array([0.0])
 
-        result = DifferenceCalculator(DiffMode.SIGNED).difference(
-            ground_truth, prediction, DiffMode.SMAPE
+        result = DifferenceCalculator(DiffMode.SMAPE).difference(
+            ground_truth, prediction
         )
 
         assert np.isfinite(result).all()
@@ -69,11 +70,10 @@ class TestComputeDifference:
 
     def test_invalid_mode_raises(self) -> None:
         """An unrecognised difference mode raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid difference mode"):
-            DifferenceCalculator(DiffMode.SIGNED).difference(
+        with pytest.raises(ValueError, match="Unknown difference mode: dummy"):
+            DifferenceCalculator("dummy").difference(  # type: ignore[arg-type]
                 self.ground_truth,
                 self.prediction,
-                "bogus",  # type: ignore[arg-type]
             )
 
     def test_uses_mode_bound_at_construction_when_not_overridden(self) -> None:
@@ -83,14 +83,6 @@ class TestComputeDifference:
         )
 
         np.testing.assert_allclose(result, [[0.5, -0.5], [1.0, -1.0]])
-
-    def test_per_call_mode_overrides_construction_default(self) -> None:
-        """An explicit per-call diff_mode takes precedence over the bound default."""
-        result = DifferenceCalculator(DiffMode.SIGNED).difference(
-            self.ground_truth, self.prediction, DiffMode.ABSOLUTE
-        )
-
-        np.testing.assert_allclose(result, [[0.5, 0.5], [1.0, 1.0]])
 
 
 class TestComputeStandardisedDifference:
@@ -151,3 +143,85 @@ class TestComputeStandardisedDifference:
 
         assert result.shape == (2, 2, 2)
         np.testing.assert_allclose(result, 2.0)
+
+
+class TestMakeDiffColourmap:
+    def test_signed_scalar(self) -> None:
+        """A scalar sample yields a symmetric TwoSlopeNorm around zero."""
+        spec = DifferenceCalculator(DiffMode.SIGNED).colour_style(2.5)
+
+        assert isinstance(spec.norm, TwoSlopeNorm)
+        assert spec.norm.vcenter == pytest.approx(0.0)
+        assert spec.norm.vmin == pytest.approx(-2.5)
+        assert spec.norm.vmax == pytest.approx(2.5)
+        assert spec.vmin is None
+        assert spec.vmax is None
+        assert spec.cmap == "RdBu_r"
+
+    def test_signed_scalar_below_one_still_uses_unit_floor(self) -> None:
+        """A small scalar sample still gets at least a +/-1 symmetric range."""
+        spec = DifferenceCalculator(DiffMode.SIGNED).colour_style(0.1)
+
+        assert isinstance(spec.norm, TwoSlopeNorm)
+        assert spec.norm.vmin == pytest.approx(-1.0)
+        assert spec.norm.vmax == pytest.approx(1.0)
+
+    def test_signed_array(self) -> None:
+        """An array sample uses the largest absolute extreme for a symmetric range."""
+        sample = np.array([-2.0, 3.0, 0.5])
+
+        spec = DifferenceCalculator(DiffMode.SIGNED).colour_style(sample)
+
+        assert isinstance(spec.norm, TwoSlopeNorm)
+        assert spec.norm.vmin == pytest.approx(-3.0)
+        assert spec.norm.vmax == pytest.approx(3.0)
+        assert spec.cmap == "RdBu_r"
+
+    def test_absolute_scalar(self) -> None:
+        """A scalar sample for absolute mode sets vmax directly."""
+        spec = DifferenceCalculator(DiffMode.ABSOLUTE).colour_style(0.75)
+
+        assert spec.norm is None
+        assert spec.vmin == pytest.approx(0.0)
+        assert spec.vmax == pytest.approx(0.75)
+        assert spec.cmap == "magma"
+
+    def test_absolute_array(self) -> None:
+        """An array sample for absolute mode sets vmax from the array's max."""
+        sample = np.array([0.1, 0.9, 0.4])
+
+        spec = DifferenceCalculator(DiffMode.ABSOLUTE).colour_style(sample)
+
+        assert spec.norm is None
+        assert spec.vmin == pytest.approx(0.0)
+        assert spec.vmax == pytest.approx(0.9)
+        assert spec.cmap == "magma"
+
+    def test_smape_scalar(self) -> None:
+        """SMAPE mode behaves like absolute mode for a scalar sample."""
+        spec = DifferenceCalculator(DiffMode.SMAPE).colour_style(1.5)
+
+        assert spec.norm is None
+        assert spec.vmin == pytest.approx(0.0)
+        assert spec.vmax == pytest.approx(1.5)
+        assert spec.cmap == "magma"
+
+    def test_smape_array(self) -> None:
+        """SMAPE mode behaves like absolute mode for an array sample."""
+        sample = np.array([0.2, 0.6])
+
+        spec = DifferenceCalculator(DiffMode.SMAPE).colour_style(sample)
+
+        assert spec.vmax == pytest.approx(0.6)
+        assert spec.cmap == "magma"
+
+    def test_vmax_floor_avoids_zero_width_range(self) -> None:
+        """A zero (or negative) sample still yields a strictly positive vmax."""
+        spec = DifferenceCalculator(DiffMode.ABSOLUTE).colour_style(0.0)
+
+        assert spec.vmax == pytest.approx(1e-6)
+
+    def test_invalid_mode_raises(self) -> None:
+        """An unrecognised mode raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown difference mode: dummy"):
+            DifferenceCalculator("dummy").colour_style(1.0)  # type: ignore[arg-type]
