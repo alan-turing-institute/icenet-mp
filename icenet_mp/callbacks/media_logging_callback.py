@@ -233,7 +233,10 @@ class MediaLoggingCallback(Callback):
 
         # Load dates from the dataset
         start_date = dataset.dates[batch_size * self.cached_batch_idx_]
-        dates = list(
+        history_dates = list(
+            map(datetime_from_npdatetime, dataset.get_history_steps(start_date))
+        )
+        forecast_dates = list(
             map(datetime_from_npdatetime, dataset.get_forecast_steps(start_date))
         )
 
@@ -249,37 +252,39 @@ class MediaLoggingCallback(Callback):
         channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
 
         # Load uncertainties
-        uncertainties = self.load_target_uncertainties(dataset, dates)
+        uncertainties = self.load_target_uncertainties(dataset, forecast_dates)
         climatology_tchw = dataset.climatology_for(start_date)
 
         if self.make_static_plots:
             publisher.log_static_outputs(
                 self.cached_outputs_,
-                dates,
                 image_loggers,
                 channel_names=channel_names,
                 climatology=climatology_tchw,
+                forecast_dates=forecast_dates,
+                history_dates=history_dates,
                 prefix=self.prefix,
                 uncertainties=uncertainties,
             )
             if self.make_input_plots:
                 publisher.log_static_inputs(
-                    dataset.inputs, dates, image_loggers, prefix=self.prefix
+                    dataset.inputs, forecast_dates, image_loggers, prefix=self.prefix
                 )
 
         if self.make_video_plots:
             publisher.log_video_outputs(
                 self.cached_outputs_,
-                dates,
                 video_loggers,
                 channel_names=channel_names,
                 climatology=climatology_tchw,
+                forecast_dates=forecast_dates,
+                history_dates=history_dates,
                 prefix=self.prefix,
                 uncertainties=uncertainties,
             )
             if self.make_input_plots:
                 publisher.log_video_inputs(
-                    dataset.inputs, dates, video_loggers, prefix=self.prefix
+                    dataset.inputs, forecast_dates, video_loggers, prefix=self.prefix
                 )
 
     def on_batch_end(  # noqa: PLR0913

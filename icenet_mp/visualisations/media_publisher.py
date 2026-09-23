@@ -19,6 +19,7 @@ from icenet_mp.types import (
     PlotSpec,
     SupportsImageLogging,
     SupportsVideoLogging,
+    Timespan,
 )
 from icenet_mp.utils import iso_from_date, npdatetime_from_datetime
 
@@ -80,12 +81,12 @@ class MediaPublisher:
     @staticmethod
     def _render_three_panel_media(
         *,
+        climatology: np.ndarray | None,
         ground_truth: np.ndarray,
         prediction: np.ndarray,
-        variable_name: str,
         render: Callable[..., RenderedMedia],
-        climatology: np.ndarray | None,
         uncertainty: np.ndarray | None,
+        variable_name: str,
         **render_kwargs: object,
     ) -> dict[str, RenderedMedia]:
         """Render the configured three-panel media.
@@ -197,11 +198,12 @@ class MediaPublisher:
     def log_static_outputs(  # noqa: PLR0913
         self,
         outputs: ModelStepOutput,
-        dates: list[datetime],
         image_loggers: list[SupportsImageLogging],
         *,
         channel_names: list[str] | None = None,
         climatology: ArrayTCHW | None = None,
+        forecast_dates: list[datetime],
+        history_dates: list[datetime],
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
     ) -> None:
@@ -212,7 +214,7 @@ class MediaPublisher:
         """
         try:
             log_path = self._log_path(prefix, "output_static")
-            date_key = iso_from_date(dates[self.idx_date])
+            date_key = iso_from_date(forecast_dates[self.idx_date])
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayHW = (
@@ -236,7 +238,8 @@ class MediaPublisher:
                     uncertainty=self._select_uncertainty(
                         uncertainties, idx_channel, self.idx_date
                     ),
-                    when=dates[self.idx_date],
+                    history_ctx=Timespan(start=history_dates[0], end=history_dates[-1]),
+                    forecast_date=forecast_dates[self.idx_date],
                 )
                 images: dict[str, list[ImageFile]] = {
                     f"{date_key}-{variable_name}-{suffix}": [image]
@@ -285,18 +288,19 @@ class MediaPublisher:
     def log_video_outputs(  # noqa: PLR0913
         self,
         outputs: ModelStepOutput,
-        dates: list[datetime],
         video_loggers: list[SupportsVideoLogging],
         *,
         channel_names: list[str] | None = None,
         climatology: ArrayTCHW | None = None,
+        forecast_dates: list[datetime],
+        history_dates: list[datetime],
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
     ) -> None:
         """Create and log output videos."""
         try:
             log_path = self._log_path(prefix, "output_video")
-            date_key = iso_from_date(dates[0])
+            date_key = iso_from_date(forecast_dates[0])
             videos: dict[str, BytesIO] = {}
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
@@ -318,7 +322,10 @@ class MediaPublisher:
                     uncertainty=self._select_uncertainty(
                         uncertainties, idx_channel, None
                     ),
-                    dates=dates,
+                    history_ctx=Timespan(start=history_dates[0], end=history_dates[-1]),
+                    forecast_ctx=Timespan(
+                        start=forecast_dates[0], end=forecast_dates[-1]
+                    ),
                 )
                 videos.update(
                     {

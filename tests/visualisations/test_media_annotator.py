@@ -1,7 +1,6 @@
 from datetime import date, datetime
-from typing import Any
 
-from icenet_mp.types import Hemisphere, Metadata, PlotSpec
+from icenet_mp.types import Hemisphere, Metadata, PlotSpec, Timespan
 from icenet_mp.visualisations.media_annotator import MediaAnnotator
 
 
@@ -12,7 +11,7 @@ class TestFormatTitle:
 
         result = annotator.title_for_variable("2t", date(2020, 1, 1), "K")
 
-        assert result == "2t [K] (North)   Shown: 2020-01-01"
+        assert result == "2t [K] (North) on 2020-01-01"
 
     def test_without_hemisphere_or_units(self) -> None:
         """Omit hemisphere and units segments when neither is given."""
@@ -20,7 +19,7 @@ class TestFormatTitle:
 
         result = annotator.title_for_variable("2t", date(2020, 1, 1), None)
 
-        assert result == "2t   Shown: 2020-01-01"
+        assert result == "2t on 2020-01-01"
 
     def test_accepts_datetime(self) -> None:
         """Accept a datetime and format only its date portion."""
@@ -28,7 +27,7 @@ class TestFormatTitle:
 
         result = annotator.title_for_variable("2t", datetime(2020, 1, 1, 12, 30), None)
 
-        assert result == "2t   Shown: 2020-01-01"
+        assert result == "2t on 2020-01-01"
 
 
 class TestFormattedVariableName:
@@ -46,14 +45,24 @@ class TestFormattedVariableName:
 
 
 class TestBuildTitleVideo:
-    def test_empty_dates_omits_frame_segment(self) -> None:
-        """Omit the 'Frame:' segment entirely when no dates are given."""
-        result = MediaAnnotator(Metadata(), PlotSpec()).title_for_video(
-            "sea_ice_concentration", [], 0
+    def test_advances_forecast_date_by_current_index(self) -> None:
+        """Each frame's title uses forecast_ctx.start + current_index days."""
+        history_ctx = Timespan(start=datetime(2020, 1, 1), end=datetime(2020, 1, 3))
+        forecast_ctx = Timespan(start=datetime(2020, 1, 4), end=datetime(2020, 1, 6))
+        annotator = MediaAnnotator(Metadata(), PlotSpec())
+
+        result = annotator.title_for_video(
+            current_index=2,
+            forecast_ctx=forecast_ctx,
+            history_ctx=history_ctx,
+            variable_name="sea_ice_concentration",
         )
 
-        assert "Frame:" not in result
-        assert result.endswith("Prediction")
+        assert result == annotator.title_for_static(
+            forecast_date=datetime(2020, 1, 6),
+            history_ctx=history_ctx,
+            variable_name="sea_ice_concentration",
+        )
 
 
 class TestBuildFooterStatic:
@@ -74,16 +83,21 @@ class TestBuildFooterVideo:
     def test_includes_metadata_subtitle_alongside_animation_range(self) -> None:
         """Include both the animation range and the metadata subtitle."""
         annotator = MediaAnnotator(Metadata(model="unet"), PlotSpec())
-        dates: list[Any] = [date(2020, 1, 1), date(2020, 1, 5)]
+        forecast_ctx = Timespan(start=datetime(2020, 1, 1), end=datetime(2020, 1, 5))
 
-        result = annotator.footer_for_video(dates)
+        result = annotator.footer_for_video(forecast_ctx)
 
         assert "Animating from 2020-01-01 to 2020-01-05" in result
         assert "Model: unet" in result
 
-    def test_empty_dates_omits_animation_range(self) -> None:
-        """Omit the animation-range line when no dates are given."""
-        assert MediaAnnotator(Metadata(), PlotSpec()).footer_for_video([]) == ""
+    def test_omits_metadata_subtitle_when_absent(self) -> None:
+        """Only the animation-range line appears when there is no metadata."""
+        annotator = MediaAnnotator(Metadata(), PlotSpec())
+        forecast_ctx = Timespan(start=datetime(2020, 1, 1), end=datetime(2020, 1, 5))
+
+        assert annotator.footer_for_video(forecast_ctx) == (
+            "Animating from 2020-01-01 to 2020-01-05"
+        )
 
 
 class TestFormatSubtitle:

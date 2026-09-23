@@ -1,5 +1,6 @@
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from typing import Any, Literal, Self, cast
 
 import numpy as np
@@ -232,3 +233,16 @@ class PlotSpec:
         else:
             dict_other = dict(other)
         return PlotSpec(**(asdict(self) | dict_other))
+
+
+@dataclass(frozen=True)
+class Timespan:
+    """A span of time."""
+
+    start: datetime
+    end: datetime
+
+    @property
+    def days(self) -> int:
+        """Return the size of the timespan in days."""
+        return (self.end - self.start).days + 1

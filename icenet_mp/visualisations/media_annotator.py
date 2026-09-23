@@ -1,8 +1,7 @@
 import logging
-from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
-from icenet_mp.types import Metadata, PlotSpec
+from icenet_mp.types import Metadata, PlotSpec, Timespan
 from icenet_mp.utils import iso_from_date
 
 logger = logging.getLogger(__name__)
@@ -34,13 +33,17 @@ class MediaAnnotator:
             lines.append(subtitle)
         return "\n".join(lines)
 
-    def footer_for_video(self, dates: Sequence[date | datetime]) -> str:
-        """Build footer text for video plots: animation range and metadata."""
-        lines: list[str] = []
-        if dates:
-            start_s = iso_from_date(dates[0])
-            end_s = iso_from_date(dates[-1])
-            lines.append(f"Animating from {start_s} to {end_s}")
+    def footer_for_video(self, forecast_ctx: Timespan) -> str:
+        """Build footer text for video plots: animation range and metadata.
+
+        Lines:
+          1) "Animating from <start> to <end>"
+          2) "Model: <model>  Epoch: <num>  Training Data: <start> — <end> (<cadence>) <num> pts" (optional)
+          3) "Training Data: <source> (<vars>) <source> (<vars>)" (optional)
+        """
+        lines: list[str] = [
+            f"Animating from {iso_from_date(forecast_ctx.start)} to {iso_from_date(forecast_ctx.end)}"
+        ]
         if subtitle := self.subtitle():
             lines.append(subtitle)
         return "\n".join(lines)
@@ -95,21 +98,36 @@ class MediaAnnotator:
 
         return "\n".join(lines) if lines else None
 
-    def title_for_static(self, variable_name: str, when: date | datetime) -> str:
+    def title_for_static(
+        self,
+        *,
+        forecast_date: datetime,
+        history_ctx: Timespan,
+        variable_name: str,
+    ) -> str:
         """Compose a simple title for static plots.
 
         Args:
+            history_ctx: The history context for the model.
+            forecast_date: The date of the forecast.
             variable_name: Variable name.
-            when: Date or datetime of the data.
 
-        Lines:
-          1) "<Variable> (<Hemisphere>)  Shown: YYYY-MM-DD"
-             (Footer contains any metadata such as model/epoch/training data if present)
+        Returns:
+            "<Variable> (<Hemisphere>) Input: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps) Leadtime (+<leadtime> steps) YYYY-MM-DD"
 
         """
         metric = self._format_variable_name(variable_name)
         hemi_suffix = self._hemisphere_suffix()
-        return f"{metric}{hemi_suffix} Prediction   Shown: {iso_from_date(when)}"
+
+        leadtime = (forecast_date - history_ctx.end).days
+
+        return "  ".join(
+            (
+                f"{metric}{hemi_suffix}",
+                f"History: {iso_from_date(history_ctx.start)} - {iso_from_date(history_ctx.end)} ({history_ctx.days} steps)",
+                f"Leadtime (+{leadtime} steps): {iso_from_date(forecast_date)}",
+            )
+        )
 
     def title_for_variable(
         self,
@@ -130,31 +148,31 @@ class MediaAnnotator:
         """
         hemi_suffix = self._hemisphere_suffix()
         units_s = f" [{units}]" if units else ""
-        return f"{variable}{units_s}{hemi_suffix}   Shown: {iso_from_date(when)}"
+        return f"{variable}{units_s}{hemi_suffix} on {iso_from_date(when)}"
 
     def title_for_video(
         self,
-        variable_name: str,
-        dates: Sequence[date | datetime],
+        *,
         current_index: int,
+        forecast_ctx: Timespan,
+        history_ctx: Timespan,
+        variable_name: str,
     ) -> str:
         """Compose a simple title for video plots (date changes per frame).
 
         Args:
+            current_index: The index of the current frame.
+            forecast_ctx: The forecast context for the model.
+            history_ctx: The history context for the model.
             variable_name: Variable name.
-            dates: List of dates for the video frames.
-            current_index: Index of the current frame in the list of dates.
 
-        Lines:
-          1) "<Variable> (<Hemisphere>)  Frame: YYYY-MM-DD"
-          2) Footer: "Animating from <start> to <end>"
-          3) Footer: "Model: <model>  Epoch: <num>  Training Dates: <start> — <end> (<cadence>) <num> pts" (optional)
-          4) Footer: "Training Data: <source> (<vars>) <source> (<vars>)" (optional)
+        Returns:
+            "<Variable> (<Hemisphere>) Input: YYYY-MM-DD - YYYY-MM-DD (<num steps>) Lead (+<leadtime> days) YYYY-MM-DD"
 
         """
-        metric = self._format_variable_name(variable_name)
-        hemi_suffix = self._hemisphere_suffix()
-        if dates:
-            shown = iso_from_date(dates[current_index])
-            return f"{metric}{hemi_suffix} Prediction   Frame: {shown}"
-        return f"{metric}{hemi_suffix} Prediction"
+        forecast_date = forecast_ctx.start + timedelta(days=current_index)
+        return self.title_for_static(
+            forecast_date=forecast_date,
+            history_ctx=history_ctx,
+            variable_name=variable_name,
+        )

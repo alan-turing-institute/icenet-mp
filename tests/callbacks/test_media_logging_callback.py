@@ -564,8 +564,8 @@ class TestMakePlots:
 
         callback.make_plots(trainer, pl_module, dataset, 1)
 
-        assert stubs["log_static_outputs"].call_args[0][2] == [image_logger]
-        assert stubs["log_video_outputs"].call_args[0][2] == [video_logger]
+        assert stubs["log_static_outputs"].call_args[0][1] == [image_logger]
+        assert stubs["log_video_outputs"].call_args[0][1] == [video_logger]
 
 
 class TestOnTestBatchEnd:

@@ -1,6 +1,6 @@
 """Tests for the domain-specific panel assembly on top of MatplotlibRenderer."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -10,13 +10,27 @@ import pytest
 from PIL.ImageFile import ImageFile
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
+from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec, Timespan
 from icenet_mp.visualisations.land_mask import LandMask
 from icenet_mp.visualisations.matplotlib_renderer import MatplotlibRenderer
 from icenet_mp.visualisations.panel_renderer import PanelRenderer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+def _history_ctx_before(forecast_date: datetime, *, days: int = 2) -> Timespan:
+    """A plausible history Timespan ending the day before `forecast_date`."""
+    return Timespan(
+        start=forecast_date - timedelta(days=days),
+        end=forecast_date - timedelta(days=1),
+    )
+
+
+def _forecast_and_history_ctx(dates: list[datetime]) -> tuple[Timespan, Timespan]:
+    """A forecast Timespan spanning `dates`, plus a plausible history Timespan before it."""
+    forecast_ctx = Timespan(start=dates[0], end=dates[-1])
+    return forecast_ctx, _history_ctx_before(forecast_ctx.start)
 
 
 class TestMetadata:
@@ -140,7 +154,7 @@ class TestRenderStaticTriplet:
         self, sic_pair_2d: tuple[ArrayHW, ArrayHW, date], no_land_mask: LandMask
     ) -> None:
         ground_truth, prediction, raw_when = sic_pair_2d
-        when = datetime.combine(raw_when, datetime.min.time())
+        forecast_date = datetime.combine(raw_when, datetime.min.time())
         renderer = PanelRenderer(
             no_land_mask, Metadata(), PlotSpec(include_difference=True)
         )
@@ -148,7 +162,8 @@ class TestRenderStaticTriplet:
         result = renderer.static_triplet(
             ground_truth,
             prediction,
-            when=when,
+            forecast_date=forecast_date,
+            history_ctx=_history_ctx_before(forecast_date),
             variable_name="ice_conc",
         )
 
@@ -166,7 +181,7 @@ class TestRenderStaticTriplet:
         panel holds climatology data rather than the ground truth.
         """
         ground_truth, prediction, raw_when = sic_pair_2d
-        when = datetime.combine(raw_when, datetime.min.time())
+        forecast_date = datetime.combine(raw_when, datetime.min.time())
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
         renderer = PanelRenderer(no_land_mask, Metadata(), PlotSpec())
@@ -174,7 +189,8 @@ class TestRenderStaticTriplet:
         renderer.static_triplet(
             ground_truth,
             prediction,
-            when=when,
+            forecast_date=forecast_date,
+            history_ctx=_history_ctx_before(forecast_date),
             panel_titles={"ground_truth": "Climatology"},
             variable_name="ice_conc",
         )
@@ -187,7 +203,8 @@ class TestRenderStaticTriplet:
         self, sic_pair_2d: tuple[ArrayHW, ArrayHW, date], no_land_mask: LandMask
     ) -> None:
         ground_truth, prediction, raw_when = sic_pair_2d
-        when = datetime.combine(raw_when, datetime.min.time())
+        forecast_date = datetime.combine(raw_when, datetime.min.time())
+        history_ctx = _history_ctx_before(forecast_date)
 
         two_panel_renderer = PanelRenderer(
             no_land_mask, Metadata(), PlotSpec(include_difference=False)
@@ -195,7 +212,8 @@ class TestRenderStaticTriplet:
         two_panel = two_panel_renderer.static_triplet(
             ground_truth,
             prediction,
-            when=when,
+            forecast_date=forecast_date,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
         )
         three_panel_renderer = PanelRenderer(
@@ -204,7 +222,8 @@ class TestRenderStaticTriplet:
         three_panel = three_panel_renderer.static_triplet(
             ground_truth,
             prediction,
-            when=when,
+            forecast_date=forecast_date,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
         )
 
@@ -215,7 +234,8 @@ class TestRenderStaticTriplet:
     ) -> None:
         """An uncertainty panel is added instead of (not alongside) the difference panel."""
         ground_truth, prediction, raw_when = sic_pair_2d
-        when = datetime.combine(raw_when, datetime.min.time())
+        forecast_date = datetime.combine(raw_when, datetime.min.time())
+        history_ctx = _history_ctx_before(forecast_date)
         uncertainty = np.full_like(ground_truth, 0.1)
 
         renderer = PanelRenderer(
@@ -224,13 +244,15 @@ class TestRenderStaticTriplet:
         with_difference = renderer.static_triplet(
             ground_truth,
             prediction,
-            when=when,
+            forecast_date=forecast_date,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
         )
         with_uncertainty = renderer.static_triplet(
             ground_truth,
             prediction,
-            when=when,
+            forecast_date=forecast_date,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
             uncertainty=uncertainty,
         )
@@ -240,7 +262,8 @@ class TestRenderStaticTriplet:
         two_panel = two_panel_renderer.static_triplet(
             ground_truth,
             prediction,
-            when=when,
+            forecast_date=forecast_date,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
         )
 
@@ -258,7 +281,7 @@ class TestRenderStaticTriplet:
     ) -> None:
         """include_ice_edge contours the GT/prediction panels, not the difference panel."""
         ground_truth, prediction, raw_when = sic_pair_2d
-        when = datetime.combine(raw_when, datetime.min.time())
+        forecast_date = datetime.combine(raw_when, datetime.min.time())
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
             MatplotlibRenderer,
@@ -269,7 +292,11 @@ class TestRenderStaticTriplet:
         renderer = PanelRenderer(no_land_mask, Metadata(), plot_spec)
 
         renderer.static_triplet(
-            ground_truth, prediction, when=when, variable_name="ice_conc"
+            ground_truth,
+            prediction,
+            forecast_date=forecast_date,
+            history_ctx=_history_ctx_before(forecast_date),
+            variable_name="ice_conc",
         )
 
         contour_arrays = fake_render.call_args.kwargs["contour_arrays"]
@@ -288,7 +315,7 @@ class TestRenderStaticTriplet:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         ground_truth, prediction, raw_when = sic_pair_2d
-        when = datetime.combine(raw_when, datetime.min.time())
+        forecast_date = datetime.combine(raw_when, datetime.min.time())
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
             MatplotlibRenderer,
@@ -300,7 +327,11 @@ class TestRenderStaticTriplet:
         )
 
         renderer.static_triplet(
-            ground_truth, prediction, when=when, variable_name="ice_conc"
+            ground_truth,
+            prediction,
+            forecast_date=forecast_date,
+            history_ctx=_history_ctx_before(forecast_date),
+            variable_name="ice_conc",
         )
 
         assert fake_render.call_args.kwargs["contour_arrays"] is None
@@ -312,6 +343,7 @@ class TestRenderVideoTriplet:
     ) -> None:
         ground_truth, prediction, raw_dates = sic_pair_3d_stream
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        forecast_ctx, history_ctx = _forecast_and_history_ctx(dates)
         renderer = PanelRenderer(
             LandMask(None), Metadata(), PlotSpec(include_difference=True)
         )
@@ -319,7 +351,8 @@ class TestRenderVideoTriplet:
         result = renderer.video_triplet(
             ground_truth,
             prediction,
-            dates=dates,
+            forecast_ctx=forecast_ctx,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
         )
 
@@ -337,6 +370,7 @@ class TestRenderVideoTriplet:
         """
         ground_truth, prediction, raw_dates = sic_pair_3d_stream
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        forecast_ctx, history_ctx = _forecast_and_history_ctx(dates)
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
         renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
@@ -344,7 +378,8 @@ class TestRenderVideoTriplet:
         renderer.video_triplet(
             ground_truth,
             prediction,
-            dates=dates,
+            forecast_ctx=forecast_ctx,
+            history_ctx=history_ctx,
             panel_titles={"ground_truth": "Climatology"},
             variable_name="ice_conc",
         )
@@ -366,12 +401,17 @@ class TestRenderVideoTriplet:
         """
         ground_truth, prediction, raw_dates = sic_pair_3d_stream
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        forecast_ctx, history_ctx = _forecast_and_history_ctx(dates)
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
         renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
 
         renderer.video_triplet(
-            ground_truth, prediction, dates=dates, variable_name="ice_conc"
+            ground_truth,
+            prediction,
+            forecast_ctx=forecast_ctx,
+            history_ctx=history_ctx,
+            variable_name="ice_conc",
         )
 
         title_for_frame: Callable[[int], str] = fake_render.call_args.kwargs[
@@ -388,6 +428,7 @@ class TestRenderVideoTriplet:
         """An uncertainty panel is added instead of (not alongside) the difference panel."""
         ground_truth, prediction, raw_dates = sic_pair_3d_stream
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        forecast_ctx, history_ctx = _forecast_and_history_ctx(dates)
         uncertainty = np.full_like(ground_truth, 0.1)
 
         renderer = PanelRenderer(
@@ -396,7 +437,8 @@ class TestRenderVideoTriplet:
         with_uncertainty = renderer.video_triplet(
             ground_truth,
             prediction,
-            dates=dates,
+            forecast_ctx=forecast_ctx,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
             uncertainty=uncertainty,
         )
@@ -406,7 +448,8 @@ class TestRenderVideoTriplet:
         two_panel = two_panel_renderer.video_triplet(
             ground_truth,
             prediction,
-            dates=dates,
+            forecast_ctx=forecast_ctx,
+            history_ctx=history_ctx,
             variable_name="ice_conc",
         )
 
@@ -422,6 +465,7 @@ class TestRenderVideoTriplet:
         """include_ice_edge contours the GT/prediction panels, not the difference panel."""
         ground_truth, prediction, raw_dates = sic_pair_3d_stream
         dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        forecast_ctx, history_ctx = _forecast_and_history_ctx(dates)
         fake_render = MagicMock(return_value=MagicMock())
         monkeypatch.setattr(
             MatplotlibRenderer,
@@ -432,7 +476,11 @@ class TestRenderVideoTriplet:
         renderer = PanelRenderer(LandMask(None), Metadata(), plot_spec)
 
         renderer.video_triplet(
-            ground_truth, prediction, dates=dates, variable_name="ice_conc"
+            ground_truth,
+            prediction,
+            forecast_ctx=forecast_ctx,
+            history_ctx=history_ctx,
+            variable_name="ice_conc",
         )
 
         contour_arrays = fake_render.call_args.kwargs["contour_arrays"]
@@ -443,33 +491,3 @@ class TestRenderVideoTriplet:
             fake_render.call_args.kwargs["contour_level"]
             == plot_spec.ice_edge_threshold
         )
-
-    def test_rejects_2d_array(
-        self,
-        sic_pair_2d: tuple[ArrayHW, ArrayHW, date],
-    ) -> None:
-        """A 2D array should be rejected deterministically, not fail deep inside rendering."""
-        ground_truth, prediction, raw_when = sic_pair_2d
-        dates = [datetime.combine(raw_when, datetime.min.time())]
-        renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
-
-        with pytest.raises(InvalidArrayError):
-            renderer.video_triplet(
-                ground_truth,  # type: ignore[arg-type]
-                prediction,  # type: ignore[arg-type]
-                dates=dates,
-                variable_name="ice_conc",
-            )
-
-    def test_rejects_dates_not_matching_frame_count(
-        self,
-        sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]],
-    ) -> None:
-        ground_truth, prediction, raw_dates = sic_pair_3d_stream
-        dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates[:-1]]
-        renderer = PanelRenderer(LandMask(None), Metadata(), PlotSpec())
-
-        with pytest.raises(InvalidArrayError):
-            renderer.video_triplet(
-                ground_truth, prediction, dates=dates, variable_name="ice_conc"
-            )

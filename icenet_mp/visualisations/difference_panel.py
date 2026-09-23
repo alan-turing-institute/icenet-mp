@@ -3,7 +3,7 @@ from functools import cached_property
 import numpy as np
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import ColourScale, DiffMode
+from icenet_mp.types import ArrayHW, ArrayTHW, ColourScale, DiffMode
 from icenet_mp.utils import safe_nanmax, safe_nanmin
 
 
@@ -17,7 +17,7 @@ class DifferencePanel:
         diff_mode: DiffMode,
         ground_truth: np.ndarray,
         prediction: np.ndarray,
-        uncertainty: np.ndarray | None = None,
+        uncertainty: ArrayHW | ArrayTHW | None = None,
     ) -> None:
         """Initialise a DifferencePanel for one ground-truth/prediction pair.
 

@@ -14,6 +14,7 @@ from .complex_datatypes import (
     Metadata,
     ModelStepOutput,
     PlotSpec,
+    Timespan,
 )
 from .constants import SEA_ICE_THRESHOLD
 from .enums import (
@@ -72,4 +73,5 @@ __all__ = [
     "SupportsVideoLogging",
     "TensorNCHW",
     "TensorNTCHW",
+    "Timespan",
 ]

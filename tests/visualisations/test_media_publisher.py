@@ -23,7 +23,8 @@ N_CHANNELS = 2
 HEIGHT = 4
 WIDTH = 4
 
-TEST_DATES = [datetime(2020, 1, 1), datetime(2020, 1, 2)]
+FORECAST_DATES = [datetime(2020, 1, 1), datetime(2020, 1, 2)]
+HISTORY_DATES = [datetime(2019, 12, 30), datetime(2019, 12, 31)]
 
 
 def fake_single_dataset() -> SingleDataset:
@@ -212,7 +213,7 @@ class TestLogStaticInputs:
             plot_spec=PlotSpec(),
         )
         media_publisher.log_static_inputs(
-            [fake_single_dataset()], TEST_DATES, [image_logger], prefix="validation"
+            [fake_single_dataset()], FORECAST_DATES, [image_logger], prefix="validation"
         )
 
         assert fake_render.call_count == N_CHANNELS
@@ -244,7 +245,7 @@ class TestLogStaticInputs:
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_inputs(
-                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+                [fake_single_dataset()], FORECAST_DATES, [MagicMock()]
             )
 
         assert "Image logging failed: bad array" in caplog.text
@@ -268,7 +269,7 @@ class TestLogStaticInputs:
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_inputs(
-                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+                [fake_single_dataset()], FORECAST_DATES, [MagicMock()]
             )
 
         assert "Image logging failed: bad shape" in caplog.text
@@ -288,9 +289,10 @@ class TestLogStaticOutputs:
         )
         media_publisher.log_static_outputs(
             make_model_step_output(),
-            TEST_DATES,
             [image_logger],
             channel_names=["sic"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
         )
 
         assert fake_render.call_count == N_CHANNELS
@@ -319,10 +321,11 @@ class TestLogStaticOutputs:
         )
         media_publisher.log_static_outputs(
             make_model_step_output(),
-            TEST_DATES,
             [MagicMock()],
             channel_names=["sic"],
             climatology=climatology,
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
         )
 
         # Second render call for channel 0 is the climatology/prediction/difference image.
@@ -347,9 +350,10 @@ class TestLogStaticOutputs:
         )
         media_publisher.log_static_outputs(
             make_model_step_output(),
-            TEST_DATES,
             [image_logger],
             channel_names=["sic", "temperature"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
             uncertainties=uncertainties,
         )
 
@@ -393,9 +397,10 @@ class TestLogStaticOutputs:
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_outputs(
                 make_model_step_output(),
-                TEST_DATES,
                 [MagicMock()],
                 channel_names=["sic"],
+                forecast_dates=FORECAST_DATES,
+                history_dates=HISTORY_DATES,
             )
 
         assert "Image logging failed: bad array" in caplog.text
@@ -420,9 +425,10 @@ class TestLogStaticOutputs:
         with caplog.at_level(logging.WARNING):
             media_publisher.log_static_outputs(
                 make_model_step_output(),
-                TEST_DATES,
                 [MagicMock()],
                 channel_names=["sic"],
+                forecast_dates=FORECAST_DATES,
+                history_dates=HISTORY_DATES,
             )
 
         assert "Image logging failed:" in caplog.text
@@ -446,9 +452,10 @@ class TestLogStaticOutputs:
 
         media_publisher.log_static_outputs(
             make_model_step_output(),
-            TEST_DATES,
             [image_logger],
             channel_names=["ice_conc"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
             prefix="evaluate",
         )
 
@@ -480,9 +487,10 @@ class TestLogStaticOutputs:
             plot_spec=PlotSpec(),
         ).log_static_outputs(
             make_model_step_output(channels=1),
-            TEST_DATES,
             [image_logger],
             channel_names=["ice_conc"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
         )
 
         assert (
@@ -507,7 +515,7 @@ class TestLogVideoInputs:
             plot_spec=PlotSpec(),
         )
         media_publisher.log_video_inputs(
-            [fake_single_dataset()], TEST_DATES, [video_logger], prefix="validation"
+            [fake_single_dataset()], FORECAST_DATES, [video_logger], prefix="validation"
         )
 
         assert fake_render.call_count == N_CHANNELS
@@ -543,7 +551,7 @@ class TestLogVideoInputs:
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_inputs(
-                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+                [fake_single_dataset()], FORECAST_DATES, [MagicMock()]
             )
 
         assert "Video logging failed: bad array" in caplog.text
@@ -567,7 +575,7 @@ class TestLogVideoInputs:
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_inputs(
-                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+                [fake_single_dataset()], FORECAST_DATES, [MagicMock()]
             )
 
         assert "Video logging failed: encoding failed" in caplog.text
@@ -591,7 +599,7 @@ class TestLogVideoInputs:
         )
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_inputs(
-                [fake_single_dataset()], TEST_DATES, [MagicMock()]
+                [fake_single_dataset()], FORECAST_DATES, [MagicMock()]
             )
 
         assert "Video logging failed: bad shape" in caplog.text
@@ -611,9 +619,10 @@ class TestLogVideoOutputs:
         )
         media_publisher.log_video_outputs(
             make_model_step_output(),
-            TEST_DATES,
             [video_logger],
             channel_names=["sic"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
         )
 
         assert fake_render.call_count == N_CHANNELS
@@ -642,10 +651,11 @@ class TestLogVideoOutputs:
         )
         media_publisher.log_video_outputs(
             make_model_step_output(),
-            TEST_DATES,
             [MagicMock()],
             channel_names=["sic"],
             climatology=climatology,
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
         )
 
         # Second render call for channel 0 is the climatology/prediction/difference video.
@@ -670,9 +680,10 @@ class TestLogVideoOutputs:
         )
         media_publisher.log_video_outputs(
             make_model_step_output(),
-            TEST_DATES,
             [video_logger],
             channel_names=["sic", "temperature"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
             uncertainties=uncertainties,
         )
 
@@ -716,9 +727,10 @@ class TestLogVideoOutputs:
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_outputs(
                 make_model_step_output(),
-                TEST_DATES,
                 [MagicMock()],
                 channel_names=["sic"],
+                forecast_dates=FORECAST_DATES,
+                history_dates=HISTORY_DATES,
             )
 
         assert "Video logging failed: bad array" in caplog.text
@@ -743,9 +755,10 @@ class TestLogVideoOutputs:
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_outputs(
                 make_model_step_output(),
-                TEST_DATES,
                 [MagicMock()],
                 channel_names=["sic"],
+                forecast_dates=FORECAST_DATES,
+                history_dates=HISTORY_DATES,
             )
 
         assert "Video logging failed: encoding failed" in caplog.text
@@ -770,9 +783,10 @@ class TestLogVideoOutputs:
         with caplog.at_level(logging.WARNING):
             media_publisher.log_video_outputs(
                 make_model_step_output(),
-                TEST_DATES,
                 [MagicMock()],
                 channel_names=["sic"],
+                forecast_dates=FORECAST_DATES,
+                history_dates=HISTORY_DATES,
             )
 
         assert "Video logging failed" in caplog.text
@@ -798,9 +812,10 @@ class TestLogVideoOutputs:
 
         media_publisher.log_video_outputs(
             make_model_step_output(channels=1),
-            TEST_DATES,
             [video_logger],
             channel_names=["ice_conc"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
             prefix="test",
         )
 

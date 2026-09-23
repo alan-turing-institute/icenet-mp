@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal
 from PIL.ImageFile import ImageFile
 
 from icenet_mp.exceptions import InvalidArrayError
-from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec
+from icenet_mp.types import ArrayHW, ArrayTHW, Metadata, PlotSpec, Timespan
 
 from .difference_panel import DifferencePanel
 from .land_mask import LandMask
@@ -92,22 +92,24 @@ class PanelRenderer:
             vmin=scale.vmin,
         )
 
-    def static_triplet(
+    def static_triplet(  # noqa: PLR0913
         self,
         ground_truth: ArrayHW,
         prediction: ArrayHW,
         *,
+        forecast_date: datetime,
+        history_ctx: Timespan,
         panel_titles: dict[str, str] | None = None,
         uncertainty: ArrayHW | None = None,
         variable_name: str,
-        when: datetime,
     ) -> ImageFile:
         """Render a three panel ImageFile via MatplotlibRenderer.panels().
 
         Args:
             ground_truth: 2D array of the ground truth field.
             prediction: 2D array of the predicted field.
-            when: Datetime for the data in `ground_truth` and `prediction`.
+            history_ctx: Timespan covering the history/input period.
+            forecast_date: Datetime of the forecast being shown.
             uncertainty: Optional 2D array of the reported standard uncertainty of the
                 prediction field. When given, the third panel shows the standardised
                 difference `z = (ground_truth - prediction) / uncertainty`.
@@ -161,7 +163,11 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        title = self.annotator.title_for_static(variable_name, when)
+        title = self.annotator.title_for_static(
+            forecast_date=forecast_date,
+            history_ctx=history_ctx,
+            variable_name=variable_name,
+        )
         footer = self.annotator.footer_for_static()
         return self.renderer.panels_static(
             arrays,
@@ -222,12 +228,13 @@ class PanelRenderer:
             video_format=self.video_format,
         )
 
-    def video_triplet(
+    def video_triplet(  # noqa: PLR0913
         self,
         ground_truth: ArrayTHW,
         prediction: ArrayTHW,
         *,
-        dates: list[datetime],
+        forecast_ctx: Timespan,
+        history_ctx: Timespan,
         panel_titles: dict[str, str] | None = None,
         uncertainty: ArrayTHW | None = None,
         variable_name: str,
@@ -237,7 +244,8 @@ class PanelRenderer:
         Args:
             ground_truth: 3D array of the ground truth field.
             prediction: 3D array of the predicted field.
-            dates: Datetimes for the data in `ground_truth` and `prediction`.
+            forecast_ctx: Timespan for the forecast period.
+            history_ctx: Timespan for the history period.
             uncertainty: Optional 3D array of the reported standard uncertainty of the
                 prediction field. When given, the third panel shows the standardised
                 difference `z = (ground_truth - prediction) / uncertainty`.
@@ -254,7 +262,6 @@ class PanelRenderer:
                 `dates` doesn't have one entry per frame.
 
         """
-        self._validate_video_frames([ground_truth, prediction], dates)
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
         panel_titles = panel_titles or {}
@@ -296,10 +303,15 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        def title_for_frame(tt: int) -> str:
-            return self.annotator.title_for_video(variable_name, dates, tt)
+        def title_for_frame(frame: int) -> str:
+            return self.annotator.title_for_video(
+                current_index=frame,
+                variable_name=variable_name,
+                history_ctx=history_ctx,
+                forecast_ctx=forecast_ctx,
+            )
 
-        footer = self.annotator.footer_for_video(dates)
+        footer = self.annotator.footer_for_video(forecast_ctx)
 
         return self.renderer.panels_video(
             arrays,
