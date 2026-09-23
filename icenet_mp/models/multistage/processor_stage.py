@@ -60,11 +60,19 @@ class ProcessorStage(EncodeProcessDecode):
         self.decoder = copy.deepcopy(decoder_model.decoder).freeze()
         self.target_variable_indices = decoder_model.target_variable_indices
 
-        # Trainable processor
+        # Trainable processor. If the target dataset is also an input, supervise in
+        # the exact latent space used by the decoder rather than the independently
+        # pretrained target encoder's coordinate system.
+        target_input_encoder = self.target_input_encoder
+        target_latent_space = (
+            target_input_encoder.data_space_out
+            if target_input_encoder is not None
+            else self.target_encoder.data_space_out
+        )
         self.processor: BaseProcessor = hydra.utils.instantiate(
             processor,
             data_space=combined_latent_space,
-            data_space_target=self.target_encoder.data_space_out,
+            data_space_target=target_latent_space,
             n_forecast_steps=self.n_forecast_steps,
             n_history_steps=self.n_history_steps,
             target_channel_offset=self.find_target_channel_offset(),
