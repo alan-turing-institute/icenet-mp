@@ -9,4 +9,5 @@ defaults:
   - _self_
 
 trainer:
+  log_every_n_steps: 10
   max_epochs: 30

@@ -16,7 +16,7 @@ from lightning.pytorch.loggers.logger import Logger
 
 from icenet_mp.utils import sanitise_filename
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class LocalFileLogger(Logger):
@@ -40,6 +40,7 @@ class LocalFileLogger(Logger):
         self._metrics_path = self._save_dir / "metrics.jsonl"
         self._image_call_count = 0
         self._video_call_count = 0
+        log.info("Run data is logged locally in %s", self._save_dir)
 
     @property
     def name(self) -> str:
@@ -87,7 +88,7 @@ class LocalFileLogger(Logger):
         image_dir.mkdir(parents=True, exist_ok=True)
         for idx, image in enumerate(images):
             if not hasattr(image, "save"):
-                logger.warning("Cannot save non-image object for key '%s'.", key)
+                log.warning("Cannot save non-image object for key '%s'.", key)
                 continue
             image.save(image_dir / sanitise_filename(f"{call_idx:05d}_{key}_{idx}.png"))
 
