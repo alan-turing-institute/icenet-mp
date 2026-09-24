@@ -11,7 +11,7 @@ Example forecasts are shown below.
 
 **Arctic**
 
-![Example IceNet-MP Arctic sea ice concentration forecast compared with observations](docs/src/assets/prediction-north-unet-v2026.07.png)
+![Example IceNet-MP Arctic sea ice concentration forecast compared with observations](docs/src/assets/prediction-fullnorth-ddpm-v2026.07.png)
 
 **Antarctic**
 
