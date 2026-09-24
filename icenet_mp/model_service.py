@@ -2,8 +2,9 @@ import gc
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import hydra
 import torch
@@ -93,7 +94,7 @@ class ModelService:
         return builder
 
     @classmethod
-    def from_checkpoint(
+    def from_checkpoint(  # noqa: C901, PLR0912
         cls, config: DictConfig, checkpoint_path: Path
     ) -> "ModelService":
         """Build a new ModelService by loading a model from a checkpoint."""
@@ -104,19 +105,44 @@ class ModelService:
             msg = f"Checkpoint file {checkpoint_path} does not exist."
             raise FileNotFoundError(msg)
 
-        # Build a combined model configuration where the command line config takes
-        # precedence except for the "model", "predict" and "train" keys which are
-        # related to training the model.
+        apply_overrides = any(
+            a == "--config-name" or a.startswith("--config-name=") for a in sys.argv
+        )
+
+        # Build a combined model configuration. Checkpoint values are used as
+        # defaults; the eval config fills in eval-only sections.
+        # When apply_overrides is True (the user passed
+        # --config-name), the eval config's model/predict/train values also
+        # override the saved values — overrides to fields that would break
+        # weight loading (model._target_, channel counts, encoder shapes,
+        # etc.) are the caller's responsibility. See #525.
         config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
+        ckpt_config: DictConfig | None = None
         try:
-            # Load the model configuration from the checkpoint directory
             ckpt_config = DictConfig(OmegaConf.load(config_path))
             log.debug("Loaded checkpoint configuration from %s.", config_path)
             combined_cfg = DictConfig(OmegaConf.merge(ckpt_config, config))
-            for key in ("model", "predict", "train"):
-                combined_cfg[key] = OmegaConf.merge(
-                    combined_cfg.get(key, {}), ckpt_config.get(key, {})
-                )
+            if apply_overrides:
+                for key in ("model", "predict", "train"):
+                    if key not in config:
+                        continue
+                    cli_val = OmegaConf.to_container(config[key], resolve=False)
+                    ckpt_val = (
+                        OmegaConf.to_container(ckpt_config[key], resolve=False)
+                        if key in ckpt_config
+                        else None
+                    )
+                    if cli_val != ckpt_val:
+                        log.warning(
+                            "Applying CLI override for '%s'; the corresponding "
+                            "values saved with the checkpoint will be ignored.",
+                            key,
+                        )
+            else:
+                for key in ("model", "predict", "train"):
+                    combined_cfg[key] = OmegaConf.merge(
+                        combined_cfg.get(key, {}), ckpt_config.get(key, {})
+                    )
         except (NotADirectoryError, FileNotFoundError):
             combined_cfg = config
             log.debug("Could not load checkpoint configuration from %s.", config_path)
@@ -127,6 +153,27 @@ class ModelService:
             builder.config["model"]["_target_"]
         )
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
+
+        # When apply_overrides is True, forward model subfields (encoders,
+        # processor, decoder) as kwargs to load_from_checkpoint whenever the
+        # eval-config value differs from what was saved with the checkpoint.
+        # Without this, Lightning would restore the saved hyper_parameters
+        # and any config override would be silently ignored (see #525).
+        model_overrides: dict[str, Any] = {}
+        if apply_overrides and ckpt_config is not None:
+            cli_model = config.get("model", {})
+            ckpt_model = ckpt_config.get("model", {})
+            for k in ("encoders", "processor", "decoder"):
+                if k not in cli_model:
+                    continue
+                cli_val = OmegaConf.to_container(cli_model[k], resolve=False)
+                ckpt_val = (
+                    OmegaConf.to_container(ckpt_model[k], resolve=False)
+                    if k in ckpt_model
+                    else None
+                )
+                if cli_val != ckpt_val:
+                    model_overrides[k] = builder.config["model"][k]
         builder.model_ = model_cls.load_from_checkpoint(
             checkpoint_path,
             mask_dir=str(builder.data_module.mask_directory),
@@ -134,6 +181,7 @@ class ModelService:
             longitudes_fn=lambda: builder.data_module.longitudes,
             map_location="cpu",  # portability: will be moved to the correct device later
             weights_only=False,
+            **model_overrides,
         )
 
         return builder

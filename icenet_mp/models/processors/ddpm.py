@@ -172,7 +172,7 @@ class DDPMProcessor(BaseProcessor):
         """Lift the training-time x_0 estimate into an NTCHW combined-latent tensor.
 
         The returned tensor is only used for metrics/callbacks (the actual
-        training signal is the v-prediction MSE loss). Non-target channels are
+        training signal is the v-prediction loss). Non-target channels are
         filled with the last observed frame (persistence in latent space).
 
         Args:
