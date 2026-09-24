@@ -104,7 +104,7 @@ class PanelRenderer:
         prediction: ArrayHW,
         *,
         forecast_date: datetime,
-        history_ctx: Timespan,
+        history_ctx: Timespan | None = None,
         panel_titles: dict[str, str] | None = None,
         uncertainty: ArrayHW | None = None,
         variable_name: str,

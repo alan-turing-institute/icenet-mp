@@ -39,7 +39,9 @@ class MediaAnnotator:
             return " ".join(["Input datasets:", *parts])
         return None
 
-    def describe_dates(self, forecast_date: datetime, history_ctx: Timespan) -> str:
+    def describe_dates(
+        self, forecast_date: datetime, history_ctx: Timespan | None
+    ) -> str | None:
         """Describe the history window and leadtime for a forecast date.
 
         Returns:
@@ -48,6 +50,8 @@ class MediaAnnotator:
             History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps)   Leadtime (+<leadtime> steps) YYYY-MM-DD
 
         """
+        if not history_ctx:
+            return None
         elapsed = forecast_date - history_ctx.end
         leadtime = (
             round(elapsed / history_ctx.frequency)
@@ -143,7 +147,7 @@ class MediaAnnotator:
         self,
         *,
         forecast_date: datetime,
-        history_ctx: Timespan,
+        history_ctx: Timespan | None,
         variable_name: str,
     ) -> str:
         """Compose header text for a forecast.

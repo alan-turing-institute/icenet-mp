@@ -117,6 +117,7 @@ class TestDescribeDates:
 
         result = annotator.describe_dates(datetime(2020, 1, 2, 0), history_ctx)
 
+        assert result is not None
         assert "Leadtime (+1 steps): 2020-01-02" in result
 
 

@@ -107,8 +107,11 @@ class MediaPublisher:
     ) -> dict[str, RenderedMedia]:
         """Render the configured multipanel media.
 
-        These may include truth/prediction/difference, climatology/prediction/difference
-        and truth/prediction/z-score.
+        These may include:
+        - truth/prediction/difference
+        - climatology/prediction/difference
+        - truth/climatology/difference
+        - truth/prediction/z-score
 
         Shared by the static and video loggers, which differ only in the `render`
         callable used and the extra history/forecast context keywords each one needs.
@@ -124,6 +127,13 @@ class MediaPublisher:
                     climatology,
                     prediction,
                     panel_titles={"ground_truth": "Climatology"},
+                    variable_name=variable_name,
+                    **render_kwargs,
+                )
+                media["truth-vs-climatology"] = render(
+                    ground_truth,
+                    climatology,
+                    panel_titles={"prediction": "Climatology"},
                     variable_name=variable_name,
                     **render_kwargs,
                 )
@@ -181,19 +191,22 @@ class MediaPublisher:
         try:
             when = dates[self.idx_date]
             log_path = self._log_path(prefix, "input_static")
+            date_key = iso_from_date(when)
+            images: dict[str, list[ImageFile]] = {}
             for input_ds in inputs:
                 # Get data for all variables at the selected timestep
-                for channel, v_name in enumerate(input_ds.variable_names):
+                for idx_channel, v_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{v_name}"
-                    image = self.panel_renderer.static_singlet(
-                        input_ds[self.idx_date][channel, :],
-                        when=when,
-                        variable_name=variable_name,
-                    )
-                    key = f"{iso_from_date(when)}-{variable_name}"
-                    images: dict[str, list[ImageFile]] = {key: [image]}
-                    # Log static input images
-                    self._log_images(images, image_loggers, log_path)
+                    # Render a single-panel static image for this variable
+                    images[f"{date_key}-{variable_name}"] = [
+                        self.panel_renderer.static_singlet(
+                            input_ds[self.idx_date][idx_channel, :],
+                            when=when,
+                            variable_name=variable_name,
+                        )
+                    ]
+            # Log input images
+            self._log_images(images, image_loggers, log_path)
         except (InvalidArrayError, IndexError, ValueError, MemoryError, OSError) as exc:
             log.warning("Image logging failed: %s", exc)
 
@@ -218,6 +231,7 @@ class MediaPublisher:
         try:
             log_path = self._log_path(prefix, "output_static")
             date_key = iso_from_date(forecast_dates[self.idx_date])
+            images: dict[str, list[ImageFile]] = {}
             # Use all channels from the first batch -> [H,W]
             for idx_channel in range(outputs.target.shape[2]):
                 ground_truth: ArrayHW = (
@@ -244,12 +258,14 @@ class MediaPublisher:
                     ),
                     variable_name=variable_name,
                 )
-                images: dict[str, list[ImageFile]] = {
-                    f"{date_key}-{variable_name}-{suffix}": [image]
-                    for suffix, image in media.items()
-                }
-                # Log static output images
-                self._log_images(images, image_loggers, log_path)
+                images.update(
+                    {
+                        f"{date_key}-{variable_name}-{suffix}": [image]
+                        for suffix, image in media.items()
+                    }
+                )
+            # Log output images
+            self._log_images(images, image_loggers, log_path)
         except (InvalidArrayError, IndexError, ValueError, MemoryError, OSError) as exc:
             log.warning("Image logging failed: %s", exc)
 
@@ -266,18 +282,20 @@ class MediaPublisher:
             log_path = self._log_path(prefix, "input_video")
             np_dates = [npdatetime_from_datetime(date) for date in dates]
             date_key = iso_from_date(dates[0])
+            videos: dict[str, BytesIO] = {}
             for input_ds in inputs:
                 # Get data for all variables over the full date range
                 for channel, unqualified_name in enumerate(input_ds.variable_names):
                     variable_name = f"{input_ds.name}:{unqualified_name}"
-                    video = self.panel_renderer.video_singlet(
-                        input_ds.get_tchw(np_dates)[:, channel, :],
-                        dates=Timespan(dates),
-                        variable_name=variable_name,
+                    videos[f"{date_key}-{variable_name}"] = (
+                        self.panel_renderer.video_singlet(
+                            input_ds.get_tchw(np_dates)[:, channel, :],
+                            dates=Timespan(dates),
+                            variable_name=variable_name,
+                        )
                     )
-                    video_data = {f"{date_key}-{variable_name}": video}
-                    # Log input animations
-                    self._log_videos(video_data, video_loggers, log_path)
+            # Log input videos
+            self._log_videos(videos, video_loggers, log_path)
         except (
             IndexError,
             InvalidArrayError,
@@ -334,7 +352,7 @@ class MediaPublisher:
                         for suffix, video in media.items()
                     }
                 )
-            # Log output animations
+            # Log output videos
             self._log_videos(videos, video_loggers, log_path)
         except (
             IndexError,
