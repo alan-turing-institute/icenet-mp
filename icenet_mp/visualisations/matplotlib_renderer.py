@@ -184,7 +184,6 @@ class MatplotlibRenderer:
                     colors=color,
                     levels=[level],
                     linewidths=self._contour_linewidth,
-                    origin="upper",
                 )
             )
         return contour_sets
