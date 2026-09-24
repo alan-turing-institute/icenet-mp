@@ -238,6 +238,7 @@ class TestPredictionWriter:
         with pytest.raises(ValueError, match="land mask shape"):
             writer.on_test_start(_trainer(_combined_dataset()), LightningModule())
         assert writer._file is None
+        assert not writer.output_path.exists()
 
     def test_rejects_prediction_channel_mismatch(self, tmp_path: Path) -> None:
         dataset = _combined_dataset()
@@ -257,10 +258,6 @@ class TestPredictionWriter:
                 0,
             )
 
-        assert writer._file is None
-        with NetCDFDataset(str(output_path)) as netcdf:
-            assert netcdf.variables
-
     def test_rejects_outputs_without_target(self, tmp_path: Path) -> None:
         trainer = _trainer(_combined_dataset())
         writer = PredictionWriter(enabled=True)
@@ -275,7 +272,6 @@ class TestPredictionWriter:
                 None,
                 0,
             )
-        assert writer._file is None
 
     def test_rejects_target_prediction_shape_mismatch(self, tmp_path: Path) -> None:
         trainer = _trainer(_combined_dataset())
@@ -294,4 +290,16 @@ class TestPredictionWriter:
                 None,
                 0,
             )
+
+    def test_on_exception_closes_partial_file(self, tmp_path: Path) -> None:
+        output_path = tmp_path / "predictions.nc"
+        trainer = _trainer(_combined_dataset())
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = output_path
+        writer.on_test_start(trainer, LightningModule())
+
+        writer.on_exception(trainer, LightningModule(), RuntimeError("boom"))
+
         assert writer._file is None
+        with NetCDFDataset(str(output_path)) as netcdf:
+            assert "ice_conc" in netcdf.variables

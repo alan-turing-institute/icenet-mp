@@ -32,6 +32,22 @@ _MASK_ATTRIBUTES = {
 }
 
 
+def _add_variable(
+    netcdf: NetCDFDataset,
+    name: str,
+    dtype: str,
+    dimensions: tuple[str, ...],
+    data: np.ndarray | None = None,
+    /,
+    **attributes: object,
+) -> None:
+    """Create a NetCDF variable, set its attributes, and optionally fill it."""
+    variable = netcdf.createVariable(name, dtype, dimensions)
+    variable.setncatts(attributes)
+    if data is not None:
+        variable[:] = data
+
+
 class PredictionWriter(Callback):
     """Write evaluation predictions to a CF-style NetCDF file in the run directory."""
 
@@ -108,19 +124,25 @@ class PredictionWriter(Callback):
             masks[mask_type] = mask.astype(np.int8)
         return masks
 
-    def _write_masks(self, masks: Mapping[MaskType, np.ndarray]) -> list[str]:
+    def _write_masks(
+        self,
+        netcdf: NetCDFDataset,
+        masks: Mapping[MaskType, np.ndarray],
+    ) -> list[str]:
         """Write static (y, x) mask variables and return their variable names."""
-        if self._file is None:
-            msg = "Prediction writer must open the output file before writing masks."
-            raise RuntimeError(msg)
         names = []
         for mask_type, mask in masks.items():
             name = f"{mask_type}_mask"
-            variable = self._file.createVariable(name, "i1", ("y", "x"))
-            variable.setncatts(_MASK_ATTRIBUTES[mask_type])
-            variable.flag_values = np.asarray([0, 1], dtype=np.int8)
-            variable.coordinates = "latitude longitude"
-            variable[:, :] = mask
+            _add_variable(
+                netcdf,
+                name,
+                "i1",
+                ("y", "x"),
+                mask,
+                flag_values=np.asarray([0, 1], dtype=np.int8),
+                coordinates="latitude longitude",
+                **_MASK_ATTRIBUTES[mask_type],
+            )
             names.append(name)
         return names
 
@@ -142,26 +164,30 @@ class PredictionWriter(Callback):
                 f"target grid shape {dataset.target.space.shape}."
             )
             raise ValueError(msg)
+        masks = self._load_masks((height, width))
 
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        self._file = NetCDFDataset(str(self.output_path), "w", format="NETCDF4")
-        self._file.setncattr("Conventions", "CF-1.10")
-        self._file.setncattr("title", "IceNet-MP model predictions")
-        self._file.setncattr("hemisphere", dataset.target.hemisphere)
+        netcdf = self._file = NetCDFDataset(
+            str(self.output_path), "w", format="NETCDF4"
+        )
+        netcdf.setncattr("Conventions", "CF-1.10")
+        netcdf.setncattr("title", "IceNet-MP model predictions")
+        netcdf.setncattr("hemisphere", dataset.target.hemisphere)
 
-        self._file.createDimension("forecast_reference_time", None)
-        self._file.createDimension("lead_time", dataset.n_forecast_steps)
-        self._file.createDimension("y", height)
-        self._file.createDimension("x", width)
+        netcdf.createDimension("forecast_reference_time", None)
+        netcdf.createDimension("lead_time", dataset.n_forecast_steps)
+        netcdf.createDimension("y", height)
+        netcdf.createDimension("x", width)
 
-        reference_time = self._file.createVariable(
+        time_attributes = {"units": _TIME_UNITS, "calendar": _TIME_CALENDAR}
+        _add_variable(
+            netcdf,
             "forecast_reference_time",
             "i8",
             ("forecast_reference_time",),
+            standard_name="forecast_reference_time",
+            **time_attributes,
         )
-        reference_time.standard_name = "forecast_reference_time"
-        reference_time.units = _TIME_UNITS
-        reference_time.calendar = _TIME_CALENDAR
 
         frequency_seconds = int(
             dataset.frequency.astype("timedelta64[s]").astype(np.int64)
@@ -170,48 +196,66 @@ class PredictionWriter(Callback):
             np.arange(1, dataset.n_forecast_steps + 1, dtype=np.int64)
             * frequency_seconds
         )
-        lead_time = self._file.createVariable("lead_time", "i8", ("lead_time",))
-        lead_time.standard_name = "forecast_period"
-        lead_time.long_name = "forecast lead time"
-        lead_time.units = "seconds"
-        lead_time[:] = lead_seconds
-
-        valid_time = self._file.createVariable(
+        _add_variable(
+            netcdf,
+            "lead_time",
+            "i8",
+            ("lead_time",),
+            lead_seconds,
+            standard_name="forecast_period",
+            long_name="forecast lead time",
+            units="seconds",
+        )
+        _add_variable(
+            netcdf,
             "valid_time",
             "i8",
             ("forecast_reference_time", "lead_time"),
+            standard_name="time",
+            **time_attributes,
         )
-        valid_time.standard_name = "time"
-        valid_time.units = _TIME_UNITS
-        valid_time.calendar = _TIME_CALENDAR
+        _add_variable(
+            netcdf,
+            "latitude",
+            "f4",
+            ("y", "x"),
+            latitudes.reshape(height, width),
+            standard_name="latitude",
+            units="degrees_north",
+        )
+        _add_variable(
+            netcdf,
+            "longitude",
+            "f4",
+            ("y", "x"),
+            longitudes.reshape(height, width),
+            standard_name="longitude",
+            units="degrees_east",
+        )
 
-        latitude = self._file.createVariable("latitude", "f4", ("y", "x"))
-        latitude.standard_name = "latitude"
-        latitude.units = "degrees_north"
-        latitude[:, :] = latitudes.reshape(height, width)
-
-        longitude = self._file.createVariable("longitude", "f4", ("y", "x"))
-        longitude.standard_name = "longitude"
-        longitude.units = "degrees_east"
-        longitude[:, :] = longitudes.reshape(height, width)
-
-        mask_names = self._write_masks(self._load_masks((height, width)))
+        mask_names = self._write_masks(netcdf, masks)
         for variable_name in dataset.target.variable_names:
-            self._create_field_variable(variable_name, mask_names, observed=False)
-            self._create_field_variable(variable_name, mask_names, observed=True)
+            self._create_field_variable(
+                netcdf, variable_name, mask_names, observed=False
+            )
+            self._create_field_variable(
+                netcdf, variable_name, mask_names, observed=True
+            )
 
     def _create_field_variable(
-        self, variable_name: str, mask_names: list[str], *, observed: bool
+        self,
+        netcdf: NetCDFDataset,
+        variable_name: str,
+        mask_names: list[str],
+        *,
+        observed: bool,
     ) -> None:
         """Create one (forecast_reference_time, lead_time, y, x) field variable.
 
         Predictions are written under the target variable name; the corresponding
         ground truth is written alongside it with an ``_observed`` suffix.
         """
-        if self._file is None:
-            msg = "Prediction writer must open the output file before adding fields."
-            raise RuntimeError(msg)
-        variable = self._file.createVariable(
+        variable = netcdf.createVariable(
             f"{variable_name}{_OBSERVED_SUFFIX}" if observed else variable_name,
             "f4",
             ("forecast_reference_time", "lead_time", "y", "x"),
@@ -257,11 +301,7 @@ class PredictionWriter(Callback):
 
         self._dataset = self._load_dataset(trainer)
         self._sample_offset = 0
-        try:
-            self._initialise_file(self._dataset)
-        except BaseException:
-            self._close()
-            raise
+        self._initialise_file(self._dataset)
 
     def on_test_batch_end(
         self,
@@ -275,11 +315,7 @@ class PredictionWriter(Callback):
         """Append one evaluation batch to the NetCDF file."""
         if not self.enabled:
             return
-        try:
-            self._write_batch(outputs)
-        except BaseException:
-            self._close()
-            raise
+        self._write_batch(outputs)
 
     @staticmethod
     def _field_from_outputs(
@@ -379,11 +415,11 @@ class PredictionWriter(Callback):
             self.output_path,
         )
 
-    def teardown(
+    def on_exception(
         self,
         trainer: Trainer,  # noqa: ARG002
         pl_module: LightningModule,  # noqa: ARG002
-        stage: str,  # noqa: ARG002
+        exception: BaseException,  # noqa: ARG002
     ) -> None:
-        """Close an open output file if evaluation exits early."""
+        """Close the NetCDF file if evaluation fails, leaving the partial output readable."""
         self._close()
