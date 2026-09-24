@@ -5,15 +5,16 @@
 | Name                                                                 |    Stmts |     Miss |   Cover |   Missing |
 |--------------------------------------------------------------------- | -------: | -------: | ------: | --------: |
 | icenet\_mp/\_\_init\_\_.py                                           |        9 |        0 |    100% |           |
-| icenet\_mp/callbacks/\_\_init\_\_.py                                 |        6 |        0 |    100% |           |
+| icenet\_mp/callbacks/\_\_init\_\_.py                                 |        7 |        0 |    100% |           |
 | icenet\_mp/callbacks/activation\_saver.py                            |       92 |        0 |    100% |           |
 | icenet\_mp/callbacks/ema\_weight\_averaging\_callback.py             |       21 |        0 |    100% |           |
 | icenet\_mp/callbacks/metric\_summary\_callback.py                    |      122 |        1 |     99% |       179 |
 | icenet\_mp/callbacks/plotting\_callback.py                           |      157 |        0 |    100% |           |
+| icenet\_mp/callbacks/prediction\_writer.py                           |      183 |       18 |     90% |69-72, 77-78, 162-166, 279-280, 336-340, 342-346, 352-353, 369-373 |
 | icenet\_mp/callbacks/unconditional\_checkpoint.py                    |       26 |        0 |    100% |           |
 | icenet\_mp/cli/\_\_init\_\_.py                                       |        2 |        0 |    100% |           |
 | icenet\_mp/cli/datasets.py                                           |       54 |        1 |     98% |       127 |
-| icenet\_mp/cli/evaluate.py                                           |       18 |        1 |     94% |        46 |
+| icenet\_mp/cli/evaluate.py                                           |       26 |        3 |     88% | 37-42, 93 |
 | icenet\_mp/cli/hydra.py                                              |       29 |        0 |    100% |           |
 | icenet\_mp/cli/main.py                                               |       26 |        1 |     96% |        59 |
 | icenet\_mp/cli/sweep.py                                              |       75 |        1 |     99% |       187 |
@@ -80,7 +81,7 @@
 | icenet\_mp/metrics/sie.py                                            |       14 |        2 |     86% |     21-22 |
 | icenet\_mp/metrics/spatial\_mean\_trace.py                           |        8 |        0 |    100% |           |
 | icenet\_mp/metrics/ssim.py                                           |       43 |        2 |     95% |     59-60 |
-| icenet\_mp/model\_service.py                                         |      268 |        4 |     99% |54-55, 160-161 |
+| icenet\_mp/model\_service.py                                         |      273 |        4 |     99% |58-59, 164-165 |
 | icenet\_mp/models/\_\_init\_\_.py                                    |        6 |        0 |    100% |           |
 | icenet\_mp/models/base\_model.py                                     |      103 |        5 |     95% |175, 179, 183, 244-248 |
 | icenet\_mp/models/climatology.py                                     |       15 |        0 |    100% |           |
@@ -169,7 +170,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       93 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |        0 |    100% |           |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |        1 |     99% |       171 |
-| **TOTAL**                                                            | **6638** |  **425** | **94%** |           |
+| **TOTAL**                                                            | **6835** |  **445** | **93%** |           |
 
 
 ## Setup coverage badge
