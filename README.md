@@ -114,14 +114,14 @@
 | icenet\_mp/models/ddpm.py                                            |      147 |        7 |     95% |130, 134, 140, 372-380 |
 | icenet\_mp/models/decoders/\_\_init\_\_.py                           |        6 |        0 |    100% |           |
 | icenet\_mp/models/decoders/base\_decoder.py                          |       36 |        2 |     94% |   123-124 |
-| icenet\_mp/models/decoders/cnn\_decoder.py                           |       35 |        2 |     94% |     74-75 |
+| icenet\_mp/models/decoders/cnn\_decoder.py                           |       44 |        4 |     91% |91-92, 152-153 |
 | icenet\_mp/models/decoders/deep\_compression\_decoder.py             |       42 |        6 |     86% |60-61, 63-64, 66-67 |
 | icenet\_mp/models/decoders/naive\_linear\_decoder.py                 |       15 |        0 |    100% |           |
 | icenet\_mp/models/decoders/piecewise\_decoder.py                     |       28 |        2 |     93% |     77-82 |
 | icenet\_mp/models/diffusion/\_\_init\_\_.py                          |        3 |        0 |    100% |           |
 | icenet\_mp/models/diffusion/gaussian\_diffusion.py                   |       54 |        4 |     93% |42, 46-50, 200 |
 | icenet\_mp/models/diffusion/unet\_diffusion.py                       |       78 |        1 |     99% |       269 |
-| icenet\_mp/models/encode\_process\_decode.py                         |       92 |       12 |     87% |40-45, 61-66, 82-88, 99-103, 193, 250 |
+| icenet\_mp/models/encode\_process\_decode.py                         |      133 |       19 |     86% |63-68, 92-97, 109-113, 139-145, 192-197, 328-333, 374-380, 451-455 |
 | icenet\_mp/models/encoders/\_\_init\_\_.py                           |        7 |        0 |    100% |           |
 | icenet\_mp/models/encoders/base\_encoder.py                          |       36 |        2 |     94% |     59-60 |
 | icenet\_mp/models/encoders/cnn\_encoder.py                           |       25 |        0 |    100% |           |
@@ -132,10 +132,10 @@
 | icenet\_mp/models/multistage/\_\_init\_\_.py                         |        4 |        0 |    100% |           |
 | icenet\_mp/models/multistage/decoder\_stage.py                       |       48 |        0 |    100% |           |
 | icenet\_mp/models/multistage/encoder\_stage.py                       |       26 |        0 |    100% |           |
-| icenet\_mp/models/multistage/processor\_stage.py                     |       37 |        0 |    100% |           |
+| icenet\_mp/models/multistage/processor\_stage.py                     |       26 |        0 |    100% |           |
 | icenet\_mp/models/persistence.py                                     |       17 |        0 |    100% |           |
 | icenet\_mp/models/processors/\_\_init\_\_.py                         |        7 |        0 |    100% |           |
-| icenet\_mp/models/processors/base\_processor.py                      |       27 |        2 |     93% |     38-42 |
+| icenet\_mp/models/processors/base\_processor.py                      |       30 |        2 |     93% |     39-43 |
 | icenet\_mp/models/processors/ddpm.py                                 |      101 |        0 |    100% |           |
 | icenet\_mp/models/processors/gsta.py                                 |       22 |       12 |     45% |65-73, 99-110 |
 | icenet\_mp/models/processors/null.py                                 |       10 |        0 |    100% |           |
@@ -152,7 +152,7 @@
 | icenet\_mp/types/\_\_init\_\_.py                                     |        7 |        0 |    100% |           |
 | icenet\_mp/types/complex\_datatypes.py                               |       79 |        0 |    100% |           |
 | icenet\_mp/types/constants.py                                        |        1 |        0 |    100% |           |
-| icenet\_mp/types/enums.py                                            |       18 |        0 |    100% |           |
+| icenet\_mp/types/enums.py                                            |       21 |        0 |    100% |           |
 | icenet\_mp/types/protocols.py                                        |        8 |        0 |    100% |           |
 | icenet\_mp/types/simple\_datatypes.py                                |       40 |        0 |    100% |           |
 | icenet\_mp/types/typedefs.py                                         |       16 |        0 |    100% |           |
@@ -169,7 +169,7 @@
 | icenet\_mp/visualisations/plotting\_static.py                        |       93 |        0 |    100% |           |
 | icenet\_mp/visualisations/plotting\_video.py                         |      116 |        0 |    100% |           |
 | icenet\_mp/visualisations/range\_check.py                            |       77 |        1 |     99% |       171 |
-| **TOTAL**                                                            | **6593** |  **416** | **94%** |           |
+| **TOTAL**                                                            | **6638** |  **425** | **94%** |           |
 
 
 ## Setup coverage badge
