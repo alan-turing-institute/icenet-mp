@@ -2,6 +2,7 @@ import logging
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -19,7 +20,11 @@ from icenet_mp.types import (
     SupportsImageLogging,
     SupportsVideoLogging,
 )
-from icenet_mp.utils import datetime_from_npdatetime, npdatetime_from_datetime
+from icenet_mp.utils import (
+    datetime_from_npdatetime,
+    iso_from_date,
+    npdatetime_from_datetime,
+)
 from icenet_mp.visualisations import MediaPublisher
 from icenet_mp.visualisations.land_mask import LandMask
 
@@ -83,6 +88,9 @@ class MediaLoggingCallback(Callback):
         self.cached_dataloader_idx_: int | None = None
         self.cached_outputs_: ModelStepOutput | None = None
 
+        # Track any plots that should only be logged once per dataloader
+        self._is_logged: set[tuple[str, int | None, str]] = set()
+
     def cache_batch(
         self,
         batch_idx: int,
@@ -94,6 +102,14 @@ class MediaLoggingCallback(Callback):
             self.cached_outputs_ = ModelStepOutput(**outputs)
             self.cached_batch_idx_ = batch_idx
             self.cached_dataloader_idx_ = dataloader_idx
+
+    def is_logged(self, kind: str, dates: list[datetime]) -> bool:
+        """Record (kind, dataloader, date) as logged, returning True if already seen."""
+        key = (kind, self.cached_dataloader_idx_, iso_from_date(dates[0]))
+        if key in self._is_logged:
+            return True
+        self._is_logged.add(key)
+        return False
 
     def is_sample_batch(self, batch_idx: int, total_batches: int | float) -> bool:  # noqa: PYI041
         """Return True if batch_idx is one of frequency_number equally-spaced targets."""
@@ -266,7 +282,7 @@ class MediaLoggingCallback(Callback):
                 prefix=self.prefix,
                 uncertainties=uncertainties,
             )
-            if self.make_input_plots:
+            if self.make_input_plots and not self.is_logged("static", forecast_dates):
                 publisher.log_static_inputs(
                     dataset.inputs, forecast_dates, image_loggers, prefix=self.prefix
                 )
@@ -282,7 +298,7 @@ class MediaLoggingCallback(Callback):
                 prefix=self.prefix,
                 uncertainties=uncertainties,
             )
-            if self.make_input_plots:
+            if self.make_input_plots and not self.is_logged("video", forecast_dates):
                 publisher.log_video_inputs(
                     dataset.inputs, forecast_dates, video_loggers, prefix=self.prefix
                 )

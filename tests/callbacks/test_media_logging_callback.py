@@ -538,6 +538,44 @@ class TestMakePlots:
         stubs["log_static_inputs"].assert_called_once()
         stubs["log_video_inputs"].assert_called_once()
 
+    def test_only_logs_input_plots_once_per_dataloader_and_date(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Do not repeat static/video input plots for a dataloader/date already logged."""
+        callback = MediaLoggingCallback(make_input_plots=True)
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        stubs["log_static_inputs"].assert_called_once()
+        stubs["log_video_inputs"].assert_called_once()
+
+    def test_logs_input_plots_again_for_a_different_dataloader(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Log input plots again when the same date recurs on a different dataloader."""
+        callback = MediaLoggingCallback(make_input_plots=True)
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+
+        callback.cached_dataloader_idx_ = 0
+        callback.make_plots(trainer, pl_module, dataset, 1)
+        callback.cached_dataloader_idx_ = 1
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        assert stubs["log_static_inputs"].call_count == 2
+        assert stubs["log_video_inputs"].call_count == 2
+
     def test_filters_loggers_by_image_and_video_support(
         self,
         make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
