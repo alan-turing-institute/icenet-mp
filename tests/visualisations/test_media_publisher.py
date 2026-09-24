@@ -300,8 +300,8 @@ class TestLogStaticOutputs:
         # Second channel has no configured name, so it falls back to channel_1.
         logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
         assert logged_keys == [
-            "output_static/2020-01-01-sic-truth-difference",
-            "output_static/2020-01-01-channel_1-truth-difference",
+            "output_static/2020-01-01-sic-truth-vs-prediction",
+            "output_static/2020-01-01-channel_1-truth-vs-prediction",
         ]
 
     def test_climatology_panel_is_labelled_climatology(
@@ -362,9 +362,9 @@ class TestLogStaticOutputs:
         assert fake_render.call_count == N_CHANNELS + 1
         logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
         assert logged_keys == [
-            "output_static/2020-01-01-sic-truth-difference",
-            "output_static/2020-01-01-sic-z-score",
-            "output_static/2020-01-01-temperature-truth-difference",
+            "output_static/2020-01-01-sic-truth-vs-prediction",
+            "output_static/2020-01-01-sic-truth-vs-prediction-z-score",
+            "output_static/2020-01-01-temperature-truth-vs-prediction",
         ]
 
         # The z-score render's extra panel is titled distinctly from a plain
@@ -407,8 +407,8 @@ class TestLogStaticOutputs:
 
         logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
         assert logged_keys == [
-            "output_static/2020-01-01-sic-truth-difference",
-            "output_static/2020-01-01-temperature-truth-difference",
+            "output_static/2020-01-01-sic-truth-vs-prediction",
+            "output_static/2020-01-01-temperature-truth-vs-prediction",
         ]
 
     def test_skips_on_invalid_array_error(
@@ -495,11 +495,11 @@ class TestLogStaticOutputs:
 
         assert [c.kwargs for c in image_logger.log_image.call_args_list] == [
             {
-                "key": "evaluate/output_static/2020-01-02-ice_conc-truth-difference",
+                "key": "evaluate/output_static/2020-01-02-ice_conc-truth-vs-prediction",
                 "images": [image],
             },
             {
-                "key": "evaluate/output_static/2020-01-02-channel_1-truth-difference",
+                "key": "evaluate/output_static/2020-01-02-channel_1-truth-vs-prediction",
                 "images": [image],
             },
         ]
@@ -529,7 +529,7 @@ class TestLogStaticOutputs:
 
         assert (
             image_logger.log_image.call_args.kwargs["key"]
-            == "output_static/2020-01-01-ice_conc-truth-difference"
+            == "output_static/2020-01-01-ice_conc-truth-vs-prediction"
         )
 
 
@@ -664,8 +664,8 @@ class TestLogVideoOutputs:
         # Second channel has no configured name, so it falls back to channel_1.
         logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
         assert logged_keys == [
-            "output_video/2020-01-01-sic-truth-difference",
-            "output_video/2020-01-01-channel_1-truth-difference",
+            "output_video/2020-01-01-sic-truth-vs-prediction",
+            "output_video/2020-01-01-channel_1-truth-vs-prediction",
         ]
 
     def test_climatology_panel_is_labelled_climatology(
@@ -726,9 +726,9 @@ class TestLogVideoOutputs:
         assert fake_render.call_count == N_CHANNELS + 1
         logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
         assert logged_keys == [
-            "output_video/2020-01-01-sic-truth-difference",
-            "output_video/2020-01-01-sic-z-score",
-            "output_video/2020-01-01-temperature-truth-difference",
+            "output_video/2020-01-01-sic-truth-vs-prediction",
+            "output_video/2020-01-01-sic-truth-vs-prediction-z-score",
+            "output_video/2020-01-01-temperature-truth-vs-prediction",
         ]
 
         # The z-score render's extra panel is titled distinctly from a plain
@@ -771,8 +771,8 @@ class TestLogVideoOutputs:
 
         logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
         assert logged_keys == [
-            "output_video/2020-01-01-sic-truth-difference",
-            "output_video/2020-01-01-temperature-truth-difference",
+            "output_video/2020-01-01-sic-truth-vs-prediction",
+            "output_video/2020-01-01-temperature-truth-vs-prediction",
         ]
 
     def test_skips_on_invalid_array_error(
@@ -888,7 +888,7 @@ class TestLogVideoOutputs:
         )
 
         video_logger.log_video.assert_called_once_with(
-            key="test/output_video/2020-01-01-ice_conc-truth-difference",
+            key="test/output_video/2020-01-01-ice_conc-truth-vs-prediction",
             videos=[buffer],
             format=["gif"],
         )

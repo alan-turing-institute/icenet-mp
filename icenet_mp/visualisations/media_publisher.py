@@ -94,7 +94,7 @@ class MediaPublisher:
                     format=[self.panel_renderer.video_format],
                 )
 
-    def _render_three_panel_media(
+    def _render_multipanel_media(
         self,
         *,
         climatology: np.ndarray | None,
@@ -105,7 +105,7 @@ class MediaPublisher:
         variable_name: str,
         **render_kwargs: object,
     ) -> dict[str, RenderedMedia]:
-        """Render the configured three-panel media.
+        """Render the configured multipanel media.
 
         These may include truth/prediction/difference, climatology/prediction/difference
         and truth/prediction/z-score.
@@ -114,13 +114,13 @@ class MediaPublisher:
         callable used and the extra history/forecast context keywords each one needs.
         """
         media: dict[str, RenderedMedia] = {
-            "truth-difference": render(
+            "truth-vs-prediction": render(
                 ground_truth, prediction, variable_name=variable_name, **render_kwargs
             )
         }
         if climatology is not None:
             with suppress(IndexError, TypeError):
-                media["climatology-difference"] = render(
+                media["climatology-vs-prediction"] = render(
                     climatology,
                     prediction,
                     panel_titles={"ground_truth": "Climatology"},
@@ -130,7 +130,7 @@ class MediaPublisher:
         # We only render a z-score output if the plot spec is configured to include a
         # difference panel and we have an uncertainty array.
         if uncertainty is not None and self.panel_renderer.plot_spec.include_difference:
-            media["z-score"] = render(
+            media["truth-vs-prediction-z-score"] = render(
                 ground_truth,
                 prediction,
                 panel_titles={"difference": "Standardised Difference (z)"},
@@ -230,7 +230,7 @@ class MediaPublisher:
                     .numpy()
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
-                media = self._render_three_panel_media(
+                media = self._render_multipanel_media(
                     climatology=self._select_climatology(
                         climatology, idx_channel, self.idx_date
                     ),
@@ -314,7 +314,7 @@ class MediaPublisher:
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
-                media = self._render_three_panel_media(
+                media = self._render_multipanel_media(
                     climatology=self._select_climatology(
                         climatology, idx_channel, None
                     ),
