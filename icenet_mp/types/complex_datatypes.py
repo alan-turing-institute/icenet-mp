@@ -246,7 +246,7 @@ class Timespan:
     @cached_property
     def days(self) -> int:
         """Return the size of the timespan in days."""
-        return (self.end - self.start).days + 1
+        return len(self._dates)
 
     @cached_property
     def end(self) -> datetime:
