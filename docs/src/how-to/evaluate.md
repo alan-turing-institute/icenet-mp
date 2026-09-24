@@ -62,7 +62,9 @@ uv run imp evaluate \
   --save-predictions
 ```
 
-The file is written incrementally during evaluation, so the full test period does not need to be held in memory. It is saved as `predictions.nc` inside the run's directory (alongside checkpoints and other run artifacts, and under W&B's `files/` in the run's dashboard when using W&B). It contains `forecast_reference_time`, `lead_time`, `valid_time`, latitude/longitude coordinates, and one data variable per prediction target. Sea-ice concentration is exported as `ice_conc` in its original source scale with CF `sea_ice_area_fraction` metadata.
+The file is written incrementally during evaluation, so the full test period does not need to be held in memory. It is saved as `predictions.nc` inside the run's directory (alongside checkpoints and other run artifacts, and under W&B's `files/` in the run's dashboard when using W&B). It contains `forecast_reference_time`, `lead_time`, `valid_time`, latitude/longitude coordinates, and one data variable per prediction target, together with the matching ground truth under an `_observed` suffix. Sea-ice concentration is exported as `ice_conc` (prediction) and `ice_conc_observed` (ground truth) in its original source scale with CF `sea_ice_area_fraction` metadata.
+
+If the target dataset has generated masks, the static `land_mask` and `active_mask` variables are included on the `(y, x)` grid (1 = ocean/active, 0 = land/inactive) and linked to the data variables via `ancillary_variables`. Masked models output zero over land, so use these masks to distinguish land from open water.
 
 Prediction export uses the existing `data.split.test` date ranges. To export a smaller date range, change the test split in the config rather than running a separate prediction pass.
 

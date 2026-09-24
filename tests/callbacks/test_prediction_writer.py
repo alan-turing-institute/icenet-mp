@@ -96,14 +96,14 @@ class TestPredictionWriter:
         writer.on_test_batch_end(
             trainer,
             LightningModule(),
-            {"prediction": first_batch},
+            {"prediction": first_batch, "target": torch.zeros_like(first_batch)},
             None,
             0,
         )
         writer.on_test_batch_end(
             trainer,
             LightningModule(),
-            {"prediction": second_batch},
+            {"prediction": second_batch, "target": torch.full_like(second_batch, 0.5)},
             None,
             1,
         )
@@ -120,6 +120,19 @@ class TestPredictionWriter:
             assert np.allclose(prediction[:2], 0.5)
             assert np.allclose(prediction[2:], 0.8)
             assert netcdf.variables["ice_conc"].standard_name == "sea_ice_area_fraction"
+
+            observed = np.asarray(netcdf.variables["ice_conc_observed"][:])
+            assert observed.shape == (3, 2, 2, 2)
+            assert np.allclose(observed[:2], 0.2)
+            assert np.allclose(observed[2:], 0.5)
+            assert (
+                netcdf.variables["ice_conc_observed"].standard_name
+                == "sea_ice_area_fraction"
+            )
+            assert (
+                netcdf.variables["ice_conc_observed"].long_name
+                == "observed sea ice concentration"
+            )
 
             assert np.array_equal(
                 np.asarray(netcdf.variables["lead_time"][:]),
@@ -176,10 +189,11 @@ class TestPredictionWriter:
             assert netcdf.variables["land_mask"].dimensions == ("y", "x")
             assert netcdf.variables["land_mask"].flag_meanings == "land ocean"
             assert np.array_equal(netcdf.variables["land_mask"].flag_values, [0, 1])
-            assert (
-                netcdf.variables["ice_conc"].ancillary_variables
-                == "land_mask active_mask"
-            )
+            for name in ("ice_conc", "ice_conc_observed"):
+                assert (
+                    netcdf.variables[name].ancillary_variables
+                    == "land_mask active_mask"
+                )
 
     def test_skips_missing_masks(self, tmp_path: Path) -> None:
         output_path = tmp_path / "predictions.nc"
@@ -233,11 +247,12 @@ class TestPredictionWriter:
         writer.output_path = output_path
         writer.on_test_start(trainer, LightningModule())
 
+        batch = torch.zeros((1, 2, 2, 2, 2))
         with pytest.raises(ValueError, match="channel count"):
             writer.on_test_batch_end(
                 trainer,
                 LightningModule(),
-                {"prediction": torch.zeros((1, 2, 2, 2, 2))},
+                {"prediction": batch, "target": batch},
                 None,
                 0,
             )
@@ -245,3 +260,38 @@ class TestPredictionWriter:
         assert writer._file is None
         with NetCDFDataset(str(output_path)) as netcdf:
             assert netcdf.variables
+
+    def test_rejects_outputs_without_target(self, tmp_path: Path) -> None:
+        trainer = _trainer(_combined_dataset())
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = tmp_path / "predictions.nc"
+        writer.on_test_start(trainer, LightningModule())
+
+        with pytest.raises(TypeError, match="containing a target tensor"):
+            writer.on_test_batch_end(
+                trainer,
+                LightningModule(),
+                {"prediction": torch.zeros((1, 2, 1, 2, 2))},
+                None,
+                0,
+            )
+        assert writer._file is None
+
+    def test_rejects_target_prediction_shape_mismatch(self, tmp_path: Path) -> None:
+        trainer = _trainer(_combined_dataset())
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = tmp_path / "predictions.nc"
+        writer.on_test_start(trainer, LightningModule())
+
+        with pytest.raises(ValueError, match="shapes do not match"):
+            writer.on_test_batch_end(
+                trainer,
+                LightningModule(),
+                {
+                    "prediction": torch.zeros((2, 2, 1, 2, 2)),
+                    "target": torch.zeros((1, 2, 1, 2, 2)),
+                },
+                None,
+                0,
+            )
+        assert writer._file is None

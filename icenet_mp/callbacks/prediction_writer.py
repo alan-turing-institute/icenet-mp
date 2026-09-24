@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 _TIME_UNITS = "seconds since 1970-01-01 00:00:00"
 _TIME_CALENDAR = "proleptic_gregorian"
 _NTCHW_NDIM = 5
+_OBSERVED_SUFFIX = "_observed"
 _MASK_ATTRIBUTES = {
     MaskType.LAND: {
         "long_name": "ocean mask (1 = ocean, 0 = land)",
@@ -196,15 +197,22 @@ class PredictionWriter(Callback):
 
         mask_names = self._write_masks(self._load_masks((height, width)))
         for variable_name in dataset.target.variable_names:
-            self._create_field_variable(variable_name, mask_names)
+            self._create_field_variable(variable_name, mask_names, observed=False)
+            self._create_field_variable(variable_name, mask_names, observed=True)
 
-    def _create_field_variable(self, variable_name: str, mask_names: list[str]) -> None:
-        """Create one (forecast_reference_time, lead_time, y, x) field variable."""
+    def _create_field_variable(
+        self, variable_name: str, mask_names: list[str], *, observed: bool
+    ) -> None:
+        """Create one (forecast_reference_time, lead_time, y, x) field variable.
+
+        Predictions are written under the target variable name; the corresponding
+        ground truth is written alongside it with an ``_observed`` suffix.
+        """
         if self._file is None:
             msg = "Prediction writer must open the output file before adding fields."
             raise RuntimeError(msg)
         variable = self._file.createVariable(
-            variable_name,
+            f"{variable_name}{_OBSERVED_SUFFIX}" if observed else variable_name,
             "f4",
             ("forecast_reference_time", "lead_time", "y", "x"),
             zlib=True,
@@ -218,9 +226,13 @@ class PredictionWriter(Callback):
             variable.ancillary_variables = " ".join(mask_names)
         if variable_name == "ice_conc":
             variable.standard_name = "sea_ice_area_fraction"
-            variable.long_name = "sea ice concentration"
+            variable.long_name = (
+                "observed sea ice concentration"
+                if observed
+                else "predicted sea ice concentration"
+            )
             variable.units = "1"
-        else:
+        elif not observed:
             logger.warning(
                 "No CF standard_name/units mapping for prediction variable '%s'; "
                 "it will be written without them, despite this file's Conventions "
@@ -269,33 +281,50 @@ class PredictionWriter(Callback):
             self._close()
             raise
 
+    @staticmethod
+    def _field_from_outputs(
+        outputs: Tensor | Mapping[str, Any] | None,
+        key: str,
+        dataset: CombinedDataset,
+    ) -> np.ndarray:
+        """Extract, validate, and denormalise one NTCHW field from test outputs."""
+        if not isinstance(outputs, Mapping) or not isinstance(
+            tensor := outputs.get(key),
+            Tensor,
+        ):
+            msg = f"Prediction writer expected test outputs containing a {key} tensor."
+            raise TypeError(msg)
+
+        field = tensor.detach().float().cpu().numpy()
+        if field.ndim != _NTCHW_NDIM:
+            msg = (
+                f"Prediction writer expected NTCHW {key} values, "
+                f"received shape {field.shape}."
+            )
+            raise ValueError(msg)
+        if field.shape[1] != dataset.n_forecast_steps:
+            msg = (
+                f"{key.capitalize()} forecast-step count does not match the test "
+                f"dataset: {field.shape[1]} vs {dataset.n_forecast_steps}."
+            )
+            raise ValueError(msg)
+        return PredictionWriter._denormalise(field, dataset)
+
     def _write_batch(self, outputs: Tensor | Mapping[str, Any] | None) -> None:
         """Validate and append one evaluation batch to the NetCDF file."""
         if self._dataset is None or self._file is None:
             msg = "Prediction writer was not initialised before receiving a test batch."
             raise RuntimeError(msg)
-        if not isinstance(outputs, Mapping) or not isinstance(
-            prediction_tensor := outputs.get("prediction"),
-            Tensor,
-        ):
-            msg = "Prediction writer expected test outputs containing a prediction tensor."
-            raise TypeError(msg)
 
-        prediction = prediction_tensor.detach().float().cpu().numpy()
-        if prediction.ndim != _NTCHW_NDIM:
+        prediction = self._field_from_outputs(outputs, "prediction", self._dataset)
+        target = self._field_from_outputs(outputs, "target", self._dataset)
+        if target.shape != prediction.shape:
             msg = (
-                "Prediction writer expected NTCHW predictions, "
-                f"received shape {prediction.shape}."
-            )
-            raise ValueError(msg)
-        if prediction.shape[1] != self._dataset.n_forecast_steps:
-            msg = (
-                "Prediction forecast-step count does not match the test dataset: "
-                f"{prediction.shape[1]} vs {self._dataset.n_forecast_steps}."
+                "Target and prediction shapes do not match: "
+                f"{target.shape} vs {prediction.shape}."
             )
             raise ValueError(msg)
 
-        prediction = self._denormalise(prediction, self._dataset)
         batch_size = prediction.shape[0]
         start = self._sample_offset
         end = start + batch_size
@@ -324,6 +353,9 @@ class PredictionWriter(Callback):
             self._file.variables[variable_name][start:end, :, :, :] = prediction[
                 :, :, channel_idx, :, :
             ].astype(np.float32, copy=False)
+            self._file.variables[f"{variable_name}{_OBSERVED_SUFFIX}"][
+                start:end, :, :, :
+            ] = target[:, :, channel_idx, :, :].astype(np.float32, copy=False)
 
         self._sample_offset = end
 
