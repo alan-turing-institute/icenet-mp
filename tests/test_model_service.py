@@ -347,7 +347,9 @@ class TestModelService:
             enabled_prediction_writer.output_path
             == run_dir / "files" / "predictions.nc"
         )
+        assert enabled_prediction_writer.mask_dir == service.data_module_.mask_directory
         assert disabled_prediction_writer.output_path is None
+        assert disabled_prediction_writer.mask_dir is None
         assert result is fake_trainer
 
     def test_build_trainer_wires_wandb_logger_and_saves_config_to_wandb(

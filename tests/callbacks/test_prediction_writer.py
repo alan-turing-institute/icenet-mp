@@ -154,6 +154,77 @@ class TestPredictionWriter:
                 np.asarray([[0.0, 1.0], [0.0, 1.0]]),
             )
 
+    def test_writes_available_masks(self, tmp_path: Path) -> None:
+        output_path = tmp_path / "predictions.nc"
+        mask_dir = tmp_path / "masks"
+        mask_dir.mkdir()
+        land_mask = np.asarray([[1, 0], [1, 1]], dtype=np.uint8)
+        active_mask = np.asarray([[1, 0], [0, 1]], dtype=np.uint8)
+        np.save(mask_dir / "land_mask.npy", land_mask)
+        np.save(mask_dir / "active_mask.npy", active_mask)
+        trainer = _trainer(_combined_dataset())
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = output_path
+        writer.mask_dir = mask_dir
+
+        writer.on_test_start(trainer, LightningModule())
+        writer.on_test_end(trainer, LightningModule())
+
+        with NetCDFDataset(output_path) as netcdf:
+            assert np.array_equal(netcdf.variables["land_mask"][:], land_mask)
+            assert np.array_equal(netcdf.variables["active_mask"][:], active_mask)
+            assert netcdf.variables["land_mask"].dimensions == ("y", "x")
+            assert netcdf.variables["land_mask"].flag_meanings == "land ocean"
+            assert np.array_equal(netcdf.variables["land_mask"].flag_values, [0, 1])
+            assert (
+                netcdf.variables["ice_conc"].ancillary_variables
+                == "land_mask active_mask"
+            )
+
+    def test_skips_missing_masks(self, tmp_path: Path) -> None:
+        output_path = tmp_path / "predictions.nc"
+        mask_dir = tmp_path / "masks"
+        mask_dir.mkdir()
+        np.save(mask_dir / "land_mask.npy", np.ones((2, 2), dtype=np.uint8))
+        trainer = _trainer(_combined_dataset())
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = output_path
+        writer.mask_dir = mask_dir
+
+        writer.on_test_start(trainer, LightningModule())
+        writer.on_test_end(trainer, LightningModule())
+
+        with NetCDFDataset(output_path) as netcdf:
+            assert "land_mask" in netcdf.variables
+            assert "active_mask" not in netcdf.variables
+            assert netcdf.variables["ice_conc"].ancillary_variables == "land_mask"
+
+    def test_writes_no_masks_without_mask_dir(self, tmp_path: Path) -> None:
+        output_path = tmp_path / "predictions.nc"
+        trainer = _trainer(_combined_dataset())
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = output_path
+
+        writer.on_test_start(trainer, LightningModule())
+        writer.on_test_end(trainer, LightningModule())
+
+        with NetCDFDataset(output_path) as netcdf:
+            assert "land_mask" not in netcdf.variables
+            assert "active_mask" not in netcdf.variables
+            assert "ancillary_variables" not in netcdf.variables["ice_conc"].ncattrs()
+
+    def test_rejects_mask_shape_mismatch(self, tmp_path: Path) -> None:
+        mask_dir = tmp_path / "masks"
+        mask_dir.mkdir()
+        np.save(mask_dir / "land_mask.npy", np.ones((3, 3), dtype=np.uint8))
+        writer = PredictionWriter(enabled=True)
+        writer.output_path = tmp_path / "predictions.nc"
+        writer.mask_dir = mask_dir
+
+        with pytest.raises(ValueError, match="land mask shape"):
+            writer.on_test_start(_trainer(_combined_dataset()), LightningModule())
+        assert writer._file is None
+
     def test_rejects_prediction_channel_mismatch(self, tmp_path: Path) -> None:
         dataset = _combined_dataset()
         trainer = _trainer(dataset)

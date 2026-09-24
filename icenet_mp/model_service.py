@@ -290,7 +290,7 @@ class ModelService:
             / f"run-{get_timestamp()}-{generate_id()}"
         )
 
-    def build_trainer(  # noqa: C901, PLR0912
+    def build_trainer(  # noqa: C901, PLR0912, PLR0915
         self,
         *,
         config: DictConfig,
@@ -428,6 +428,7 @@ class ModelService:
                     output_path,
                 )
                 callback.output_path = output_path
+                callback.mask_dir = self.data_module.mask_directory
 
         return trainer
 

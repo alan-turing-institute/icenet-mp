@@ -9,6 +9,7 @@ from netCDF4 import Dataset as NetCDFDataset
 from torch import Tensor
 
 from icenet_mp.data import CombinedDataset
+from icenet_mp.types import MaskType
 
 if TYPE_CHECKING:  # per rule TC003
     from pathlib import Path
@@ -18,6 +19,16 @@ logger = logging.getLogger(__name__)
 _TIME_UNITS = "seconds since 1970-01-01 00:00:00"
 _TIME_CALENDAR = "proleptic_gregorian"
 _NTCHW_NDIM = 5
+_MASK_ATTRIBUTES = {
+    MaskType.LAND: {
+        "long_name": "ocean mask (1 = ocean, 0 = land)",
+        "flag_meanings": "land ocean",
+    },
+    MaskType.ACTIVE: {
+        "long_name": "active grid cell mask (1 = active ocean, 0 = land or inactive)",
+        "flag_meanings": "inactive active",
+    },
+}
 
 
 class PredictionWriter(Callback):
@@ -28,6 +39,7 @@ class PredictionWriter(Callback):
         super().__init__()
         self.enabled = enabled
         self.output_path: Path | None = None
+        self.mask_dir: Path | None = None
         self._dataset: CombinedDataset | None = None
         self._file: Any | None = None
         self._sample_offset = 0
@@ -74,6 +86,42 @@ class PredictionWriter(Callback):
             raise ValueError(msg)
         shape = (1, 1, -1, 1, 1)
         return prediction * (maximum - minimum).reshape(shape) + minimum.reshape(shape)
+
+    def _load_masks(self, shape: tuple[int, int]) -> dict[MaskType, np.ndarray]:
+        """Load whichever land/active masks exist in the mask directory."""
+        masks: dict[MaskType, np.ndarray] = {}
+        if self.mask_dir is None:
+            return masks
+        for mask_type in _MASK_ATTRIBUTES:
+            mask_path = self.mask_dir / f"{mask_type}_mask.npy"
+            if not mask_path.exists():
+                logger.debug("No %s mask found at %s.", mask_type, mask_path)
+                continue
+            mask = np.load(mask_path)
+            if mask.shape != shape:
+                msg = (
+                    f"{mask_type} mask shape {mask.shape} does not match the target "
+                    f"grid shape {shape}."
+                )
+                raise ValueError(msg)
+            masks[mask_type] = mask.astype(np.int8)
+        return masks
+
+    def _write_masks(self, masks: Mapping[MaskType, np.ndarray]) -> list[str]:
+        """Write static (y, x) mask variables and return their variable names."""
+        if self._file is None:
+            msg = "Prediction writer must open the output file before writing masks."
+            raise RuntimeError(msg)
+        names = []
+        for mask_type, mask in masks.items():
+            name = f"{mask_type}_mask"
+            variable = self._file.createVariable(name, "i1", ("y", "x"))
+            variable.setncatts(_MASK_ATTRIBUTES[mask_type])
+            variable.flag_values = np.asarray([0, 1], dtype=np.int8)
+            variable.coordinates = "latitude longitude"
+            variable[:, :] = mask
+            names.append(name)
+        return names
 
     def _initialise_file(self, dataset: CombinedDataset) -> None:
         """Create NetCDF dimensions, coordinates, and prediction variables."""
@@ -146,29 +194,39 @@ class PredictionWriter(Callback):
         longitude.units = "degrees_east"
         longitude[:, :] = longitudes.reshape(height, width)
 
+        mask_names = self._write_masks(self._load_masks((height, width)))
         for variable_name in dataset.target.variable_names:
-            variable = self._file.createVariable(
+            self._create_field_variable(variable_name, mask_names)
+
+    def _create_field_variable(self, variable_name: str, mask_names: list[str]) -> None:
+        """Create one (forecast_reference_time, lead_time, y, x) field variable."""
+        if self._file is None:
+            msg = "Prediction writer must open the output file before adding fields."
+            raise RuntimeError(msg)
+        variable = self._file.createVariable(
+            variable_name,
+            "f4",
+            ("forecast_reference_time", "lead_time", "y", "x"),
+            zlib=True,
+            complevel=4,
+            fill_value=np.nan,
+        )
+        variable.coordinates = (
+            "forecast_reference_time lead_time valid_time latitude longitude"
+        )
+        if mask_names:
+            variable.ancillary_variables = " ".join(mask_names)
+        if variable_name == "ice_conc":
+            variable.standard_name = "sea_ice_area_fraction"
+            variable.long_name = "sea ice concentration"
+            variable.units = "1"
+        else:
+            logger.warning(
+                "No CF standard_name/units mapping for prediction variable '%s'; "
+                "it will be written without them, despite this file's Conventions "
+                "attribute declaring CF-1.10.",
                 variable_name,
-                "f4",
-                ("forecast_reference_time", "lead_time", "y", "x"),
-                zlib=True,
-                complevel=4,
-                fill_value=np.nan,
             )
-            variable.coordinates = (
-                "forecast_reference_time lead_time valid_time latitude longitude"
-            )
-            if variable_name == "ice_conc":
-                variable.standard_name = "sea_ice_area_fraction"
-                variable.long_name = "sea ice concentration"
-                variable.units = "1"
-            else:
-                logger.warning(
-                    "No CF standard_name/units mapping for prediction variable '%s'; "
-                    "it will be written without them, despite this file's Conventions "
-                    "attribute declaring CF-1.10.",
-                    variable_name,
-                )
 
     def on_test_start(
         self,
