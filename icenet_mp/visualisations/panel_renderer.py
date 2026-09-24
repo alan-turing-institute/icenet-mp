@@ -38,17 +38,24 @@ class PanelRenderer:
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
 
-    def _validate_video_frames(self, arrays: list[ArrayTHW], dates: Timespan) -> None:
-        """Validate that video inputs are 3D [T, H, W] arrays matching `dates`.
+    def _validate_arrays(
+        self, *arrays: ArrayHW | ArrayTHW, dates: Timespan | None = None
+    ) -> list[ArrayHW] | list[ArrayTHW]:
+        """Validate that arrays share a common shape.
+
+        When `dates` is given (the video case), the first array must additionally
+        be 3D [T, H, W] with one frame per date.
 
         Raises:
-            InvalidArrayError: If an array isn't 3D, or its frame count does not match
-                the number of dates.
+            InvalidArrayError: If the arrays' shapes don't all match, or (when
+                `dates` is given) the first array isn't 3D with a matching frame
+                count.
 
         """
-        # Validate that the first array is 3D and has the correct number of frames
         shape = arrays[0].shape
-        if len(shape) != self.VIDEO_NDIM or shape[0] != dates.steps:
+        if dates is not None and (
+            len(shape) != self.VIDEO_NDIM or shape[0] != dates.steps
+        ):
             msg = (
                 f"Expected a 3D [T, H, W] array with {dates.steps} frames, got {shape}."
             )
@@ -58,6 +65,7 @@ class PanelRenderer:
             if array.shape != shape:
                 msg = f"Array shapes must match; expected {shape}, got {array.shape}."
                 raise InvalidArrayError(msg)
+        return list(arrays)
 
     def static_singlet(
         self,
@@ -78,13 +86,13 @@ class PanelRenderer:
             An ImageFile containing the rendered panel.
 
         """
-        masked_values = self.land_mask.apply_to(values)
+        arrays = [self.land_mask.apply_to(values)]
         scale = self.resolver.colour_scale(variable_name)
         title = self.annotator.header_for_variable(
             units=scale.units, when=when, variable_name=variable_name
         )
         return self.renderer.panels_static(
-            [masked_values],
+            arrays,
             cmap=scale.cmap,
             dpi=self.plot_spec.dpi,
             figure_title=title,
@@ -122,12 +130,18 @@ class PanelRenderer:
         Returns:
             An ImageFile containing the rendered panels.
 
-        """
-        masked_ground_truth = self.land_mask.apply_to(ground_truth)
-        masked_prediction = self.land_mask.apply_to(prediction)
-        panel_titles = panel_titles or {}
+        Raises:
+            InvalidArrayError: If `ground_truth` and `prediction` don't have
+                matching shapes.
 
-        arrays = [masked_ground_truth, masked_prediction]
+        """
+        arrays = self._validate_arrays(
+            self.land_mask.apply_to(ground_truth),
+            self.land_mask.apply_to(prediction),
+        )
+        masked_ground_truth, masked_prediction = arrays
+
+        panel_titles = panel_titles or {}
         titles = [
             panel_titles.get("ground_truth", self.plot_spec.title_groundtruth),
             panel_titles.get("prediction", self.plot_spec.title_prediction),
@@ -207,8 +221,7 @@ class PanelRenderer:
                 one entry per frame.
 
         """
-        self._validate_video_frames([values], dates)
-        masked_values = self.land_mask.apply_to(values)
+        arrays = self._validate_arrays(self.land_mask.apply_to(values), dates=dates)
         scale = self.resolver.colour_scale(variable_name)
 
         def title_for_frame(frame: int) -> str:
@@ -217,7 +230,7 @@ class PanelRenderer:
             )
 
         return self.renderer.panels_video(
-            [masked_values],
+            arrays,
             cmap=scale.cmap,
             dpi=self.plot_spec.dpi,
             figure_title=title_for_frame,
@@ -258,14 +271,17 @@ class PanelRenderer:
             A BytesIO object containing the rendered video.
 
         Raises:
-            InvalidArrayError: If `ground_truth` or `prediction` isn't 3D, or
-                `forecast_ctx` doesn't have one entry per frame.
+            InvalidArrayError: If `ground_truth` and `prediction` don't have
+                matching shapes, if either isn't 3D, or if `forecast_ctx` doesn't
+                have one entry per frame.
 
         """
-        masked_ground_truth = self.land_mask.apply_to(ground_truth)
-        masked_prediction = self.land_mask.apply_to(prediction)
-        arrays = [masked_ground_truth, masked_prediction]
-        self._validate_video_frames(arrays, forecast_ctx)
+        arrays = self._validate_arrays(
+            self.land_mask.apply_to(ground_truth),
+            self.land_mask.apply_to(prediction),
+            dates=forecast_ctx,
+        )
+        masked_ground_truth, masked_prediction = arrays
 
         panel_titles = panel_titles or {}
         titles = [
