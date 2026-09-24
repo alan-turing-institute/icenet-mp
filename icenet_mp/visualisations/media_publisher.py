@@ -119,7 +119,7 @@ class MediaPublisher:
             )
         }
         if climatology is not None:
-            with suppress(IndexError, TypeError):
+            with suppress(IndexError, InvalidArrayError, TypeError):
                 media["climatology-vs-prediction"] = render(
                     climatology,
                     prediction,
