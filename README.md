@@ -19,6 +19,16 @@ Example forecasts are shown below.
 
 The encode-process-decode architecture translates each input dataset into a shared latent space, allowing new data sources and model components to be added without changing the full pipeline.
 
+## Key capabilities
+
+- Multimodal data fusion across satellite observations, reanalysis fields, and in-situ sensor data.
+- Extensible encode-process-decode design for adding new input sources and prediction targets.
+- Multiple model configurations, including UNet, vision transformer, diffusion, and persistence-baseline approaches.
+
+## Project context
+
+IceNet-MP is developed at [The Alan Turing Institute](https://www.turing.ac.uk/) as a research system for Arctic and Antarctic sea-ice forecasting. The current codebase supports research, benchmarking, sensitivity experiments, and case-study analysis; it is not intended for operational forecasting, safety-critical decision making, or public warnings. See the [model card](docs/MODEL_CARD.md) for intended use and scope.
+
 ## Quick start
 
 ```bash
