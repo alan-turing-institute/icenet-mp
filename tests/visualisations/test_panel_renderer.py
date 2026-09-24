@@ -21,15 +21,13 @@ if TYPE_CHECKING:
 
 def _history_ctx_before(forecast_date: datetime, *, days: int = 2) -> Timespan:
     """A plausible history Timespan ending the day before `forecast_date`."""
-    return Timespan(
-        start=forecast_date - timedelta(days=days),
-        end=forecast_date - timedelta(days=1),
-    )
+    start = forecast_date - timedelta(days=days)
+    return Timespan([start + timedelta(days=offset) for offset in range(days)])
 
 
 def _forecast_and_history_ctx(dates: list[datetime]) -> tuple[Timespan, Timespan]:
     """A forecast Timespan spanning `dates`, plus a plausible history Timespan before it."""
-    forecast_ctx = Timespan(start=dates[0], end=dates[-1])
+    forecast_ctx = Timespan(dates)
     return forecast_ctx, _history_ctx_before(forecast_ctx.start)
 
 
@@ -40,7 +38,7 @@ class TestMetadata:
         """Metadata passed at construction is used by the renderer's own annotator."""
         renderer = PanelRenderer(no_land_mask, Metadata(model="unet"), PlotSpec())
 
-        assert renderer.annotator.footer_for_static() == "Model: unet"
+        assert renderer.annotator.footer() == "Model: unet"
 
 
 class TestRenderStaticSinglet:
@@ -76,7 +74,7 @@ class TestRenderVideoSinglet:
 
         result = renderer.video_singlet(
             era5_temperature_thw,
-            dates=dates,
+            dates=Timespan(dates),
             variable_name="era5:2t",
         )
 
@@ -99,7 +97,7 @@ class TestRenderVideoSinglet:
 
         renderer.video_singlet(
             era5_temperature_thw,
-            dates=dates,
+            dates=Timespan(dates),
             variable_name="era5:2t",
         )
 
@@ -125,7 +123,7 @@ class TestRenderVideoSinglet:
         with pytest.raises(InvalidArrayError):
             renderer.video_singlet(
                 era5_temperature_2d,  # type: ignore[arg-type]
-                dates=dates,
+                dates=Timespan(dates),
                 variable_name="era5:2t",
             )
 
@@ -144,7 +142,7 @@ class TestRenderVideoSinglet:
         with pytest.raises(InvalidArrayError):
             renderer.video_singlet(
                 era5_temperature_thw,
-                dates=dates,
+                dates=Timespan(dates),
                 variable_name="era5:2t",
             )
 

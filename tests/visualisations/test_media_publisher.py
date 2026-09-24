@@ -156,10 +156,10 @@ class TestMetadataAndHemisphere:
             model_name="unet",
         )
 
-        footer = media_publisher.panel_renderer.annotator.footer_for_static()
+        footer = media_publisher.panel_renderer.annotator.footer()
 
         assert "Model: unet" in footer
-        assert "Epoch: 50" in footer
+        assert "(epoch 50)" in footer
 
     def test_plot_spec_hemisphere_is_used_as_given(self) -> None:
         """Hemisphere is read straight from the given plot_spec, not set separately."""
@@ -191,10 +191,10 @@ class TestMetadataAndHemisphere:
             plot_spec=PlotSpec(),
         )
 
-        footer = media_publisher.panel_renderer.annotator.footer_for_static()
+        footer = media_publisher.panel_renderer.annotator.footer()
 
         assert "Model:" not in footer
-        assert "Epoch:" not in footer
+        assert "epoch" not in footer
 
 
 class TestLogStaticInputs:

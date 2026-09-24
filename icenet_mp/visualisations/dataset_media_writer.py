@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from icenet_mp.data import SingleDataset
-from icenet_mp.types import Metadata, PlotSpec
+from icenet_mp.types import Metadata, PlotSpec, Timespan
 from icenet_mp.utils import (
     datetime_from_npdatetime,
     iso_from_date,
@@ -80,10 +80,10 @@ class DatasetMediaWriter:
             )
             raise IndexError(msg)
 
-        dates = [
+        dates = Timespan(
             datetime_from_npdatetime(date)
             for date in dataset.dates[timestep : timestep + n_steps]
-        ]
+        )
         tchw = dataset.get_tchw_slice(dataset.dates[timestep], n_steps)
         variables = {
             f"{dataset.name}:{variable_name}": tchw[:, channel]

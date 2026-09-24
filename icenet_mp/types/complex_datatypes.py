@@ -1,6 +1,7 @@
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from functools import cached_property
 from typing import Any, Literal, Self, cast
 
 import numpy as np
@@ -235,14 +236,28 @@ class PlotSpec:
         return PlotSpec(**(asdict(self) | dict_other))
 
 
-@dataclass(frozen=True)
 class Timespan:
     """A span of time."""
 
-    start: datetime
-    end: datetime
+    def __init__(self, dates: Iterable[datetime]) -> None:
+        """Initialise a Timespan with a series of dates."""
+        self._dates = list(dates)
 
-    @property
+    @cached_property
     def days(self) -> int:
         """Return the size of the timespan in days."""
         return (self.end - self.start).days + 1
+
+    @cached_property
+    def end(self) -> datetime:
+        """Return the end date of the timespan."""
+        return self._dates[-1]
+
+    @cached_property
+    def start(self) -> datetime:
+        """Return the start date of the timespan."""
+        return self._dates[0]
+
+    def __getitem__(self, days: int) -> "datetime":
+        """Return the date after a number of days from the start of the timespan."""
+        return self._dates[days]

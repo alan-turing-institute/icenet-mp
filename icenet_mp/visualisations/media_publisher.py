@@ -228,18 +228,18 @@ class MediaPublisher:
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
                 media = self._render_three_panel_media(
-                    ground_truth=ground_truth,
-                    prediction=prediction,
-                    variable_name=variable_name,
-                    render=self.panel_renderer.static_triplet,
                     climatology=self._select_climatology(
                         climatology, idx_channel, self.idx_date
                     ),
+                    forecast_date=forecast_dates[self.idx_date],
+                    ground_truth=ground_truth,
+                    history_ctx=Timespan(history_dates),
+                    prediction=prediction,
+                    render=self.panel_renderer.static_triplet,
                     uncertainty=self._select_uncertainty(
                         uncertainties, idx_channel, self.idx_date
                     ),
-                    history_ctx=Timespan(start=history_dates[0], end=history_dates[-1]),
-                    forecast_date=forecast_dates[self.idx_date],
+                    variable_name=variable_name,
                 )
                 images: dict[str, list[ImageFile]] = {
                     f"{date_key}-{variable_name}-{suffix}": [image]
@@ -269,7 +269,7 @@ class MediaPublisher:
                     variable_name = f"{input_ds.name}:{unqualified_name}"
                     video = self.panel_renderer.video_singlet(
                         input_ds.get_tchw(np_dates)[:, channel, :],
-                        dates=dates,
+                        dates=Timespan(dates),
                         variable_name=variable_name,
                     )
                     video_data = {f"{date_key}-{variable_name}": video}
@@ -312,20 +312,18 @@ class MediaPublisher:
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
                 media = self._render_three_panel_media(
-                    ground_truth=ground_truth,
-                    prediction=prediction,
-                    variable_name=variable_name,
-                    render=self.panel_renderer.video_triplet,
                     climatology=self._select_climatology(
                         climatology, idx_channel, None
                     ),
+                    forecast_ctx=Timespan(forecast_dates),
+                    ground_truth=ground_truth,
+                    history_ctx=Timespan(history_dates),
+                    prediction=prediction,
+                    render=self.panel_renderer.video_triplet,
                     uncertainty=self._select_uncertainty(
                         uncertainties, idx_channel, None
                     ),
-                    history_ctx=Timespan(start=history_dates[0], end=history_dates[-1]),
-                    forecast_ctx=Timespan(
-                        start=forecast_dates[0], end=forecast_dates[-1]
-                    ),
+                    variable_name=variable_name,
                 )
                 videos.update(
                     {

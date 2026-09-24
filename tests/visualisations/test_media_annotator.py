@@ -9,15 +9,19 @@ class TestFormatTitle:
         """Include hemisphere and units when both are given."""
         annotator = MediaAnnotator(Metadata(), PlotSpec(hemisphere=Hemisphere.NORTH))
 
-        result = annotator.title_for_variable("2t", date(2020, 1, 1), "K")
+        result = annotator.header_for_variable(
+            units="K", variable_name="2t", when=date(2020, 1, 1)
+        )
 
-        assert result == "2t [K] (North) on 2020-01-01"
+        assert result == "2t [K] (north) on 2020-01-01"
 
     def test_without_hemisphere_or_units(self) -> None:
         """Omit hemisphere and units segments when neither is given."""
         annotator = MediaAnnotator(Metadata(), PlotSpec(hemisphere=None))
 
-        result = annotator.title_for_variable("2t", date(2020, 1, 1), None)
+        result = annotator.header_for_variable(
+            units=None, variable_name="2t", when=date(2020, 1, 1)
+        )
 
         assert result == "2t on 2020-01-01"
 
@@ -25,84 +29,165 @@ class TestFormatTitle:
         """Accept a datetime and format only its date portion."""
         annotator = MediaAnnotator(Metadata(), PlotSpec(hemisphere=None))
 
-        result = annotator.title_for_variable("2t", datetime(2020, 1, 1, 12, 30), None)
+        result = annotator.header_for_variable(
+            units=None, variable_name="2t", when=datetime(2020, 1, 1, 12, 30)
+        )
 
         assert result == "2t on 2020-01-01"
 
 
-class TestFormattedVariableName:
-    def test_replaces_underscores_and_title_cases(self) -> None:
-        """Turn a snake_case variable name into a human-friendly title."""
-        result = MediaAnnotator(Metadata(), PlotSpec())._format_variable_name(
-            "sea_ice_concentration"
+class TestDescribeVariable:
+    def test_replaces_underscores_with_spaces(self) -> None:
+        """Turn a snake_case variable name into a space-separated name."""
+        result = MediaAnnotator(Metadata(), PlotSpec()).describe_variable(
+            "sea_ice_concentration", units=None
         )
 
-        assert result == "Sea Ice Concentration"
+        assert result == "sea ice concentration"
 
     def test_empty_string_stays_empty(self) -> None:
         """Return an empty string unchanged."""
-        assert MediaAnnotator(Metadata(), PlotSpec())._format_variable_name("") == ""
-
-
-class TestBuildTitleVideo:
-    def test_advances_forecast_date_by_current_index(self) -> None:
-        """Each frame's title uses forecast_ctx.start + current_index days."""
-        history_ctx = Timespan(start=datetime(2020, 1, 1), end=datetime(2020, 1, 3))
-        forecast_ctx = Timespan(start=datetime(2020, 1, 4), end=datetime(2020, 1, 6))
-        annotator = MediaAnnotator(Metadata(), PlotSpec())
-
-        result = annotator.title_for_video(
-            current_index=2,
-            forecast_ctx=forecast_ctx,
-            history_ctx=history_ctx,
-            variable_name="sea_ice_concentration",
+        result = MediaAnnotator(Metadata(), PlotSpec()).describe_variable(
+            "", units=None
         )
 
-        assert result == annotator.title_for_static(
+        assert result == ""
+
+    def test_includes_units_and_hemisphere(self) -> None:
+        """Append units and hemisphere suffixes when both are given."""
+        annotator = MediaAnnotator(Metadata(), PlotSpec(hemisphere=Hemisphere.SOUTH))
+
+        result = annotator.describe_variable("ice_conc", units="%")
+
+        assert result == "ice conc [%] (south)"
+
+
+class TestHeader:
+    def test_combines_variable_and_dates(self) -> None:
+        """Combine the variable/hemisphere line and the dates line into the header."""
+        history_ctx = Timespan(
+            [datetime(2020, 1, 1), datetime(2020, 1, 2), datetime(2020, 1, 3)]
+        )
+        annotator = MediaAnnotator(Metadata(), PlotSpec(hemisphere=Hemisphere.NORTH))
+
+        result = annotator.header(
             forecast_date=datetime(2020, 1, 6),
             history_ctx=history_ctx,
             variable_name="sea_ice_concentration",
         )
 
-
-class TestBuildFooterStatic:
-    def test_includes_metadata_subtitle_when_set(self) -> None:
-        """Include the metadata subtitle line for metadata bound at construction."""
-        annotator = MediaAnnotator(Metadata(model="unet"), PlotSpec())
-
-        assert annotator.footer_for_static() == "Model: unet"
-
-    def test_empty_when_metadata_has_no_facts(self) -> None:
-        """Return an empty string when the bound metadata formats to nothing."""
-        annotator = MediaAnnotator(Metadata(), PlotSpec())
-
-        assert annotator.footer_for_static() == ""
-
-
-class TestBuildFooterVideo:
-    def test_includes_metadata_subtitle_alongside_animation_range(self) -> None:
-        """Include both the animation range and the metadata subtitle."""
-        annotator = MediaAnnotator(Metadata(model="unet"), PlotSpec())
-        forecast_ctx = Timespan(start=datetime(2020, 1, 1), end=datetime(2020, 1, 5))
-
-        result = annotator.footer_for_video(forecast_ctx)
-
-        assert "Animating from 2020-01-01 to 2020-01-05" in result
-        assert "Model: unet" in result
-
-    def test_omits_metadata_subtitle_when_absent(self) -> None:
-        """Only the animation-range line appears when there is no metadata."""
-        annotator = MediaAnnotator(Metadata(), PlotSpec())
-        forecast_ctx = Timespan(start=datetime(2020, 1, 1), end=datetime(2020, 1, 5))
-
-        assert annotator.footer_for_video(forecast_ctx) == (
-            "Animating from 2020-01-01 to 2020-01-05"
+        assert result == (
+            "sea ice concentration (north)\n"
+            "History: 2020-01-01 - 2020-01-03 (3 steps)   "
+            "Leadtime (+3 steps): 2020-01-06"
         )
 
 
-class TestFormatSubtitle:
-    def test_formats_model_epoch_and_training_data(self) -> None:
-        """Format model, epoch, dates and training data into a multi-line subtitle."""
+class TestDescribeDates:
+    def test_formats_history_window_and_leadtime(self) -> None:
+        """Combine the history window and the leadtime into one line."""
+        history_ctx = Timespan(
+            [datetime(2020, 1, 1), datetime(2020, 1, 2), datetime(2020, 1, 3)]
+        )
+        annotator = MediaAnnotator(Metadata(), PlotSpec())
+
+        result = annotator.describe_dates(datetime(2020, 1, 6), history_ctx)
+
+        assert result == (
+            "History: 2020-01-01 - 2020-01-03 (3 steps)   "
+            "Leadtime (+3 steps): 2020-01-06"
+        )
+
+
+class TestDescribeModel:
+    def test_formats_model_and_epoch(self) -> None:
+        """Combine model name and epoch onto one line."""
+        metadata = Metadata(model="unet", current_epoch=5)
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_model()
+
+        assert result == "Model: unet   (epoch 5)"
+
+    def test_model_only(self) -> None:
+        """Omit the epoch segment when current_epoch is unset."""
+        metadata = Metadata(model="unet")
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_model()
+
+        assert result == "Model: unet"
+
+    def test_epoch_only(self) -> None:
+        """Omit the model segment when model is unset."""
+        metadata = Metadata(current_epoch=5)
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_model()
+
+        assert result == "(epoch 5)"
+
+    def test_returns_none_when_absent(self) -> None:
+        """Return None when neither model nor epoch is set."""
+        assert MediaAnnotator(Metadata(), PlotSpec()).describe_model() is None
+
+
+class TestDescribeTraining:
+    def test_formats_dates_cadence_and_samples(self) -> None:
+        """Format the training date range, cadence and sample count."""
+        metadata = Metadata(
+            start="2020-01-01", end="2020-01-10", cadence="1d", n_points=10
+        )
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_training()
+
+        assert result == "Trained: 2020-01-01 — 2020-01-10   (1d, 10 samples)"
+
+    def test_cadence_without_sample_count(self) -> None:
+        """Omit the sample count when n_points is unset."""
+        metadata = Metadata(cadence="1d")
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_training()
+
+        assert result == "(1d)"
+
+    def test_dates_without_cadence(self) -> None:
+        """Omit the cadence segment when cadence is unset."""
+        metadata = Metadata(start="2020-01-01", end="2020-01-10")
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_training()
+
+        assert result == "Trained: 2020-01-01 — 2020-01-10"
+
+    def test_returns_none_when_absent(self) -> None:
+        """Return None when no training facts are set."""
+        assert MediaAnnotator(Metadata(), PlotSpec()).describe_training() is None
+
+
+class TestDescribeDatasets:
+    def test_lists_sources_with_variable_counts(self) -> None:
+        """List each source with its variable count, sorted by source name."""
+        metadata = Metadata(
+            vars_by_source={"osisaf": ["ice_conc"], "era5": ["2t", "sp"]}
+        )
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_datasets()
+
+        assert result == "Input datasets: era5 (2 variables) osisaf (1 variables)"
+
+    def test_lists_source_with_no_variables(self) -> None:
+        """List a source with an empty variable list without parentheses."""
+        metadata = Metadata(vars_by_source={"era5": []})
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_datasets()
+
+        assert result == "Input datasets: era5"
+
+    def test_returns_none_when_absent(self) -> None:
+        """Return None when no dataset metadata is set."""
+        assert MediaAnnotator(Metadata(), PlotSpec()).describe_datasets() is None
+
+
+class TestFooter:
+    def test_includes_model_training_and_datasets(self) -> None:
+        """Combine model, training and dataset descriptions into the footer."""
         metadata = Metadata(
             model="test_model",
             current_epoch=5,
@@ -113,40 +198,22 @@ class TestFormatSubtitle:
             vars_by_source={"era5": ["2t", "sp"]},
         )
 
-        subtitle = MediaAnnotator(metadata, PlotSpec()).subtitle()
+        footer = MediaAnnotator(metadata, PlotSpec()).footer()
 
-        assert subtitle is not None
-        assert "Model: test_model" in subtitle
-        assert "Epoch: 5" in subtitle
-        assert "Training Data:" in subtitle
-        assert "2020-01-01" in subtitle
-        assert "2020-01-10" in subtitle
-        assert "10 pts" in subtitle
+        assert "Model: test_model" in footer
+        assert "(epoch 5)" in footer
+        assert "Trained: 2020-01-01 — 2020-01-10" in footer
+        assert "10 samples" in footer
+        assert "Input datasets: era5 (2 variables)" in footer
 
-    def test_includes_history_window(self) -> None:
-        """Mention the history window when n_history_steps is set."""
-        metadata = Metadata(
-            start="2020-01-01",
-            end="2020-01-10",
-            cadence="1d",
-            n_history_steps=3,
-        )
+    def test_omits_missing_fields(self) -> None:
+        """Only include lines for the metadata facts that are actually set."""
+        footer = MediaAnnotator(Metadata(model="unet"), PlotSpec()).footer()
 
-        subtitle = MediaAnnotator(metadata, PlotSpec()).subtitle()
+        assert footer == "Model: unet"
 
-        assert subtitle is not None
-        assert "3 step history" in subtitle
+    def test_empty_when_metadata_has_no_facts(self) -> None:
+        """Return an empty string when the bound metadata formats to nothing."""
+        footer = MediaAnnotator(Metadata(), PlotSpec()).footer()
 
-    def test_lists_source_with_no_variables(self) -> None:
-        """List a source with an empty variable list without parentheses."""
-        metadata = Metadata(vars_by_source={"era5": []})
-
-        subtitle = MediaAnnotator(metadata, PlotSpec()).subtitle()
-
-        assert subtitle is not None
-        assert "Training Data: era5" in subtitle
-        assert "era5 (" not in subtitle
-
-    def test_minimal_metadata_returns_none(self) -> None:
-        """Return None when no metadata fields are set."""
-        assert MediaAnnotator(Metadata(), PlotSpec()).subtitle() is None
+        assert footer == ""

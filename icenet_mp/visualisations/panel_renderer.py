@@ -38,9 +38,7 @@ class PanelRenderer:
     def video_format(self) -> Literal["mp4", "gif"]:
         return self.plot_spec.video_format
 
-    def _validate_video_frames(
-        self, arrays: list[ArrayTHW], dates: list[datetime]
-    ) -> None:
+    def _validate_video_frames(self, arrays: list[ArrayTHW], dates: Timespan) -> None:
         """Validate that video inputs are 3D [T, H, W] arrays matching `dates`.
 
         Raises:
@@ -50,9 +48,9 @@ class PanelRenderer:
         """
         # Validate that the first array is 3D and has the correct number of frames
         shape = arrays[0].shape
-        if len(shape) != self.VIDEO_NDIM or shape[0] != len(dates):
+        if len(shape) != self.VIDEO_NDIM or shape[0] != dates.days:
             msg = (
-                f"Expected a 3D [T, H, W] array with {len(dates)} frames, got {shape}."
+                f"Expected a 3D [T, H, W] array with {dates.days} frames, got {shape}."
             )
             raise InvalidArrayError(msg)
         # The remaining arrays only need to match the shape of the first array
@@ -82,7 +80,9 @@ class PanelRenderer:
         """
         masked_values = self.land_mask.apply_to(values)
         scale = self.resolver.colour_scale(variable_name)
-        title = self.annotator.title_for_variable(variable_name, when, scale.units)
+        title = self.annotator.header_for_variable(
+            units=scale.units, when=when, variable_name=variable_name
+        )
         return self.renderer.panels_static(
             [masked_values],
             cmap=scale.cmap,
@@ -163,12 +163,12 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
-        title = self.annotator.title_for_static(
+        title = self.annotator.header(
             forecast_date=forecast_date,
             history_ctx=history_ctx,
             variable_name=variable_name,
         )
-        footer = self.annotator.footer_for_static()
+
         return self.renderer.panels_static(
             arrays,
             cmap=cmaps,
@@ -176,10 +176,8 @@ class PanelRenderer:
             contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
             figure_title=title,
-            footer_text=footer or None,
-            group_axes=(0, 1)
-            if self.plot_spec.include_difference or uncertainty is not None
-            else None,
+            footer_text=self.annotator.footer() or None,
+            group_axes=(0, 1) if self.plot_spec.include_difference else None,
             panel_titles=titles,
             vmax=vmaxs,
             vmin=vmins,
@@ -189,14 +187,14 @@ class PanelRenderer:
         self,
         values: ArrayTHW,
         *,
-        dates: list[datetime],
+        dates: Timespan,
         variable_name: str,
     ) -> BytesIO:
         """Render a single panel video BytesIO via MatplotlibRenderer.panels_video().\
 
         Args:
             values: 3D array of the variable field to render, with shape (time, height, width).
-            dates: List of datetimes corresponding to each timestep in `values`.
+            dates: Timespan corresponding to each timestep in `values`.
             variable_name: Name of the variable being plotted, used for styling and
                 title generation.
 
@@ -212,9 +210,9 @@ class PanelRenderer:
         masked_values = self.land_mask.apply_to(values)
         scale = self.resolver.colour_scale(variable_name)
 
-        def title_for_frame(tt: int) -> str:
-            return self.annotator.title_for_variable(
-                variable_name, dates[tt], scale.units
+        def title_for_frame(frame: int) -> str:
+            return self.annotator.header_for_variable(
+                units=scale.units, when=dates[frame], variable_name=variable_name
             )
 
         return self.renderer.panels_video(
@@ -264,9 +262,10 @@ class PanelRenderer:
         """
         masked_ground_truth = self.land_mask.apply_to(ground_truth)
         masked_prediction = self.land_mask.apply_to(prediction)
-        panel_titles = panel_titles or {}
-
         arrays = [masked_ground_truth, masked_prediction]
+        self._validate_video_frames(arrays, forecast_ctx)
+
+        panel_titles = panel_titles or {}
         titles = [
             panel_titles.get("ground_truth", self.plot_spec.title_groundtruth),
             panel_titles.get("prediction", self.plot_spec.title_prediction),
@@ -304,14 +303,11 @@ class PanelRenderer:
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
         def title_for_frame(frame: int) -> str:
-            return self.annotator.title_for_video(
-                current_index=frame,
-                variable_name=variable_name,
+            return self.annotator.header(
+                forecast_date=forecast_ctx[frame],
                 history_ctx=history_ctx,
-                forecast_ctx=forecast_ctx,
+                variable_name=variable_name,
             )
-
-        footer = self.annotator.footer_for_video(forecast_ctx)
 
         return self.renderer.panels_video(
             arrays,
@@ -320,7 +316,7 @@ class PanelRenderer:
             contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
             figure_title=title_for_frame,
-            footer_text=footer or None,
+            footer_text=self.annotator.footer() or None,
             fps=self.plot_spec.video_fps,
             group_axes=(0, 1) if self.plot_spec.include_difference else None,
             panel_titles=titles,
