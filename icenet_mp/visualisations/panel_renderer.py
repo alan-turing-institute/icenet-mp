@@ -30,9 +30,7 @@ class PanelRenderer:
         self.plot_spec = plot_spec
         self.annotator = MediaAnnotator(metadata, plot_spec)
         self.renderer = MatplotlibRenderer()
-        self.resolver = StyleResolver(
-            plot_spec.per_variable_styles, plot_spec.colourmap
-        )
+        self.resolver = StyleResolver(plot_spec)
 
     @property
     def video_format(self) -> Literal["mp4", "gif"]:
@@ -147,12 +145,10 @@ class PanelRenderer:
             panel_titles.get("prediction", self.plot_spec.title_prediction),
         ]
 
-        cmaps: list[str] = [
-            self.plot_spec.colourmap,
-            self.plot_spec.colourmap,
-        ]
-        vmins: list[float | None] = [self.plot_spec.vmin, self.plot_spec.vmin]
-        vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
+        scale = self.resolver.colour_scale(variable_name)
+        cmaps: list[str] = [scale.cmap, scale.cmap]
+        vmins: list[float | None] = [scale.vmin, scale.vmin]
+        vmaxs: list[float | None] = [scale.vmax, scale.vmax]
 
         # Optionally add a difference panel
         if self.plot_spec.include_difference:
@@ -289,12 +285,10 @@ class PanelRenderer:
             panel_titles.get("prediction", self.plot_spec.title_prediction),
         ]
 
-        cmaps: list[str] = [
-            self.plot_spec.colourmap,
-            self.plot_spec.colourmap,
-        ]
-        vmins: list[float | None] = [self.plot_spec.vmin, self.plot_spec.vmin]
-        vmaxs: list[float | None] = [self.plot_spec.vmax, self.plot_spec.vmax]
+        scale = self.resolver.colour_scale(variable_name)
+        cmaps: list[str] = [scale.cmap, scale.cmap]
+        vmins: list[float | None] = [scale.vmin, scale.vmin]
+        vmaxs: list[float | None] = [scale.vmax, scale.vmax]
 
         # Optionally add a difference panel
         if self.plot_spec.include_difference:

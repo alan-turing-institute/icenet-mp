@@ -61,6 +61,21 @@ def fake_video_dataset() -> SingleDataset:
     return cast("SingleDataset", FakeVideoDataset())
 
 
+class TestPrepare:
+    def test_plot_spec_disables_default_zero_one_range(self, tmp_path: Path) -> None:
+        """Raw (unnormalised) dataset previews auto-infer their colour range.
+
+        DatasetMediaWriter plots datasets loaded with normalise=False, so unlike
+        MediaPublisher's already-[0, 1]-normalised training/evaluation inputs, the
+        PlotSpec default vmin/vmax=[0, 1] would otherwise clip real physical values
+        (e.g. Kelvin temperatures) to a flat colour.
+        """
+        renderer, _ = DatasetMediaWriter(tmp_path)._prepare(fake_dataset())
+
+        assert renderer.plot_spec.vmin is None
+        assert renderer.plot_spec.vmax is None
+
+
 class TestPlotDataset:
     def test_plot_dataset_saves_each_variable(
         self,

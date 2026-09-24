@@ -2,32 +2,46 @@
 
 from typing import Any
 
+from icenet_mp.types import PlotSpec
 from icenet_mp.visualisations.style_resolver import StyleResolver
 
 DEFAULT_CMAP = "viridis"
+DEFAULT_VMIN = 3
+DEFAULT_VMAX = 5
+
+
+def _resolver(
+    styles: Any,  # noqa: ANN401
+    *,
+    cmap: str = DEFAULT_CMAP,
+    **plot_spec_kwargs: Any,
+) -> StyleResolver:
+    plot_spec_kwargs.setdefault("vmin", DEFAULT_VMIN)
+    plot_spec_kwargs.setdefault("vmax", DEFAULT_VMAX)
+    return StyleResolver(
+        PlotSpec(per_variable_styles=styles, colourmap=cmap, **plot_spec_kwargs)
+    )
 
 
 class TestStyleForVariable:
+    def test_empty_styles_falls_back_to_default_cmap(self) -> None:
+        """An empty styles mapping resolves cmap to the bound default."""
+        scale = _resolver({}).colour_scale("era5:2t")
+
+        assert scale.cmap == DEFAULT_CMAP
+        assert scale.vmin == DEFAULT_VMIN
+        assert scale.vmax == DEFAULT_VMAX
+
     def test_none_styles_falls_back_to_default_cmap(self) -> None:
         """A None styles mapping resolves cmap to the bound default."""
-        scale = StyleResolver(None, DEFAULT_CMAP).colour_scale("era5:2t")
+        scale = _resolver(None).colour_scale("era5:2t")
 
         assert scale.cmap == DEFAULT_CMAP
         assert scale.units is None
 
-    def test_empty_styles_falls_back_to_default_cmap(self) -> None:
-        """An empty styles mapping resolves cmap to the bound default."""
-        scale = StyleResolver({}, DEFAULT_CMAP).colour_scale("era5:2t")
-
-        assert scale.cmap == DEFAULT_CMAP
-        assert scale.vmin is None
-
     def test_non_mapping_styles_falls_back_to_default_cmap(self) -> None:
         """A styles value that is not a Mapping (e.g. a list) is ignored."""
-        scale = StyleResolver(
-            ["not", "a", "mapping"],  # type: ignore[arg-type]
-            DEFAULT_CMAP,
-        ).colour_scale("era5:2t")
+        scale = _resolver(["not", "a", "mapping"]).colour_scale("era5:2t")
 
         assert scale.cmap == DEFAULT_CMAP
 
@@ -35,7 +49,7 @@ class TestStyleForVariable:
         """A variable name spelled differently from the style key does not match."""
         styles = {"era5:2t": {"cmap": "RdBu_r", "units": "K"}}
 
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("era5-2t")
+        scale = _resolver(styles).colour_scale("era5-2t")
 
         assert scale.cmap == DEFAULT_CMAP
 
@@ -43,7 +57,7 @@ class TestStyleForVariable:
         """An unmatched variable name falls back to the '_default' style."""
         styles = {"_default": {"cmap": "grey"}}
 
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("totally:unmatched")
+        scale = _resolver(styles).colour_scale("totally:unmatched")
 
         assert scale.cmap == "grey"
 
@@ -51,7 +65,7 @@ class TestStyleForVariable:
         """No exact/wildcard/_default match resolves cmap to the bound default."""
         styles = {"era5:2t": {"cmap": "RdBu_r"}}
 
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("osisaf:ice_conc")
+        scale = _resolver(styles).colour_scale("osisaf:ice_conc")
 
         assert scale.cmap == DEFAULT_CMAP
 
@@ -59,7 +73,7 @@ class TestStyleForVariable:
         """A wildcard key of just '*' (empty prefix) is skipped, not treated as catch-all."""
         styles = {"*": {"cmap": "ignored"}, "_default": {"cmap": "fallback"}}
 
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("anything:at_all")
+        scale = _resolver(styles).colour_scale("anything:at_all")
 
         assert scale.cmap == "fallback"
 
@@ -67,7 +81,7 @@ class TestStyleForVariable:
         """A matching wildcard key whose value isn't a Mapping is logged and skipped."""
         styles: dict[str, Any] = {"era5:*": "not-a-mapping"}
 
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("era5:2t")
+        scale = _resolver(styles).colour_scale("era5:2t")
 
         assert scale.cmap == DEFAULT_CMAP
 
@@ -76,7 +90,7 @@ class TestStyleForVariable:
         variable_styles: dict[str, dict[str, Any]],
     ) -> None:
         """Test exact variable name matching in styling."""
-        scale = StyleResolver(variable_styles, DEFAULT_CMAP).colour_scale("era5:2t")
+        scale = _resolver(variable_styles).colour_scale("era5:2t")
 
         assert scale.cmap == "RdBu_r"
         assert scale.units == "K"
@@ -92,9 +106,7 @@ class TestStyleForVariable:
             "era5:q_*": {"cmap": "viridis", "units": "kg/kg"},
         }
 
-        scale = StyleResolver(styles_with_wildcard, DEFAULT_CMAP).colour_scale(
-            "era5:q_500"
-        )
+        scale = _resolver(styles_with_wildcard).colour_scale("era5:q_500")
 
         assert scale.cmap == "viridis"
         assert scale.units == "kg/kg"
@@ -105,7 +117,7 @@ class TestDefaultCmapFallback:
         """A matched style that omits cmap still resolves to the bound default."""
         styles = {"era5:2t": {"units": "K"}}
 
-        scale = StyleResolver(styles, DEFAULT_CMAP).colour_scale("era5:2t")
+        scale = _resolver(styles).colour_scale("era5:2t")
 
         assert scale.cmap == DEFAULT_CMAP
         assert scale.units == "K"

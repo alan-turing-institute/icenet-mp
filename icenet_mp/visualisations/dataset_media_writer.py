@@ -22,7 +22,8 @@ class DatasetMediaWriter:
 
     def _prepare(self, dataset: SingleDataset) -> tuple[PanelRenderer, Path]:
         """Build the renderer and output directory shared by `static` and `video`."""
-        plot_spec = PlotSpec(hemisphere=dataset.hemisphere)
+        # Unset the default vmin/vmax since this dataset is unnormalised.
+        plot_spec = PlotSpec(hemisphere=dataset.hemisphere, vmin=None, vmax=None)
         land_mask = LandMask(mask_dir(self.base_path, dataset.name) / "land_mask.npy")
         renderer = PanelRenderer(land_mask, Metadata(), plot_spec)
         output_dir = self.base_path / "data" / "input_plots" / dataset.name
