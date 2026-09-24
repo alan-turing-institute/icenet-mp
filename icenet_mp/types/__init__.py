@@ -23,6 +23,7 @@ from .enums import (
     Hemisphere,
     MaskType,
     RangeRestriction,
+    RolloutSpace,
     SkipConnectionType,
 )
 from .protocols import (
@@ -67,6 +68,7 @@ __all__ = [
     "PlotSpec",
     "ProcessorOutput",
     "RangeRestriction",
+    "RolloutSpace",
     "SkipConnectionType",
     "SupportsImageLogging",
     "SupportsMetadataFromDataset",
