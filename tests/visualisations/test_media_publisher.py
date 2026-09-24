@@ -377,6 +377,40 @@ class TestLogStaticOutputs:
         ):
             assert difference_call.kwargs["panel_titles"][-1] == "Difference (signed)"
 
+    def test_skips_z_score_when_difference_panel_disabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Don't log a z-score image when include_difference is off.
+
+        PanelRenderer only draws a third (z-score) panel when include_difference
+        is set, so logging a "z-score" image while it's off would just be a
+        mislabeled duplicate of the plain truth/prediction render.
+        """
+        fake_render = MagicMock(return_value=object())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
+        image_logger = MagicMock()
+        uncertainties = {0: torch.zeros((N_TIMESTEPS, HEIGHT, WIDTH)).numpy()}
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(include_difference=False),
+        )
+        media_publisher.log_static_outputs(
+            make_model_step_output(),
+            [image_logger],
+            channel_names=["sic", "temperature"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
+            uncertainties=uncertainties,
+        )
+
+        logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
+        assert logged_keys == [
+            "output_static/2020-01-01-sic-truth-difference",
+            "output_static/2020-01-01-temperature-truth-difference",
+        ]
+
     def test_skips_on_invalid_array_error(
         self,
         caplog: pytest.LogCaptureFixture,
@@ -706,6 +740,40 @@ class TestLogVideoOutputs:
             fake_render.call_args_list[2],
         ):
             assert difference_call.kwargs["panel_titles"][-1] == "Difference (signed)"
+
+    def test_skips_z_score_when_difference_panel_disabled(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Don't log a z-score video when include_difference is off.
+
+        PanelRenderer only draws a third (z-score) panel when include_difference
+        is set, so logging a "z-score" video while it's off would just be a
+        mislabeled duplicate of the plain truth/prediction render.
+        """
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        video_logger = MagicMock()
+        uncertainties = {0: torch.zeros((N_TIMESTEPS, HEIGHT, WIDTH)).numpy()}
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(include_difference=False),
+        )
+        media_publisher.log_video_outputs(
+            make_model_step_output(),
+            [video_logger],
+            channel_names=["sic", "temperature"],
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
+            uncertainties=uncertainties,
+        )
+
+        logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
+        assert logged_keys == [
+            "output_video/2020-01-01-sic-truth-difference",
+            "output_video/2020-01-01-temperature-truth-difference",
+        ]
 
     def test_skips_on_invalid_array_error(
         self,

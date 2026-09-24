@@ -78,8 +78,24 @@ class MediaPublisher:
         """Build a consistent logger namespace."""
         return f"{prefix}/{name}" if prefix else name
 
-    @staticmethod
+    def _log_videos(
+        self,
+        videos: dict[str, BytesIO],
+        video_loggers: list[SupportsVideoLogging],
+        log_path: str,
+    ) -> None:
+        """Rewind and send rendered videos to every configured video logger."""
+        for video_logger in video_loggers:
+            for video_name, video_buffer in videos.items():
+                video_buffer.seek(0)
+                video_logger.log_video(
+                    key=f"{log_path}/{video_name}",
+                    videos=[video_buffer],
+                    format=[self.panel_renderer.video_format],
+                )
+
     def _render_three_panel_media(
+        self,
         *,
         climatology: np.ndarray | None,
         ground_truth: np.ndarray,
@@ -111,7 +127,9 @@ class MediaPublisher:
                     variable_name=variable_name,
                     **render_kwargs,
                 )
-        if uncertainty is not None:
+        # We only render a z-score output if the plot spec is configured to include a
+        # difference panel and we have an uncertainty array.
+        if uncertainty is not None and self.panel_renderer.plot_spec.include_difference:
             media["z-score"] = render(
                 ground_truth,
                 prediction,
@@ -150,22 +168,6 @@ class MediaPublisher:
         ):
             return None
         return uncertainty[idx_date] if idx_date is not None else uncertainty
-
-    def _log_videos(
-        self,
-        videos: dict[str, BytesIO],
-        video_loggers: list[SupportsVideoLogging],
-        log_path: str,
-    ) -> None:
-        """Rewind and send rendered videos to every configured video logger."""
-        for video_logger in video_loggers:
-            for video_name, video_buffer in videos.items():
-                video_buffer.seek(0)
-                video_logger.log_video(
-                    key=f"{log_path}/{video_name}",
-                    videos=[video_buffer],
-                    format=[self.panel_renderer.video_format],
-                )
 
     def log_static_inputs(
         self,
