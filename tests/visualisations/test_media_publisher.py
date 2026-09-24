@@ -152,14 +152,14 @@ class TestMetadataAndHemisphere:
             dataset=fake_combined_dataset(),
             land_mask=LandMask(None),
             plot_spec=PlotSpec(),
-            current_epoch=50,
             model_name="unet",
+            trained_epochs=50,
         )
 
         footer = media_publisher.panel_renderer.annotator.footer()
 
         assert "Model: unet" in footer
-        assert "(epoch 50)" in footer
+        assert "50 epoch(s), 10 samples/epoch)" in footer
 
     def test_plot_spec_hemisphere_is_used_as_given(self) -> None:
         """Hemisphere is read straight from the given plot_spec, not set separately."""
@@ -183,8 +183,8 @@ class TestMetadataAndHemisphere:
 
         assert media_publisher.panel_renderer.land_mask is new_land_mask
 
-    def test_current_epoch_and_model_name_are_optional(self) -> None:
-        """Omitting current_epoch/model_name leaves the footer without those lines."""
+    def test_trained_epochs_and_model_name_are_optional(self) -> None:
+        """Omitting trained_epochs/model_name leaves the footer without those lines."""
         media_publisher = MediaPublisher(
             dataset=fake_combined_dataset(),
             land_mask=LandMask(None),
@@ -194,7 +194,9 @@ class TestMetadataAndHemisphere:
         footer = media_publisher.panel_renderer.annotator.footer()
 
         assert "Model:" not in footer
-        assert "epoch" not in footer
+        assert "epoch(s)" not in footer
+        # The dataset still yields a sample count with no epoch count alongside it.
+        assert "(10 samples/epoch)" in footer
 
 
 class TestLogStaticInputs:

@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
 import numpy as np
-import pytest
 import torch
 from anemoi.datasets.create.recipe import Recipe
 
@@ -137,17 +136,16 @@ class TestMetadata:
         """Accept and preserve training-summary metadata fields."""
         metadata = Metadata(
             model="cnn-vit-cnn",
-            current_epoch=7,
+            trained_epochs=7,
             training_start="2017-01-01",
             training_end="2019-12-31",
-            cadence="24h",
-            n_points=1095,
+            n_samples=1095,
             n_history_steps=3,
             vars_by_source={"sic-ssmis": ["ice_conc"]},
         )
 
         assert metadata.model == "cnn-vit-cnn"
-        assert metadata.current_epoch == 7
+        assert metadata.trained_epochs == 7
         assert metadata.n_history_steps == 3
         assert metadata.vars_by_source == {"sic-ssmis": ["ice_conc"]}
 
@@ -157,7 +155,7 @@ class TestMetadata:
         second = Metadata()
 
         assert first.model is None
-        assert first.n_points is None
+        assert first.n_samples is None
         assert first.vars_by_source == {"era5": ["2t"]}
         assert second.vars_by_source is None
 
@@ -165,54 +163,32 @@ class TestMetadata:
 class TestMetadataFromDataset:
     """Tests for Metadata.from_dataset."""
 
-    @pytest.mark.parametrize(
-        ("hours", "expected"),
-        [
-            (24, "daily"),
-            (48, "2d"),
-            (72, "3d"),
-            (1, "hourly"),
-            (6, "6h"),
-            (0.5, "0.5h"),
-        ],
-    )
-    def test_formats_hours_as_cadence_label(self, hours: float, expected: str) -> None:
-        """Format a dataset's frequency into a short, human-readable cadence label."""
-        frequency = np.timedelta64(int(hours * 60), "m")
-        dataset = fake_metadata_source(frequency=frequency)
-
-        metadata = Metadata.from_dataset(dataset)
-
-        assert metadata.cadence == expected
-
-    def test_derives_dates_cadence_and_length_from_dataset(self) -> None:
+    def test_derives_dates_and_length_from_dataset(self) -> None:
         """Metadata fields come from the dataset's realised state, not from config."""
         dataset = fake_metadata_source(
             start_date="2020-01-01T12:30:00",
             end_date="2020-01-10T00:00:00",
-            frequency=np.timedelta64(1, "D"),
             length=10,
             n_history_steps=3,
         )
 
-        metadata = Metadata.from_dataset(dataset, current_epoch=5, model_name="unet")
+        metadata = Metadata.from_dataset(dataset, model_name="unet", trained_epochs=5)
 
         assert metadata.model == "unet"
-        assert metadata.current_epoch == 5
+        assert metadata.trained_epochs == 5
         assert metadata.training_start == "2020-01-01"
         assert metadata.training_end == "2020-01-10"
-        assert metadata.cadence == "daily"
-        assert metadata.n_points == 10
+        assert metadata.n_samples == 10
         assert metadata.n_history_steps == 3
 
     def test_defaults_model_and_epoch_to_none(self) -> None:
-        """Omitted model_name/current_epoch fall back to None."""
+        """Omitted model_name/trained_epochs fall back to None."""
         dataset = fake_metadata_source()
 
         metadata = Metadata.from_dataset(dataset)
 
         assert metadata.model is None
-        assert metadata.current_epoch is None
+        assert metadata.trained_epochs is None
 
     def test_collects_sorted_variable_names_by_source(self) -> None:
         """vars_by_source maps each input dataset's name to its sorted variable names."""

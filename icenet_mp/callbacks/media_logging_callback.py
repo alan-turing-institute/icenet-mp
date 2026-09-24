@@ -238,13 +238,16 @@ class MediaLoggingCallback(Callback):
         if land_mask_path not in self._land_mask_cache:
             self._land_mask_cache[land_mask_path] = LandMask(land_mask_path)
 
+        # Use checkpoint epoch during testing and current epoch otherwise
+        epoch = pl_module.checkpoint_epoch if trainer.testing else trainer.current_epoch
+
         # Construct a publisher to handle the actual plotting and logging of media.
         publisher = MediaPublisher(
-            current_epoch=trainer.current_epoch,
             dataset=getattr(datamodule, "training_dataset", dataset),
             land_mask=self._land_mask_cache[land_mask_path],
             model_name=self._model_name,
             plot_spec=replace(self._plot_spec, hemisphere=pl_module.hemisphere),
+            trained_epochs=None if epoch is None else epoch + 1,
         )
 
         # Load dates from the dataset

@@ -134,6 +134,10 @@ class ModelService:
             map_location="cpu",  # portability: will be moved to the correct device later
             weights_only=False,
         )
+        # Load the current epoch from the checkpoint
+        builder.model_.checkpoint_epoch = torch.load(
+            checkpoint_path, map_location="cpu", weights_only=False
+        ).get("epoch")
 
         return builder
 

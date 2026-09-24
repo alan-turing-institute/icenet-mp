@@ -75,16 +75,11 @@ class MediaAnnotator:
         Returns:
             Formatted string like:
 
-            Model: <model> (epoch <num>)
+            Model: <model>
 
         """
-        parts: list[str] = []
         if self.metadata.model:
-            parts.append(f"Model: {self.metadata.model}")
-        if self.metadata.current_epoch is not None:
-            parts.append(f"(epoch {self.metadata.current_epoch})")
-        if parts:
-            return "   ".join(parts)
+            return f"Model: {self.metadata.model}"
         return None
 
     def describe_training(self) -> str | None:
@@ -93,7 +88,7 @@ class MediaAnnotator:
         Returns:
             Formatted string like:
 
-            Trained: <start> — <end> (<cadence>, <num> samples)
+            Trained: <start> — <end> (<num> epoch(s), <num> samples/epoch)
 
         """
         parts: list[str] = []
@@ -101,13 +96,18 @@ class MediaAnnotator:
             parts.append(
                 f"Trained: {self.metadata.training_start or '?'} — {self.metadata.training_end or '?'}"
             )
-        if self.metadata.cadence:
-            samples = (
-                f", {self.metadata.n_points} samples"
-                if self.metadata.n_points is not None
-                else ""
-            )
-            parts.append(f"({self.metadata.cadence}{samples})")
+        epochs = (
+            f"{self.metadata.trained_epochs} epoch(s)"
+            if self.metadata.trained_epochs is not None
+            else None
+        )
+        samples = (
+            f"{self.metadata.n_samples} samples/epoch"
+            if self.metadata.n_samples is not None
+            else None
+        )
+        if epochs or samples:
+            parts.append(f"({', '.join(part for part in (epochs, samples) if part)})")
         if parts:
             return " ".join(parts)
         return None
@@ -138,8 +138,8 @@ class MediaAnnotator:
         Returns:
             Formatted string like:
 
-            Model: <model> (epoch <num>)
-            Trained: <start> — <end> (<cadence>, <num> samples)
+            Model: <model>
+            Trained: <start> — <end> (<num> epoch(s), <num> samples/epoch)
             Input datasets: <source> (<num vars>) <source> (<num vars>)
 
         """

@@ -130,59 +130,53 @@ class TestDescribeDates:
 
 
 class TestDescribeModel:
-    def test_formats_model_and_epoch(self) -> None:
-        """Combine model name and epoch onto one line."""
-        metadata = Metadata(model="unet", current_epoch=5)
-
-        result = MediaAnnotator(metadata, PlotSpec()).describe_model()
-
-        assert result == "Model: unet   (epoch 5)"
-
-    def test_model_only(self) -> None:
-        """Omit the epoch segment when current_epoch is unset."""
+    def test_formats_model(self) -> None:
+        """Format the model name on its own line."""
         metadata = Metadata(model="unet")
 
         result = MediaAnnotator(metadata, PlotSpec()).describe_model()
 
         assert result == "Model: unet"
 
-    def test_epoch_only(self) -> None:
-        """Omit the model segment when model is unset."""
-        metadata = Metadata(current_epoch=5)
-
-        result = MediaAnnotator(metadata, PlotSpec()).describe_model()
-
-        assert result == "(epoch 5)"
-
     def test_returns_none_when_absent(self) -> None:
-        """Return None when neither model nor epoch is set."""
+        """Return None when model is not set."""
         assert MediaAnnotator(Metadata(), PlotSpec()).describe_model() is None
 
 
 class TestDescribeTraining:
-    def test_formats_dates_cadence_and_samples(self) -> None:
-        """Format the training date range, cadence and sample count."""
+    def test_formats_dates_samples_and_epochs(self) -> None:
+        """Format the training date range, sample count and epoch count."""
         metadata = Metadata(
             training_start="2020-01-01",
             training_end="2020-01-10",
-            cadence="1d",
-            n_points=10,
+            n_samples=10,
+            trained_epochs=16,
         )
 
         result = MediaAnnotator(metadata, PlotSpec()).describe_training()
 
-        assert result == "Trained: 2020-01-01 — 2020-01-10 (1d, 10 samples)"
+        assert (
+            result == "Trained: 2020-01-01 — 2020-01-10 (16 epoch(s), 10 samples/epoch)"
+        )
 
-    def test_cadence_without_sample_count(self) -> None:
-        """Omit the sample count when n_points is unset."""
-        metadata = Metadata(cadence="1d")
+    def test_samples_without_epochs(self) -> None:
+        """Omit the epoch count when trained_epochs is unset."""
+        metadata = Metadata(n_samples=10)
 
         result = MediaAnnotator(metadata, PlotSpec()).describe_training()
 
-        assert result == "(1d)"
+        assert result == "(10 samples/epoch)"
 
-    def test_dates_without_cadence(self) -> None:
-        """Omit the cadence segment when cadence is unset."""
+    def test_epochs_without_samples(self) -> None:
+        """Omit the sample count when n_samples is unset."""
+        metadata = Metadata(trained_epochs=16)
+
+        result = MediaAnnotator(metadata, PlotSpec()).describe_training()
+
+        assert result == "(16 epoch(s))"
+
+    def test_dates_without_samples(self) -> None:
+        """Omit the parenthetical entirely when n_samples is unset."""
         metadata = Metadata(training_start="2020-01-01", training_end="2020-01-10")
 
         result = MediaAnnotator(metadata, PlotSpec()).describe_training()
@@ -223,20 +217,19 @@ class TestFooter:
         """Combine model, training and dataset descriptions into the footer."""
         metadata = Metadata(
             model="test_model",
-            current_epoch=5,
+            trained_epochs=5,
             training_start="2020-01-01",
             training_end="2020-01-10",
-            cadence="1d",
-            n_points=10,
+            n_samples=10,
             vars_by_source={"era5": ["2t", "sp"]},
         )
 
         footer = MediaAnnotator(metadata, PlotSpec()).footer()
 
         assert "Model: test_model" in footer
-        assert "(epoch 5)" in footer
         assert "Trained: 2020-01-01 — 2020-01-10" in footer
-        assert "10 samples" in footer
+        assert "10 samples/epoch" in footer
+        assert "5 epoch(s)" in footer
         assert "Input datasets: era5 (2 variables)" in footer
 
     def test_omits_missing_fields(self) -> None:

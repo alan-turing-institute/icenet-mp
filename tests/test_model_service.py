@@ -120,9 +120,37 @@ class TestModelService:
                 "icenet_mp.model_service.hydra.utils.get_class",
                 lambda _target: FakeModel,
             )
+            mp.setattr(
+                "icenet_mp.model_service.torch.load", lambda *_a, **_k: {"epoch": 3}
+            )
             service = ModelService.from_checkpoint(DictConfig({}), checkpoint_path)
             assert isinstance(service.model, FakeModel)
             assert service.config == cfg_model_service
+            assert service.model.checkpoint_epoch == 3
+
+    def test_from_checkpoint_sets_checkpoint_epoch_to_none_when_absent(
+        self, cfg_model_service: DictConfig, tmp_path: Path
+    ) -> None:
+        """Don't crash when the raw checkpoint dict has no 'epoch' key."""
+        checkpoints_dir = tmp_path / "checkpoints"
+        checkpoints_dir.mkdir(parents=True)
+        checkpoint_path = checkpoints_dir / "model.ckpt"
+        checkpoint_path.write_text("checkpoint")
+
+        files_dir = tmp_path / "files"
+        files_dir.mkdir(parents=True)
+        OmegaConf.save(cfg_model_service, files_dir / "model_config.yaml")
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("icenet_mp.model_service.CommonDataModule", FakeCommonDataModule)
+            mp.setattr(
+                "icenet_mp.model_service.hydra.utils.get_class",
+                lambda _target: FakeModel,
+            )
+            mp.setattr("icenet_mp.model_service.torch.load", lambda *_a, **_k: {})
+            service = ModelService.from_checkpoint(DictConfig({}), checkpoint_path)
+
+        assert service.model.checkpoint_epoch is None
 
     def test_from_checkpoint_config_overloads(
         self, cfg_model_service: DictConfig, tmp_path: Path
@@ -142,6 +170,9 @@ class TestModelService:
             mp.setattr(
                 "icenet_mp.model_service.hydra.utils.get_class",
                 lambda _target: FakeModel,
+            )
+            mp.setattr(
+                "icenet_mp.model_service.torch.load", lambda *_a, **_k: {"epoch": 3}
             )
             service = ModelService.from_checkpoint(
                 DictConfig(
@@ -182,6 +213,9 @@ class TestModelService:
             mp.setattr(
                 "icenet_mp.model_service.hydra.utils.get_class",
                 lambda _target: FakeModel,
+            )
+            mp.setattr(
+                "icenet_mp.model_service.torch.load", lambda *_a, **_k: {"epoch": 3}
             )
             service = ModelService.from_checkpoint(cfg_model_service, checkpoint_path)
 

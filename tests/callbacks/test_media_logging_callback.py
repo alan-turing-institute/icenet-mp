@@ -18,6 +18,7 @@ from icenet_mp.types import ModelStepOutput, PlotSpec
 def make_plots_args(mock_trainer: MagicMock) -> tuple[MagicMock, MagicMock, MagicMock]:
     """Configure mock_trainer and build a matching pl_module/dataset pair for make_plots tests."""
     mock_trainer.current_epoch = 0
+    mock_trainer.testing = False
     mock_trainer.loggers = []
     mock_trainer.datamodule = None
     pl_module = MagicMock(spec=BaseModel)
@@ -42,8 +43,8 @@ def _stub_media_publisher(
     `make_plots` now builds a fresh `MediaPublisher(...)` locally on every call rather than
     holding one on the callback, so the class itself is replaced with a MagicMock: its
     `call_args_list` records each construction's kwargs (dataset/hemisphere/land_mask/
-    current_epoch/model_name), and `.return_value` is the stub instance whose log_*
-    methods `make_plots` calls.
+    model_name/trained_epochs), and `.return_value` is the stub instance whose
+    log_* methods `make_plots` calls.
     """
     publisher_class = MagicMock()
     publisher = publisher_class.return_value
@@ -423,6 +424,7 @@ class TestMakePlots:
         make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        """During training/validation, show the (1-indexed) count of completed epochs."""
         callback = MediaLoggingCallback()
         stubs = _stub_media_publisher(callback, monkeypatch)
         callback.cached_batch_idx_ = 0
@@ -433,12 +435,59 @@ class TestMakePlots:
         callback.make_plots(trainer, pl_module, dataset, 1)
 
         construction_calls = stubs["media_publisher_class"].call_args_list
-        assert any(c.kwargs.get("current_epoch") == 7 for c in construction_calls)
+        assert any(c.kwargs.get("trained_epochs") == 8 for c in construction_calls)
         assert any(
             c.kwargs.get("plot_spec") is not None
             and c.kwargs["plot_spec"].hemisphere == "south"
             for c in construction_calls
         )
+
+    def test_pushes_model_trained_epochs_to_media_publisher_during_evaluation(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """During evaluation, show how many epochs the loaded model was trained for.
+
+        A fresh evaluate-only trainer's current_epoch is always 0, so this must come
+        from the model instead (set by ModelService.from_checkpoint).
+        """
+        callback = MediaLoggingCallback()
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+        trainer.current_epoch = 0
+        trainer.testing = True
+        pl_module.checkpoint_epoch = 15
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        construction_calls = stubs["media_publisher_class"].call_args_list
+        assert any(c.kwargs.get("trained_epochs") == 16 for c in construction_calls)
+
+    def test_trained_epochs_is_none_when_checkpoint_epoch_is_unset(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pass None rather than crashing when checkpoint_epoch was never set.
+
+        This happens when evaluating a model that was never loaded from a checkpoint
+        (checkpoint_epoch defaults to None on BaseModel).
+        """
+        callback = MediaLoggingCallback()
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+        trainer.testing = True
+        pl_module.checkpoint_epoch = None
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        construction_calls = stubs["media_publisher_class"].call_args_list
+        assert any(c.kwargs.get("trained_epochs") is None for c in construction_calls)
 
     def test_uses_datamodule_training_dataset_for_media_publisher_metadata(
         self,

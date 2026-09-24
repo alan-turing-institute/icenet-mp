@@ -34,9 +34,6 @@ class SupportsMetadataFromDataset(Protocol):
     """Can be used by `Metadata.from_dataset` to build a `Metadata` instance."""
 
     @property
-    def frequency(self) -> np.timedelta64: ...
-
-    @property
     def inputs(self) -> Sequence[SupportsMetadataInput]: ...
 
     @property

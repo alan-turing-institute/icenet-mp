@@ -40,26 +40,24 @@ class MediaPublisher:
         dataset: CombinedDataset,
         plot_spec: PlotSpec,
         land_mask: LandMask,
-        current_epoch: int | None = None,
         model_name: str | None = None,
+        trained_epochs: int | None = None,
     ) -> None:
         """Build a publisher bound to one dataset/plot_spec/land_mask context.
 
         Args:
-            dataset: Used only to build the footer's "Trained:" metadata (date
-                range, cadence, sample count) -- callers should pass the training
-                split's dataset here, not necessarily the one being plotted.
+            dataset: The training dataset; may be different from the one plotted.
             plot_spec: Plotting specification (difference settings, timestep, etc.).
             land_mask: Land mask to apply when rendering panels.
-            current_epoch: Current training epoch, shown in the footer if given.
             model_name: Model name, shown in the footer if given.
+            trained_epochs: The number of epochs trained for.
 
         """
         self.idx_date = plot_spec.selected_timestep
         self.panel_renderer = PanelRenderer(
             land_mask,
             Metadata.from_dataset(
-                dataset, current_epoch=current_epoch, model_name=model_name
+                dataset, model_name=model_name, trained_epochs=trained_epochs
             ),
             plot_spec,
         )

@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from functools import cached_property
 from typing import Any, Literal, Self, cast
 
-import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 
@@ -74,21 +73,19 @@ class Metadata:
 
     Attributes:
         model: Model name (if available).
-        current_epoch: Current training epoch (if available).
+        n_history_steps: Number of history steps used as model input window (days).
+        n_samples: Number of training points per epoch (if available).
+        trained_epochs: Number of epochs the model has been trained for.
         training_start: Training start date string (if available).
         training_end: Training end date string (if available).
-        cadence: Training data cadence string (if available).
-        n_points: Number of training points calculated from date range and cadence.
         vars_by_source: Dictionary mapping dataset source names to lists of variable names.
-        n_history_steps: Number of history steps used as model input window (days).
 
     """
 
-    cadence: str | None = None
-    current_epoch: int | None = None
     model: str | None = None
     n_history_steps: int | None = None
-    n_points: int | None = None
+    n_samples: int | None = None
+    trained_epochs: int | None = None
     training_end: str | None = None
     training_start: str | None = None
     vars_by_source: dict[str, list[str]] | None = None
@@ -98,26 +95,17 @@ class Metadata:
         cls,
         dataset: SupportsMetadataFromDataset,
         *,
-        current_epoch: int | None = None,
         model_name: str | None = None,
+        trained_epochs: int | None = None,
     ) -> "Metadata":
         """Build structured metadata from a dataset-like source."""
-        # Format the dataset's frequency as a short, human-readable cadence label.
-        hours = float(dataset.frequency / np.timedelta64(1, "h"))
-        if hours % 24 == 0:
-            days = int(hours // 24)
-            cadence = "daily" if days == 1 else f"{days}d"
-        else:
-            cadence = "hourly" if hours == 1 else f"{hours:g}h"
-
         vars_by_source = {ds.name: sorted(ds.variable_names) for ds in dataset.inputs}
 
         return cls(
-            cadence=cadence,
-            current_epoch=current_epoch,
             model=model_name,
+            trained_epochs=trained_epochs,
             n_history_steps=dataset.n_history_steps,
-            n_points=len(dataset),
+            n_samples=len(dataset),
             training_end=str(dataset.end_date.astype("datetime64[D]")),
             training_start=str(dataset.start_date.astype("datetime64[D]")),
             vars_by_source=vars_by_source or None,
