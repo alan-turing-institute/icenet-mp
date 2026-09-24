@@ -199,9 +199,12 @@ class TestDatasetsPlotCLI:
     class FakeDownloader:
         """A minimal downloader stub exposing only what `plot` needs."""
 
-        def __init__(self, name: str, path_dataset: Path) -> None:
-            """Store the downloader's name and dataset path."""
+        def __init__(
+            self, name: str, path_dataset: Path, group: str | None = None
+        ) -> None:
+            """Store the downloader's name, group, and dataset path."""
             self.name = name
+            self.group = name if group is None else group
             self.path_dataset = path_dataset
 
     def test_help(self, runner: CustomCliRunner) -> None:

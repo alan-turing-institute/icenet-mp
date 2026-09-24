@@ -88,6 +88,7 @@ def plot(
             ds = SingleDataset(
                 name=downloader.name,
                 input_files=[downloader.path_dataset],
+                group=downloader.group,
                 normalise=False,
             )
             n_saved = (

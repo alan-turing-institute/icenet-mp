@@ -29,6 +29,7 @@ class SingleDataset(Dataset):
         input_files: Sequence[Path],
         *,
         date_ranges: Sequence[dict[str, str | None]] = [{"start": None, "end": None}],
+        group: str | None = None,
         normalise: bool = True,
         variables: Sequence[str] = (),
     ) -> None:
@@ -36,6 +37,19 @@ class SingleDataset(Dataset):
 
         The underlying Anemoi dataset has shape [T; C; ensembles; position].
         We reshape this to CHW before returning.
+
+        Args:
+            name: The name of the dataset, used to identify it in plots and logs.
+            input_files: The paths to the Anemoi dataset files.
+            date_ranges: The ranges of dates to include in the dataset. Each range is a
+                dict with "start" and "end" keys, which can be None to indicate
+                open-ended ranges.
+            group: The group name for the dataset, used to identify it in plots and
+                logs. If None, the group name defaults to the dataset name.
+            normalise: Whether to normalise the data to [0, 1] for each channel.
+            variables: The names of the variables to include in the dataset. If empty,
+                all variables are included.
+
         """
         super().__init__()
         self.hemisphere: Hemisphere = (
@@ -44,6 +58,7 @@ class SingleDataset(Dataset):
             else Hemisphere.SOUTH
         )
         self.name = name
+        self.group = name if group is None else group
         self._date_ranges = self.normalise_date_ranges(date_ranges)
         self._input_files = tuple(sorted(input_files))
         self._normalise = normalise
@@ -324,6 +339,7 @@ class SingleDataset(Dataset):
             name=self.name,
             input_files=self._input_files,
             date_ranges=date_ranges or self._date_ranges,
+            group=self.group,
             normalise=self._normalise if normalise is None else normalise,
             variables=variables or list(self._variables),
         )

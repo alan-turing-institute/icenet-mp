@@ -18,6 +18,7 @@ def fake_dataset() -> SingleDataset:
         """Minimal dataset stub for plotting tests."""
 
         name = "example"
+        group = "example"
         hemisphere = "north"
         dates: ClassVar[list[np.datetime64]] = [np.datetime64("2020-01-01")]
         variable_names: ClassVar[list[str]] = ["ice_conc", "temperature"]
@@ -40,6 +41,7 @@ def fake_video_dataset() -> SingleDataset:
         """Minimal dataset stub for video plotting tests."""
 
         name = "example"
+        group = "example"
         hemisphere = "north"
         dates: ClassVar[list[np.datetime64]] = [
             np.datetime64("2020-01-01"),
