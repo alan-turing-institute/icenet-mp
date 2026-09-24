@@ -48,12 +48,17 @@ class MediaAnnotator:
             History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps)   Leadtime (+<leadtime> steps) YYYY-MM-DD
 
         """
-        leadtime = (forecast_date - history_ctx.end).days
-        return "   ".join(
-            (
-                f"History: {iso_from_date(history_ctx.start)} - {iso_from_date(history_ctx.end)} ({history_ctx.days} steps)",
-                f"Leadtime (+{leadtime} steps): {iso_from_date(forecast_date)}",
-            )
+        elapsed = forecast_date - history_ctx.end
+        leadtime = (
+            round(elapsed / history_ctx.frequency)
+            if history_ctx.frequency is not None
+            else elapsed.days
+        )
+        hspan = f"{iso_from_date(history_ctx.start)} - {iso_from_date(history_ctx.end)}"
+        return (
+            f"History: {hspan} ({history_ctx.steps} steps)"
+            "   "
+            f"Leadtime (+{leadtime} steps): {iso_from_date(forecast_date)}"
         )
 
     def describe_model(self) -> str | None:

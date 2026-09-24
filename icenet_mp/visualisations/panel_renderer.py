@@ -48,9 +48,9 @@ class PanelRenderer:
         """
         # Validate that the first array is 3D and has the correct number of frames
         shape = arrays[0].shape
-        if len(shape) != self.VIDEO_NDIM or shape[0] != dates.days:
+        if len(shape) != self.VIDEO_NDIM or shape[0] != dates.steps:
             msg = (
-                f"Expected a 3D [T, H, W] array with {dates.days} frames, got {shape}."
+                f"Expected a 3D [T, H, W] array with {dates.steps} frames, got {shape}."
             )
             raise InvalidArrayError(msg)
         # The remaining arrays only need to match the shape of the first array

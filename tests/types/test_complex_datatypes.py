@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import pytest
 import torch
 from omegaconf import DictConfig
@@ -8,6 +10,7 @@ from icenet_mp.types import (
     Hemisphere,
     ModelStepOutput,
     PlotSpec,
+    Timespan,
 )
 
 
@@ -176,3 +179,34 @@ class TestModelStepOutput:
     def test_len_returns_three(self) -> None:
         """ModelStepOutput always reports a length of three."""
         assert len(self._make_output()) == 3
+
+
+class TestTimespan:
+    """Tests for Timespan."""
+
+    def test_frequency_daily(self) -> None:
+        """Derive a one-day frequency from consecutive daily dates."""
+        span = Timespan(
+            [datetime(2020, 1, 1), datetime(2020, 1, 2), datetime(2020, 1, 3)]
+        )
+
+        assert span.frequency == timedelta(days=1)
+
+    def test_frequency_sub_daily(self) -> None:
+        """Derive an hourly frequency from consecutive hourly dates."""
+        span = Timespan(
+            [
+                datetime(2020, 1, 1, 0),
+                datetime(2020, 1, 1, 6),
+                datetime(2020, 1, 1, 12),
+                datetime(2020, 1, 1, 18),
+            ]
+        )
+
+        assert span.frequency == timedelta(hours=6)
+
+    def test_frequency_none_with_single_date(self) -> None:
+        """Return None when there aren't enough dates to derive a spacing."""
+        span = Timespan([datetime(2020, 1, 1)])
+
+        assert span.frequency is None

@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cached_property
 from typing import Any, Literal, Self, cast
 
@@ -239,14 +239,11 @@ class PlotSpec:
 class Timespan:
     """A span of time."""
 
-    def __init__(self, dates: Iterable[datetime]) -> None:
-        """Initialise a Timespan with a series of dates."""
-        self._dates = list(dates)
+    MIN_DATES_FOR_FREQUENCY = 2
 
-    @cached_property
-    def days(self) -> int:
-        """Return the size of the timespan in days."""
-        return len(self._dates)
+    def __init__(self, dates: Iterable[datetime]) -> None:
+        """Initialise a timespan with a series of dates."""
+        self._dates = list(dates)
 
     @cached_property
     def end(self) -> datetime:
@@ -254,10 +251,25 @@ class Timespan:
         return self._dates[-1]
 
     @cached_property
+    def frequency(self) -> timedelta | None:
+        """Return the spacing between consecutive steps, or None if unknown.
+
+        Assumes uniform spacing derived from the first and last dates.
+        """
+        if len(self._dates) < self.MIN_DATES_FOR_FREQUENCY:
+            return None
+        return (self.end - self.start) / (self.steps - 1)
+
+    @cached_property
     def start(self) -> datetime:
         """Return the start date of the timespan."""
         return self._dates[0]
 
-    def __getitem__(self, days: int) -> "datetime":
-        """Return the date after a number of days from the start of the timespan."""
-        return self._dates[days]
+    @cached_property
+    def steps(self) -> int:
+        """Return the number of steps (dates) in the timespan."""
+        return len(self._dates)
+
+    def __getitem__(self, step: int) -> "datetime":
+        """Return the date at a given step index from the start of the timespan."""
+        return self._dates[step]

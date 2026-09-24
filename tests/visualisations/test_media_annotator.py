@@ -98,6 +98,27 @@ class TestDescribeDates:
             "Leadtime (+3 steps): 2020-01-06"
         )
 
+    def test_counts_leadtime_in_steps_for_sub_daily_cadence(self) -> None:
+        """Count the leadtime in steps, not calendar days, for sub-daily data.
+
+        A history window spaced 6 hours apart with a forecast one step past
+        the end spans less than a full calendar day, so `.days` would floor
+        it to 0 steps even though it is genuinely +1 step.
+        """
+        history_ctx = Timespan(
+            [
+                datetime(2020, 1, 1, 0),
+                datetime(2020, 1, 1, 6),
+                datetime(2020, 1, 1, 12),
+                datetime(2020, 1, 1, 18),
+            ]
+        )
+        annotator = MediaAnnotator(Metadata(), PlotSpec())
+
+        result = annotator.describe_dates(datetime(2020, 1, 2, 0), history_ctx)
+
+        assert "Leadtime (+1 steps): 2020-01-02" in result
+
 
 class TestDescribeModel:
     def test_formats_model_and_epoch(self) -> None:
