@@ -440,6 +440,46 @@ class TestMakePlots:
             for c in construction_calls
         )
 
+    def test_uses_datamodule_training_dataset_for_media_publisher_metadata(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Source the footer's "Trained:" metadata from the datamodule's training split, not the active dataset."""
+        callback = MediaLoggingCallback()
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+        training_dataset = MagicMock(spec=CombinedDataset)
+        trainer.datamodule = MagicMock(
+            training_dataset=training_dataset, mask_directory=None
+        )
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        construction_calls = stubs["media_publisher_class"].call_args_list
+        assert any(
+            c.kwargs.get("dataset") is training_dataset for c in construction_calls
+        )
+
+    def test_falls_back_to_active_dataset_without_datamodule_training_dataset(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Fall back to the active split's dataset when no datamodule is available."""
+        callback = MediaLoggingCallback()
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        construction_calls = stubs["media_publisher_class"].call_args_list
+        assert any(c.kwargs.get("dataset") is dataset for c in construction_calls)
+
     def test_selects_start_date_using_batch_size_and_cached_batch_idx(
         self,
         make_plots_args: tuple[MagicMock, MagicMock, MagicMock],

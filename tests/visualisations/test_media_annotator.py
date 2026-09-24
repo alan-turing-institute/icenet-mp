@@ -163,12 +163,15 @@ class TestDescribeTraining:
     def test_formats_dates_cadence_and_samples(self) -> None:
         """Format the training date range, cadence and sample count."""
         metadata = Metadata(
-            start="2020-01-01", end="2020-01-10", cadence="1d", n_points=10
+            training_start="2020-01-01",
+            training_end="2020-01-10",
+            cadence="1d",
+            n_points=10,
         )
 
         result = MediaAnnotator(metadata, PlotSpec()).describe_training()
 
-        assert result == "Trained: 2020-01-01 — 2020-01-10   (1d, 10 samples)"
+        assert result == "Trained: 2020-01-01 — 2020-01-10 (1d, 10 samples)"
 
     def test_cadence_without_sample_count(self) -> None:
         """Omit the sample count when n_points is unset."""
@@ -180,7 +183,7 @@ class TestDescribeTraining:
 
     def test_dates_without_cadence(self) -> None:
         """Omit the cadence segment when cadence is unset."""
-        metadata = Metadata(start="2020-01-01", end="2020-01-10")
+        metadata = Metadata(training_start="2020-01-01", training_end="2020-01-10")
 
         result = MediaAnnotator(metadata, PlotSpec()).describe_training()
 
@@ -221,8 +224,8 @@ class TestFooter:
         metadata = Metadata(
             model="test_model",
             current_epoch=5,
-            start="2020-01-01",
-            end="2020-01-10",
+            training_start="2020-01-01",
+            training_end="2020-01-10",
             cadence="1d",
             n_points=10,
             vars_by_source={"era5": ["2t", "sp"]},

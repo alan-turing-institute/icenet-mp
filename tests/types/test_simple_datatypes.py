@@ -138,8 +138,8 @@ class TestMetadata:
         metadata = Metadata(
             model="cnn-vit-cnn",
             current_epoch=7,
-            start="2017-01-01",
-            end="2019-12-31",
+            training_start="2017-01-01",
+            training_end="2019-12-31",
             cadence="24h",
             n_points=1095,
             n_history_steps=3,
@@ -199,8 +199,8 @@ class TestMetadataFromDataset:
 
         assert metadata.model == "unet"
         assert metadata.current_epoch == 5
-        assert metadata.start == "2020-01-01"
-        assert metadata.end == "2020-01-10"
+        assert metadata.training_start == "2020-01-01"
+        assert metadata.training_end == "2020-01-10"
         assert metadata.cadence == "daily"
         assert metadata.n_points == 10
         assert metadata.n_history_steps == 3

@@ -75,8 +75,8 @@ class Metadata:
     Attributes:
         model: Model name (if available).
         current_epoch: Current training epoch (if available).
-        start: Training start date string (if available).
-        end: Training end date string (if available).
+        training_start: Training start date string (if available).
+        training_end: Training end date string (if available).
         cadence: Training data cadence string (if available).
         n_points: Number of training points calculated from date range and cadence.
         vars_by_source: Dictionary mapping dataset source names to lists of variable names.
@@ -84,13 +84,13 @@ class Metadata:
 
     """
 
-    model: str | None = None
-    current_epoch: int | None = None
-    start: str | None = None
-    end: str | None = None
     cadence: str | None = None
-    n_points: int | None = None
+    current_epoch: int | None = None
+    model: str | None = None
     n_history_steps: int | None = None
+    n_points: int | None = None
+    training_end: str | None = None
+    training_start: str | None = None
     vars_by_source: dict[str, list[str]] | None = None
 
     @classmethod
@@ -113,13 +113,13 @@ class Metadata:
         vars_by_source = {ds.name: sorted(ds.variable_names) for ds in dataset.inputs}
 
         return cls(
-            model=model_name,
-            current_epoch=current_epoch,
-            start=str(dataset.start_date.astype("datetime64[D]")),
-            end=str(dataset.end_date.astype("datetime64[D]")),
             cadence=cadence,
-            n_points=len(dataset),
+            current_epoch=current_epoch,
+            model=model_name,
             n_history_steps=dataset.n_history_steps,
+            n_points=len(dataset),
+            training_end=str(dataset.end_date.astype("datetime64[D]")),
+            training_start=str(dataset.start_date.astype("datetime64[D]")),
             vars_by_source=vars_by_source or None,
         )
 

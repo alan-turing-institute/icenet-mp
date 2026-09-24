@@ -97,9 +97,9 @@ class MediaAnnotator:
 
         """
         parts: list[str] = []
-        if self.metadata.start or self.metadata.end:
+        if self.metadata.training_start or self.metadata.training_end:
             parts.append(
-                f"Trained: {self.metadata.start or '?'} — {self.metadata.end or '?'}"
+                f"Trained: {self.metadata.training_start or '?'} — {self.metadata.training_end or '?'}"
             )
         if self.metadata.cadence:
             samples = (
@@ -109,7 +109,7 @@ class MediaAnnotator:
             )
             parts.append(f"({self.metadata.cadence}{samples})")
         if parts:
-            return "   ".join(parts)
+            return " ".join(parts)
         return None
 
     def describe_variable(self, variable_name: str, units: str | None) -> str:
