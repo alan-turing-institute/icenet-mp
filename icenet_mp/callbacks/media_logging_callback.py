@@ -327,7 +327,7 @@ class MediaLoggingCallback(Callback):
     ) -> None:
         """Shared test/validation epoch-end handling: maybe plot."""
         # Only run plotting if this batch is at the specified frequency
-        if self.frequency_epoch < 0 or trainer.current_epoch % self.frequency_epoch:
+        if self.frequency_epoch <= 0 or trainer.current_epoch % self.frequency_epoch:
             return
 
         # Load the dataset
