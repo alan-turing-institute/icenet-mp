@@ -334,6 +334,71 @@ class TestLogStaticOutputs:
         assert panel_titles[0] == "Climatology"
         assert panel_titles[1] == "Prediction"
 
+    def test_climatology_triplet_omitted_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without compare_truth_climatology, don't log a truth/climatology image."""
+        fake_render = MagicMock(return_value=object())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
+        image_logger = MagicMock()
+        climatology = np.zeros((N_TIMESTEPS, 1, HEIGHT, WIDTH), dtype=np.float32)
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
+        )
+        media_publisher.log_static_outputs(
+            make_model_step_output(channels=1),
+            [image_logger],
+            channel_names=["sic"],
+            climatology=climatology,
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
+        )
+
+        logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
+        assert logged_keys == [
+            "output_static/2020-01-01-sic-truth-vs-prediction",
+            "output_static/2020-01-01-sic-climatology-vs-prediction",
+        ]
+
+    def test_compare_truth_climatology_adds_truth_vs_climatology_image(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Setting compare_truth_climatology also logs a ground-truth/climatology image."""
+        fake_render = MagicMock(return_value=object())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
+        image_logger = MagicMock()
+        climatology = np.zeros((N_TIMESTEPS, 1, HEIGHT, WIDTH), dtype=np.float32)
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
+        )
+        media_publisher.log_static_outputs(
+            make_model_step_output(channels=1),
+            [image_logger],
+            channel_names=["sic"],
+            climatology=climatology,
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
+            compare_truth_climatology=True,
+        )
+
+        logged_keys = [c.kwargs["key"] for c in image_logger.log_image.call_args_list]
+        assert logged_keys == [
+            "output_static/2020-01-01-sic-truth-vs-prediction",
+            "output_static/2020-01-01-sic-climatology-vs-prediction",
+            "output_static/2020-01-01-sic-truth-vs-climatology",
+        ]
+        # The truth-vs-climatology render omits history_ctx, so it falls back to a
+        # plain date title with no footer, rather than the leadtime/history line.
+        triplet_call = fake_render.call_args_list[-1]
+        assert triplet_call.kwargs["footer_text"] is None
+        assert "Leadtime" not in triplet_call.kwargs["figure_title"]
+
     def test_includes_uncertainty_when_provided(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -697,6 +762,72 @@ class TestLogVideoOutputs:
         panel_titles = climatology_call.kwargs["panel_titles"]
         assert panel_titles[0] == "Climatology"
         assert panel_titles[1] == "Prediction"
+
+    def test_climatology_triplet_omitted_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without compare_truth_climatology, don't log a truth/climatology video."""
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        video_logger = MagicMock()
+        climatology = np.zeros((N_TIMESTEPS, 1, HEIGHT, WIDTH), dtype=np.float32)
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
+        )
+        media_publisher.log_video_outputs(
+            make_model_step_output(channels=1),
+            [video_logger],
+            channel_names=["sic"],
+            climatology=climatology,
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
+        )
+
+        logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
+        assert logged_keys == [
+            "output_video/2020-01-01-sic-truth-vs-prediction",
+            "output_video/2020-01-01-sic-climatology-vs-prediction",
+        ]
+
+    def test_compare_truth_climatology_adds_truth_vs_climatology_video(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Setting compare_truth_climatology also logs a ground-truth/climatology video."""
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        video_logger = MagicMock()
+        climatology = np.zeros((N_TIMESTEPS, 1, HEIGHT, WIDTH), dtype=np.float32)
+
+        media_publisher = MediaPublisher(
+            dataset=fake_combined_dataset(),
+            land_mask=LandMask(None),
+            plot_spec=PlotSpec(),
+        )
+        media_publisher.log_video_outputs(
+            make_model_step_output(channels=1),
+            [video_logger],
+            channel_names=["sic"],
+            climatology=climatology,
+            forecast_dates=FORECAST_DATES,
+            history_dates=HISTORY_DATES,
+            compare_truth_climatology=True,
+        )
+
+        logged_keys = [c.kwargs["key"] for c in video_logger.log_video.call_args_list]
+        assert logged_keys == [
+            "output_video/2020-01-01-sic-truth-vs-prediction",
+            "output_video/2020-01-01-sic-climatology-vs-prediction",
+            "output_video/2020-01-01-sic-truth-vs-climatology",
+        ]
+        # The truth-vs-climatology render omits history_ctx, so it falls back to a
+        # plain date title with no footer, rather than the leadtime/history line.
+        triplet_call = fake_render.call_args_list[-1]
+        assert triplet_call.kwargs["footer_text"] is None
+        title_for_frame = triplet_call.kwargs["figure_title"]
+        assert "Leadtime" not in title_for_frame(0)
 
     def test_includes_uncertainty_when_provided(
         self, monkeypatch: pytest.MonkeyPatch

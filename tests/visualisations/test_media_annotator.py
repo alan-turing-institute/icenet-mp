@@ -120,6 +120,14 @@ class TestDescribeDates:
         assert result is not None
         assert "Leadtime (+1 steps): 2020-01-02" in result
 
+    def test_falls_back_to_plain_date_without_history_context(self) -> None:
+        """Without a history context, just state the date rather than a leadtime."""
+        annotator = MediaAnnotator(Metadata(), PlotSpec())
+
+        result = annotator.describe_dates(datetime(2020, 1, 6), None)
+
+        assert result == "Date: 2020-01-06"
+
 
 class TestDescribeModel:
     def test_formats_model_and_epoch(self) -> None:

@@ -279,6 +279,10 @@ class MediaLoggingCallback(Callback):
                 climatology=climatology_tchw,
                 forecast_dates=forecast_dates,
                 history_dates=history_dates,
+                compare_truth_climatology=(
+                    self.make_input_plots
+                    and not self.is_logged("climatology_static", forecast_dates)
+                ),
                 prefix=self.prefix,
                 uncertainties=uncertainties,
             )
@@ -295,6 +299,10 @@ class MediaLoggingCallback(Callback):
                 climatology=climatology_tchw,
                 forecast_dates=forecast_dates,
                 history_dates=history_dates,
+                compare_truth_climatology=(
+                    self.make_input_plots
+                    and not self.is_logged("climatology_video", forecast_dates)
+                ),
                 prefix=self.prefix,
                 uncertainties=uncertainties,
             )

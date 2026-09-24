@@ -114,7 +114,11 @@ class PanelRenderer:
         Args:
             ground_truth: 2D array of the ground truth field.
             prediction: 2D array of the predicted field.
-            history_ctx: Timespan covering the history/input period.
+            history_ctx: Timespan covering the history/input period. When omitted,
+                the title falls back to a plain "<variable> on <date>" line and the
+                model/training/input-dataset footer is skipped; use this for plots
+                that don't depend on the model, such as a ground-truth/climatology
+                comparison.
             forecast_date: Datetime of the forecast being shown.
             uncertainty: Optional 2D array of the reported standard uncertainty of the
                 prediction field. When given, the third panel divides the configured
@@ -187,7 +191,7 @@ class PanelRenderer:
             contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
             figure_title=title,
-            footer_text=self.annotator.footer() or None,
+            footer_text=None if history_ctx is None else self.annotator.footer(),
             group_axes=(0, 1) if self.plot_spec.include_difference else None,
             panel_titles=titles,
             vmax=vmaxs,
@@ -242,7 +246,7 @@ class PanelRenderer:
         prediction: ArrayTHW,
         *,
         forecast_ctx: Timespan,
-        history_ctx: Timespan,
+        history_ctx: Timespan | None = None,
         panel_titles: dict[str, str] | None = None,
         uncertainty: ArrayTHW | None = None,
         variable_name: str,
@@ -253,7 +257,11 @@ class PanelRenderer:
             ground_truth: 3D array of the ground truth field.
             prediction: 3D array of the predicted field.
             forecast_ctx: Timespan for the forecast period.
-            history_ctx: Timespan for the history period.
+            history_ctx: Timespan for the history period. When omitted, each frame's
+                title falls back to a plain "<variable> on <date>" line and the
+                model/training/input-dataset footer is skipped; use this for plots
+                that don't depend on the model, such as a ground-truth/climatology
+                comparison.
             uncertainty: Optional 3D array of the reported standard uncertainty of the
                 prediction field. When given, the third panel divides the configured
                 difference (see `plot_spec.diff_mode`) by `uncertainty`; this is a
@@ -328,7 +336,7 @@ class PanelRenderer:
             contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
             figure_title=title_for_frame,
-            footer_text=self.annotator.footer() or None,
+            footer_text=None if history_ctx is None else self.annotator.footer(),
             fps=self.plot_spec.video_fps,
             group_axes=(0, 1) if self.plot_spec.include_difference else None,
             panel_titles=titles,

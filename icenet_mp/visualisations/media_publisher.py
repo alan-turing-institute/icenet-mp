@@ -94,10 +94,11 @@ class MediaPublisher:
                     format=[self.panel_renderer.video_format],
                 )
 
-    def _render_multipanel_media(
+    def _render_multipanel_media(  # noqa: PLR0913
         self,
         *,
         climatology: np.ndarray | None,
+        compare_truth_climatology: bool = False,
         ground_truth: np.ndarray,
         prediction: np.ndarray,
         render: Callable[..., RenderedMedia],
@@ -130,15 +131,23 @@ class MediaPublisher:
                     variable_name=variable_name,
                     **render_kwargs,
                 )
-                media["truth-vs-climatology"] = render(
-                    ground_truth,
-                    climatology,
-                    panel_titles={"prediction": "Climatology"},
-                    variable_name=variable_name,
-                    **render_kwargs,
-                )
-        # We only render a z-score output if the plot spec is configured to include a
-        # difference panel and we have an uncertainty array.
+            # Only render a truth/climatology/difference triplet once
+            if compare_truth_climatology:
+                with suppress(IndexError, InvalidArrayError, TypeError):
+                    # Drop history context so the header will be set correctly
+                    filtered_render_kwargs = {
+                        key: None if key == "history_ctx" else value
+                        for key, value in render_kwargs.items()
+                    }
+                    media["truth-vs-climatology"] = render(
+                        ground_truth,
+                        climatology,
+                        panel_titles={"prediction": "Climatology"},
+                        variable_name=variable_name,
+                        **filtered_render_kwargs,
+                    )
+        # Only render a z-score output if the plot spec is configured to include a
+        # difference panel and an uncertainty array is provided.
         if uncertainty is not None and self.panel_renderer.plot_spec.include_difference:
             media["truth-vs-prediction-z-score"] = render(
                 ground_truth,
@@ -187,7 +196,15 @@ class MediaPublisher:
         *,
         prefix: str | None = None,
     ) -> None:
-        """Extract and log static raw input plots."""
+        """Extract and log static raw input plots.
+
+        Args:
+            inputs: List of SingleDataset instances containing the input data.
+            dates: List of datetime objects corresponding to the timesteps in the datasets.
+            image_loggers: List of image loggers to send the rendered images to.
+            prefix: Optional prefix for the log path to namespace the logged images.
+
+        """
         try:
             when = dates[self.idx_date]
             log_path = self._log_path(prefix, "input_static")
@@ -217,6 +234,7 @@ class MediaPublisher:
         *,
         channel_names: list[str] | None = None,
         climatology: ArrayTCHW | None = None,
+        compare_truth_climatology: bool = False,
         forecast_dates: list[datetime],
         history_dates: list[datetime],
         prefix: str | None = None,
@@ -227,6 +245,21 @@ class MediaPublisher:
         When a matching entry is present, also logs a standardised uncertainty
         (z-score) plot and a calendar-day-mean (climatology) map for the plotted
         date and channel.
+
+        Args:
+            outputs: ModelStepOutput containing the ground truth and prediction arrays.
+            image_loggers: List of image loggers to send the rendered images to.
+            channel_names: Optional list of channel names corresponding to the output channels.
+            climatology: Optional climatology array for the output channels.
+            compare_truth_climatology: Whether to also log a ground-truth/climatology/
+                difference triplet, with a plain "on <date>" title and no footer since
+                it doesn't depend on the model. Callers should only set this once per
+                date rather than every epoch.
+            forecast_dates: List of forecast dates corresponding to the output timesteps.
+            history_dates: List of history dates corresponding to the output timesteps.
+            prefix: Optional prefix for the log path to namespace the logged images.
+            uncertainties: Optional dictionary mapping channel indices to uncertainty arrays for the output channels.
+
         """
         try:
             log_path = self._log_path(prefix, "output_static")
@@ -244,24 +277,24 @@ class MediaPublisher:
                     .numpy()
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
-                media = self._render_multipanel_media(
-                    climatology=self._select_climatology(
-                        climatology, idx_channel, self.idx_date
-                    ),
-                    forecast_date=forecast_dates[self.idx_date],
-                    ground_truth=ground_truth,
-                    history_ctx=Timespan(history_dates),
-                    prediction=prediction,
-                    render=self.panel_renderer.static_triplet,
-                    uncertainty=self._select_uncertainty(
-                        uncertainties, idx_channel, self.idx_date
-                    ),
-                    variable_name=variable_name,
-                )
                 images.update(
                     {
                         f"{date_key}-{variable_name}-{suffix}": [image]
-                        for suffix, image in media.items()
+                        for suffix, image in self._render_multipanel_media(
+                            climatology=self._select_climatology(
+                                climatology, idx_channel, self.idx_date
+                            ),
+                            forecast_date=forecast_dates[self.idx_date],
+                            ground_truth=ground_truth,
+                            history_ctx=Timespan(history_dates),
+                            compare_truth_climatology=compare_truth_climatology,
+                            prediction=prediction,
+                            render=self.panel_renderer.static_triplet,
+                            uncertainty=self._select_uncertainty(
+                                uncertainties, idx_channel, self.idx_date
+                            ),
+                            variable_name=variable_name,
+                        ).items()
                     }
                 )
             # Log output images
@@ -277,7 +310,15 @@ class MediaPublisher:
         *,
         prefix: str | None = None,
     ) -> None:
-        """Extract and log raw input videos."""
+        """Extract and log raw input videos.
+
+        Args:
+            inputs: List of SingleDataset instances containing the input data.
+            dates: List of datetime objects corresponding to the timesteps in the datasets.
+            video_loggers: List of video loggers to send the rendered videos to.
+            prefix: Optional prefix for the log path to namespace the logged videos.
+
+        """
         try:
             log_path = self._log_path(prefix, "input_video")
             np_dates = [npdatetime_from_datetime(date) for date in dates]
@@ -315,10 +356,27 @@ class MediaPublisher:
         climatology: ArrayTCHW | None = None,
         forecast_dates: list[datetime],
         history_dates: list[datetime],
+        compare_truth_climatology: bool = False,
         prefix: str | None = None,
         uncertainties: dict[int, ArrayTHW] | None = None,
     ) -> None:
-        """Create and log output videos."""
+        """Create and log output videos.
+
+        Args:
+            outputs: ModelStepOutput containing the ground truth and prediction arrays.
+            video_loggers: List of video loggers to send the rendered videos to.
+            channel_names: Optional list of channel names corresponding to the output channels.
+            climatology: Optional climatology array for the output channels.
+            forecast_dates: List of forecast dates corresponding to the output timesteps.
+            history_dates: List of history dates corresponding to the output timesteps.
+            compare_truth_climatology: Whether to also log a ground-truth/climatology/
+                difference triplet, with a plain "on <date>" title and no footer since
+                it doesn't depend on the model. Callers should only set this once per
+                date rather than every epoch.
+            prefix: Optional prefix for the log path to namespace the logged videos.
+            uncertainties: Optional dictionary mapping channel indices to uncertainty arrays for the output channels.
+
+        """
         try:
             log_path = self._log_path(prefix, "output_video")
             date_key = iso_from_date(forecast_dates[0])
@@ -332,24 +390,24 @@ class MediaPublisher:
                     outputs.prediction[0, :, idx_channel].detach().cpu().numpy()
                 )
                 variable_name = self._channel_name(channel_names or [], idx_channel)
-                media = self._render_multipanel_media(
-                    climatology=self._select_climatology(
-                        climatology, idx_channel, None
-                    ),
-                    forecast_ctx=Timespan(forecast_dates),
-                    ground_truth=ground_truth,
-                    history_ctx=Timespan(history_dates),
-                    prediction=prediction,
-                    render=self.panel_renderer.video_triplet,
-                    uncertainty=self._select_uncertainty(
-                        uncertainties, idx_channel, None
-                    ),
-                    variable_name=variable_name,
-                )
                 videos.update(
                     {
                         f"{date_key}-{variable_name}-{suffix}": video
-                        for suffix, video in media.items()
+                        for suffix, video in self._render_multipanel_media(
+                            climatology=self._select_climatology(
+                                climatology, idx_channel, None
+                            ),
+                            forecast_ctx=Timespan(forecast_dates),
+                            ground_truth=ground_truth,
+                            history_ctx=Timespan(history_dates),
+                            compare_truth_climatology=compare_truth_climatology,
+                            prediction=prediction,
+                            render=self.panel_renderer.video_triplet,
+                            uncertainty=self._select_uncertainty(
+                                uncertainties, idx_channel, None
+                            ),
+                            variable_name=variable_name,
+                        ).items()
                     }
                 )
             # Log output videos

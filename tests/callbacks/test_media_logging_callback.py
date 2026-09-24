@@ -576,6 +576,51 @@ class TestMakePlots:
         assert stubs["log_static_inputs"].call_count == 2
         assert stubs["log_video_inputs"].call_count == 2
 
+    def test_compare_truth_climatology_only_true_once_per_date(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pass compare_truth_climatology=True only on the first call for a date."""
+        callback = MediaLoggingCallback(make_input_plots=True)
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        static_calls = stubs["log_static_outputs"].call_args_list
+        video_calls = stubs["log_video_outputs"].call_args_list
+        assert [c.kwargs["compare_truth_climatology"] for c in static_calls] == [
+            True,
+            False,
+        ]
+        assert [c.kwargs["compare_truth_climatology"] for c in video_calls] == [
+            True,
+            False,
+        ]
+
+    def test_compare_truth_climatology_false_when_input_plots_disabled(
+        self,
+        make_plots_args: tuple[MagicMock, MagicMock, MagicMock],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Never pass compare_truth_climatology=True when make_input_plots is off."""
+        callback = MediaLoggingCallback(make_input_plots=False)
+        stubs = _stub_media_publisher(callback, monkeypatch)
+        callback.cached_batch_idx_ = 0
+        callback.cached_outputs_ = MagicMock(spec=ModelStepOutput)
+        trainer, pl_module, dataset = make_plots_args
+
+        callback.make_plots(trainer, pl_module, dataset, 1)
+
+        static_call = stubs["log_static_outputs"].call_args
+        video_call = stubs["log_video_outputs"].call_args
+        assert static_call.kwargs["compare_truth_climatology"] is False
+        assert video_call.kwargs["compare_truth_climatology"] is False
+
     def test_filters_loggers_by_image_and_video_support(
         self,
         make_plots_args: tuple[MagicMock, MagicMock, MagicMock],

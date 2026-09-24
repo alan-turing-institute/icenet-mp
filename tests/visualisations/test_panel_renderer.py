@@ -197,6 +197,35 @@ class TestRenderStaticTriplet:
         assert panel_titles[0] == "Climatology"
         assert panel_titles[1] == "Prediction"
 
+    def test_omitting_history_ctx_uses_a_plain_date_title_and_no_footer(
+        self,
+        sic_pair_2d: tuple[ArrayHW, ArrayHW, date],
+        no_land_mask: LandMask,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Without history_ctx, title with just the date and skip the footer.
+
+        Used for plots that don't depend on the model, such as a
+        ground-truth/climatology comparison.
+        """
+        ground_truth, prediction, raw_when = sic_pair_2d
+        forecast_date = datetime.combine(raw_when, datetime.min.time())
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_static", fake_render)
+        renderer = PanelRenderer(no_land_mask, Metadata(model="unet"), PlotSpec())
+
+        renderer.static_triplet(
+            ground_truth,
+            prediction,
+            forecast_date=forecast_date,
+            variable_name="ice_conc",
+        )
+
+        assert fake_render.call_args.kwargs["footer_text"] is None
+        title = fake_render.call_args.kwargs["figure_title"]
+        assert "Leadtime" not in title
+        assert forecast_date.date().isoformat() in title
+
     def test_without_difference_panel_is_narrower(
         self, sic_pair_2d: tuple[ArrayHW, ArrayHW, date], no_land_mask: LandMask
     ) -> None:
@@ -385,6 +414,38 @@ class TestRenderVideoTriplet:
         panel_titles = fake_render.call_args.kwargs["panel_titles"]
         assert panel_titles[0] == "Climatology"
         assert panel_titles[1] == "Prediction"
+
+    def test_omitting_history_ctx_uses_plain_date_titles_and_no_footer(
+        self,
+        sic_pair_3d_stream: tuple[ArrayTHW, ArrayTHW, list[date]],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Without history_ctx, title each frame with just its date and skip the footer.
+
+        Used for plots that don't depend on the model, such as a
+        ground-truth/climatology comparison.
+        """
+        ground_truth, prediction, raw_dates = sic_pair_3d_stream
+        dates = [datetime.combine(d, datetime.min.time()) for d in raw_dates]
+        forecast_ctx = Timespan(dates)
+        fake_render = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(MatplotlibRenderer, "panels_video", fake_render)
+        renderer = PanelRenderer(LandMask(None), Metadata(model="unet"), PlotSpec())
+
+        renderer.video_triplet(
+            ground_truth,
+            prediction,
+            forecast_ctx=forecast_ctx,
+            variable_name="ice_conc",
+        )
+
+        assert fake_render.call_args.kwargs["footer_text"] is None
+        title_for_frame: Callable[[int], str] = fake_render.call_args.kwargs[
+            "figure_title"
+        ]
+        title = title_for_frame(0)
+        assert "Leadtime" not in title
+        assert dates[0].date().isoformat() in title
 
     def test_figure_title_changes_per_frame(
         self,

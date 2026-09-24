@@ -41,17 +41,21 @@ class MediaAnnotator:
 
     def describe_dates(
         self, forecast_date: datetime, history_ctx: Timespan | None
-    ) -> str | None:
+    ) -> str:
         """Describe the history window and leadtime for a forecast date.
 
         Returns:
             Formatted string like:
 
-            History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps)   Leadtime (+<leadtime> steps) YYYY-MM-DD
+            History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps)   Leadtime (+<leadtime> steps): YYYY-MM-DD
+
+            OR
+
+            Date: YYYY-MM-DD
 
         """
         if not history_ctx:
-            return None
+            return f"Date: {iso_from_date(forecast_date)}"
         elapsed = forecast_date - history_ctx.end
         leadtime = (
             round(elapsed / history_ctx.frequency)

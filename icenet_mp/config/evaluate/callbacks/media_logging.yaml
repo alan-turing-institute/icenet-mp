@@ -1,4 +1,4 @@
-plotting:
+media_logging:
   _target_: icenet_mp.callbacks.MediaLoggingCallback
   frequency:
     number: 3 # plot exactly 3 batches equally spaced across the epoch
