@@ -90,9 +90,11 @@ class DifferencePanel:
     def standardised_difference(self) -> np.ndarray:
         """Return prediction error in units of observational standard uncertainty.
 
-        The signed convention matches the ``ground_truth - prediction`` diff
-        convention. Locations with non-finite or non-positive uncertainty are
-        returned as NaN because a z value is undefined there.
+        Divides `_diff_mode_difference` (whichever convention `diff_mode` selects)
+        by `uncertainty`, so this is only a signed z-score when `diff_mode` is
+        `DiffMode.SIGNED`; for `ABSOLUTE`/`SMAPE` it is non-negative. Locations
+        with non-finite or non-positive uncertainty are returned as NaN because a
+        z value is undefined there.
 
         Returns:
             Standardised difference array, matching `ground_truth`'s shape.

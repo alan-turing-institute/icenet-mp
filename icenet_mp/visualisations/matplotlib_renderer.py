@@ -53,9 +53,12 @@ class MatplotlibRenderer:
         self._panel_height_in = panel_height_in
 
     def _cmap_with_bad(self, name: str) -> Colormap:
-        """Get a Colormap with `self._bad_colour` set for NaN values.
+        """Get a Colormap for NaN values, defaulting to `self._bad_colour`.
 
-        A named colour map is cached after its first build for re-use.
+        `self._bad_colour` is only applied if the colormap's own bad colour is
+        fully transparent; a colormap that already ships a non-transparent bad
+        colour keeps it. A named colour map is cached after its first build for
+        re-use.
         """
         # If the requested name is not cached then build a new Colormap and cache it.
         if (cmap := self._cmap_cache.get(name)) is None:

@@ -111,8 +111,9 @@ class PanelRenderer:
             history_ctx: Timespan covering the history/input period.
             forecast_date: Datetime of the forecast being shown.
             uncertainty: Optional 2D array of the reported standard uncertainty of the
-                prediction field. When given, the third panel shows the standardised
-                difference `z = (ground_truth - prediction) / uncertainty`.
+                prediction field. When given, the third panel divides the configured
+                difference (see `plot_spec.diff_mode`) by `uncertainty`; this is a
+                signed z-score only when `diff_mode` is `DiffMode.SIGNED`.
             panel_titles: Optional overrides for the panel titles, keyed by
                 "ground_truth", "prediction" and/or "difference".
             variable_name: Name of the variable being plotted, used for styling and
@@ -245,8 +246,9 @@ class PanelRenderer:
             forecast_ctx: Timespan for the forecast period.
             history_ctx: Timespan for the history period.
             uncertainty: Optional 3D array of the reported standard uncertainty of the
-                prediction field. When given, the third panel shows the standardised
-                difference `z = (ground_truth - prediction) / uncertainty`.
+                prediction field. When given, the third panel divides the configured
+                difference (see `plot_spec.diff_mode`) by `uncertainty`; this is a
+                signed z-score only when `diff_mode` is `DiffMode.SIGNED`.
             panel_titles: Optional overrides for the panel titles, keyed by
                 "ground_truth", "prediction" and/or "difference".
             variable_name: Name of the variable being plotted, used for styling and
@@ -257,7 +259,7 @@ class PanelRenderer:
 
         Raises:
             InvalidArrayError: If `ground_truth` or `prediction` isn't 3D, or
-                `dates` doesn't have one entry per frame.
+                `forecast_ctx` doesn't have one entry per frame.
 
         """
         masked_ground_truth = self.land_mask.apply_to(ground_truth)

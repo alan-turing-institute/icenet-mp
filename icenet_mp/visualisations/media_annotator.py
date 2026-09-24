@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class MediaAnnotator:
-    """Compose and draw titles, footers and warning badges for use in media."""
+    """Compose titles and footers for use in media."""
 
     def __init__(self, metadata: Metadata, plot_spec: PlotSpec) -> None:
         """Bind the metadata and plot spec shared by every title/footer."""
@@ -17,14 +17,16 @@ class MediaAnnotator:
 
     @staticmethod
     def multiline_string(*parts: str | None) -> str:
-        """Join non-None strings with newlines."""
+        """Join strings with newlines, dropping None values."""
         return "\n".join(part for part in parts if part is not None)
 
     def describe_datasets(self) -> str | None:
         """Describe the input datasets.
 
         Returns:
-            'Input datasets: <source> (<num vars>) <source> (<num vars>)'.
+            Formatted string like:
+
+            Input datasets: <source> (<num vars>) <source> (<num vars>)
 
         """
         parts = [
@@ -41,7 +43,9 @@ class MediaAnnotator:
         """Describe the history window and leadtime for a forecast date.
 
         Returns:
-            'History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps)   Leadtime (+<leadtime> steps) YYYY-MM-DD'
+            Formatted string like:
+
+            History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps)   Leadtime (+<leadtime> steps) YYYY-MM-DD
 
         """
         leadtime = (forecast_date - history_ctx.end).days
@@ -56,7 +60,9 @@ class MediaAnnotator:
         """Describe the model.
 
         Returns:
-            'Model: <model> (epoch <num>)'.
+            Formatted string like:
+
+            Model: <model> (epoch <num>)
 
         """
         parts: list[str] = []
@@ -72,7 +78,9 @@ class MediaAnnotator:
         """Describe the training process.
 
         Returns:
-            'Trained: <start> — <end> (<cadence>, <num> samples)'.
+            Formatted string like:
+
+            Trained: <start> — <end> (<cadence>, <num> samples)
 
         """
         parts: list[str] = []
@@ -99,7 +107,9 @@ class MediaAnnotator:
             units: Display units for the variable.
 
         Returns:
-            "<Variable> [<units>] (<Hemisphere>)"
+            Formatted string like:
+
+            <Variable> [<units>] (<Hemisphere>)
 
         """
         variable = variable_name.replace("_", " ").strip()
@@ -113,10 +123,11 @@ class MediaAnnotator:
         """Compose footer text for static and video figures.
 
         Returns:
-            A multi-line string with the following lines, if available:
-            - Model description
-            - Training description
-            - Input data description
+            Formatted string like:
+
+            Model: <model> (epoch <num>)
+            Trained: <start> — <end> (<cadence>, <num> samples)
+            Input datasets: <source> (<num vars>) <source> (<num vars>)
 
         """
         return self.multiline_string(
@@ -138,8 +149,10 @@ class MediaAnnotator:
             variable_name: Variable name.
 
         Returns:
-            Formatted title string like:
-            "<Variable> (<Hemisphere>) History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps) Leadtime (+<leadtime> steps) YYYY-MM-DD"
+            Formatted string like:
+
+            <Variable> (<Hemisphere>)
+            History: YYYY-MM-DD - YYYY-MM-DD (<num steps> steps)   Leadtime (+<leadtime> steps): YYYY-MM-DD
 
         """
         return self.multiline_string(
@@ -162,8 +175,9 @@ class MediaAnnotator:
             when: Date or datetime of the data.
 
         Returns:
-            Formatted title string like:
-            "<Variable> (<Hemisphere>) on YYYY-MM-DD"
+            Formatted string like:
+
+            <Variable> (<Hemisphere>) on YYYY-MM-DD
 
         """
         return f"{self.describe_variable(variable_name, units=units)} on {iso_from_date(when)}"

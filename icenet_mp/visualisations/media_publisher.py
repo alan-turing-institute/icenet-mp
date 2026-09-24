@@ -95,7 +95,7 @@ class MediaPublisher:
         and truth/prediction/z-score.
 
         Shared by the static and video loggers, which differ only in the `render`
-        callable used and the extra `when`/`dates` keyword each one needs.
+        callable used and the extra history/forecast context keywords each one needs.
         """
         media: dict[str, RenderedMedia] = {
             "truth-difference": render(
@@ -209,8 +209,9 @@ class MediaPublisher:
     ) -> None:
         """Create and log static output plots, including climatology when available.
 
-        Also logs a standardised uncertainty plot and, when a climatology table is
-        given, a calendar-day-mean (climatology) map for the plotted date and channel.
+        When a matching entry is present, also logs a standardised uncertainty
+        (z-score) plot and a calendar-day-mean (climatology) map for the plotted
+        date and channel.
         """
         try:
             log_path = self._log_path(prefix, "output_static")
