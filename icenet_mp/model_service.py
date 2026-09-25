@@ -75,6 +75,7 @@ class ModelService:
         log.info("Building a new '%s' model...", builder.config["model"]["_target_"])
         builder.model_ = hydra.utils.instantiate(
             config["model"],
+            channel_names=builder.data_module.target_variables,
             hemisphere=builder.data_module.hemisphere,
             input_spaces=[s.to_dict() for s in builder.data_module.input_spaces],
             latitudes_fn=lambda: builder.data_module.latitudes,
@@ -108,15 +109,15 @@ class ModelService:
             raise FileNotFoundError(msg)
 
         # Build a combined model configuration where the command line config takes
-        # precedence except for the "model", "predict" and "train" keys which are
-        # related to training the model.
+        # precedence except for the "model", "train", "variables" and "window" keys
+        # which are related to training the model.
         config_path = checkpoint_path.parent.parent / "files" / "model_config.yaml"
         try:
             # Load the model configuration from the checkpoint directory
             ckpt_config = DictConfig(OmegaConf.load(config_path))
             log.debug("Loaded checkpoint configuration from %s.", config_path)
             combined_cfg = DictConfig(OmegaConf.merge(ckpt_config, config))
-            for key in ("model", "predict", "train"):
+            for key in ("model", "train", "variables", "window"):
                 combined_cfg[key] = OmegaConf.merge(
                     combined_cfg.get(key, {}), ckpt_config.get(key, {})
                 )
@@ -610,7 +611,7 @@ class ModelService:
                 channel_names = self.data_module.target_variables
             else:
                 dataset_name = encoder.name
-                channel_names = self.data_module.variable_names[dataset_name]
+                channel_names = self.data_module.datasets[dataset_name].variable_names
 
             if checkpoint_dir is not None and (
                 matches := sorted(

@@ -64,6 +64,9 @@ class SingleDataset(Dataset):
         self._normalise = normalise
         self._norm_offset: np.ndarray | None = None
         self._norm_scale: np.ndarray | None = None
+        # Using a set here means that the anemoi `select` call will keep the underlying
+        # on-disk variable order. This means that `variable_names` will reflect the
+        # on-disk layout, regardless of the order variables were requested in.
         self._variables = set(variables)
 
     @classmethod
