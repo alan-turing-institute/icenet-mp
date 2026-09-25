@@ -3,6 +3,7 @@ import re
 import pytest
 import torch
 
+from icenet_mp.losses import TimeWeightedLoss
 from icenet_mp.models.processors import (
     BaseProcessor,
     DDPMProcessor,
@@ -394,6 +395,41 @@ class TestDDPMProcessor:
             test_latent_chw[0],
             *test_latent_chw[1:],
         )
+
+    def test_training_supports_time_weighted_loss(
+        self,
+        test_batch_size: int,
+        test_latent_chw: tuple[int, int, int],
+        test_n_forecast_steps: int,
+        test_n_history_steps: int,
+        test_use_autoregressive: bool,  # noqa: FBT001
+    ) -> None:
+        """Restore forecast time for time-weighted latent diffusion loss."""
+        processor = self._make_processor(
+            latent_chw=test_latent_chw,
+            n_forecast_steps=test_n_forecast_steps,
+            n_history_steps=test_n_history_steps,
+            use_autoregressive=test_use_autoregressive,
+        )
+        processor.loss_fn = TimeWeightedLoss(torch.nn.MSELoss())
+        x = torch.randn(
+            test_batch_size,
+            test_n_history_steps,
+            test_latent_chw[0],
+            *test_latent_chw[1:],
+        )
+        y = torch.randn(
+            test_batch_size,
+            test_n_forecast_steps,
+            self.C_TARGET,
+            *test_latent_chw[1:],
+        )
+
+        result = processor.rollout(x, y)
+
+        assert result.loss is not None
+        assert result.loss.ndim == 0
+        assert torch.isfinite(result.loss)
 
     def test_rejects_out_of_bounds_target_slice(
         self,
