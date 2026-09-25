@@ -3,6 +3,7 @@ defaults:
     - activation_saver
     - media_logging
     - metric_summary
+    - prediction_writer
   - _self_
 
 trainer: ${train.trainer}

@@ -10,7 +10,7 @@ import pytest
 from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 
-from icenet_mp.callbacks import MediaLoggingCallback
+from icenet_mp.callbacks import MediaLoggingCallback, PredictionWriter
 from icenet_mp.model_service import ModelService
 from icenet_mp.models import EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
@@ -337,9 +337,16 @@ class TestModelService:
 
         plotting_callback = MagicMock(spec=MediaLoggingCallback)
         checkpoint_callback = MagicMock(spec=ModelCheckpoint)
+        enabled_prediction_writer = PredictionWriter(enabled=True)
+        disabled_prediction_writer = PredictionWriter(enabled=False)
 
         fake_trainer = MagicMock()
-        fake_trainer.callbacks = [plotting_callback, checkpoint_callback]
+        fake_trainer.callbacks = [
+            plotting_callback,
+            checkpoint_callback,
+            enabled_prediction_writer,
+            disabled_prediction_writer,
+        ]
         fake_trainer.num_devices = 1
         fake_trainer.is_global_zero = True
 
@@ -367,6 +374,13 @@ class TestModelService:
         assert (run_dir / "files" / "model_config.yaml").exists()
         assert plotting_callback.prefix == "processor"
         assert checkpoint_callback.dirpath == run_dir / "checkpoints"
+        assert (
+            enabled_prediction_writer.output_path
+            == run_dir / "files" / "predictions.nc"
+        )
+        assert enabled_prediction_writer.mask_dir == service.data_module_.mask_directory
+        assert disabled_prediction_writer.output_path is None
+        assert disabled_prediction_writer.mask_dir is None
         assert result is fake_trainer
 
     def test_build_trainer_wires_wandb_logger_and_saves_config_to_wandb(
