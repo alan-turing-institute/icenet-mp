@@ -69,7 +69,7 @@ class BaseModel(LightningModule, ABC):
         optimizer: DictConfig,
         output_space: DictConfig,
         scheduler: DictConfig,
-        **_kwargs: Any,
+        **kwargs: Any,
     ) -> None:
         """Initialise a BaseModel.
 
@@ -86,7 +86,7 @@ class BaseModel(LightningModule, ABC):
         ``metrics`` is the list of metric names to compute during training,
         validation, and testing.
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         # Save model name, hemisphere, lat/lon information and channel names
         self.name = name
@@ -94,6 +94,9 @@ class BaseModel(LightningModule, ABC):
         self.latitudes_fn = latitudes_fn
         self.longitudes_fn = longitudes_fn
         self.channel_names = list(channel_names) if channel_names else []
+
+        # Number of epochs in the checkpoint this model was loaded from, if any
+        self.checkpoint_epoch: int | None = None
 
         # Save history and forecast steps
         if n_forecast_steps <= 0:

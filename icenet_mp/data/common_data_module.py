@@ -277,9 +277,22 @@ class CommonDataModule(LightningDataModule):
         dataset = self._build_dataset(self.test_periods, stage="test")
         return DataLoader(dataset, shuffle=False, **self._common_dataloader_kwargs)
 
-    def train_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
+    @cached_property
+    def training_dataset(self) -> CombinedDataset:
+        """Return the dataset used for training."""
+        return self._build_dataset(self.train_periods, stage="training")
+
+    def train_dataloader(
+        self,
+    ) -> DataLoader[dict[str, ArrayTCHW]]:
         """Construct train dataloader."""
-        dataset = self._build_dataset(self.train_periods, stage="training")
+        dataset = self.training_dataset
+        log.info(
+            "Loaded training dataset with %d dates between %s and %s.",
+            len(dataset),
+            dataset.start_date,
+            dataset.end_date,
+        )
         return DataLoader(dataset, shuffle=True, **self._common_dataloader_kwargs)
 
     def val_dataloader(self) -> DataLoader[dict[str, ArrayTCHW]]:
