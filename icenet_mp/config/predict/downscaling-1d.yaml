@@ -1,0 +1,9 @@
+# CARRA2 is paired contemporaneously with low-resolution OSI SAF SIC.
+target:
+  group_name: sic-carra2
+  variables:
+    - ice_conc
+
+n_forecast_steps: 1
+n_history_steps: 1
+target_offset_steps: 0

@@ -10,6 +10,7 @@ from typing import ClassVar
 from anemoi.transform.filters import filter_registry
 
 from icenet_mp.ingestion.filters import register_filters
+from icenet_mp.ingestion.filters.crop_latlon_filter import CropLatLonFilter
 from icenet_mp.ingestion.filters.nan_to_num_filter import NanToNumFilter
 from icenet_mp.ingestion.filters.reproject_filter import ReprojectFilter
 from icenet_mp.ingestion.filters.set_geography_filter import SetGeographyFilter
@@ -19,6 +20,7 @@ class TestFilterRegistration:
     """Test suite for custom filter registration with anemoi-transform."""
 
     EXPECTED_FILTERS: ClassVar[dict] = {
+        "crop-latlon": CropLatLonFilter,
         "nan-to-num": NanToNumFilter,
         "reproject": ReprojectFilter,
         "set-geography": SetGeographyFilter,
