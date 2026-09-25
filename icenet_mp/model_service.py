@@ -130,13 +130,21 @@ class ModelService:
             builder.config["model"]["_target_"]
         )
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
+        # For each of the keyword arguments that we know this model class ignores, we
+        # attempt to load them from the model config rather than the checkpoint.
+        non_checkpoint_kwargs = {
+            key: builder.config["model"][key]
+            for key in model_cls.ignored_hparams
+            if key in builder.config["model"]
+        }
         builder.model_ = model_cls.load_from_checkpoint(
             checkpoint_path,
             mask_dir=str(builder.data_module.mask_directory),
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
-            map_location="cpu",  # portability: will be moved to the correct device later
+            map_location="cpu",  # Lightning will move this to the correct device later
             weights_only=False,
+            **non_checkpoint_kwargs,
         )
         # Load the current epoch from the checkpoint
         builder.model_.checkpoint_epoch = torch.load(

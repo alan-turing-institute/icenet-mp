@@ -3,7 +3,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import ClassVar, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -33,6 +33,8 @@ class FakeCommonDataModule:
 
 
 class FakeModel:
+    ignored_hparams: ClassVar[frozenset[str]] = frozenset()
+
     @classmethod
     def load_from_checkpoint(
         cls,
