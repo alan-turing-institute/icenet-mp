@@ -95,7 +95,7 @@ Sparse conditioning datasets such as Argo can contain gaps that would otherwise 
 allow_missing_inputs: true
 ```
 
-Missing non-target input timesteps are filled with `-1` after normalisation, keeping the sentinel outside the usual `[0, 1]` input range. Target history and forecast ground truth are still required for every retained window. The `sample_north`, `sample_south`, `full_north`, and `full_south` data configurations enable this behaviour because they include sparse Argo observations.
+Missing non-target input timesteps are filled with `-1` after normalisation, keeping the sentinel outside the usual `[0, 1]` input range. Target history and forecast ground truth are still required for every retained window. This option defaults to `false`; the shipped data configurations remain strict unless it is explicitly enabled for an experiment.
 
 ### Generating Argo float missing dates
 
