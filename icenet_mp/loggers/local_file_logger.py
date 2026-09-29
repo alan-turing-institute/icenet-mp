@@ -1,6 +1,6 @@
 """A Lightning logger that writes images, videos, and metrics to local files.
 
-Implements the subset of the `WandbLogger` interface used by `PlottingCallback`
+Implements the subset of the `WandbLogger` interface used by `MediaLoggingCallback`
 (`log_image`/`log_video`) and Lightning's own metric logging (`log_metrics`), so a
 training/evaluation job can produce local, human-inspectable artefacts (loss curves,
 prediction plots) without network access or a W&B account -- e.g. in CI. Enable it
@@ -9,19 +9,14 @@ by selecting the `local_files` logger configuration.
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
 from lightning.pytorch.loggers.logger import Logger
 
-logger = logging.getLogger(__name__)
+from icenet_mp.utils import sanitise_filename
 
-_UNSAFE_KEY_CHARS = re.compile(r"[^A-Za-z0-9_.-]+")
-
-
-def _sanitise(key: str) -> str:
-    return _UNSAFE_KEY_CHARS.sub("__", key)
+log = logging.getLogger(__name__)
 
 
 class LocalFileLogger(Logger):
@@ -45,6 +40,7 @@ class LocalFileLogger(Logger):
         self._metrics_path = self._save_dir / "metrics.jsonl"
         self._image_call_count = 0
         self._video_call_count = 0
+        log.info("Run data is logged locally in %s", self._save_dir)
 
     @property
     def name(self) -> str:
@@ -82,19 +78,19 @@ class LocalFileLogger(Logger):
         """Save each image in `images` as a PNG under `save_dir/images`.
 
         Every call gets its own, uniquely-numbered file (like W&B's step-indexed media
-        timeline) rather than overwriting by `key` alone -- `Plotter` reuses the same
-        `key` (date + variable) on every validation epoch, since the underlying dates
-        don't change, so keying on `key` alone would silently keep only the last epoch.
+        timeline) rather than overwriting by `key` alone. `MediaPublisher` reuses the
+        same `key` (date + variable) on every validation epoch, since the underlying
+        dates don't change, so using `key` alone silently keeps only the last epoch.
         """
-        call_index = step if step is not None else self._image_call_count
+        call_idx = step if step is not None else self._image_call_count
         self._image_call_count += 1
         image_dir = self._save_dir / "images"
         image_dir.mkdir(parents=True, exist_ok=True)
         for idx, image in enumerate(images):
             if not hasattr(image, "save"):
-                logger.warning("Cannot save non-image object for key '%s'.", key)
+                log.warning("Cannot save non-image object for key '%s'.", key)
                 continue
-            image.save(image_dir / f"{call_index:05d}__{_sanitise(key)}_{idx}.png")
+            image.save(image_dir / sanitise_filename(f"{call_idx:05d}_{key}_{idx}.png"))
 
     def log_video(
         self,
@@ -108,7 +104,7 @@ class LocalFileLogger(Logger):
         See `log_image` for why calls are uniquely numbered rather than keyed on `key`
         alone.
         """
-        call_index = step if step is not None else self._video_call_count
+        call_idx = step if step is not None else self._video_call_count
         self._video_call_count += 1
         video_dir = self._save_dir / "videos"
         video_dir.mkdir(parents=True, exist_ok=True)
@@ -116,5 +112,6 @@ class LocalFileLogger(Logger):
         for idx, (video, video_format) in enumerate(zip(videos, formats, strict=True)):
             video.seek(0)
             (
-                video_dir / f"{call_index:05d}__{_sanitise(key)}_{idx}.{video_format}"
+                video_dir
+                / sanitise_filename(f"{call_idx:05d}_{key}_{idx}.{video_format}")
             ).write_bytes(video.read())

@@ -13,7 +13,11 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from omegaconf import DictConfig, OmegaConf
 from wandb.sdk.lib.runid import generate_id
 
-from icenet_mp.callbacks import PlottingCallback, UnconditionalCheckpoint
+from icenet_mp.callbacks import (
+    MediaLoggingCallback,
+    PredictionWriter,
+    UnconditionalCheckpoint,
+)
 from icenet_mp.compatibility.torch import (
     patch_interpolate_antialias,
     patch_open_file_limit,
@@ -21,7 +25,6 @@ from icenet_mp.compatibility.torch import (
 from icenet_mp.data import CommonDataModule
 from icenet_mp.models import BaseModel, EncodeProcessDecode
 from icenet_mp.models.multistage import DecoderStage, EncoderStage, ProcessorStage
-from icenet_mp.types import SupportsMetadata
 from icenet_mp.utils import get_device_name, get_timestamp, get_wandb_run
 
 log = logging.getLogger(__name__)
@@ -79,6 +82,7 @@ class ModelService:
             loss=config["loss"],
             lr_scheduler=config["train"]["lr_scheduler"],
             mask_dir=str(builder.data_module.mask_directory),
+            metrics=config["reporting"]["metrics"],
             n_forecast_steps=builder.data_module.n_forecast_steps,
             n_history_steps=builder.data_module.n_history_steps,
             optimizer=config["train"]["optimizer"],
@@ -126,14 +130,26 @@ class ModelService:
             builder.config["model"]["_target_"]
         )
         log.info("Loading a trained %s model...", builder.config["model"]["name"])
+        # For each of the keyword arguments that we know this model class ignores, we
+        # attempt to load them from the model config rather than the checkpoint.
+        non_checkpoint_kwargs = {
+            key: builder.config["model"][key]
+            for key in model_cls.ignored_hparams
+            if key in builder.config["model"]
+        }
         builder.model_ = model_cls.load_from_checkpoint(
             checkpoint_path,
             mask_dir=str(builder.data_module.mask_directory),
             latitudes_fn=lambda: builder.data_module.latitudes,
             longitudes_fn=lambda: builder.data_module.longitudes,
-            map_location="cpu",  # portability: will be moved to the correct device later
+            map_location="cpu",  # Lightning will move this to the correct device later
             weights_only=False,
+            **non_checkpoint_kwargs,
         )
+        # Load the current epoch from the checkpoint
+        builder.model_.checkpoint_epoch = torch.load(
+            checkpoint_path, map_location="cpu", weights_only=False
+        ).get("epoch")
 
         return builder
 
@@ -166,13 +182,15 @@ class ModelService:
         model: BaseModel | None = None,
         config: DictConfig,
         job_stage: str | None = None,
+        ckpt_path: Path | None = None,
     ) -> Trainer:
         """Build a trainer and run trainer.fit() for the given config and stage.
 
         Args:
             model: Model to train. Defaults to ``self.model`` if not provided.
             config: Job-specific config section (e.g. ``self.config["train"]``).
-            job_stage: Label passed to ``PlottingCallback.prefix`` and used in log messages.
+            job_stage: Label passed to ``MediaLoggingCallback.prefix`` and used in log messages.
+            ckpt_path: Optional checkpoint to load training state from.
 
         Returns:
             The trainer after fitting, so callers can save checkpoints or inspect
@@ -197,7 +215,9 @@ class ModelService:
             trainer.num_devices,
             get_device_name(trainer.accelerator.name()),
         )
-        trainer.fit(model=current_model, datamodule=self.data_module)
+        trainer.fit(
+            model=current_model, datamodule=self.data_module, ckpt_path=ckpt_path
+        )
 
         # Explicitly release cached device memory rather than delegating this to the
         # Python garbage collector. Multistage training runs many stages in one
@@ -293,7 +313,7 @@ class ModelService:
         Args:
             config: Job-specific config section (e.g. ``self.config["train"]``).
             project: W&B project name (one of "train" or "evaluate").
-            job_stage: Optional label passed to ``PlottingCallback.prefix`` and used
+            job_stage: Optional label passed to ``MediaLoggingCallback.prefix`` and used
                 in log messages. Also sets the W&B ``job_type`` to ``"multistage"``
                 when provided, or ``"single-stage"`` otherwise.
 
@@ -309,7 +329,8 @@ class ModelService:
 
         # Setup Lightning loggers — only pass job_type/project to W&B loggers.
         extra_loggers = []
-        for logger_config in self.config.get("loggers", {}).values():
+        logger_configs = self.config.get("reporting", {}).get("loggers", {})
+        for logger_config in logger_configs.values():
             is_wandb = logger_config.get("_target_", "").split(".")[-1] == "WandbLogger"
             if is_wandb:
                 extra_loggers.append(
@@ -386,17 +407,10 @@ class ModelService:
         # Additional configuration for callbacks
         for callback in cast("list[Callback]", trainer.callbacks):  # type: ignore[attr-defined]
             log.debug("Configuring callback %s.", callback.__class__.__name__)
-            # Set metadata for supported callbacks
-            if isinstance(callback, SupportsMetadata):
-                log.debug("Setting metadata for %s.", callback.__class__.__name__)
-                model_name = self.config["model"].get(
-                    "name", self.model.__class__.__name__
-                )
-                callback.set_metadata(self.config, model_name)
-            # Set plotting stage
-            if isinstance(callback, PlottingCallback):
+            # Set image logging prefix
+            if isinstance(callback, MediaLoggingCallback):
                 log.debug(
-                    "Setting plotting prefix for %s to %s.",
+                    "Setting image logging prefix for %s to %s.",
                     callback.__class__.__name__,
                     job_stage,
                 )
@@ -409,6 +423,16 @@ class ModelService:
                     run_directory / "checkpoints",
                 )
                 callback.dirpath = run_directory / "checkpoints"
+            # Set prediction output path for the prediction writer, if enabled
+            if isinstance(callback, PredictionWriter) and callback.enabled:
+                output_path = run_directory / "files" / "predictions.nc"
+                log.debug(
+                    "Setting output_path for %s to %s.",
+                    callback.__class__.__name__,
+                    output_path,
+                )
+                callback.output_path = output_path
+                callback.mask_dir = self.data_module.mask_directory
 
         return trainer
 
@@ -434,7 +458,15 @@ class ModelService:
     def train(
         self, *, checkpoint_dir: Path | None = None, multistage: bool = False
     ) -> Trainer:
-        """Train a model."""
+        """Train a model.
+
+        Args:
+            checkpoint_dir: For multistage training, a directory of existing per-stage
+                checkpoints to skip completed stages. For single-stage training, if the
+                directory contains a ``last*.ckpt`` file, training will resume from it.
+            multistage: Whether to train an ``EncodeProcessDecode`` model in stages.
+
+        """
         if multistage:
             return self.train_multistage(checkpoint_dir=checkpoint_dir)
         if self.model.multistage_only:
@@ -444,13 +476,15 @@ class ModelService:
                 "training. Use `imp train --multistage` instead."
             )
             raise ValueError(msg)
+        ckpt_path = None
         if checkpoint_dir is not None:
-            msg = (
-                "`checkpoint_dir` is only used for multistage training. Single-stage "
-                "training has no per-component checkpoints to resume from."
-            )
-            raise ValueError(msg)
-        return self._fit(config=self.config["train"])
+            matches = sorted(checkpoint_dir.glob("last*.ckpt"))
+            if not matches:
+                msg = f"No resumable checkpoint (last*.ckpt) found in {checkpoint_dir}."
+                raise FileNotFoundError(msg)
+            ckpt_path = matches[-1]
+            log.info("Resuming single-stage training from %s.", ckpt_path)
+        return self._fit(config=self.config["train"], ckpt_path=ckpt_path)
 
     def train_multistage(self, *, checkpoint_dir: Path | None = None) -> Trainer:
         """Train an EncodeProcessDecode model in multiple stages.
@@ -669,12 +703,14 @@ class ModelService:
                 processor=self.config["model"]["processor"],
                 decoder_model=decoder_model,
                 target_encoder=target_encoder,
+                mask_dir=str(self.data_module.mask_directory),
             )
 
         processor_model = ProcessorStage.from_template(
             processor=self.config["model"]["processor"],
             decoder_model=decoder_model,
             target_encoder=target_encoder,
+            mask_dir=str(self.data_module.mask_directory),
         )
         log.info(
             "Training processor: history (%d, %d, %d, %d) -> forecast (%d, %d, %d, %d)",

@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Sequence
+from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 from typing import ClassVar, TypeVar, cast
@@ -10,7 +11,6 @@ from anemoi.datasets.usage.dataset import Dataset as AnemoiDataset
 from torch.utils.data import Dataset
 
 from icenet_mp.types import ArrayCHW, ArrayTCHW, DataSpace, Hemisphere
-from icenet_mp.utils import normalise_date
 
 ArrayType = TypeVar("ArrayType", ArrayCHW, ArrayTCHW)
 
@@ -29,6 +29,7 @@ class SingleDataset(Dataset):
         input_files: Sequence[Path],
         *,
         date_ranges: Sequence[dict[str, str | None]] = [{"start": None, "end": None}],
+        group: str | None = None,
         normalise: bool = True,
         variables: Sequence[str] = (),
     ) -> None:
@@ -36,16 +37,30 @@ class SingleDataset(Dataset):
 
         The underlying Anemoi dataset has shape [T; C; ensembles; position].
         We reshape this to CHW before returning.
+
+        Args:
+            name: The name of the dataset, used to identify it in plots and logs.
+            input_files: The paths to the Anemoi dataset files.
+            date_ranges: The ranges of dates to include in the dataset. Each range is a
+                dict with "start" and "end" keys, which can be None to indicate
+                open-ended ranges.
+            group: The group name for the dataset, used to identify it in plots and
+                logs. If None, the group name defaults to the dataset name.
+            normalise: Whether to normalise the data to [0, 1] for each channel.
+            variables: The names of the variables to include in the dataset. If empty,
+                all variables are included.
+
         """
         super().__init__()
-        self._date_ranges = self.normalise_date_ranges(date_ranges)
         self.hemisphere: Hemisphere = (
-            "north"
+            Hemisphere.NORTH
             if any("north" in str(input_file).lower() for input_file in input_files)
-            else "south"
+            else Hemisphere.SOUTH
         )
+        self.name = name
+        self.group = name if group is None else group
+        self._date_ranges = self.normalise_date_ranges(date_ranges)
         self._input_files = tuple(sorted(input_files))
-        self._name = name
         self._normalise = normalise
         self._norm_offset: np.ndarray | None = None
         self._norm_scale: np.ndarray | None = None
@@ -68,10 +83,16 @@ class SingleDataset(Dataset):
         idx2anemoi = {}
         for idx_ds, dataset in enumerate(self.dataslices):
             for idx_date, date in enumerate(dataset.dates):
-                idx_global = self._date2idx.get(normalise_date(date), None)
+                idx_global = self._date2idx.get(self.normalise_date(date), None)
                 if idx_global is not None:
                     idx2anemoi[idx_global] = (idx_ds, idx_date)
         return idx2anemoi
+
+    @staticmethod
+    def normalise_date(np_datetime: np.datetime64) -> np.datetime64:
+        """Normalise a datetime to noon."""
+        dt: datetime = np_datetime.astype("datetime64[ms]").astype(datetime)
+        return np.datetime64(dt.replace(hour=12, minute=0, second=0, microsecond=0))
 
     @staticmethod
     def normalise_date_ranges(
@@ -94,7 +115,7 @@ class SingleDataset(Dataset):
         if len(ranges) <= 1:
             return [dict(date_range) for date_range in ranges]
 
-        #  Assume data always has a daily frequency; for future updates: read from source metadata
+        # Assume data always has a daily frequency; for future updates: read from source metadata
         frequency = np.timedelta64(1, "D")
 
         def _ranges_overlap_or_touch(
@@ -144,7 +165,7 @@ class SingleDataset(Dataset):
         """Get all slices of contiguous dates from the underlying Anemoi dataset."""
         return [
             self.load_dataset(self._input_files)._subset(
-                name=self._name,
+                name=self.name,
                 start=date_range["start"],
                 end=date_range["end"],
                 **({"select": self._variables} if self._variables else {}),
@@ -157,7 +178,7 @@ class SingleDataset(Dataset):
         """Return all available dates in the dataset, removing any that are missing."""
         return sorted(
             {
-                normalise_date(date)
+                self.normalise_date(date)
                 for ds in self.dataslices
                 for date in np.delete(ds.dates, list(ds.missing))
             }
@@ -188,11 +209,6 @@ class SingleDataset(Dataset):
     def longitudes(self) -> list[float]:
         """Return the longitudes of the dataset."""
         return self.dataslices[0].longitudes.tolist()
-
-    @cached_property
-    def name(self) -> str:
-        """Return the name of the dataset."""
-        return self._name
 
     @cached_property
     def space(self) -> DataSpace:
@@ -266,7 +282,7 @@ class SingleDataset(Dataset):
                    slice is invalid
 
         """
-        start_date = normalise_date(start_date)
+        start_date = self.normalise_date(start_date)
         try:
             idx_global_start = self._date2idx[start_date]
             idx_ds_start, idx_date_start = self._idx2anemoi[idx_global_start]
@@ -316,19 +332,21 @@ class SingleDataset(Dataset):
         self,
         *,
         date_ranges: Sequence[dict[str, str | None]] | None = None,
+        normalise: bool | None = None,
         variables: Sequence[str] | None = None,
     ) -> "SingleDataset":
         return SingleDataset(
             name=self.name,
             input_files=self._input_files,
             date_ranges=date_ranges or self._date_ranges,
-            normalise=self._normalise,
+            group=self.group,
+            normalise=self._normalise if normalise is None else normalise,
             variables=variables or list(self._variables),
         )
 
     def to_index(self, date: np.datetime64) -> int:
         """Return the index of a given date in the dataset."""
-        date = normalise_date(date)
+        date = self.normalise_date(date)
         try:
             return self._date2idx[date]
         except KeyError as exc:
