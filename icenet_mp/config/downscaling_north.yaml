@@ -1,0 +1,8 @@
+defaults:
+  - base
+  - override /data: downscaling_north
+  - override /model: downscaler
+  - override /loss: mse
+  - override /predict: downscaling-1d
+  - override /reporting/metrics: downscaling
+  - _self_

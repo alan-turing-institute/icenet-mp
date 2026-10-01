@@ -50,6 +50,29 @@ class TestCommonDataModule:
         assert dm.train_periods[1]["end"] is None
         assert dm.val_periods[0]["end"] == "2020-03-31"
 
+    def test_target_offset_defaults_to_history_steps(
+        self, cfg_common_data_module: DictConfig
+    ) -> None:
+        """Forecasting keeps the historical target offset by default."""
+        dm = CommonDataModule(cfg_common_data_module)
+        assert dm.target_offset_steps == dm.n_history_steps == 1
+
+    def test_target_offset_can_be_contemporaneous(
+        self, cfg_common_data_module: DictConfig
+    ) -> None:
+        """Downscaling can pair source and target at the same valid time."""
+        cfg_common_data_module["predict"]["target_offset_steps"] = 0
+        dm = CommonDataModule(cfg_common_data_module)
+        assert dm.target_offset_steps == 0
+
+    def test_negative_target_offset_rejected(
+        self, cfg_common_data_module: DictConfig
+    ) -> None:
+        """Invalid negative target offsets fail during data-module construction."""
+        cfg_common_data_module["predict"]["target_offset_steps"] = -1
+        with pytest.raises(ValueError, match="target_offset_steps"):
+            CommonDataModule(cfg_common_data_module)
+
     def test_missing_target_group_explains_checkpoint_mismatch(
         self, cfg_common_data_module: DictConfig
     ) -> None:
