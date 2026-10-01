@@ -1,0 +1,4 @@
+# Used by Lightning to log the learning rate
+frequency: 1
+interval: epoch
+name: learning-rate

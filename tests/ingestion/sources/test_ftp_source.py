@@ -1,6 +1,7 @@
 """Tests for the FTP data source."""
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import ClassVar
 from unittest.mock import MagicMock
 
@@ -177,7 +178,7 @@ class TestFTPSource:
             assert "20200102.nc" in str(calls[1])
             assert "20200103.nc" in str(calls[2])
 
-    def test_ftp_source_execute_with_load_one(self) -> None:
+    def test_ftp_source_execute_with_load_one(self, tmp_path: Path) -> None:
         """Execute against the anemoi load_one by mocking only FTP retrbinary."""
         date = datetime(2020, 1, 1)
         real_dates: GroupOfDates = GroupOfDates([date], provider=self.date_range)
@@ -204,7 +205,9 @@ class TestFTPSource:
                 ),
             },
         )
-        raw_bytes = ds.to_netcdf()
+        nc_path = tmp_path / "source.nc"
+        ds.to_netcdf(nc_path, engine="netcdf4")
+        raw_bytes = nc_path.read_bytes()
 
         mock_ftp_class = MagicMock()
         mock_ftp = MagicMock()

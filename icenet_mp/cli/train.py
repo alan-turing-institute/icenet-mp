@@ -23,10 +23,11 @@ def train(
         str | None,
         typer.Option(
             help=(
-                "Only applicable with --multistage. Path to a directory of existing "
-                "checkpoints. If a checkpoint exists in this directory for any model "
-                "component, it will be loaded and training will be skipped for that "
-                "component."
+                "Path to a directory of existing checkpoints to resume from. With "
+                "--multistage, any component with a checkpoint in this directory will "
+                "be loaded and training will be skipped for that component. Without "
+                "--multistage, the directory must contain a 'last*.ckpt' file and "
+                "training will resume from it."
             )
         ),
     ] = None,
