@@ -66,6 +66,9 @@ class CommonDataModule(LightningDataModule):
         )
 
         # Set periods for train, validation, and test
+        self.allow_missing_inputs = bool(
+            config["data"].get("allow_missing_inputs", False)
+        )
         self.batch_size = int(config["data"]["split"]["batch_size"])
         self.predict_periods = [
             {str(k): None if v is None else str(v) for k, v in period.items()}
@@ -309,6 +312,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            allow_missing_inputs=self.allow_missing_inputs,
             climatology=self._climatology_or_none,
         )
         logger.info(
@@ -329,6 +333,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            allow_missing_inputs=self.allow_missing_inputs,
             climatology=self._climatology_or_none,
         )
         logger.info(
@@ -351,6 +356,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            allow_missing_inputs=self.allow_missing_inputs,
             climatology=self._climatology_or_none,
         )
 
@@ -377,6 +383,7 @@ class CommonDataModule(LightningDataModule):
             n_history_steps=self.n_history_steps,
             target_group_name=self.target_group_name,
             target_variables=self.target_variables,
+            allow_missing_inputs=self.allow_missing_inputs,
             climatology=self._climatology_or_none,
         )
         logger.info(
