@@ -424,10 +424,17 @@ class EncodeProcessDecode(BaseModel):
 
         """
         batch = self.process_batch(batch)
+        uncertainty = batch.pop("target_uncertainty", None)
         target = batch["target"].clone().detach()
 
         # Custom loss path: use the loss returned by the processor
         if self.processor.computes_loss_in_latent_space:
+            if getattr(self.loss_fn, "requires_uncertainty", False):
+                msg = (
+                    "Uncertainty-weighted output loss cannot be used when the processor "
+                    "owns the training loss in latent space."
+                )
+                raise ValueError(msg)
             expected_chw = self.target_encoder.data_space_in.chw
             if tuple(target.shape[2:]) != expected_chw:
                 msg = (
@@ -466,7 +473,7 @@ class EncodeProcessDecode(BaseModel):
         # Standard path: calculate loss by comparing decoded output to target.
         else:
             prediction = self(batch)
-            loss = self.loss(prediction, target)
+            loss = self.loss(prediction, target, uncertainty)
 
         # Log metrics; computation will be done at epoch end
         self.log(

@@ -11,7 +11,7 @@ from .single_dataset import SingleDataset
 
 
 class CombinedDataset(Dataset):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         datasets: Sequence[SingleDataset],
         target_group_name: str,
@@ -19,6 +19,7 @@ class CombinedDataset(Dataset):
         *,
         n_forecast_steps: int = 1,
         n_history_steps: int = 1,
+        target_uncertainty_variable: str | None = None,
         climatology: ArrayTCHW | None = None,
     ) -> None:
         """Initialise a combined dataset from a sequence of SingleDatasets.
@@ -33,6 +34,9 @@ class CombinedDataset(Dataset):
             target_variables: The names of the target variables.
             n_forecast_steps: The number of forecast steps.
             n_history_steps: The number of history steps.
+            target_uncertainty_variable: Optional uncertainty variable from the target
+                dataset. When set, the batch includes a ``target_uncertainty`` array
+                in the ingested physical scale.
             climatology: Optional [366, C, H, W] table of calendar-day means of the
                 target variables (29 February holds its own slot). When given, each
                 batch also contains a ``climatology`` key holding the calendar-day
@@ -50,9 +54,30 @@ class CombinedDataset(Dataset):
         self.climatology = climatology
 
         # Create a new dataset for the target with only the selected variables
-        self.target = next(
-            ds for ds in datasets if ds.name == target_group_name
-        ).subset(variables=target_variables)
+        target_source = next(ds for ds in datasets if ds.name == target_group_name)
+        self.target = target_source.subset(variables=target_variables)
+        self.target_uncertainty: SingleDataset | None = None
+        if target_uncertainty_variable is not None:
+            if len(target_variables) != 1:
+                msg = (
+                    "Uncertainty-weighted targets currently require exactly one "
+                    f"predicted variable, found {list(target_variables)}."
+                )
+                raise ValueError(msg)
+            if target_uncertainty_variable not in target_source.variable_names:
+                msg = (
+                    f"Target uncertainty variable {target_uncertainty_variable!r} was "
+                    f"not found in dataset {target_group_name!r}. Available variables: "
+                    f"{target_source.variable_names}."
+                )
+                raise ValueError(msg)
+            self.target_uncertainty = target_source.subset(
+                variables=[target_uncertainty_variable]
+            )
+            # This auxiliary variable is observational sigma, not a model input. Keep
+            # the ingested physical fraction (and sentinel values) intact rather than
+            # applying SingleDataset model-input min-max normalisation.
+            self.target_uncertainty._normalise = False
         self.inputs = list(datasets)
 
         # Require that all datasets have the same frequency
@@ -117,6 +142,7 @@ class CombinedDataset(Dataset):
             The shape of each array is:
             - input datasets: [n_history_steps, C_input_k, H_input_k, W_input_k]
             - target dataset: [n_forecast_steps, C_target, H_target, W_target]
+            - target_uncertainty, when configured: same shape as the target
 
             If a climatology table was provided, the dictionary also contains a
             ``climatology`` key with shape
@@ -125,15 +151,22 @@ class CombinedDataset(Dataset):
 
         """
         start_date = self.dates[idx]
+        target_start = start_date + self.n_history_steps * self.frequency
         batch: dict[str, ArrayTCHW] = {
             ds.name: ds.get_tchw_slice(start_date, self.n_history_steps, check=False)
             for ds in self.inputs
         }
         batch["target"] = self.target.get_tchw_slice(
-            start_date + self.n_history_steps * self.frequency,
+            target_start,
             self.n_forecast_steps,
             check=False,
         )
+        if self.target_uncertainty is not None:
+            batch["target_uncertainty"] = self.target_uncertainty.get_tchw_slice(
+                target_start,
+                self.n_forecast_steps,
+                check=False,
+            )
         if (climatology := self.climatology_for(start_date)) is not None:
             batch["climatology"] = climatology
         return batch
