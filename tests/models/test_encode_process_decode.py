@@ -15,6 +15,7 @@ def test_uncertainty_loss_rejects_processor_owned_training_loss(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Reject uncertainty weighting when the processor supplies its own loss."""
+    cfg_processor = DictConfig({**cfg_processor, "computes_loss_in_latent_space": True})
     model = EncodeProcessDecode(
         name="encode-null-decode",
         encoders=cfg_encoders,

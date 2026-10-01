@@ -6,11 +6,12 @@ from torch.utils.data import Dataset
 
 from icenet_mp.types import ArrayTCHW
 
+from .calendar_day import calendar_day_index
 from .single_dataset import SingleDataset
 
 
 class CombinedDataset(Dataset):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         datasets: Sequence[SingleDataset],
         target_group_name: str,
@@ -19,6 +20,7 @@ class CombinedDataset(Dataset):
         n_forecast_steps: int = 1,
         n_history_steps: int = 1,
         target_uncertainty_variable: str | None = None,
+        climatology: ArrayTCHW | None = None,
     ) -> None:
         """Initialise a combined dataset from a sequence of SingleDatasets.
 
@@ -26,17 +28,30 @@ class CombinedDataset(Dataset):
         number of forecast and history steps can be set, which will determine the shape
         of the NTCHW tensors returned by __getitem__.
 
-        If ``target_uncertainty_variable`` is set, the corresponding variable is read
-        for the same forecast dates as the target and returned under the
-        ``target_uncertainty`` key. Uncertainty is kept in its ingested physical scale
-        rather than min-max normalised so invalid sentinels and uncertainty thresholds
-        retain their meaning.
+        Args:
+            datasets: The datasets to combine.
+            target_group_name: The name of the target dataset.
+            target_variables: The names of the target variables.
+            n_forecast_steps: The number of forecast steps.
+            n_history_steps: The number of history steps.
+            target_uncertainty_variable: Optional uncertainty variable from the target
+                dataset. When set, the batch includes a ``target_uncertainty`` array
+                in the ingested physical scale.
+            climatology: Optional [366, C, H, W] table of calendar-day means of the
+                target variables (29 February holds its own slot). When given, each
+                batch also contains a ``climatology`` key holding the calendar-day
+                mean field for each forecast step. When ``None`` the batches are
+                unchanged.
+
         """
         super().__init__()
 
         # Store the number of forecast and history steps
         self.n_forecast_steps = n_forecast_steps
         self.n_history_steps = n_history_steps
+
+        # Optional climatology table (calendar-day means of the target variables)
+        self.climatology = climatology
 
         # Create a new dataset for the target with only the selected variables
         target_source = next(ds for ds in datasets if ds.name == target_group_name)
@@ -61,9 +76,8 @@ class CombinedDataset(Dataset):
             )
             # This auxiliary variable is observational sigma, not a model input. Keep
             # the ingested physical fraction (and sentinel values) intact rather than
-            # applying SingleDataset's model-input min-max normalisation.
+            # applying SingleDataset model-input min-max normalisation.
             self.target_uncertainty._normalise = False
-
         self.inputs = list(datasets)
 
         # Require that all datasets have the same frequency
@@ -130,26 +144,55 @@ class CombinedDataset(Dataset):
             - target dataset: [n_forecast_steps, C_target, H_target, W_target]
             - target_uncertainty, when configured: same shape as the target
 
+            If a climatology table was provided, the dictionary also contains a
+            ``climatology`` key with shape
+            [n_forecast_steps, C_target, H_target, W_target] holding the calendar-day
+            mean field for each forecast step.
+
         """
         start_date = self.dates[idx]
         target_start = start_date + self.n_history_steps * self.frequency
-        batch = {
+        batch: dict[str, ArrayTCHW] = {
             ds.name: ds.get_tchw_slice(start_date, self.n_history_steps, check=False)
             for ds in self.inputs
-        } | {
-            "target": self.target.get_tchw_slice(
-                target_start,
-                self.n_forecast_steps,
-                check=False,
-            )
         }
+        batch["target"] = self.target.get_tchw_slice(
+            target_start,
+            self.n_forecast_steps,
+            check=False,
+        )
         if self.target_uncertainty is not None:
             batch["target_uncertainty"] = self.target_uncertainty.get_tchw_slice(
                 target_start,
                 self.n_forecast_steps,
                 check=False,
             )
+        if (climatology := self.climatology_for(start_date)) is not None:
+            batch["climatology"] = climatology
         return batch
+
+    def climatology_for(self, start_date: np.datetime64) -> ArrayTCHW | None:
+        """Return the climatology field for each forecast step following the start date.
+
+        The calendar day (month/day label) of each forecast step indexes the
+        [366, C, H, W] climatology table, so the result has shape
+        [n_forecast_steps, C, H, W].
+
+        Args:
+            start_date: The start date of the sample.
+
+        Returns:
+            The stack of calendar-day mean fields for the forecast steps, or ``None``
+            if no climatology table was provided.
+
+        """
+        if self.climatology is None:
+            return None
+        day_indices = [
+            calendar_day_index(forecast_step)
+            for forecast_step in self.get_forecast_steps(start_date)
+        ]
+        return self.climatology[day_indices]
 
     def get_forecast_steps(self, start_date: np.datetime64) -> list[np.datetime64]:
         """Return list of consecutive forecast dates for a given start date."""
