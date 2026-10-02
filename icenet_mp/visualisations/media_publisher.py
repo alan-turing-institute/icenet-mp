@@ -108,6 +108,7 @@ class MediaPublisher:
         *,
         climatology: np.ndarray | None,
         compare_truth_climatology: bool = False,
+        overlay_climatology_contour: bool = False,
         ground_truth: np.ndarray,
         prediction: np.ndarray,
         render: Callable[..., RenderedMedia],
@@ -126,9 +127,15 @@ class MediaPublisher:
         Shared by the static and video loggers, which differ only in the `render`
         callable used and the extra history/forecast context keywords each one needs.
         """
+        truth_prediction_kwargs = dict(render_kwargs)
+        if overlay_climatology_contour and climatology is not None:
+            truth_prediction_kwargs["reference_contour"] = climatology
         media: dict[str, RenderedMedia] = {
             "truth-vs-prediction": render(
-                ground_truth, prediction, variable_name=variable_name, **render_kwargs
+                ground_truth,
+                prediction,
+                variable_name=variable_name,
+                **truth_prediction_kwargs,
             )
         }
         if climatology is not None:
@@ -297,6 +304,7 @@ class MediaPublisher:
                             ground_truth=ground_truth,
                             history_ctx=Timespan(history_dates),
                             compare_truth_climatology=compare_truth_climatology,
+                            overlay_climatology_contour=True,
                             prediction=prediction,
                             render=self.panel_renderer.static_triplet,
                             uncertainty=self._select_uncertainty(

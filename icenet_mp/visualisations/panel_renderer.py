@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     import numpy as np
 
 
+CLIMATOLOGY_ICE_EDGE_COLOUR = "magenta"
+
+
 class PanelRenderer:
     """Renders styled, land-masked panels for one land_mask/plot_spec pairing."""
 
@@ -102,6 +105,7 @@ class PanelRenderer:
         forecast_date: datetime,
         history_ctx: Timespan | None = None,
         panel_titles: dict[str, str] | None = None,
+        reference_contour: ArrayHW | None = None,
         uncertainty: ArrayHW | None = None,
         variable_name: str,
     ) -> ImageFile:
@@ -122,6 +126,8 @@ class PanelRenderer:
                 signed z-score only when `diff_mode` is `DiffMode.SIGNED`.
             panel_titles: Optional overrides for the panel titles, keyed by
                 "ground_truth", "prediction" and/or "difference".
+            reference_contour: Optional 2D reference field whose ice-edge contour is
+                overlaid on the prediction panel (for example climatology).
             variable_name: Name of the variable being plotted, used for styling and
                 title generation.
 
@@ -138,6 +144,10 @@ class PanelRenderer:
             self.land_mask.apply_to(prediction),
         )
         masked_ground_truth, masked_prediction = arrays
+        masked_reference_contour: ArrayHW | None = None
+        if reference_contour is not None:
+            self._validate_arrays(prediction, reference_contour)
+            masked_reference_contour = self.land_mask.apply_to(reference_contour)
 
         panel_titles = panel_titles or {}
         titles = [
@@ -174,6 +184,13 @@ class PanelRenderer:
             contour_arrays = [masked_ground_truth, masked_prediction]
             contour_arrays += [None] * (len(arrays) - len(contour_arrays))
 
+        reference_contour_arrays: list[np.ndarray | None] | None = None
+        if masked_reference_contour is not None:
+            reference_contour_arrays = [None, masked_reference_contour]
+            reference_contour_arrays += [None] * (
+                len(arrays) - len(reference_contour_arrays)
+            )
+
         title = self.annotator.header(
             forecast_date=forecast_date,
             history_ctx=history_ctx,
@@ -185,6 +202,9 @@ class PanelRenderer:
             cmap=cmaps,
             contour_arrays=contour_arrays,
             contour_level=self.plot_spec.ice_edge_threshold,
+            reference_contour_arrays=reference_contour_arrays,
+            reference_contour_color=CLIMATOLOGY_ICE_EDGE_COLOUR,
+            reference_contour_level=self.plot_spec.ice_edge_threshold,
             dpi=self.plot_spec.dpi,
             figure_title=title,
             footer_text=None if history_ctx is None else self.annotator.footer(),

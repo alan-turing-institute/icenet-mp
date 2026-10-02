@@ -199,6 +199,9 @@ class MatplotlibRenderer:
         contour_arrays: Sequence[ArrayHW | None] | None = None,
         contour_color: str = "red",
         contour_level: float | None = None,
+        reference_contour_arrays: Sequence[ArrayHW | None] | None = None,
+        reference_contour_color: str = "magenta",
+        reference_contour_level: float | None = None,
         figure_title: str | None = None,
         footer_text: str | None = None,
         group_axes: tuple[int, int] | None = None,
@@ -216,6 +219,11 @@ class MatplotlibRenderer:
             contour_color: Colour of the contour line(s).
             contour_level: Value at which to draw the contour; no contours are
                 drawn if `None`.
+            reference_contour_arrays: Optional second per-panel contour layer, used
+                for independently styled reference data such as climatology.
+            reference_contour_color: Colour of the reference contour line(s).
+            reference_contour_level: Value at which to draw the reference contour;
+                no reference contours are drawn if `None`.
             figure_title: Optional figure-level title drawn above all panels.
             footer_text: Optional footer text drawn below the colourbars.
             group_axes: Optional inclusive `(start, end)` panel index range to share a colourbar.
@@ -267,6 +275,12 @@ class MatplotlibRenderer:
         self._draw_contours(
             axes, contour_arrays, color=contour_color, level=contour_level
         )
+        self._draw_contours(
+            axes,
+            reference_contour_arrays,
+            color=reference_contour_color,
+            level=reference_contour_level,
+        )
 
         # Add colourbars, either one per panel or a single shared one for a range of panels
         if group_axes is not None:
@@ -295,6 +309,9 @@ class MatplotlibRenderer:
         contour_arrays: Sequence[ArrayHW | None] | None = None,
         contour_color: str = "red",
         contour_level: float | None = None,
+        reference_contour_arrays: Sequence[ArrayHW | None] | None = None,
+        reference_contour_color: str = "magenta",
+        reference_contour_level: float | None = None,
         dpi: int = 150,
         figure_title: str | None = None,
         footer_text: str | None = None,
@@ -313,6 +330,9 @@ class MatplotlibRenderer:
             contour_color: Colour of the contour line(s).
             contour_level: Value at which to draw the contour; no contours are
                 drawn if `None`.
+            reference_contour_arrays: Optional second per-panel contour layer.
+            reference_contour_color: Colour of the reference contour line(s).
+            reference_contour_level: Value at which to draw the reference contour.
             dpi: Dots per inch for the rendered image.
             figure_title: Optional figure-level title drawn above all panels.
             footer_text: Optional footer text drawn below the colourbars.
@@ -331,6 +351,9 @@ class MatplotlibRenderer:
             contour_arrays=contour_arrays,
             contour_color=contour_color,
             contour_level=contour_level,
+            reference_contour_arrays=reference_contour_arrays,
+            reference_contour_color=reference_contour_color,
+            reference_contour_level=reference_contour_level,
             figure_title=figure_title,
             footer_text=footer_text,
             group_axes=group_axes,

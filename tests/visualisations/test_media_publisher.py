@@ -330,6 +330,13 @@ class TestLogStaticOutputs:
             history_dates=HISTORY_DATES,
         )
 
+        # The truth/prediction image receives climatology as a prediction-panel
+        # reference contour.
+        truth_prediction_call = fake_render.call_args_list[0]
+        reference_arrays = truth_prediction_call.kwargs["reference_contour_arrays"]
+        assert reference_arrays[0] is None
+        assert reference_arrays[1] is not None
+
         # Second render call for channel 0 is the climatology/prediction/difference image.
         climatology_call = fake_render.call_args_list[1]
         panel_titles = climatology_call.kwargs["panel_titles"]
