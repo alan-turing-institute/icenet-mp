@@ -268,7 +268,7 @@ class MediaLoggingCallback(Callback):
         ]
 
         # Get channel names from the model
-        channel_names = getattr(pl_module, "channel_names", ["sea-ice-concentration"])
+        channel_names = getattr(pl_module, "channel_names", None) or ["sic"]
 
         # Load uncertainties
         uncertainties = self.load_target_uncertainties(dataset, forecast_dates)
